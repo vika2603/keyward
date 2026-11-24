@@ -195,6 +195,7 @@ function SourceGroup({
             <LoginRow
               key={login.id}
               sourceId={source.id}
+              kind={source.kind}
               login={login}
               density={density}
               onError={onError}
@@ -208,20 +209,25 @@ function SourceGroup({
 
 function LoginRow({
   sourceId,
+  kind,
   login,
   density,
   onError,
 }: {
   sourceId: string
+  kind: BackendKind
   login: LoginSummary
   density: Settings["density"]
   onError: (message: string | null) => void
 }) {
   const [copied, setCopied] = useState<"username" | "password" | null>(null)
+  // Apple asks for Touch ID before it hands out a password; the row says so meanwhile.
+  const [confirming, setConfirming] = useState(false)
   const compact = density === "compact"
 
   const copy = async (what: "username" | "password") => {
     onError(null)
+    if (what === "password" && kind === "apple") setConfirming(true)
     try {
       if (what === "username")
         await callBackground("popup.copyText", { text: login.username })
@@ -234,6 +240,8 @@ function LoginRow({
       setTimeout(() => setCopied(null), 1500)
     } catch (error) {
       onError(errorMessage(error))
+    } finally {
+      setConfirming(false)
     }
   }
 
@@ -255,13 +263,24 @@ function LoginRow({
         <span className="truncate text-sm font-medium">
           {login.username || "（无用户名）"}
         </span>
-        {!compact && (
+        {confirming ? (
           <span className="truncate text-xs text-muted-foreground">
-            {login.title}
+            用触控 ID 或 Mac 密码确认
           </span>
+        ) : (
+          !compact && (
+            <span className="truncate text-xs text-muted-foreground">
+              {login.title}
+            </span>
+          )
         )}
       </div>
-      <div className="flex shrink-0 gap-0.5 opacity-0 group-hover/row:opacity-100 group-focus-within/row:opacity-100">
+      <div
+        className={cn(
+          "flex shrink-0 gap-0.5 opacity-0 group-hover/row:opacity-100 group-focus-within/row:opacity-100",
+          confirming && "opacity-100",
+        )}
+      >
         <Button
           variant="ghost"
           size="icon-sm"
