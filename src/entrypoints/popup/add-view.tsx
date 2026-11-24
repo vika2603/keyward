@@ -32,9 +32,10 @@ export function AddView({ onBack }: { onBack: () => void }) {
   const generate = async () => {
     const generated = generatePassword(await generatorOptionsItem.getValue())
     setPassword(generated)
-    await callBackground("generator.record", { password: generated }).catch(
-      () => {},
-    )
+    await callBackground("generator.record", {
+      password: generated,
+      site,
+    }).catch(() => {})
   }
 
   const save = async () => {

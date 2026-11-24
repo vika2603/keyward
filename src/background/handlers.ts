@@ -250,10 +250,10 @@ export function createHandlers(backends: Backends): Handlers<BackgroundApi> {
     },
     "generator.record": {
       allow: popup,
-      handle: async ({ password }) => {
+      handle: async ({ password, site }) => {
         requireText(password, "password", MAX_GENERATED_LENGTH)
-        const { page } = await activePage()
-        await addHistory(password, page?.hostname ?? null)
+        const host = normalizeSiteInput(requireText(site, "site"))?.hostname
+        await addHistory(password, host ?? null)
         return null
       },
     },

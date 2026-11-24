@@ -156,7 +156,7 @@ export default defineContentScript({
     const start = () => {
       observer = new MutationObserver(() => {
         if (pending) return
-        pending = ctx.setTimeout(() => {
+        pending = window.setTimeout(() => {
           pending = 0
           scan()
         }, 300)
@@ -181,7 +181,10 @@ export default defineContentScript({
       fields = []
       icons.update([])
     }
-    ctx.onInvalidated(() => observer?.disconnect())
+    ctx.onInvalidated(() => {
+      observer?.disconnect()
+      clearTimeout(pending)
+    })
 
     let requested = 0
     /** Applies this frame's configuration, which follows the settings and the connected backends. */
