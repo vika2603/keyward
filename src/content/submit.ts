@@ -22,14 +22,16 @@ function isSubmitControl(element: Element | null): element is HTMLElement {
 /**
  * Reports login forms the user submits, read when the form is submitted, a submit control is
  * clicked or Enter is pressed in a field. Only events from the user count; pages that sign in
- * some other way are missed.
+ * some other way are missed. Nothing is read while `active` returns false.
  */
 export function watchSubmissions(
   ctx: ContentScriptContext,
+  active: () => boolean,
   report: (credentials: { username: string; password: string }) => void,
 ): void {
   let last = { key: "", at: 0 }
   const capture = (element: Element) => {
+    if (!active()) return
     const credentials = credentialsAround(element)
     if (!credentials || (!credentials.username && !credentials.password)) return
     const key = `${credentials.username}\n${credentials.password}`

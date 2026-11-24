@@ -224,9 +224,11 @@ export default defineContentScript({
       }
     })
 
-    watchSubmissions(ctx, (credentials) => {
-      if (active)
-        void callBackground("content.submitted", credentials).catch(() => {})
-    })
+    watchSubmissions(
+      ctx,
+      () => active,
+      (credentials) =>
+        void callBackground("content.submitted", credentials).catch(() => {}),
+    )
   },
 })
