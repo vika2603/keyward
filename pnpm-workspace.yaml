@@ -1,0 +1,2 @@
+minimumReleaseAgeExclude:
+  - "@bitwarden/sdk-internal@0.2.0-main.1254"

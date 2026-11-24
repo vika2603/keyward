@@ -1,0 +1,46 @@
+import { useEffect, useState } from "react"
+import { callBackground, type PopupView } from "@/background/api"
+import { useAppearance } from "@/components/keyward/appearance"
+import { AddView } from "./add-view"
+import { ConnectView } from "./connect-view"
+import { GeneratorView } from "./generator-view"
+import { HistoryView } from "./history-view"
+import { MainView } from "./main-view"
+
+export type View = PopupView | { name: "add" } | { name: "history" }
+
+// Requested once per popup: the background hands out a pending view only to the first request.
+const initialView = callBackground("popup.takeView", null).catch(
+  (): PopupView => ({ name: "main" }),
+)
+
+export function App() {
+  const density = useAppearance()
+  const [view, setView] = useState<View | null>(null)
+
+  useEffect(() => {
+    void initialView.then(setView)
+  }, [])
+
+  const main = () => setView({ name: "main" })
+  return (
+    <div className="flex w-[380px] flex-col">
+      {view?.name === "main" && (
+        <MainView density={density} onNavigate={setView} />
+      )}
+      {view?.name === "add" && <AddView onBack={main} />}
+      {view?.name === "generator" && (
+        <GeneratorView
+          onBack={main}
+          onHistory={() => setView({ name: "history" })}
+        />
+      )}
+      {view?.name === "history" && (
+        <HistoryView onBack={() => setView({ name: "generator" })} />
+      )}
+      {view?.name === "connect" && (
+        <ConnectView kind={view.kind} sourceId={view.sourceId} onDone={main} />
+      )}
+    </div>
+  )
+}

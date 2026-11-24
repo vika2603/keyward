@@ -1,0 +1,228 @@
+import { BackendError, type SourceInfo } from "@/lib/backends/types"
+import { ruleForHost } from "@/lib/matching"
+import { getSettings, updateSettings } from "@/lib/settings"
+import { siteDomainOf } from "@/lib/site"
+import type { PromptState } from "./api"
+import type { Backends } from "./backends"
+import { prompts } from "./overlays"
+import { frameUrl, sendToFrame } from "./page"
+
+const USERNAMES_KEY = "save.usernames"
+/** A username typed on the first page of a two-step login is used for a password within this time. */
+const USERNAME_TTL_MS = 5 * 60_000
+/** A save prompt shows again on pages loaded within this time after the login, until it is answered. */
+const PROMPT_TTL_MS = 3 * 60_000
+const MAX_FIELD_LENGTH = 1024
+
+type RememberedUsernames = Record<
+  string,
+  { site: string; username: string; at: number }
+>
+
+async function rememberedUsernames(): Promise<RememberedUsernames> {
+  return (
+    ((await browser.storage.session.get(USERNAMES_KEY))[
+      USERNAMES_KEY
+    ] as RememberedUsernames) ?? {}
+  )
+}
+
+async function rememberUsername(
+  tabId: number,
+  site: string,
+  username: string,
+): Promise<void> {
+  const all = await rememberedUsernames()
+  await browser.storage.session.set({
+    [USERNAMES_KEY]: { ...all, [tabId]: { site, username, at: Date.now() } },
+  })
+}
+
+async function recallUsername(
+  tabId: number,
+  site: string,
+): Promise<string | null> {
+  const entry = (await rememberedUsernames())[tabId]
+  if (!entry || entry.site !== site || Date.now() - entry.at > USERNAME_TTL_MS)
+    return null
+  return entry.username
+}
+
+export async function forgetTab(tabId: number): Promise<void> {
+  const { [tabId]: _removed, ...rest } = await rememberedUsernames()
+  await browser.storage.session.set({ [USERNAMES_KEY]: rest })
+  await prompts.remove(tabId)
+}
+
+/**
+ * Handles a login form the user submitted. Offers to save a login no source has, or to update a
+ * Bitwarden login whose password differs. Apple Passwords does not reveal saved passwords without
+ * Touch ID, so a username it already has counts as saved.
+ */
+export async function onSubmitted(
+  backends: Backends,
+  tabId: number,
+  frameId: number,
+  submitted: { username: string; password: string },
+): Promise<void> {
+  if (
+    submitted.username.length > MAX_FIELD_LENGTH ||
+    submitted.password.length > MAX_FIELD_LENGTH
+  )
+    return
+  const page = await frameUrl(tabId, frameId)
+  if (!page) return
+  const settings = await getSettings()
+  const behavior = ruleForHost(settings.siteRules, page.hostname)?.behavior
+  if (behavior === "noSave" || behavior === "disabled") return
+  const site = siteDomainOf(page.hostname)
+  const username =
+    submitted.username.trim() || (await recallUsername(tabId, site)) || ""
+  if (!submitted.password) {
+    if (username) await rememberUsername(tabId, site, username)
+    return
+  }
+  if (!username) return
+
+  const sources = (await backends.sourcesForPage(page)).filter(
+    (s) => s.status === "ready",
+  )
+  if (!sources.length) return
+  let update: { sourceId: string; loginId: string } | null = null
+  for (const source of sources) {
+    const existing = await backends
+      .backendOf(source.id)
+      .findExisting(source.id, page, username, submitted.password)
+      .catch(() => null)
+    if (!existing) continue
+    if (existing.samePassword !== false) return
+    update ??= { sourceId: source.id, loginId: existing.loginId }
+  }
+  if (update ? !settings.askUpdate : !settings.askSave) return
+
+  await prompts.set({
+    tabId,
+    frameId: 0,
+    token: "",
+    overlayFrameId: null,
+    mode: update ? "update" : "save",
+    url: page.href,
+    username,
+    password: submitted.password,
+    update,
+    createdAt: Date.now(),
+  })
+  await showPrompt(tabId)
+}
+
+/** Shows a pending prompt in the tab's top frame; called again when a new page there is ready. */
+export async function showPrompt(tabId: number): Promise<void> {
+  const session = await prompts.get(tabId)
+  if (!session) return
+  if (Date.now() - session.createdAt > PROMPT_TTL_MS) {
+    await prompts.remove(tabId)
+    return
+  }
+  const token = crypto.randomUUID()
+  await prompts.set({ ...session, token, overlayFrameId: null })
+  await sendToFrame(tabId, 0, { type: "prompt.show", token }).catch(() => {})
+}
+
+async function saveTargets(
+  backends: Backends,
+  page: URL,
+): Promise<SourceInfo[]> {
+  return (await backends.sourcesForPage(page)).filter(
+    (s) => s.status === "ready",
+  )
+}
+
+export async function defaultTarget(
+  targets: SourceInfo[],
+): Promise<string | null> {
+  const { defaultSaveTarget } = await getSettings()
+  return (
+    targets.find((t) => t.id === defaultSaveTarget)?.id ??
+    targets[0]?.id ??
+    null
+  )
+}
+
+export async function promptState(
+  backends: Backends,
+  tabId: number,
+): Promise<PromptState> {
+  const session = await prompts.get(tabId)
+  if (!session) throw new BackendError("Nothing to show", "overlay.closed")
+  const page = new URL(session.url)
+  const targets =
+    session.mode === "save" ? await saveTargets(backends, page) : []
+  const updateSource = session.update
+    ? await backends.source(session.update.sourceId).catch(() => null)
+    : null
+  return {
+    mode: session.mode,
+    username: session.username,
+    host: page.hostname,
+    targets,
+    defaultTarget: await defaultTarget(targets),
+    updateSource,
+  }
+}
+
+export async function confirmPrompt(
+  backends: Backends,
+  tabId: number,
+  targetId: string | null,
+): Promise<void> {
+  const session = await prompts.get(tabId)
+  if (!session) throw new BackendError("Nothing to save", "overlay.closed")
+  const url = new URL(session.url)
+  const login = { url, username: session.username, password: session.password }
+  const tab = { tabId, frameId: 0 }
+  if (session.update) {
+    const { sourceId, loginId } = session.update
+    await backends.backendOf(sourceId).update(sourceId, loginId, login, tab)
+  } else {
+    const targets = await saveTargets(backends, url)
+    const target = targets.find((t) => t.id === targetId)
+    if (!target)
+      throw new BackendError(
+        "The chosen place is not available",
+        "unknownSource",
+      )
+    await backends.backendOf(target.id).save(target.id, login, tab)
+  }
+  await closePrompt(tabId)
+}
+
+/** Stops asking to save logins on the prompt's site. */
+export async function neverForSite(tabId: number): Promise<void> {
+  const session = await prompts.get(tabId)
+  if (!session) return
+  const host = new URL(session.url).hostname
+  const { siteRules } = await getSettings()
+  const existing = siteRules.find((r) => r.host === host)
+  await updateSettings({
+    siteRules: existing
+      ? siteRules.map((r) =>
+          r === existing ? { ...r, behavior: "noSave" } : r,
+        )
+      : [
+          ...siteRules,
+          {
+            id: crypto.randomUUID(),
+            host,
+            match: null,
+            backend: "all",
+            behavior: "noSave",
+          },
+        ],
+  })
+  await closePrompt(tabId)
+}
+
+export async function closePrompt(tabId: number): Promise<void> {
+  await prompts.remove(tabId)
+  await sendToFrame(tabId, 0, { type: "prompt.close" }).catch(() => {})
+}
