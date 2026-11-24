@@ -56,7 +56,9 @@ export function MainView({
   const { page, sources } = state
   const kinds = new Set(sources.map((s) => s.kind))
   const shown = sources.filter((s) => filter === "all" || s.kind === filter)
-  const groups = shown.filter((s) => s.status !== "ready" || s.logins.length)
+  const groups = shown.filter(
+    (s) => s.status !== "ready" || s.error || s.logins.length,
+  )
 
   return (
     <div className="flex max-h-[600px] min-h-[316px] flex-col">
@@ -160,7 +162,7 @@ function SourceGroup({
 }) {
   const [open, setOpen] = useState(true)
 
-  if (source.status !== "ready") {
+  if (source.status !== "ready" || source.error) {
     return (
       <section>
         <h2 className="flex items-center gap-1.5 px-3 pt-1.5 pb-0.5 text-xs font-medium text-muted-foreground">
@@ -172,7 +174,7 @@ function SourceGroup({
             </Button>
           ) : (
             <span className="py-1.5" title={source.error}>
-              不可用
+              {source.status === "ready" ? "读取失败" : "不可用"}
             </span>
           )}
         </h2>

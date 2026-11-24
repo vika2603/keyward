@@ -85,7 +85,7 @@ export function App() {
 
   if (!state) return null
   const sources = state.sources.filter(
-    (s) => s.status === "locked" || s.logins.length,
+    (s) => s.status !== "ready" || s.error || s.logins.length,
   )
   const compact = density === "compact"
 
@@ -102,24 +102,30 @@ export function App() {
           </p>
         )}
         {sources.map((source) =>
-          source.status === "locked" ? (
+          source.status !== "ready" || source.error ? (
             <h2
               key={source.id}
               className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-muted-foreground first:pt-2"
             >
               <BrandIcon kind={source.kind} className="size-3.5" />
               <span className="min-w-0 flex-1 truncate">{source.label}</span>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() =>
-                  void callOverlay("menu.connect", {
-                    sourceId: source.id,
-                  }).catch(() => {})
-                }
-              >
-                {source.kind === "apple" ? "配对" : "解锁"}
-              </Button>
+              {source.status === "locked" ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() =>
+                    void callOverlay("menu.connect", {
+                      sourceId: source.id,
+                    }).catch(() => {})
+                  }
+                >
+                  {source.kind === "apple" ? "配对" : "解锁"}
+                </Button>
+              ) : (
+                <span className="py-1.5" title={source.error}>
+                  {source.status === "ready" ? "读取失败" : "不可用"}
+                </span>
+              )}
             </h2>
           ) : (
             <section key={source.id}>
