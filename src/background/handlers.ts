@@ -248,6 +248,15 @@ export function createHandlers(backends: Backends): Handlers<BackgroundApi> {
         return null
       },
     },
+    "generator.record": {
+      allow: popup,
+      handle: async ({ password }) => {
+        requireText(password, "password", MAX_GENERATED_LENGTH)
+        const { page } = await activePage()
+        await addHistory(password, page?.hostname ?? null)
+        return null
+      },
+    },
     "history.list": { allow: popup, handle: () => listHistory() },
     "history.copy": {
       allow: popup,

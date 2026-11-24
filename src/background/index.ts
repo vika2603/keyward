@@ -85,8 +85,8 @@ export function startBackground(): void {
       void browser.tabs.create({
         url: browser.runtime.getURL("/options.html#onboard"),
       })
-    // Tabs opened before an install or update have no working content script; on a browser
-    // update they still have one, and a second copy would answer messages too.
+    // Tabs opened before an install or update have no working content script; after a browser
+    // update they still have theirs.
     if (reason === "install" || reason === "update") void injectIntoOpenTabs()
   })
 
