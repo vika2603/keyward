@@ -30,6 +30,8 @@ export default defineContentScript({
     const prompt = isTop ? new SavePrompt(ctx, scheme) : null
     let fields: HTMLInputElement[] = []
     let lastField: HTMLInputElement | null = null
+    /** Set while a fill moves the focus between fields, which must not reopen the menu. */
+    let filling = false
 
     const menu = new InlineMenu(
       ctx,
@@ -50,6 +52,8 @@ export default defineContentScript({
       const { token } = await callBackground("content.openMenu", null)
       icons.setExpanded(field)
       menu.show(field, token)
+      // Keeps the keyboard path open: ArrowDown in the field moves into the menu.
+      if (deepActiveElement() !== field) field.focus({ preventScroll: true })
     }
     const icons = new FieldIcons(
       ctx,
@@ -110,9 +114,14 @@ export default defineContentScript({
       menu.close()
       if (!anchor) return
       const { username, password } = fillTargets(anchor)
-      if (username && message.username)
-        setFieldValue(username, message.username)
-      if (password) setFieldValue(password, message.password)
+      filling = true
+      try {
+        if (username && message.username)
+          setFieldValue(username, message.username)
+        if (password) setFieldValue(password, message.password)
+      } finally {
+        filling = false
+      }
       if (message.autoSubmit && (password ?? username))
         submitFor((password ?? username) as HTMLInputElement)
     }
@@ -120,6 +129,19 @@ export default defineContentScript({
     const config = await callBackground("content.init", null).catch(() => null)
     if (isTop) void callBackground("content.ready", null).catch(() => {})
     if (config) theme = config.theme
+    // The overlay pages follow the setting as it changes; their frames must declare the same scheme.
+    const onSettings = (
+      changes: Record<string, Browser.storage.StorageChange>,
+    ) => {
+      const next = changes.settings?.newValue as
+        | { theme?: ContentConfig["theme"] }
+        | undefined
+      if (next?.theme) theme = next.theme
+    }
+    browser.storage.local.onChanged.addListener(onSettings)
+    ctx.onInvalidated(() =>
+      browser.storage.local.onChanged.removeListener(onSettings),
+    )
     if (!config?.active) return
 
     const scan = () => {
@@ -150,6 +172,7 @@ export default defineContentScript({
         const target = eventOrigin(event)
         if (
           event.isTrusted &&
+          !filling &&
           target instanceof HTMLInputElement &&
           fields.includes(target) &&
           menu.openFor !== target

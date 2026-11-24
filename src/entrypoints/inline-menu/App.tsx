@@ -1,4 +1,4 @@
-import { type KeyboardEvent, useEffect, useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import type { SourceView } from "@/background/api"
 import { useAppearance } from "@/components/keyward/appearance"
 import { BrandIcon } from "@/components/keyward/brand-icon"
@@ -39,21 +39,32 @@ export function App() {
       setState({ host: "", sources: [] })
       setMessage(errorMessage(error))
     })
-    const close = (event: globalThis.KeyboardEvent) => {
-      if (event.key === "Escape")
+    // Keys reach this window once the field's content script moves the focus here on ArrowDown,
+    // and the page can move it here too. Focus lands on no login until an arrow key pressed here
+    // selects one, so a key meant for the page never picks a login.
+    const onKey = (event: globalThis.KeyboardEvent) => {
+      if (event.key === "Escape") {
         void callOverlay("menu.close", {}).catch(() => {})
+        return
+      }
+      if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return
+      const buttons = [
+        ...(card.current?.querySelectorAll<HTMLButtonElement>(
+          "button[data-login]",
+        ) ?? []),
+      ]
+      if (!buttons.length) return
+      event.preventDefault()
+      const index = buttons.indexOf(document.activeElement as HTMLButtonElement)
+      const step = event.key === "ArrowDown" ? 1 : -1
+      const next =
+        index < 0
+          ? buttons[step > 0 ? 0 : buttons.length - 1]
+          : buttons[Math.min(Math.max(index + step, 0), buttons.length - 1)]
+      next?.focus()
     }
-    // The field's content script moves the focus into this frame on ArrowDown, and so can the page.
-    // The card takes it rather than a login, so that only a key pressed here selects one.
-    const focusCard = () => {
-      if (!card.current?.contains(document.activeElement)) card.current?.focus()
-    }
-    addEventListener("keydown", close)
-    addEventListener("focus", focusCard)
-    return () => {
-      removeEventListener("keydown", close)
-      removeEventListener("focus", focusCard)
-    }
+    addEventListener("keydown", onKey)
+    return () => removeEventListener("keydown", onKey)
   }, [])
 
   const fill = async (sourceId: string, loginId: string) => {
@@ -72,21 +83,6 @@ export function App() {
     }
   }
 
-  const moveFocus = (event: KeyboardEvent<HTMLDivElement>) => {
-    if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return
-    const buttons = [
-      ...(card.current?.querySelectorAll<HTMLButtonElement>(
-        "button[data-login]",
-      ) ?? []),
-    ]
-    const index = buttons.indexOf(document.activeElement as HTMLButtonElement)
-    const next = buttons[index + (event.key === "ArrowDown" ? 1 : -1)]
-    if (next) {
-      event.preventDefault()
-      next.focus()
-    }
-  }
-
   if (!state) return null
   const sources = state.sources.filter(
     (s) => s.status === "locked" || s.logins.length,
@@ -98,8 +94,6 @@ export function App() {
       <div
         ref={card}
         role="menu"
-        tabIndex={-1}
-        onKeyDown={moveFocus}
         className="flex max-h-[440px] w-[340px] flex-col overflow-y-auto rounded-lg bg-popover pb-1 text-popover-foreground shadow-md ring-1 ring-foreground/10 outline-none [scrollbar-width:thin]"
       >
         {!sources.length && !message && (
