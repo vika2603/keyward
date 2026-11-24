@@ -493,6 +493,10 @@ export class BitwardenBackend implements PasswordBackend {
     }
   }
 
+  canSave(): boolean {
+    return true
+  }
+
   async findExisting(
     sourceId: string,
     page: URL,

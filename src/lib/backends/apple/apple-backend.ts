@@ -444,17 +444,26 @@ export class AppleBackend implements PasswordBackend {
   }
 
   /**
+   * Apple Passwords acknowledges logins for hosts under suffixes such as `.localhost`, `.local` or
+   * `.example` but never stores them. IP addresses are let through: whether they are stored is not
+   * known, and the listing check after a save reports a login that was not stored.
+   */
+  canSave(url: URL): boolean {
+    if (!isHostName(url.hostname)) return false
+    const parsed = parseHost(url.hostname)
+    return parsed.isIp === true || parsed.isIcann === true
+  }
+
+  /**
    * Offers a login to Apple Passwords. macOS shows its own confirmation; the helper answers once
    * the user has chosen, and the answer does not say what was chosen, so the result is checked by
-   * listing. Hosts under suffixes such as `.localhost`, `.local` or `.example` are acknowledged but
-   * never stored, so they are refused before the confirmation is shown.
+   * listing. Logins it cannot store are refused before the confirmation is shown.
    */
   save(_sourceId: string, login: NewLogin, tab: TabRef): Promise<void> {
     const host = login.url.hostname
     if (!isHostName(host))
       return Promise.reject(new BackendError("Not a host name", "invalidSite"))
-    const parsed = parseHost(host)
-    if (!parsed.isIp && !parsed.isIcann) {
+    if (!this.canSave(login.url)) {
       return Promise.reject(
         new BackendError(
           "Apple Passwords does not store logins for this host",

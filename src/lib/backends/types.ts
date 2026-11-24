@@ -70,6 +70,8 @@ export interface PasswordBackend {
     page: URL,
     tab: TabRef,
   ): Promise<Credential>
+  /** Whether the backend can store a login for this address; a save prompt offers only those that can. */
+  canSave(url: URL): boolean
   save(sourceId: string, login: NewLogin, tab: TabRef): Promise<void>
   update(
     sourceId: string,

@@ -99,6 +99,7 @@ export async function onSubmitted(
     update ??= { sourceId: source.id, loginId: existing.loginId }
   }
   if (update ? !settings.askUpdate : !settings.askSave) return
+  if (!update && !(await saveTargets(backends, page)).length) return
 
   await prompts.set({
     tabId,
@@ -142,7 +143,7 @@ async function saveTargets(
   page: URL,
 ): Promise<SourceInfo[]> {
   return (await backends.sourcesForPage(page)).filter(
-    (s) => s.status === "ready",
+    (s) => s.status === "ready" && backends.backendOf(s.id).canSave(page),
   )
 }
 

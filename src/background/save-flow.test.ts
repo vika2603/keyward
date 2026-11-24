@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 import { fakeBrowser } from "wxt/testing/fake-browser"
 import { updateSettings } from "@/lib/settings"
 import { prompts } from "./overlays"
-import { onSubmitted, showPrompt } from "./save-flow"
+import { onSubmitted, promptState, showPrompt } from "./save-flow"
 import {
   accountSource,
   appleSource,
@@ -67,6 +67,27 @@ describe("onSubmitted", () => {
       await onSubmitted(backends, TAB, 0, login)
       expect(await prompts.get(TAB)).toBeNull()
     }
+  })
+
+  it("does not offer to save when no ready source can store a login for the site", async () => {
+    const { backends } = fakeBackends([
+      { info: appleSource, canSave: false },
+      { info: { ...accountSource, status: "locked" } },
+    ])
+    await onSubmitted(backends, TAB, 0, login)
+    expect(await prompts.get(TAB)).toBeNull()
+    expect(pageModule.sendToFrame).not.toHaveBeenCalled()
+  })
+
+  it("offers only the sources that can store a login for the site", async () => {
+    const { backends } = fakeBackends([
+      { info: appleSource, canSave: false },
+      { info: accountSource },
+    ])
+    await onSubmitted(backends, TAB, 0, login)
+    const state = await promptState(backends, TAB)
+    expect(state.targets.map((t) => t.id)).toEqual([accountSource.id])
+    expect(state.defaultTarget).toBe(accountSource.id)
   })
 
   it("respects the settings and site rules that turn prompts off", async () => {

@@ -29,6 +29,8 @@ export interface FakeSource {
   info: SourceInfo
   existing?: ExistingLogin | null
   credential?: Credential
+  /** Whether the source stores logins for any address; true when left out. */
+  canSave?: boolean
 }
 
 /** Backends with fixed sources; each source answers from its fake and records saves. */
@@ -47,6 +49,7 @@ export function fakeBackends(sources: FakeSource[]) {
       if (!source.credential) throw new Error("no credential")
       return source.credential
     },
+    canSave: () => source.canSave ?? true,
     save: async (...args) => {
       calls.save(...args)
     },

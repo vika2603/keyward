@@ -14,7 +14,7 @@ export function AddView({ onBack }: { onBack: () => void }) {
   const [site, setSite] = useState("")
   const [username, setUsername] = useState("")
   const [password, setPassword] = useState("")
-  const [targets, setTargets] = useState<SourceInfo[]>([])
+  const [targets, setTargets] = useState<SourceInfo[] | null>(null)
   const [target, setTarget] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
@@ -51,7 +51,7 @@ export function AddView({ onBack }: { onBack: () => void }) {
     }
   }
 
-  const apple = targets.find((t) => t.id === target)?.kind === "apple"
+  const apple = targets?.find((t) => t.id === target)?.kind === "apple"
   return (
     <form
       className="flex min-h-[376px] flex-col"
@@ -111,11 +111,16 @@ export function AddView({ onBack }: { onBack: () => void }) {
         <div className="flex flex-col gap-2">
           <span className="text-sm leading-none font-medium">保存到</span>
           <SourceSelect
-            sources={targets}
+            sources={targets ?? []}
             value={target}
             onChange={setTarget}
             label="保存到"
           />
+          {targets?.length === 0 && (
+            <p className="text-xs text-muted-foreground">
+              需要先在主界面连接 Apple 密码或解锁 Bitwarden 账户。
+            </p>
+          )}
         </div>
         {busy && apple && (
           <p className="text-xs text-muted-foreground">
