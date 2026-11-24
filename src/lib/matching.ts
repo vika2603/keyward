@@ -34,6 +34,8 @@ export function uriMatches(
 ): boolean {
   const type = match ?? options.defaultMatch
   if (type === MatchType.Never || !saved.trim()) return false
+  // A login saved for https is not offered to the same site over plain http.
+  if (/^https:/i.test(saved.trim()) && page.protocol === "http:") return false
   switch (type) {
     case MatchType.Domain: {
       const host = hostOfSavedUri(saved)

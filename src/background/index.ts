@@ -15,6 +15,26 @@ import { forgetTab } from "./save-flow"
 
 const AUTO_LOCK_ALARM = "autoLock"
 
+/**
+ * Chrome runs content scripts only in pages loaded after the extension was installed or updated;
+ * pages already open get them here, so their fields show the icon without a reload.
+ */
+async function injectIntoOpenTabs(): Promise<void> {
+  const tabs = await browser.tabs.query({ url: ["http://*/*", "https://*/*"] })
+  await Promise.all(
+    tabs.map((tab) =>
+      tab.id === undefined
+        ? undefined
+        : browser.scripting
+            .executeScript({
+              target: { tabId: tab.id, allFrames: true },
+              files: ["/content-scripts/content.js"],
+            })
+            .catch(() => {}),
+    ),
+  )
+}
+
 function errorCode(error: unknown): string {
   if (error instanceof BackendError) return error.code
   if (error instanceof WrongPasswordError) return "bitwarden.wrongPassword"
@@ -59,6 +79,7 @@ export function startBackground(): void {
       void browser.tabs.create({
         url: browser.runtime.getURL("/options.html#onboard"),
       })
+    void injectIntoOpenTabs()
   })
 
   browser.tabs.onRemoved.addListener((tabId) => {

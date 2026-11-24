@@ -1,4 +1,4 @@
-import { type RefObject, useEffect, useRef } from "react"
+import { type RefObject, useCallback, useEffect, useRef } from "react"
 import { type BackgroundApi, callBackground } from "@/background/api"
 
 /**
@@ -56,24 +56,29 @@ export function useReportHeight(
   }, [ref, shown])
 }
 
+/** How long the frame must stay plainly visible, and in place, before a click on it counts. */
+const SETTLE_MS = 500
+
 /**
- * Whether the browser reports the element as unobscured and undistorted on screen
- * (IntersectionObserver v2). A page can make the frame transparent or cover it to lure a click
- * onto a login; clicks count only while this is true.
+ * Returns a check for whether a click on the element should count. A page can fade or cover the
+ * frame (seen through IntersectionObserver v2) or move it under the pointer just before a click
+ * (reported by the content script); either way clicks count only after the frame has been
+ * visible and still for a moment.
  */
-export function useTrackVisible(
+export function useClickGuard(
   ref: RefObject<HTMLElement | null>,
   shown: boolean,
-): RefObject<boolean> {
-  const visible = useRef(false)
+): () => boolean {
+  const since = useRef<number | null>(null)
   useEffect(() => {
     const element = ref.current
     if (!shown || !element) return
     const observer = new IntersectionObserver(
       (entries) => {
-        for (const entry of entries)
-          visible.current =
-            (entry as { isVisible?: boolean }).isVisible === true
+        for (const entry of entries) {
+          const visible = (entry as { isVisible?: boolean }).isVisible === true
+          since.current = visible ? (since.current ?? performance.now()) : null
+        }
       },
       // trackVisibility and delay are not in TypeScript's DOM types yet.
       {
@@ -83,7 +88,21 @@ export function useTrackVisible(
       } as IntersectionObserverInit,
     )
     observer.observe(element)
-    return () => observer.disconnect()
+    const onMoved = (event: MessageEvent) => {
+      const moved = (event.data as { keywardOverlayMoved?: unknown } | null)
+        ?.keywardOverlayMoved
+      if (event.source === parent && moved && since.current !== null)
+        since.current = performance.now()
+    }
+    addEventListener("message", onMoved)
+    return () => {
+      observer.disconnect()
+      removeEventListener("message", onMoved)
+    }
   }, [ref, shown])
-  return visible
+  return useCallback(
+    () =>
+      since.current !== null && performance.now() - since.current >= SETTLE_MS,
+    [],
+  )
 }

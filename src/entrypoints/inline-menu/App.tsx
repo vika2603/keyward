@@ -5,8 +5,8 @@ import { BrandIcon } from "@/components/keyward/brand-icon"
 import { errorMessage } from "@/components/keyward/errors"
 import {
   callOverlay,
+  useClickGuard,
   useReportHeight,
-  useTrackVisible,
 } from "@/components/keyward/overlay-frame"
 import { SiteLetter } from "@/components/keyward/site-letter"
 import { Button } from "@/components/ui/button"
@@ -32,7 +32,7 @@ export function App() {
     (height) => void callOverlay("menu.resize", { height }).catch(() => {}),
   )
 
-  const visible = useTrackVisible(card, state !== null)
+  const clickCounts = useClickGuard(card, state !== null)
 
   useEffect(() => {
     callOverlay("menu.state", {}).then(setState, (error) => {
@@ -43,25 +43,22 @@ export function App() {
       if (event.key === "Escape")
         void callOverlay("menu.close", {}).catch(() => {})
     }
-    // The field's content script moves the focus here on ArrowDown; the first login takes it.
-    const focusFirst = () => {
-      if (!card.current?.contains(document.activeElement)) {
-        card.current
-          ?.querySelector<HTMLButtonElement>("button[data-login]")
-          ?.focus()
-      }
+    // The field's content script moves the focus into this frame on ArrowDown, and so can the page.
+    // The card takes it rather than a login, so that only a key pressed here selects one.
+    const focusCard = () => {
+      if (!card.current?.contains(document.activeElement)) card.current?.focus()
     }
     addEventListener("keydown", close)
-    addEventListener("focus", focusFirst)
+    addEventListener("focus", focusCard)
     return () => {
       removeEventListener("keydown", close)
-      removeEventListener("focus", focusFirst)
+      removeEventListener("focus", focusCard)
     }
   }, [])
 
   const fill = async (sourceId: string, loginId: string) => {
-    if (!visible.current) {
-      setMessage("页面遮挡或改动了这个菜单，没有填入。")
+    if (!clickCounts()) {
+      setMessage("菜单刚出现、移动过或被页面遮挡，没有填入。请再选一次。")
       return
     }
     setBusy(loginId)
@@ -103,7 +100,7 @@ export function App() {
         role="menu"
         tabIndex={-1}
         onKeyDown={moveFocus}
-        className="flex w-[340px] flex-col rounded-lg bg-popover pb-1 text-popover-foreground shadow-md ring-1 ring-foreground/10 outline-none"
+        className="flex max-h-[440px] w-[340px] flex-col overflow-y-auto rounded-lg bg-popover pb-1 text-popover-foreground shadow-md ring-1 ring-foreground/10 outline-none [scrollbar-width:thin]"
       >
         {!sources.length && !message && (
           <p className="px-3 py-3 text-sm text-muted-foreground">

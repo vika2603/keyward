@@ -1,4 +1,5 @@
 import {
+  type ContentConfig,
   type ContentMessage,
   callBackground,
   type FieldInfo,
@@ -14,6 +15,7 @@ import {
 import { FieldIcons } from "@/content/icons"
 import { InlineMenu, SavePrompt } from "@/content/overlays"
 import { watchSubmissions } from "@/content/submit"
+import { isDarkTheme } from "@/lib/theme"
 
 export default defineContentScript({
   matches: ["http://*/*", "https://*/*"],
@@ -21,12 +23,15 @@ export default defineContentScript({
   runAt: "document_idle",
   async main(ctx) {
     const isTop = window === window.top
-    const prompt = isTop ? new SavePrompt(ctx) : null
+    let theme: ContentConfig["theme"] = "system"
+    const scheme = () => (isDarkTheme(theme) ? "dark" : "light")
+    const prompt = isTop ? new SavePrompt(ctx, scheme) : null
     let fields: HTMLInputElement[] = []
     let lastField: HTMLInputElement | null = null
 
     const menu = new InlineMenu(
       ctx,
+      scheme,
       () => {
         icons.setExpanded(null)
         void callBackground("content.closeMenu", null).catch(() => {})
@@ -112,6 +117,7 @@ export default defineContentScript({
 
     const config = await callBackground("content.init", null).catch(() => null)
     if (isTop) void callBackground("content.ready", null).catch(() => {})
+    if (config) theme = config.theme
     if (!config?.active) return
 
     const scan = () => {

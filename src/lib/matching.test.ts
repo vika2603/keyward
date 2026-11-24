@@ -91,6 +91,12 @@ describe("uriMatches", () => {
     expect(uriMatches(page.href, MatchType.Never, page, options)).toBe(false)
   })
 
+  it("does not offer an https login to an http page", () => {
+    const http = new URL("http://accounts.example.co.uk/login")
+    expect(uriMatches("https://example.co.uk", null, http, options)).toBe(false)
+    expect(uriMatches("example.co.uk", null, http, options)).toBe(true)
+  })
+
   it("uses the default match type when the entry has none", () => {
     const hostDefault = { ...options, defaultMatch: MatchType.Host }
     expect(

@@ -2,27 +2,47 @@ import type { ContentScriptContext } from "wxt/utils/content-script-context"
 import { createIframeUi } from "wxt/utils/content-script-ui/iframe"
 
 /** Room around the overlay's card for its shadow, inside the iframe. */
-export const SHADOW_MARGIN = 8
+const SHADOW_MARGIN = 8
 const WIDTH = 340 + SHADOW_MARGIN * 2
 const GAP = 6
+const MAX_HEIGHT = 600
 
 type IframeUi = ReturnType<typeof createIframeUi<void>>
 
 /**
+ * Sets inline styles with priority over every page stylesheet: `all: initial` first, so that no
+ * page rule (transforms, clipping, blending and the like) reaches the element, then the given values.
+ */
+function lockStyle(element: HTMLElement, styles: Record<string, string>): void {
+  element.removeAttribute("style")
+  element.style.setProperty("all", "initial", "important")
+  for (const [name, value] of Object.entries(styles))
+    element.style.setProperty(name, value, "important")
+}
+
+/**
  * One extension page shown in an iframe over the web page. The page reports its height through the
- * background; until then the frame stays hidden.
+ * background; until then the frame stays hidden. The frame and its wrapper sit in the page's DOM,
+ * so a change the page makes to them closes the overlay, and any move is reported to the frame,
+ * which then waits before it accepts a click (see `useTrackVisible`).
  */
 class Overlay {
   private ui: IframeUi | null = null
   private height = 0
+  private readonly origin: string
+  private observer: MutationObserver | null = null
+  private watchFrame = 0
+  private lastRect = ""
+  private expected = ""
 
   constructor(
     private readonly ctx: ContentScriptContext,
     private readonly page: "/inline-menu.html" | "/save-prompt.html",
-  ) {}
-
-  get open(): boolean {
-    return this.ui !== null
+    private readonly onTampered: () => void,
+    /** The color scheme the extension page will use, which the iframe element must declare too. */
+    private readonly scheme: () => "light" | "dark",
+  ) {
+    this.origin = new URL(browser.runtime.getURL(page)).origin
   }
 
   get iframe(): HTMLIFrameElement | null {
@@ -33,79 +53,61 @@ class Overlay {
   show(token: string): void {
     this.hide()
     this.height = 0
-    const origin = new URL(browser.runtime.getURL(this.page)).origin
     const ui = createIframeUi(this.ctx, {
       page: this.page,
       position: "inline",
       anchor: () => document.documentElement,
       onMount: (wrapper, iframe) => {
-        for (const [name, value] of Object.entries({
+        lockStyle(wrapper, {
           position: "fixed",
           "z-index": "2147483647",
+          display: "block",
           width: `${WIDTH}px`,
           height: "0",
-          margin: "0",
-          padding: "0",
-          border: "0",
-          display: "block",
           visibility: "hidden",
-          // The menu refuses clicks while it is not plainly visible; page styles must not change that.
-          opacity: "1",
-          filter: "none",
-          transform: "none",
-        })) {
-          wrapper.style.setProperty(name, value, "important")
-        }
-        for (const [name, value] of Object.entries({
+        })
+        lockStyle(iframe, {
+          display: "block",
           width: "100%",
           height: "100%",
-          border: "0",
-          margin: "0",
-          padding: "0",
-          display: "block",
-          background: "transparent",
-          opacity: "1",
-          filter: "none",
-          transform: "none",
-          // Matches the extension page, which sets no color scheme, so the frame stays transparent.
-          "color-scheme": "normal",
-        })) {
-          iframe.style.setProperty(name, value, "important")
-        }
+          // Chrome paints an opaque backdrop behind a frame whose color scheme differs from its
+          // element's, and the frame's prefers-color-scheme follows this value.
+          "color-scheme": this.scheme(),
+        })
         iframe.setAttribute("allowtransparency", "true")
         // A target origin keeps the token from a document the page may have navigated the frame to.
         iframe.addEventListener("load", () =>
-          iframe.contentWindow?.postMessage({ keywardOverlay: token }, origin),
+          iframe.contentWindow?.postMessage(
+            { keywardOverlay: token },
+            this.origin,
+          ),
         )
       },
     })
     ui.mount()
     this.ui = ui
+    this.guard(ui)
   }
 
   hide(): void {
+    this.observer?.disconnect()
+    this.observer = null
+    cancelAnimationFrame(this.watchFrame)
+    this.watchFrame = 0
     this.ui?.remove()
     this.ui = null
   }
 
   resize(height: number): void {
-    if (!this.ui) return
-    this.height = Math.max(0, Math.min(height, 600))
-    this.ui.wrapper.style.setProperty(
-      "height",
-      `${this.height + SHADOW_MARGIN * 2}px`,
-      "important",
-    )
-    this.ui.wrapper.style.setProperty(
-      "visibility",
-      this.height ? "visible" : "hidden",
-      "important",
-    )
+    this.height = Math.max(0, Math.min(height, MAX_HEIGHT))
+    this.setWrapper({
+      height: `${this.height + SHADOW_MARGIN * 2}px`,
+      visibility: this.height ? "visible" : "hidden",
+    })
   }
 
   /** Places the frame below the field, or above it when there is no room below. */
   placeBelow(field: HTMLElement): void {
-    if (!this.ui) return
     const rect = field.getBoundingClientRect()
     const total = this.height + SHADOW_MARGIN * 2
     const below = rect.bottom + GAP - SHADOW_MARGIN
@@ -115,30 +117,72 @@ class Overlay {
       Math.max(rect.left - SHADOW_MARGIN, 0),
       Math.max(innerWidth - WIDTH, 0),
     )
-    this.ui.wrapper.style.setProperty(
-      "top",
-      `${Math.round(top)}px`,
-      "important",
-    )
-    this.ui.wrapper.style.setProperty(
-      "left",
-      `${Math.round(left)}px`,
-      "important",
-    )
+    this.setWrapper({
+      top: `${Math.round(top)}px`,
+      left: `${Math.round(left)}px`,
+    })
   }
 
   placeTopRight(): void {
+    this.setWrapper({
+      top: `${12 - SHADOW_MARGIN}px`,
+      right: `${12 - SHADOW_MARGIN}px`,
+    })
+  }
+
+  private setWrapper(styles: Record<string, string>): void {
     if (!this.ui) return
-    this.ui.wrapper.style.setProperty(
-      "top",
-      `${12 - SHADOW_MARGIN}px`,
-      "important",
-    )
-    this.ui.wrapper.style.setProperty(
-      "right",
-      `${12 - SHADOW_MARGIN}px`,
-      "important",
-    )
+    for (const [name, value] of Object.entries(styles)) {
+      this.ui.wrapper.style.setProperty(name, value, "important")
+    }
+    this.expected = this.snapshot()
+  }
+
+  private snapshot(): string {
+    const ui = this.ui
+    if (!ui) return ""
+    return [
+      ui.wrapper.getAttribute("style"),
+      ui.wrapper.getAttribute("class"),
+      ui.iframe.getAttribute("style"),
+      ui.iframe.getAttribute("src"),
+      ui.wrapper.parentNode === document.documentElement,
+      ui.iframe.parentNode === ui.wrapper,
+    ].join("\n")
+  }
+
+  /** Closes the overlay when the page edits or moves its elements; reports moves to the frame. */
+  private guard(ui: IframeUi): void {
+    this.expected = this.snapshot()
+    this.lastRect = ""
+    // Until it loads, the frame holds an empty document of the page's origin, which must not get messages.
+    let loaded = false
+    ui.iframe.addEventListener("load", () => {
+      loaded = true
+    })
+    this.observer = new MutationObserver(() => {
+      if (this.ui === ui && this.snapshot() !== this.expected) this.onTampered()
+    })
+    this.observer.observe(ui.wrapper, {
+      attributes: true,
+      subtree: true,
+      childList: true,
+    })
+    this.observer.observe(document.documentElement, { childList: true })
+    const watch = () => {
+      if (this.ui !== ui) return
+      const r = ui.iframe.getBoundingClientRect()
+      const rect = `${r.x},${r.y},${r.width},${r.height}`
+      if (loaded && rect !== this.lastRect) {
+        this.lastRect = rect
+        ui.iframe.contentWindow?.postMessage(
+          { keywardOverlayMoved: 1 },
+          this.origin,
+        )
+      }
+      this.watchFrame = requestAnimationFrame(watch)
+    }
+    this.watchFrame = requestAnimationFrame(watch)
   }
 }
 
@@ -150,11 +194,17 @@ export class InlineMenu {
 
   constructor(
     ctx: ContentScriptContext,
+    scheme: () => "light" | "dark",
     private readonly onClosed: () => void,
     /** Elements of the extension in the page, such as the field icons, that do not close the menu. */
     isOwnElement: (target: EventTarget | null) => boolean,
   ) {
-    this.overlay = new Overlay(ctx, "/inline-menu.html")
+    this.overlay = new Overlay(
+      ctx,
+      "/inline-menu.html",
+      () => this.close(),
+      scheme,
+    )
     const reposition = () => {
       if (!this.field || this.frame) return
       this.frame = requestAnimationFrame(() => {
@@ -186,7 +236,11 @@ export class InlineMenu {
       (event) => {
         if (!this.field) return
         if (event.key === "Escape") this.close()
-        else if (event.key === "ArrowDown" && event.target === this.field) {
+        else if (
+          event.key === "ArrowDown" &&
+          event.isTrusted &&
+          event.target === this.field
+        ) {
           event.preventDefault()
           this.overlay.iframe?.focus()
         }
@@ -222,8 +276,13 @@ export class InlineMenu {
 export class SavePrompt {
   private readonly overlay: Overlay
 
-  constructor(ctx: ContentScriptContext) {
-    this.overlay = new Overlay(ctx, "/save-prompt.html")
+  constructor(ctx: ContentScriptContext, scheme: () => "light" | "dark") {
+    this.overlay = new Overlay(
+      ctx,
+      "/save-prompt.html",
+      () => this.close(),
+      scheme,
+    )
   }
 
   show(token: string): void {

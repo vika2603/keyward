@@ -46,7 +46,8 @@ export class OverlaySessions<T extends OverlayBase> {
     if (tabId === undefined || frameId === undefined) throw forbidden()
     const session = await this.get(tabId)
     if (!session) throw new BackendError("Nothing to show", "overlay.closed")
-    if (typeof token !== "string" || token !== session.token) throw forbidden()
+    if (typeof token !== "string" || !token || token !== session.token)
+      throw forbidden()
     if (session.overlayFrameId === frameId) return session
     if (session.overlayFrameId !== null) throw forbidden()
     const claimed = { ...session, overlayFrameId: frameId }

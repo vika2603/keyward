@@ -7,8 +7,10 @@ import {
   exportableKeys,
   getSettings,
   MatchType,
+  type SiteRule,
   updateSettings,
 } from "@/lib/settings"
+import { hostOfSavedUri } from "@/lib/site"
 import { Card, Option, PageHeader, Section, Segmented } from "./parts"
 import { useSettings } from "./use-settings"
 
@@ -33,6 +35,30 @@ const MODIFIER_NAMES: Record<string, string> = {
 function keysOf(shortcut: string): string[] {
   if (shortcut.includes("+")) return shortcut.split("+")
   return [...shortcut].map((key) => MODIFIER_NAMES[key] ?? key)
+}
+
+const RULE_BACKENDS: readonly unknown[] = ["all", "apple", "bitwarden"]
+const RULE_BEHAVIORS: readonly unknown[] = [
+  "default",
+  "menuOnFocus",
+  "menuOnClick",
+  "noSave",
+  "disabled",
+]
+
+/** A rule from a file is taken only when every field has a value the options page could have set. */
+function isSiteRule(value: unknown): value is SiteRule {
+  if (!value || typeof value !== "object") return false
+  const rule = value as Record<string, unknown>
+  return (
+    typeof rule.id === "string" &&
+    typeof rule.host === "string" &&
+    hostOfSavedUri(rule.host) === rule.host &&
+    (rule.match === null ||
+      Object.values(MatchType).includes(rule.match as MatchType)) &&
+    RULE_BACKENDS.includes(rule.backend) &&
+    RULE_BEHAVIORS.includes(rule.behavior)
+  )
 }
 
 /** Keeps the known settings whose values have the expected type. */
@@ -67,13 +93,7 @@ function importedSettings(data: unknown): Partial<ExportedSettings> | null {
     result.defaultMatch = input.defaultMatch as MatchType
   }
   if (Array.isArray(input.siteRules)) {
-    result.siteRules = input.siteRules.filter(
-      (r): r is ExportedSettings["siteRules"][number] =>
-        r &&
-        typeof r === "object" &&
-        typeof r.id === "string" &&
-        typeof r.host === "string",
-    )
+    result.siteRules = input.siteRules.filter(isSiteRule)
   }
   if (Array.isArray(input.equivalentDomains)) {
     result.equivalentDomains = input.equivalentDomains.filter(

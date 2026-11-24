@@ -103,7 +103,7 @@ export async function onSubmitted(
   await prompts.set({
     tabId,
     frameId: 0,
-    token: "",
+    token: crypto.randomUUID(),
     overlayFrameId: null,
     mode: update ? "update" : "save",
     url: page.href,
@@ -115,7 +115,10 @@ export async function onSubmitted(
   await showPrompt(tabId)
 }
 
-/** Shows a pending prompt in the tab's top frame; called again when a new page there is ready. */
+/**
+ * Shows a pending prompt in the tab's top frame; called again when a new page there is ready, as
+ * long as that page belongs to the site of the login.
+ */
 export async function showPrompt(tabId: number): Promise<void> {
   const session = await prompts.get(tabId)
   if (!session) return
@@ -123,6 +126,12 @@ export async function showPrompt(tabId: number): Promise<void> {
     await prompts.remove(tabId)
     return
   }
+  const top = await frameUrl(tabId, 0)
+  if (
+    !top ||
+    siteDomainOf(top.hostname) !== siteDomainOf(new URL(session.url).hostname)
+  )
+    return
   const token = crypto.randomUUID()
   await prompts.set({ ...session, token, overlayFrameId: null })
   await sendToFrame(tabId, 0, { type: "prompt.show", token }).catch(() => {})

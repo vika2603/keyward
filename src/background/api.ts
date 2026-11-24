@@ -36,6 +36,7 @@ export interface HistoryEntry {
 export interface ContentConfig {
   active: boolean
   menuTrigger: "click" | "focus"
+  theme: "system" | "light" | "dark"
 }
 
 export interface PromptState {

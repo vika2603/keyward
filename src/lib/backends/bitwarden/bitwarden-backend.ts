@@ -93,6 +93,7 @@ export class BitwardenBackend implements PasswordBackend {
   readonly kind = "bitwarden" as const
   private readonly cache = new Map<string, Vault>()
   private readonly syncing = new Map<string, Promise<void>>()
+  private readonly refreshing = new Map<string, Promise<string>>()
 
   constructor(private readonly loadCrypto: () => Promise<VaultCrypto>) {}
 
@@ -325,7 +326,22 @@ export class BitwardenBackend implements PasswordBackend {
   }
 
   /** A valid access token, refreshed when it is about to expire. */
-  private async accessToken(account: StoredAccount): Promise<string> {
+  private accessToken(account: StoredAccount): Promise<string> {
+    let running = this.refreshing.get(account.id)
+    if (!running) {
+      running = this.refreshAccessToken(account).finally(() =>
+        this.refreshing.delete(account.id),
+      )
+      this.refreshing.set(account.id, running)
+    }
+    return running
+  }
+
+  /**
+   * Refreshes the access token when it is about to expire. One refresh runs per account at a time,
+   * since a server that rotates refresh tokens rejects the second use of the old one.
+   */
+  private async refreshAccessToken(account: StoredAccount): Promise<string> {
     const session = await this.unlockedSession(account.id)
     if (
       session.accessToken &&
@@ -350,17 +366,22 @@ export class BitwardenBackend implements PasswordBackend {
     const refreshed = prop(token, "refresh_token")
     const refreshToken =
       typeof refreshed === "string" ? refreshed : session.refreshToken
+    // The account may have been locked or signed out while the request was under way; writing
+    // the session back would undo that.
+    const current = await loadSession(account.id)
+    if (!current) throw new BackendError("The account is locked", "locked")
     await saveSession(account.id, {
-      ...session,
+      ...current,
       accessToken,
       accessTokenExpiresAt: expiryOf(token),
       refreshToken,
     })
-    if (refreshToken !== session.refreshToken) {
+    const stored = (await loadAccounts()).find((a) => a.id === account.id)
+    if (stored && refreshToken !== session.refreshToken) {
       const crypto = await this.loadCrypto()
-      const userKey = Uint8Array.fromBase64(session.userKey)
+      const userKey = Uint8Array.fromBase64(current.userKey)
       await saveAccount({
-        ...account,
+        ...stored,
         encryptedRefreshToken: crypto.encryptString(refreshToken, userKey),
       })
     }
@@ -429,7 +450,7 @@ export class BitwardenBackend implements PasswordBackend {
     }
     const items = vault.items.filter((item) =>
       item.uris.some((u) =>
-        uriMatches(u.uri, rule?.match ?? u.match, page, options),
+        uriMatches(u.uri, u.match ?? rule?.match ?? null, page, options),
       ),
     )
     return { vault, items }
@@ -459,6 +480,13 @@ export class BitwardenBackend implements PasswordBackend {
     const cipher = vault.ciphers.find((c) => prop(c, "Id") === loginId)
     if (!item || !cipher)
       throw new BackendError("The login does not match this page", "notFound")
+    // Items marked for master password re-prompt are left to Bitwarden's own apps.
+    if (prop(cipher, "Reprompt") === 1) {
+      throw new BackendError(
+        "The login asks for the master password again",
+        "bitwarden.reprompt",
+      )
+    }
     return {
       username: item.username,
       password: decryptPassword(cipher, vault.keys),

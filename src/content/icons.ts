@@ -27,10 +27,13 @@ button {
   border-radius: 6px;
   background: transparent;
   color: #737373;
+  opacity: 0.6;
   cursor: pointer;
 }
-button:hover { background: rgba(115, 115, 115, 0.14); color: #171717; }
-button[aria-expanded="true"] { background: rgba(115, 115, 115, 0.14); color: #171717; }
+button:hover, button[aria-expanded="true"] {
+  background: color-mix(in srgb, currentColor 14%, transparent);
+  opacity: 1;
+}
 `
 
 /** The key icon inside each login field; activating one opens the menu for that field. */
@@ -139,6 +142,8 @@ export class FieldIcons {
         rect.left < innerWidth
       icon.style.display = shown ? "flex" : "none"
       if (!shown) continue
+      // The field's own text color keeps the icon readable on light and dark pages.
+      icon.style.color = getComputedStyle(field).color
       icon.style.left = `${Math.round(rect.right - INSET - SIZE)}px`
       icon.style.top = `${Math.round(rect.top + (rect.height - SIZE) / 2)}px`
     }

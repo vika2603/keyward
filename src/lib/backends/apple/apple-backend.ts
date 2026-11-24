@@ -1,3 +1,4 @@
+import { parse as parseHost } from "tldts"
 import { bigIntToBytes, bytesToBigInt } from "@/lib/bytes"
 import { isHostOrSubdomain } from "@/lib/site"
 import {
@@ -45,6 +46,8 @@ const PROTOCOL_VERSION = "1.0"
 const SRP_WITH_RFC_VERIFICATION = 1
 const LIST_TIMEOUT_MS = 15_000
 const SAVE_TIMEOUT_MS = 10 * 60_000
+/** Waits between listings after a save, about four seconds in all; a new login can take a moment to show up. */
+const SAVE_CHECK_DELAYS_MS = [0, 250, 500, 750, 1000, 1500]
 /** Saves use frame IDs from here up, so their replies (sent as command 4) never reach a login listing. */
 const SAVE_FRAME_BASE = 1_000_000_000
 
@@ -442,13 +445,23 @@ export class AppleBackend implements PasswordBackend {
 
   /**
    * Offers a login to Apple Passwords. macOS shows its own confirmation; the helper answers once
-   * the user has chosen, and the answer does not say what was chosen. Hosts such as `.example`
-   * or `.localhost` are acknowledged but never stored, so the result is checked by listing.
+   * the user has chosen, and the answer does not say what was chosen, so the result is checked by
+   * listing. Hosts under suffixes such as `.localhost`, `.local` or `.example` are acknowledged but
+   * never stored, so they are refused before the confirmation is shown.
    */
   save(_sourceId: string, login: NewLogin, tab: TabRef): Promise<void> {
     const host = login.url.hostname
     if (!isHostName(host))
       return Promise.reject(new BackendError("Not a host name", "invalidSite"))
+    const parsed = parseHost(host)
+    if (!parsed.isIp && !parsed.isIcann) {
+      return Promise.reject(
+        new BackendError(
+          "Apple Passwords does not store logins for this host",
+          "apple.unsupportedSite",
+        ),
+      )
+    }
     return this.serialized("save", async () => {
       this.saveCount += 1
       const frameId = SAVE_FRAME_BASE + this.saveCount
@@ -470,13 +483,15 @@ export class AppleBackend implements PasswordBackend {
           matchTab: true,
         },
       )
-      const saved = await this.listEntries(host, tab)
-      if (!saved.some((entry) => entry.username === login.username)) {
-        throw new BackendError(
-          "Apple Passwords did not store the login",
-          "apple.notSaved",
-        )
+      for (const delay of SAVE_CHECK_DELAYS_MS) {
+        await new Promise((resolve) => setTimeout(resolve, delay))
+        const saved = await this.listEntries(host, tab)
+        if (saved.some((entry) => entry.username === login.username)) return
       }
+      throw new BackendError(
+        "Apple Passwords did not store the login",
+        "apple.notSaved",
+      )
     })
   }
 

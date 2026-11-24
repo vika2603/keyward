@@ -38,7 +38,11 @@ async function write(text: string): Promise<void> {
 /** Copies text; a secret is overwritten after the time set in the settings. */
 export async function copyText(text: string, secret: boolean): Promise<void> {
   await write(text)
-  if (!secret) return
+  // The copied password is no longer on the clipboard, so there is nothing left to clear.
+  if (!secret) {
+    await browser.alarms.clear(CLEAR_CLIPBOARD_ALARM)
+    return
+  }
   const { clipboardClearSeconds } = await getSettings()
   if (clipboardClearSeconds === null) return
   await browser.alarms.create(CLEAR_CLIPBOARD_ALARM, {

@@ -6,6 +6,7 @@ import { BrandIcon } from "@/components/keyward/brand-icon"
 import { errorMessage } from "@/components/keyward/errors"
 import {
   callOverlay,
+  useClickGuard,
   useReportHeight,
 } from "@/components/keyward/overlay-frame"
 import { SiteLetter } from "@/components/keyward/site-letter"
@@ -26,6 +27,11 @@ export function App() {
     state !== null,
     (height) => void callOverlay("prompt.resize", { height }).catch(() => {}),
   )
+  const clickCounts = useClickGuard(card, state !== null)
+  const guarded = (action: () => void) => () => {
+    if (clickCounts()) action()
+    else setMessage("提示刚出现、移动过或被页面遮挡，请再点一次。")
+  }
 
   useEffect(() => {
     callOverlay("prompt.state", {}).then(
@@ -38,6 +44,10 @@ export function App() {
   }, [])
 
   const confirm = async () => {
+    if (!clickCounts()) {
+      setMessage("提示刚出现、移动过或被页面遮挡，请再点一次。")
+      return
+    }
     setBusy(true)
     setMessage(null)
     try {
@@ -119,9 +129,9 @@ export function App() {
               <Button
                 variant="ghost"
                 disabled={busy}
-                onClick={() =>
-                  void callOverlay("prompt.never", {}).catch(() => {})
-                }
+                onClick={guarded(
+                  () => void callOverlay("prompt.never", {}).catch(() => {}),
+                )}
               >
                 此站点不再询问
               </Button>

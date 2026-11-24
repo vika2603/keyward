@@ -19,6 +19,7 @@ export default defineConfig({
       "alarms",
       "offscreen",
       "clipboardWrite",
+      "scripting",
     ],
     // The field icons work on every site, and a self-hosted vault can live at any address.
     host_permissions: ["http://*/*", "https://*/*"],

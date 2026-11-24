@@ -29,6 +29,7 @@ export async function contentConfig(
   const off: ContentConfig = {
     active: false,
     menuTrigger: settings.menuTrigger,
+    theme: settings.theme,
   }
   if (!page || !(await frameAllowed(tabId, frameId, page, settings))) return off
   if (!(await backends.sourcesForPage(page)).length) return off
@@ -39,7 +40,7 @@ export async function contentConfig(
       : behavior === "menuOnClick"
         ? "click"
         : settings.menuTrigger
-  return { active: true, menuTrigger }
+  return { active: true, menuTrigger, theme: settings.theme }
 }
 
 /**
