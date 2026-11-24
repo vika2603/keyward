@@ -9,7 +9,7 @@ import { Switch } from "@/components/ui/switch"
 import { Card, Option, PageHeader, Section, Segmented } from "./parts"
 import { useSettings } from "./use-settings"
 
-const CLEAR_TIMES: [string, string][] = [
+export const CLEAR_TIMES: [string, string][] = [
   ["30", "30 秒"],
   ["60", "1 分钟"],
   ["120", "2 分钟"],

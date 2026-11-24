@@ -11,6 +11,7 @@ import {
   updateSettings,
 } from "@/lib/settings"
 import { hostOfSavedUri } from "@/lib/site"
+import { CLEAR_TIMES } from "./fill-page"
 import { Card, Option, PageHeader, Section, Segmented } from "./parts"
 import { useSettings } from "./use-settings"
 
@@ -83,11 +84,13 @@ function importedSettings(data: unknown): Partial<ExportedSettings> | null {
   ] as const) {
     if (typeof input[key] === "boolean") result[key] = input[key]
   }
+  const clearAfter = input.clipboardClearSeconds
   if (
-    input.clipboardClearSeconds === null ||
-    typeof input.clipboardClearSeconds === "number"
+    clearAfter === null ||
+    (typeof clearAfter === "number" &&
+      CLEAR_TIMES.some(([value]) => value === String(clearAfter)))
   ) {
-    result.clipboardClearSeconds = input.clipboardClearSeconds
+    result.clipboardClearSeconds = clearAfter
   }
   if (Object.values(MatchType).includes(input.defaultMatch as MatchType)) {
     result.defaultMatch = input.defaultMatch as MatchType
@@ -98,7 +101,9 @@ function importedSettings(data: unknown): Partial<ExportedSettings> | null {
   if (Array.isArray(input.equivalentDomains)) {
     result.equivalentDomains = input.equivalentDomains.filter(
       (g): g is string[] =>
-        Array.isArray(g) && g.every((d) => typeof d === "string"),
+        Array.isArray(g) &&
+        g.length >= 2 &&
+        g.every((d) => typeof d === "string" && hostOfSavedUri(d) === d),
     )
   }
   return result

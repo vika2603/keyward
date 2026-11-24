@@ -32,6 +32,14 @@ export default defineContentScript({
     let lastField: HTMLInputElement | null = null
     /** Set while a fill moves the focus between fields, which must not reopen the menu. */
     let filling = false
+    /**
+     * Removes an extension event listener when a newer copy of this script takes over. After the
+     * extension reloads, its APIs throw and its events stop, so there is nothing to remove.
+     */
+    const onInvalidatedRemove = (remove: () => void) =>
+      ctx.onInvalidated(() => {
+        if (browser.runtime?.id) remove()
+      })
 
     const menu = new InlineMenu(
       ctx,
@@ -60,12 +68,18 @@ export default defineContentScript({
       (field) => void openMenu(field).catch(() => {}),
     )
 
-    browser.runtime.onMessage.addListener(
-      (message: unknown, _sender, sendResponse) => {
-        if (!isContentMessage(message)) return false
-        sendResponse(handle(message) ?? null)
-        return false
-      },
+    const onMessage = (
+      message: unknown,
+      _sender: unknown,
+      sendResponse: (response: unknown) => void,
+    ) => {
+      if (!isContentMessage(message)) return false
+      sendResponse(handle(message) ?? null)
+      return false
+    }
+    browser.runtime.onMessage.addListener(onMessage)
+    onInvalidatedRemove(() =>
+      browser.runtime.onMessage.removeListener(onMessage),
     )
 
     function handle(message: ContentMessage): FieldInfo | undefined {
@@ -139,7 +153,7 @@ export default defineContentScript({
       if (next?.theme) theme = next.theme
     }
     browser.storage.local.onChanged.addListener(onSettings)
-    ctx.onInvalidated(() =>
+    onInvalidatedRemove(() =>
       browser.storage.local.onChanged.removeListener(onSettings),
     )
     if (!config?.active) return
