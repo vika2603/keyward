@@ -1,6 +1,6 @@
 import type { HistoryEntry } from "./api"
 
-/** Generated passwords that were copied or put into a new login, kept in storage.session so they end with the browser. */
+/** Generated passwords that were copied or generated in the add view, kept in storage.session so they end with the browser. */
 const KEY = "generator.history"
 
 export async function listHistory(): Promise<HistoryEntry[]> {

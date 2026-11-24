@@ -59,6 +59,8 @@ export default defineContentScript({
       menu.close()
       lastField = field
       const { token } = await callBackground("content.openMenu", null)
+      // The page may have stopped offering logins while the session was requested.
+      if (!active || !fields.includes(field)) return
       icons.setExpanded(field)
       menu.show(field, token)
       // Keeps the keyboard path open: ArrowDown in the field moves into the menu.
@@ -154,7 +156,7 @@ export default defineContentScript({
     const start = () => {
       observer = new MutationObserver(() => {
         if (pending) return
-        pending = window.setTimeout(() => {
+        pending = ctx.setTimeout(() => {
           pending = 0
           scan()
         }, 300)
@@ -188,7 +190,7 @@ export default defineContentScript({
       const config = await callBackground("content.init", null).catch(
         () => null,
       )
-      if (!config || request !== requested) return
+      if (!config || request !== requested || ctx.isInvalid) return
       theme = config.theme
       menuTrigger = config.menuTrigger
       if (config.active === active) return
@@ -196,9 +198,6 @@ export default defineContentScript({
       if (active) start()
       else stop()
     }
-    await configure()
-    if (isTop) void callBackground("content.ready", null).catch(() => {})
-
     const onStorage = (
       changes: Record<string, Browser.storage.StorageChange>,
     ) => {
@@ -208,6 +207,8 @@ export default defineContentScript({
     onInvalidatedRemove(() =>
       browser.storage.local.onChanged.removeListener(onStorage),
     )
+    await configure()
+    if (isTop) void callBackground("content.ready", null).catch(() => {})
 
     ctx.addEventListener(document, "focusin", (event) => {
       const target = eventOrigin(event)

@@ -138,7 +138,7 @@ export function HistoryView({ onBack }: { onBack: () => void }) {
       </div>
       <Separator />
       <p className="px-3 py-2 text-xs text-muted-foreground">
-        记录复制过或用于添加密码的生成密码。只保存在本机，关闭浏览器后清除。
+        记录复制过的生成密码，以及添加密码时生成的密码。只保存在本机，关闭浏览器后清除。
       </p>
     </div>
   )

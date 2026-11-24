@@ -96,7 +96,7 @@ export type BackgroundApi = {
   }
   "bitwarden.cancelSignIn": { payload: null; result: null }
   "generator.copy": { payload: { password: string }; result: null }
-  /** Keeps a password generated in the add view, which is not copied, in the history. */
+  /** Keeps a password generated in the add view in the history; the popup may close before it is saved. */
   "generator.record": { payload: { password: string }; result: null }
   "history.list": { payload: null; result: HistoryEntry[] }
   "history.copy": { payload: { id: string }; result: null }
