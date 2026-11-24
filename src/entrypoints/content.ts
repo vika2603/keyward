@@ -17,6 +17,7 @@ import {
 import { FieldIcons } from "@/content/icons"
 import { InlineMenu, SavePrompt } from "@/content/overlays"
 import { watchSubmissions } from "@/content/submit"
+import { ACCOUNTS_KEY } from "@/lib/backends/bitwarden/account-store"
 import { isDarkTheme } from "@/lib/theme"
 
 export default defineContentScript({
@@ -140,64 +141,92 @@ export default defineContentScript({
         submitFor((password ?? username) as HTMLInputElement)
     }
 
-    const config = await callBackground("content.init", null).catch(() => null)
-    if (isTop) void callBackground("content.ready", null).catch(() => {})
-    if (config) theme = config.theme
-    // The overlay pages follow the setting as it changes; their frames must declare the same scheme.
-    const onSettings = (
-      changes: Record<string, Browser.storage.StorageChange>,
-    ) => {
-      const next = changes.settings?.newValue as
-        | { theme?: ContentConfig["theme"] }
-        | undefined
-      if (next?.theme) theme = next.theme
-    }
-    browser.storage.local.onChanged.addListener(onSettings)
-    onInvalidatedRemove(() =>
-      browser.storage.local.onChanged.removeListener(onSettings),
-    )
-    if (!config?.active) return
+    let active = false
+    let menuTrigger: ContentConfig["menuTrigger"] = "click"
+    let observer: MutationObserver | null = null
+    let rescan = 0
+    let pending = 0
 
     const scan = () => {
       fields = loginFields(document)
       icons.update(fields)
     }
-    let pending = 0
-    const observer = new MutationObserver(() => {
-      if (pending) return
-      pending = window.setTimeout(() => {
-        pending = 0
-        scan()
-      }, 300)
-    })
-    observer.observe(document.documentElement, {
-      childList: true,
-      subtree: true,
-      attributes: true,
-      attributeFilter: ["type", "style", "class", "hidden", "disabled"],
-    })
-    ctx.onInvalidated(() => observer.disconnect())
-    // Changes inside shadow roots do not reach the observer above; a slow rescan picks them up.
-    ctx.setInterval(scan, 2000)
-    scan()
-
-    if (config.menuTrigger === "focus") {
-      ctx.addEventListener(document, "focusin", (event) => {
-        const target = eventOrigin(event)
-        if (
-          event.isTrusted &&
-          !filling &&
-          target instanceof HTMLInputElement &&
-          fields.includes(target) &&
-          menu.openFor !== target
-        ) {
-          void openMenu(target).catch(() => {})
-        }
+    const start = () => {
+      observer = new MutationObserver(() => {
+        if (pending) return
+        pending = window.setTimeout(() => {
+          pending = 0
+          scan()
+        }, 300)
       })
+      observer.observe(document.documentElement, {
+        childList: true,
+        subtree: true,
+        attributes: true,
+        attributeFilter: ["type", "style", "class", "hidden", "disabled"],
+      })
+      // Changes inside shadow roots do not reach the observer above; a slow rescan picks them up.
+      rescan = ctx.setInterval(scan, 2000)
+      scan()
     }
+    const stop = () => {
+      observer?.disconnect()
+      observer = null
+      clearInterval(rescan)
+      clearTimeout(pending)
+      pending = 0
+      menu.close()
+      fields = []
+      icons.update([])
+    }
+    ctx.onInvalidated(() => observer?.disconnect())
+
+    let requested = 0
+    /** Applies this frame's configuration, which follows the settings and the connected backends. */
+    const configure = async () => {
+      const request = ++requested
+      const config = await callBackground("content.init", null).catch(
+        () => null,
+      )
+      if (!config || request !== requested) return
+      theme = config.theme
+      menuTrigger = config.menuTrigger
+      if (config.active === active) return
+      active = config.active
+      if (active) start()
+      else stop()
+    }
+    await configure()
+    if (isTop) void callBackground("content.ready", null).catch(() => {})
+
+    const onStorage = (
+      changes: Record<string, Browser.storage.StorageChange>,
+    ) => {
+      if (changes.settings || changes[ACCOUNTS_KEY]) void configure()
+    }
+    browser.storage.local.onChanged.addListener(onStorage)
+    onInvalidatedRemove(() =>
+      browser.storage.local.onChanged.removeListener(onStorage),
+    )
+
+    ctx.addEventListener(document, "focusin", (event) => {
+      const target = eventOrigin(event)
+      if (
+        active &&
+        menuTrigger === "focus" &&
+        event.isTrusted &&
+        !filling &&
+        target instanceof HTMLInputElement &&
+        fields.includes(target) &&
+        menu.openFor !== target
+      ) {
+        void openMenu(target).catch(() => {})
+      }
+    })
 
     watchSubmissions(ctx, (credentials) => {
-      void callBackground("content.submitted", credentials).catch(() => {})
+      if (active)
+        void callBackground("content.submitted", credentials).catch(() => {})
     })
   },
 })

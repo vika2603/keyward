@@ -25,7 +25,7 @@ export interface AccountSession {
   refreshToken: string
 }
 
-const ACCOUNTS_KEY = "bitwarden.accounts"
+export const ACCOUNTS_KEY = "bitwarden.accounts"
 const DEVICE_KEY = "bitwarden.deviceId"
 const sessionKey = (accountId: string) => `bitwarden.session.${accountId}`
 const syncKey = (accountId: string) => `bitwarden.sync.${accountId}`
