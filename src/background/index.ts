@@ -69,7 +69,13 @@ export function startBackground(): void {
   })
 
   browser.commands.onCommand.addListener((command) => {
-    if (command === "fill-first") void fillFirst(backends).catch(() => {})
+    if (command === "fill-first")
+      // With nothing to fill, the popup shows why: sources to unlock or pair, or no login for the site.
+      void fillFirst(backends)
+        .then((result) =>
+          result === "noLogin" ? openPopup({ name: "main" }) : undefined,
+        )
+        .catch(() => {})
     else if (command === "open-generator") void openPopup({ name: "generator" })
     else if (command === "lock-all") void backends.lockAll()
   })

@@ -2,6 +2,7 @@ import { vi } from "vitest"
 import type {
   Credential,
   ExistingLogin,
+  LoginSummary,
   PasswordBackend,
   SourceInfo,
 } from "@/lib/backends/types"
@@ -20,7 +21,10 @@ export const pageModule = {
     const url = frames.get(`${tabId}:${frameId}`)
     return url ? new URL(url) : null
   }),
-  sendToFrame: vi.fn(async () => undefined),
+  sendToFrame: vi.fn(
+    async (_tabId: number, _frameId: number, _message: unknown) =>
+      undefined as unknown,
+  ),
   activeTab: vi.fn(),
   webPage: (url: string | undefined) => (url ? new URL(url) : null),
 }
@@ -29,6 +33,8 @@ export interface FakeSource {
   info: SourceInfo
   existing?: ExistingLogin | null
   credential?: Credential
+  /** Logins listed for any page while the source is ready. */
+  logins?: LoginSummary[]
   /** Whether the source stores logins for any address; true when left out. */
   canSave?: boolean
 }
@@ -62,6 +68,11 @@ export function fakeBackends(sources: FakeSource[]) {
   const byId = new Map(sources.map((s) => [s.info.id, backendFor(s)]))
   const backends = {
     sourcesForPage: async () => sources.map((s) => s.info),
+    loginsForPage: async () =>
+      sources.map((s) => ({
+        ...s.info,
+        logins: s.info.status === "ready" ? (s.logins ?? []) : [],
+      })),
     sources: async () => sources.map((s) => s.info),
     source: async (id: string) => {
       const found = sources.find((s) => s.info.id === id)

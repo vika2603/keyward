@@ -86,10 +86,15 @@ export async function fillLogin(
   })
 }
 
-/** Fills the first matching login into the frame with the focused login field, else the top frame. */
-export async function fillFirst(backends: Backends): Promise<void> {
+/**
+ * Fills the first matching login into the frame with the focused login field, else the top frame.
+ * "noLogin" means the page has a login field but no ready source has a login for it.
+ */
+export async function fillFirst(
+  backends: Backends,
+): Promise<"filled" | "noField" | "noLogin"> {
   const tab = await activeTab()
-  if (tab?.id === undefined) return
+  if (tab?.id === undefined) return "noField"
   const tabId = tab.id
   const frames = (await browser.webNavigation.getAllFrames({ tabId })) ?? []
   const infos = await Promise.all(
@@ -108,13 +113,16 @@ export async function fillFirst(backends: Backends): Promise<void> {
     candidates.find((c) => c.focused) ??
     candidates.find((c) => c.frameId === 0) ??
     candidates[0]
-  if (!target) return
+  if (!target) return "noField"
   const page = await frameUrl(tabId, target.frameId)
-  if (!page) return
+  if (!page) return "noField"
   const views = await backends.loginsForPage(page)
   for (const view of views) {
     const login = view.logins[0]
-    if (login)
-      return fillLogin(backends, tabId, target.frameId, view.id, login.id)
+    if (login) {
+      await fillLogin(backends, tabId, target.frameId, view.id, login.id)
+      return "filled"
+    }
   }
+  return "noLogin"
 }

@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { fakeBrowser } from "wxt/testing/fake-browser"
 import { updateSettings } from "@/lib/settings"
-import { fillLogin } from "./autofill"
+import { fillFirst, fillLogin } from "./autofill"
 import {
   accountSource,
   appleSource,
@@ -106,5 +106,64 @@ describe("fillLogin", () => {
     ).rejects.toMatchObject({
       code: "fillDisabled",
     })
+  })
+})
+
+describe("fillFirst", () => {
+  const login = { id: "item-1", username: "someone", title: "Example" }
+
+  beforeEach(() => {
+    pageModule.activeTab.mockResolvedValue({ id: TAB })
+    const topFrame = {
+      frameId: 0,
+    } as Browser.webNavigation.GetAllFrameResultDetails
+    vi.spyOn(fakeBrowser.webNavigation, "getAllFrames").mockImplementation(
+      // The typings resolve to the callback overload, which returns nothing.
+      (async () => [topFrame]) as never,
+    )
+    pageModule.sendToFrame.mockImplementation(async (_tab, _frame, message) =>
+      (message as { type: string }).type === "fieldInfo"
+        ? { hasField: true, focused: true }
+        : undefined,
+    )
+  })
+
+  it("fills the first login a ready source lists for the page", async () => {
+    const { backends } = fakeBackends([
+      { info: accountSource, credential, logins: [login] },
+    ])
+    await expect(fillFirst(backends)).resolves.toBe("filled")
+    expect(pageModule.sendToFrame).toHaveBeenCalledWith(
+      TAB,
+      0,
+      expect.objectContaining({ type: "fill", username: "someone" }),
+    )
+  })
+
+  it("reports a login field with nothing to fill when the sources are locked", async () => {
+    const { backends } = fakeBackends([
+      {
+        info: { ...accountSource, status: "locked" },
+        credential,
+        logins: [login],
+      },
+    ])
+    await expect(fillFirst(backends)).resolves.toBe("noLogin")
+    expect(pageModule.sendToFrame).not.toHaveBeenCalledWith(
+      TAB,
+      0,
+      expect.objectContaining({ type: "fill" }),
+    )
+  })
+
+  it("does nothing on a page without a login field", async () => {
+    pageModule.sendToFrame.mockResolvedValue({
+      hasField: false,
+      focused: false,
+    })
+    const { backends } = fakeBackends([
+      { info: accountSource, credential, logins: [login] },
+    ])
+    await expect(fillFirst(backends)).resolves.toBe("noField")
   })
 })
