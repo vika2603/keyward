@@ -462,6 +462,17 @@ export class AppleBackend implements PasswordBackend {
         ),
       )
     }
+    if (
+      !login.username.trim() &&
+      !this.capabilities?.canSaveAccountWithEmptyUserName
+    ) {
+      return Promise.reject(
+        new BackendError(
+          "Apple Passwords needs a username",
+          "apple.emptyUsername",
+        ),
+      )
+    }
     return this.serialized("save", async () => {
       this.saveCount += 1
       const frameId = SAVE_FRAME_BASE + this.saveCount

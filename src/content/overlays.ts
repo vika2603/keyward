@@ -1,5 +1,6 @@
 import type { ContentScriptContext } from "wxt/utils/content-script-context"
 import { createIframeUi } from "wxt/utils/content-script-ui/iframe"
+import { eventOrigin } from "./fields"
 
 /** Room around the overlay's card for its shadow, inside the iframe. */
 const SHADOW_MARGIN = 8
@@ -223,7 +224,7 @@ export class InlineMenu {
       (event) => {
         if (
           this.field &&
-          event.target !== this.field &&
+          eventOrigin(event) !== this.field &&
           !isOwnElement(event.target)
         )
           this.close()
@@ -239,7 +240,7 @@ export class InlineMenu {
         else if (
           event.key === "ArrowDown" &&
           event.isTrusted &&
-          event.target === this.field
+          eventOrigin(event) === this.field
         ) {
           event.preventDefault()
           this.overlay.iframe?.focus()

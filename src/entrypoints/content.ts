@@ -6,6 +6,8 @@ import {
   isContentMessage,
 } from "@/background/api"
 import {
+  deepActiveElement,
+  eventOrigin,
   fillTargets,
   isPasswordField,
   loginFields,
@@ -83,7 +85,7 @@ export default defineContentScript({
           prompt?.close()
           return
         case "fieldInfo": {
-          const focused = document.activeElement
+          const focused = deepActiveElement()
           return {
             hasField: fields.length > 0,
             focused:
@@ -96,13 +98,13 @@ export default defineContentScript({
     function fill(message: Extract<ContentMessage, { type: "fill" }>): void {
       // The background checked the login against this origin; the frame may have navigated since.
       if (location.origin !== message.origin) return
-      const focused = document.activeElement
+      const focused = deepActiveElement()
       const anchor =
         menu.openFor ??
-        (lastField?.isConnected ? lastField : null) ??
         (focused instanceof HTMLInputElement && fields.includes(focused)
           ? focused
           : null) ??
+        (lastField?.isConnected ? lastField : null) ??
         fields.find(isPasswordField) ??
         fields[0]
       menu.close()
@@ -139,11 +141,13 @@ export default defineContentScript({
       attributeFilter: ["type", "style", "class", "hidden", "disabled"],
     })
     ctx.onInvalidated(() => observer.disconnect())
+    // Changes inside shadow roots do not reach the observer above; a slow rescan picks them up.
+    ctx.setInterval(scan, 2000)
     scan()
 
     if (config.menuTrigger === "focus") {
       ctx.addEventListener(document, "focusin", (event) => {
-        const target = event.target
+        const target = eventOrigin(event)
         if (
           event.isTrusted &&
           target instanceof HTMLInputElement &&

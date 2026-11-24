@@ -22,6 +22,7 @@ const MESSAGES: Record<string, string> = {
   "apple.noPairing": "配对已失效，请重新开始。",
   "apple.notSaved":
     "Apple 密码里没有找到这个登录，可能在 Mac 的确认窗口里取消了。",
+  "apple.emptyUsername": "Apple 密码需要填写用户名。",
   "apple.unsupportedSite":
     "Apple 密码不保存 localhost、.local、.test 这类本地或保留地址的登录。",
   "apple.query": "Apple 密码请求失败。",

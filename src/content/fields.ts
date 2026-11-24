@@ -1,4 +1,7 @@
-/** Finding login fields in a page and filling them. */
+/**
+ * Finding login fields in a page and filling them. Fields inside open shadow roots count too, as
+ * web components put them there; a login form is the nearest `<form>` across shadow boundaries.
+ */
 
 const TEXT_TYPES = new Set(["text", "email", "tel", ""])
 const USERNAME_HINT =
@@ -28,6 +31,10 @@ export function isPasswordField(
   return element instanceof HTMLInputElement && element.type === "password"
 }
 
+function isNewPassword(input: HTMLInputElement): boolean {
+  return /new-password/.test(input.autocomplete)
+}
+
 function hints(input: HTMLInputElement): string {
   return [
     input.name,
@@ -54,35 +61,86 @@ function looksLikeUsername(input: HTMLInputElement): boolean {
   return input.type === "email" || USERNAME_HINT.test(hints(input))
 }
 
-function scopeOf(input: HTMLInputElement): ParentNode {
-  return input.form ?? input.ownerDocument
+/** The element an event started at, inside any shadow root, rather than the retargeted host. */
+export function eventOrigin(event: Event): EventTarget | null {
+  return event.composedPath()[0] ?? event.target
 }
 
-function inputsIn(scope: ParentNode): HTMLInputElement[] {
-  return [...scope.querySelectorAll("input")].filter(usable)
+/** The focused element, looking into open shadow roots. */
+export function deepActiveElement(): Element | null {
+  let active = document.activeElement
+  while (active?.shadowRoot?.activeElement)
+    active = active.shadowRoot.activeElement
+  return active
 }
 
-/** The text field right before a password field in the same form, which holds the username. */
-export function usernameFieldFor(
-  password: HTMLInputElement,
-): HTMLInputElement | null {
-  const inputs = inputsIn(scopeOf(password))
-  const index = inputs.indexOf(password)
-  for (let i = index - 1; i >= 0; i--) {
-    const input = inputs[i]
-    if (input && isTextField(input)) return input
+/** The nearest ancestor matching a selector, continuing past shadow roots to their hosts. */
+function composedClosest(element: Element, selector: string): Element | null {
+  let current: Element | null = element
+  while (current) {
+    const found = current.closest(selector)
+    if (found) return found
+    const root = current.getRootNode()
+    current = root instanceof ShadowRoot ? root.host : null
   }
   return null
 }
 
-/** The first password field after a username field in the same form. */
-export function passwordFieldFor(
-  username: HTMLInputElement,
-): HTMLInputElement | null {
-  const inputs = inputsIn(scopeOf(username))
-  return (
-    inputs.slice(inputs.indexOf(username) + 1).find(isPasswordField) ?? null
-  )
+function formOf(element: Element): HTMLFormElement | null {
+  if (element instanceof HTMLInputElement && element.form) return element.form
+  const form = composedClosest(element, "form")
+  return form instanceof HTMLFormElement ? form : null
+}
+
+function scopeOf(element: Element): ParentNode {
+  return formOf(element) ?? element.ownerDocument
+}
+
+/** All inputs in a scope in tree order, including those in open shadow roots inside it. */
+function deepInputs(scope: ParentNode): HTMLInputElement[] {
+  const found: HTMLInputElement[] = []
+  const visit = (root: Node) => {
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT)
+    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+      if (node instanceof HTMLInputElement) found.push(node)
+      const shadow = (node as Element).shadowRoot
+      if (shadow) visit(shadow)
+    }
+  }
+  visit(scope as unknown as Node)
+  return found
+}
+
+/** Usable inputs per scope, computed once per lookup. */
+class Scopes {
+  private readonly cache = new Map<ParentNode, HTMLInputElement[]>()
+
+  inputs(scope: ParentNode): HTMLInputElement[] {
+    let inputs = this.cache.get(scope)
+    if (!inputs) {
+      inputs = deepInputs(scope).filter(usable)
+      this.cache.set(scope, inputs)
+    }
+    return inputs
+  }
+
+  /** The text field right before a password field in the same form, which holds the username. */
+  usernameFor(password: HTMLInputElement): HTMLInputElement | null {
+    const inputs = this.inputs(scopeOf(password))
+    for (let i = inputs.indexOf(password) - 1; i >= 0; i--) {
+      const input = inputs[i]
+      if (input && isTextField(input)) return input
+    }
+    return null
+  }
+
+  /** The first password field after a username field in the same form. */
+  passwordFor(username: HTMLInputElement): HTMLInputElement | null {
+    const inputs = this.inputs(scopeOf(username))
+    return (
+      inputs.slice(inputs.indexOf(username) + 1).find(isPasswordField) ?? null
+    )
+  }
 }
 
 /**
@@ -90,21 +148,20 @@ export function passwordFieldFor(
  * that look like a username on their own, as on the first page of a two-step login.
  */
 export function loginFields(root: Document): HTMLInputElement[] {
-  const inputs = inputsIn(root)
+  const scopes = new Scopes()
+  const inputs = scopes.inputs(root)
   const fields = new Set<HTMLInputElement>()
-  const passwords = inputs
-    .filter(isPasswordField)
-    .filter((p) => !/new-password/.test(p.autocomplete))
-  for (const password of passwords) {
+  for (const password of inputs.filter(isPasswordField)) {
+    if (isNewPassword(password)) continue
     fields.add(password)
-    const username = usernameFieldFor(password)
+    const username = scopes.usernameFor(password)
     if (username) fields.add(username)
   }
   for (const input of inputs) {
     if (
       !fields.has(input) &&
       looksLikeUsername(input) &&
-      !inputsIn(scopeOf(input)).some(isPasswordField)
+      !scopes.inputs(scopeOf(input)).some(isPasswordField)
     ) {
       fields.add(input)
     }
@@ -117,9 +174,10 @@ export function fillTargets(anchor: HTMLInputElement): {
   username: HTMLInputElement | null
   password: HTMLInputElement | null
 } {
+  const scopes = new Scopes()
   if (isPasswordField(anchor))
-    return { username: usernameFieldFor(anchor), password: anchor }
-  return { username: anchor, password: passwordFieldFor(anchor) }
+    return { username: scopes.usernameFor(anchor), password: anchor }
+  return { username: anchor, password: scopes.passwordFor(anchor) }
 }
 
 /** Sets a value the way typing would, so that page frameworks see the change. */
@@ -132,12 +190,12 @@ export function setFieldValue(input: HTMLInputElement, value: string): void {
   if (setter) setter.call(input, value)
   else input.value = value
   input.dispatchEvent(new Event("input", { bubbles: true, composed: true }))
-  input.dispatchEvent(new Event("change", { bubbles: true }))
+  input.dispatchEvent(new Event("change", { bubbles: true, composed: true }))
 }
 
 /** Submits the form of a filled field, or clicks the nearby submit button when there is no form. */
 export function submitFor(input: HTMLInputElement): void {
-  const form = input.form
+  const form = formOf(input)
   if (form) {
     const button = form.querySelector<HTMLElement>(
       'button[type="submit"], input[type="submit"], button:not([type])',
@@ -166,20 +224,15 @@ export function submitFor(input: HTMLInputElement): void {
 export function credentialsAround(
   element: Element,
 ): { username: string; password: string } | null {
-  const scope: ParentNode =
-    element instanceof HTMLFormElement
-      ? element
-      : ((element.closest("form") as HTMLFormElement | null) ??
-        element.ownerDocument)
-  const inputs = [...scope.querySelectorAll("input")].filter((i) => !i.disabled)
+  const scopes = new Scopes()
+  const scope = element instanceof HTMLFormElement ? element : scopeOf(element)
+  const inputs = deepInputs(scope).filter((i) => !i.disabled)
   const password =
-    inputs.find(
-      (i) =>
-        isPasswordField(i) && i.value && !/new-password/.test(i.autocomplete),
-    ) ?? inputs.find((i) => isPasswordField(i) && i.value)
+    inputs.find((i) => isPasswordField(i) && i.value && !isNewPassword(i)) ??
+    inputs.find((i) => isPasswordField(i) && i.value)
   if (password) {
     return {
-      username: usernameFieldFor(password)?.value.trim() ?? "",
+      username: scopes.usernameFor(password)?.value.trim() ?? "",
       password: password.value,
     }
   }

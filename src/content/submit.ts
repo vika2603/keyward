@@ -1,5 +1,5 @@
 import type { ContentScriptContext } from "wxt/utils/content-script-context"
-import { credentialsAround } from "./fields"
+import { credentialsAround, eventOrigin } from "./fields"
 
 const DEDUPE_MS = 3000
 const SUBMIT_LIKE =
@@ -42,8 +42,8 @@ export function watchSubmissions(
     document,
     "submit",
     (event) => {
-      if (event.isTrusted && event.target instanceof HTMLFormElement)
-        capture(event.target)
+      const form = eventOrigin(event)
+      if (event.isTrusted && form instanceof HTMLFormElement) capture(form)
     },
     { capture: true },
   )
@@ -51,8 +51,9 @@ export function watchSubmissions(
     document,
     "click",
     (event) => {
-      if (!event.isTrusted || !(event.target instanceof Element)) return
-      const control = event.target.closest("button, input, [role='button']")
+      const target = eventOrigin(event)
+      if (!event.isTrusted || !(target instanceof Element)) return
+      const control = target.closest("button, input, [role='button']")
       if (isSubmitControl(control)) capture(control)
     },
     { capture: true },
@@ -62,7 +63,7 @@ export function watchSubmissions(
     "keydown",
     (event) => {
       if (!event.isTrusted || event.key !== "Enter" || event.isComposing) return
-      const target = event.target
+      const target = eventOrigin(event)
       if (target instanceof HTMLInputElement && target.type !== "hidden")
         capture(target)
     },

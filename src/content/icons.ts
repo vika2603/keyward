@@ -36,6 +36,32 @@ button:hover, button[aria-expanded="true"] {
 }
 `
 
+/**
+ * The page element drawn over a point of the field, such as a "show password" button, taken at the
+ * outermost ancestor that does not contain the field. Wide covers, such as floating labels laid
+ * over the whole field, do not count.
+ */
+function coveringElement(
+  field: HTMLInputElement,
+  x: number,
+  y: number,
+  ignore: Element,
+): Element | null {
+  const root = field.getRootNode() as Document | ShadowRoot
+  const fieldRect = field.getBoundingClientRect()
+  for (const element of root.elementsFromPoint(x, y)) {
+    if (element === field || element.contains(field)) return null
+    if (element === ignore) continue
+    let outer = element
+    while (outer.parentElement && !outer.parentElement.contains(field))
+      outer = outer.parentElement
+    return outer.getBoundingClientRect().width < fieldRect.width / 2
+      ? outer
+      : null
+  }
+  return null
+}
+
 /** The key icon inside each login field; activating one opens the menu for that field. */
 export class FieldIcons {
   private readonly host: HTMLElement
@@ -130,6 +156,20 @@ export class FieldIcons {
     })
   }
 
+  /** The right edge for the icon: inside the field, left of page controls drawn over its end. */
+  private freeRight(field: HTMLInputElement, rect: DOMRect): number {
+    let right = rect.right - INSET
+    const y = rect.top + rect.height / 2
+    for (let i = 0; i < 3; i++) {
+      const x = right - SIZE / 2
+      if (x < rect.left + rect.width / 2) break
+      const cover = coveringElement(field, x, y, this.host)
+      if (!cover) break
+      right = Math.min(right, cover.getBoundingClientRect().left) - 4
+    }
+    return right
+  }
+
   private position(): void {
     for (const [field, icon] of this.icons) {
       const rect = field.getBoundingClientRect()
@@ -144,7 +184,7 @@ export class FieldIcons {
       if (!shown) continue
       // The field's own text color keeps the icon readable on light and dark pages.
       icon.style.color = getComputedStyle(field).color
-      icon.style.left = `${Math.round(rect.right - INSET - SIZE)}px`
+      icon.style.left = `${Math.round(this.freeRight(field, rect) - SIZE)}px`
       icon.style.top = `${Math.round(rect.top + (rect.height - SIZE) / 2)}px`
     }
   }
