@@ -40,7 +40,7 @@ export function App() {
   const [folders, setFolders] = useState<Folder[]>([])
   const [folderId, setFolderId] = useState<string | null>(null)
   /** A background from before names and folders does not know the folder request, and drops the name. */
-  const [named, setNamed] = useState(true)
+  const [supportsNameAndFolder, setSupportsNameAndFolder] = useState(true)
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
 
@@ -66,10 +66,6 @@ export function App() {
   }, [])
 
   const confirm = async () => {
-    if (!clickCounts()) {
-      setMessage(t("overlay.prompt.guard"))
-      return
-    }
     setBusy(true)
     setMessage(null)
     try {
@@ -101,7 +97,8 @@ export function App() {
       (found) => current && setFolders(found),
       (error) => {
         // Without its folders the login is saved outside every folder.
-        if (current && isUnsupportedRequest(error)) setNamed(false)
+        if (current && isUnsupportedRequest(error))
+          setSupportsNameAndFolder(false)
       },
     )
     return () => {
@@ -176,7 +173,7 @@ export function App() {
                     label={t("overlay.prompt.saveTo")}
                   />
                 </div>
-                {bitwardenTarget && named && (
+                {bitwardenTarget && supportsNameAndFolder && (
                   <label className="flex flex-col gap-2">
                     <span className="text-xs font-medium text-muted-foreground">
                       {t("overlay.prompt.name")}
@@ -240,7 +237,7 @@ export function App() {
               <Button
                 className="ml-auto"
                 disabled={busy || (!update && !target)}
-                onClick={() => void confirm()}
+                onClick={guarded(() => void confirm())}
               >
                 {update ? t("overlay.prompt.update") : t("overlay.prompt.save")}
               </Button>
