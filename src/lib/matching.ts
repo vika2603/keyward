@@ -4,6 +4,7 @@ import {
   isHostOrSubdomain,
   parseUrl,
   siteDomainOf,
+  withScheme,
 } from "./site"
 
 interface MatchOptions {
@@ -78,9 +79,7 @@ export function uriMatches(
       )
     }
     case MatchType.Host: {
-      const url = parseUrl(
-        /^[a-z][a-z0-9+.-]*:\/\//i.test(saved) ? saved : `http://${saved}`,
-      )
+      const url = parseUrl(withScheme(saved, "http"))
       return !!url && url.host.toLowerCase() === page.host.toLowerCase()
     }
     case MatchType.StartsWith:

@@ -1,4 +1,5 @@
 import { storage } from "wxt/utils/storage"
+import { isHostName } from "./site"
 
 export interface GeneratorOptions {
   length: number
@@ -273,7 +274,7 @@ export function generateUsername(
     }
     case "catchAll": {
       const domain = options.domain.trim().replace(/^@/, "")
-      return /^[a-z0-9-]+(\.[a-z0-9-]+)+$/i.test(domain)
+      return isHostName(domain) && domain.includes(".")
         ? `${randomAddressPart(8)}@${domain}`
         : null
     }

@@ -37,23 +37,33 @@ export function isHostOrSubdomain(host: string, parent: string): boolean {
   return hostName === parentName || hostName.endsWith(`.${parentName}`)
 }
 
+/** `address` as it is when it starts with a scheme and `//`, such as `ftp://`; otherwise behind `scheme://`. */
+export function withScheme(address: string, scheme: "http" | "https"): string {
+  return /^[a-z][a-z0-9+.-]*:\/\//i.test(address)
+    ? address
+    : `${scheme}://${address}`
+}
+
+/**
+ * Whether `host` is labels of ASCII letters, digits and hyphens joined by single dots, such as a
+ * punycode domain or an IPv4 address. A trailing dot, an empty label or an IPv6 address fails.
+ */
+export function isHostName(host: string): boolean {
+  return /^[a-z0-9-]+(\.[a-z0-9-]+)*$/i.test(host)
+}
+
 /** Host name of a saved address, which may lack a scheme. */
 export function hostOfSavedUri(uri: string): string | null {
   const trimmed = uri.trim()
   if (!trimmed) return null
-  const withScheme = /^[a-z][a-z0-9+.-]*:\/\//i.test(trimmed)
-    ? trimmed
-    : `http://${trimmed}`
-  return getHostname(withScheme)?.toLowerCase() ?? null
+  return getHostname(withScheme(trimmed, "http"))?.toLowerCase() ?? null
 }
 
 /** Accepts a bare host or a URL typed by the user and returns an https URL, or null. */
 export function normalizeSiteInput(input: string): URL | null {
   const trimmed = input.trim()
   if (!trimmed) return null
-  const url = parseUrl(
-    /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`,
-  )
+  const url = parseUrl(isWebUrl(trimmed) ? trimmed : `https://${trimmed}`)
   if (
     !url ||
     !/^[a-z0-9.-]+$/i.test(url.hostname) ||
