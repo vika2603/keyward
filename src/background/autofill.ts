@@ -222,12 +222,25 @@ function cycleKeyOf(vaultId: string, loginId: string): string {
   return JSON.stringify([vaultId, loginId])
 }
 
+/** The last step of the fill cycle; each waits for the one before, so quick presses each advance. */
+let cycleTurn: Promise<unknown> = Promise.resolve()
+
 /**
  * The login the shortcut fills: the first one, or the one after the last press's while the same
  * page is pressed again soon. The order is kept from the first press, as filling one login moves
  * it to the front of later lists.
  */
-async function nextInCycle(
+function nextInCycle(
+  tabId: number,
+  page: URL,
+  available: string[],
+): Promise<string | undefined> {
+  const next = cycleTurn.then(() => advanceCycle(tabId, page, available))
+  cycleTurn = next.catch(() => {})
+  return next
+}
+
+async function advanceCycle(
   tabId: number,
   page: URL,
   available: string[],

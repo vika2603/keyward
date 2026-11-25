@@ -350,6 +350,32 @@ describe("passReprompt", () => {
     ).rejects.toMatchObject({ code: "notFound" })
   })
 
+  it("gives no pass when the account locks while the password is checked", async () => {
+    const bw = provider()
+    const subtle = globalThis.crypto.subtle
+    const importKey = subtle.importKey.bind(subtle)
+    let locked: Promise<void> | undefined
+    // Checking the password stretches the master key with HMAC; the lock comes in the middle.
+    const spy = vi
+      .spyOn(subtle, "importKey")
+      .mockImplementation(async (...args: Parameters<typeof importKey>) => {
+        locked ??= bw.lock(VAULT)
+        await locked
+        return importKey(...args)
+      })
+    try {
+      await expect(
+        bw.passReprompt(VAULT, "item-6", masterPassword),
+      ).rejects.toMatchObject({ code: "locked" })
+    } finally {
+      spy.mockRestore()
+    }
+    const passes = await fakeBrowser.storage.session.get(
+      "bitwarden.repromptPasses",
+    )
+    expect(passes["bitwarden.repromptPasses"] ?? {}).toEqual({})
+  })
+
   it("lets the pass run out", async () => {
     vi.useFakeTimers({ toFake: ["Date"] })
     try {

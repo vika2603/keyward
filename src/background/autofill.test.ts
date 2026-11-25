@@ -222,6 +222,18 @@ describe("fillFirst", () => {
     }
   })
 
+  it("fills a different login for each of two presses at once", async () => {
+    const second = { id: "item-2", username: "another", title: "Example" }
+    const { providers, calls } = fakeProviders([
+      { info: accountVault, credential, logins: [login, second] },
+    ])
+    await Promise.all([fillFirst(providers), fillFirst(providers)])
+    expect(calls.credential.mock.calls.map((call) => call[1])).toEqual([
+      "item-1",
+      "item-2",
+    ])
+  })
+
   it("starts over on another page of the tab", async () => {
     const second = { id: "item-2", username: "another", title: "Example" }
     const { providers, calls } = fakeProviders([

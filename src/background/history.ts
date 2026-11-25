@@ -34,10 +34,23 @@ export async function listHistory(): Promise<HistoryEntry[]> {
   }))
 }
 
-export async function addHistory(
+/** The last change of the stored list; each waits for the one before, so none is lost. */
+let changing: Promise<unknown> = Promise.resolve()
+
+export function addHistory(
   value: string,
   host: string | null,
   kind: GeneratorKind = "password",
+): Promise<void> {
+  const added = changing.then(() => prepend(value, host, kind))
+  changing = added.catch(() => {})
+  return added
+}
+
+async function prepend(
+  value: string,
+  host: string | null,
+  kind: GeneratorKind,
 ): Promise<void> {
   const entries = await listHistory()
   if (entries[0]?.value === value) return
@@ -69,7 +82,9 @@ export function addWhenSettled(
   unsettled.delete(kind)
   const timer = setTimeout(() => {
     unsettled.delete(kind)
-    void host().then((hostname) => addHistory(value, hostname, kind))
+    void host()
+      .then((hostname) => addHistory(value, hostname, kind))
+      .catch(() => {})
   }, SETTLE_DELAY_MS)
   unsettled.set(kind, { value, host, timer })
 }
@@ -98,8 +113,10 @@ export async function settleNow(): Promise<void> {
   }
 }
 
-export async function clearHistory(): Promise<void> {
+export function clearHistory(): Promise<void> {
   for (const { timer } of unsettled.values()) clearTimeout(timer)
   unsettled.clear()
-  await browser.storage.session.remove(KEY)
+  const cleared = changing.then(() => browser.storage.session.remove(KEY))
+  changing = cleared.catch(() => {})
+  return cleared
 }

@@ -125,6 +125,14 @@ describe("the history", () => {
     ])
   })
 
+  it("keeps every value added at the same time", async () => {
+    const values = ["first-value", "second-value", "third-value"]
+    await Promise.all(values.map((value) => addHistory(value, null)))
+    expect((await listHistory()).map((entry) => entry.value)).toEqual(
+      [...values].reverse(),
+    )
+  })
+
   it("keeps the newest 100 entries", async () => {
     for (let index = 1; index <= 105; index++) {
       await addHistory(`password-${index}`, null)

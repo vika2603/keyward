@@ -417,6 +417,8 @@ export class BitwardenProvider implements VaultProvider {
         throw new VaultError("Wrong master password", "bitwarden.wrongPassword")
       throw error
     }
+    // Deriving the key takes a moment; a lock in that time must not be followed by a pass.
+    await this.unlockedSession(accountId)
     const now = Date.now()
     const passes = Object.fromEntries(
       Object.entries(await this.repromptPasses()).filter(
@@ -430,6 +432,7 @@ export class BitwardenProvider implements VaultProvider {
   async signOut(accountId: string): Promise<void> {
     this.cache.delete(accountId)
     await removeAccount(accountId)
+    await this.dropRepromptPasses(vaultIdOf(accountId))
   }
 
   /** Locks accounts that have not been used for `minutes`. */
