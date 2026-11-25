@@ -83,6 +83,24 @@ const VAULT_ROW_HEIGHT = 28
 const GROUP_FILTER_ROW_HEIGHT = 36
 const ITEM_ROW_HEIGHT = { standard: 50, compact: 38 }
 
+function loginRows(vault: VaultView): ItemRow[] {
+  return vault.logins.map((login) => ({
+    type: "login",
+    vault,
+    login,
+    name: login.title || login.username,
+  }))
+}
+
+function noteRows(vault: VaultView): ItemRow[] {
+  return (vault.notes ?? []).map((note) => ({
+    type: "note",
+    vault,
+    note,
+    name: note.name,
+  }))
+}
+
 /**
  * Each vault's items of the chosen kind, sorted by name, under the vault's name when there are
  * several; a folded vault shows only its name. The count is of every item, folded or not.
@@ -97,24 +115,8 @@ function rowsOf(
   const rows: ListRow[] = []
   let itemCount = 0
   for (const vault of vaults) {
-    const logins: ItemRow[] =
-      kind === "notes"
-        ? []
-        : vault.logins.map((login) => ({
-            type: "login",
-            vault,
-            login,
-            name: login.title || login.username,
-          }))
-    const notes: ItemRow[] =
-      kind === "logins"
-        ? []
-        : (vault.notes ?? []).map((note) => ({
-            type: "note",
-            vault,
-            note,
-            name: note.name,
-          }))
+    const logins = kind === "notes" ? [] : loginRows(vault)
+    const notes = kind === "logins" ? [] : noteRows(vault)
     const items: ItemRow[] =
       kind === "trash"
         ? // The trash lists what was deleted last first.
@@ -155,19 +157,7 @@ function rowsOf(
 
 /** A vault's logins, then its notes, in the order the background listed them. */
 export function rowsOfVault(vault: VaultView): ListRow[] {
-  const logins: ItemRow[] = vault.logins.map((login) => ({
-    type: "login",
-    vault,
-    login,
-    name: login.title || login.username,
-  }))
-  const notes: ItemRow[] = (vault.notes ?? []).map((note) => ({
-    type: "note",
-    vault,
-    note,
-    name: note.name,
-  }))
-  return [...logins, ...notes]
+  return [...loginRows(vault), ...noteRows(vault)]
 }
 
 function keyOf(row: ListRow): string {

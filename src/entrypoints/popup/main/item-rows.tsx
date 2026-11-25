@@ -7,7 +7,7 @@ import {
   Trash2Icon,
   UserIcon,
 } from "lucide-react"
-import { useState } from "react"
+import { type ReactNode, useState } from "react"
 import { callBackground } from "@/background/api"
 import { errorCodeOf } from "@/components/keyward/errors"
 import { formatDay } from "@/components/keyward/format"
@@ -29,6 +29,104 @@ import type {
 } from "@/lib/providers/types"
 import type { Settings } from "@/lib/settings"
 import { cn } from "@/lib/utils"
+
+/** A row of the list, highlighted while the pointer or the focus is on it. */
+function RowShell({
+  compact,
+  children,
+}: {
+  compact: boolean
+  children: ReactNode
+}) {
+  return (
+    <div
+      className={cn(
+        "group/row flex items-center gap-2.5 rounded-lg px-2 py-1.5 hover:bg-muted focus-within:bg-muted",
+        compact ? "min-h-9" : "min-h-12",
+      )}
+    >
+      {children}
+    </div>
+  )
+}
+
+/** A row's icon tile, which stands apart from the row's highlight. */
+function rowIconClass(compact: boolean): string {
+  return cn(
+    "group-hover/row:bg-background group-focus-within/row:bg-background",
+    compact && "size-6",
+  )
+}
+
+/** The part of a row that opens its item; the arrow keys move between these. */
+function OpenItemButton({
+  onOpen,
+  children,
+}: {
+  onOpen: () => void
+  children: ReactNode
+}) {
+  return (
+    <button
+      type="button"
+      title={t("popup.main.viewDetails")}
+      data-row
+      onClick={onOpen}
+      className="flex min-w-0 flex-1 items-center gap-2.5 self-stretch text-left outline-none"
+    >
+      {children}
+    </button>
+  )
+}
+
+/** A row's buttons, shown while the row is hovered or focused, or while `shown` holds them. */
+function RowActions({
+  shown = false,
+  className,
+  children,
+}: {
+  shown?: boolean
+  className?: string
+  children: ReactNode
+}) {
+  return (
+    <div
+      className={cn(
+        "flex shrink-0 gap-0.5 opacity-0 group-hover/row:opacity-100 group-focus-within/row:opacity-100",
+        className,
+        shown && "opacity-100",
+      )}
+    >
+      {children}
+    </div>
+  )
+}
+
+function RowActionButton({
+  label,
+  disabled,
+  onClick,
+  children,
+}: {
+  label: string
+  disabled?: boolean
+  onClick: () => void
+  children: ReactNode
+}) {
+  return (
+    <Button
+      variant="ghost"
+      size="icon-sm"
+      className="hover:bg-background"
+      aria-label={label}
+      title={label}
+      disabled={disabled}
+      onClick={onClick}
+    >
+      {children}
+    </Button>
+  )
+}
 
 /**
  * A login or note in the trash: restored from one button, deleted for good from another that asks
@@ -77,49 +175,27 @@ export function TrashedRow({
   }
 
   return (
-    <div
-      className={cn(
-        "group/row flex items-center gap-2.5 rounded-lg px-2 py-1.5 hover:bg-muted focus-within:bg-muted",
-        compact ? "min-h-9" : "min-h-12",
-      )}
-    >
+    <RowShell compact={compact}>
       {item.kind === "login" ? (
         <SiteIcon
           host={item.host}
           text={item.name}
-          className={cn(
-            "group-hover/row:bg-background group-focus-within/row:bg-background",
-            compact && "size-6",
-          )}
+          className={rowIconClass(compact)}
         />
       ) : (
-        <NoteIcon
-          className={cn(
-            "group-hover/row:bg-background group-focus-within/row:bg-background",
-            compact && "size-6",
-          )}
-        />
+        <NoteIcon className={rowIconClass(compact)} />
       )}
       <LoginLabel username={item.name} detail={detail} compact={compact} />
       {item.editable && (
-        <div
-          className={cn(
-            "flex shrink-0 items-center gap-0.5 opacity-0 group-hover/row:opacity-100 group-focus-within/row:opacity-100",
-            armed && "opacity-100",
-          )}
-        >
+        <RowActions shown={armed} className="items-center">
           {!armed && (
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              className="hover:bg-background"
-              aria-label={t("popup.trash.restore")}
-              title={t("popup.trash.restore")}
+            <RowActionButton
+              label={t("popup.trash.restore")}
               disabled={busy}
               onClick={() => void run("restore")}
             >
               <ArchiveRestoreIcon />
-            </Button>
+            </RowActionButton>
           )}
           <Button
             variant={armed ? "destructive" : "ghost"}
@@ -134,9 +210,9 @@ export function TrashedRow({
             <Trash2Icon />
             {armed && t("popup.trash.confirmPurge")}
           </Button>
-        </div>
+        </RowActions>
       )}
-    </div>
+    </RowShell>
   )
 }
 
@@ -177,44 +253,24 @@ export function NoteRow({
   }
 
   return (
-    <div
-      className={cn(
-        "group/row flex items-center gap-2.5 rounded-lg px-2 py-1.5 hover:bg-muted focus-within:bg-muted",
-        compact ? "min-h-9" : "min-h-12",
-      )}
-    >
-      <button
-        type="button"
-        title={t("popup.main.viewDetails")}
-        data-row
-        onClick={onOpen}
-        className="flex min-w-0 flex-1 items-center gap-2.5 self-stretch text-left outline-none"
-      >
-        <NoteIcon
-          className={cn(
-            "group-hover/row:bg-background group-focus-within/row:bg-background",
-            compact && "size-6",
-          )}
-        />
+    <RowShell compact={compact}>
+      <OpenItemButton onOpen={onOpen}>
+        <NoteIcon className={rowIconClass(compact)} />
         <LoginLabel
           username={note.name}
           detail={t("popup.note.title")}
           compact={compact}
         />
-      </button>
-      <div className="flex shrink-0 gap-0.5 opacity-0 group-hover/row:opacity-100 group-focus-within/row:opacity-100">
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          className="hover:bg-background"
-          aria-label={t("popup.note.copy")}
-          title={t("popup.note.copy")}
+      </OpenItemButton>
+      <RowActions>
+        <RowActionButton
+          label={t("popup.note.copy")}
           onClick={() => void copy()}
         >
           {copied ? <CheckIcon /> : <CopyIcon />}
-        </Button>
-      </div>
-    </div>
+        </RowActionButton>
+      </RowActions>
+    </RowShell>
   )
 }
 
@@ -268,74 +324,43 @@ export function LoginRow({
   }
 
   return (
-    <div
-      className={cn(
-        "group/row flex items-center gap-2.5 rounded-lg px-2 py-1.5 hover:bg-muted focus-within:bg-muted",
-        compact ? "min-h-9" : "min-h-12",
-      )}
-    >
-      <button
-        type="button"
-        title={t("popup.main.viewDetails")}
-        data-row
-        onClick={onOpen}
-        className="flex min-w-0 flex-1 items-center gap-2.5 self-stretch text-left outline-none"
-      >
+    <RowShell compact={compact}>
+      <OpenItemButton onOpen={onOpen}>
         <SiteIcon
           host={login.host}
           text={login.title}
-          className={cn(
-            "group-hover/row:bg-background group-focus-within/row:bg-background",
-            compact && "size-6",
-          )}
+          className={rowIconClass(compact)}
         />
         <LoginLabel
           username={nameFirst ? login.title : login.username}
           detail={confirming ? t("popup.main.confirmTouchId") : secondLine}
           compact={compact}
         />
-      </button>
-      <div
-        className={cn(
-          "flex shrink-0 gap-0.5 opacity-0 group-hover/row:opacity-100 group-focus-within/row:opacity-100",
-          confirming && "opacity-100",
-        )}
-      >
+      </OpenItemButton>
+      <RowActions shown={confirming}>
         {login.username && (
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            className="hover:bg-background"
-            aria-label={t("popup.copyUsername")}
-            title={t("popup.copyUsername")}
+          <RowActionButton
+            label={t("popup.copyUsername")}
             onClick={() => void copy("username")}
           >
             {copied === "username" ? <CheckIcon /> : <UserIcon />}
-          </Button>
+          </RowActionButton>
         )}
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          className="hover:bg-background"
-          aria-label={t("popup.copyPassword")}
-          title={t("popup.copyPassword")}
+        <RowActionButton
+          label={t("popup.copyPassword")}
           onClick={() => void copy("password")}
         >
           {copied === "password" ? <CheckIcon /> : <KeyRoundIcon />}
-        </Button>
+        </RowActionButton>
         {login.hasCode && (
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            className="hover:bg-background"
-            aria-label={t("popup.copyCode")}
-            title={t("popup.copyCode")}
+          <RowActionButton
+            label={t("popup.copyCode")}
             onClick={() => void copy("code")}
           >
             {copied === "code" ? <CheckIcon /> : <TimerIcon />}
-          </Button>
+          </RowActionButton>
         )}
-      </div>
-    </div>
+      </RowActions>
+    </RowShell>
   )
 }
