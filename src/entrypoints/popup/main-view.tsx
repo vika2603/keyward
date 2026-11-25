@@ -37,11 +37,7 @@ import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { t } from "@/lib/i18n"
-import type {
-  LoginSummary,
-  NoteSummary,
-  ProviderKind,
-} from "@/lib/providers/types"
+import type { LoginSummary, NoteSummary } from "@/lib/providers/types"
 import type { Settings } from "@/lib/settings"
 import { cn } from "@/lib/utils"
 import type { View } from "./App"
@@ -59,15 +55,14 @@ import {
   narrowed,
 } from "./group-filter"
 import { openOptions, SettingsButton } from "./header"
-
-type Filter = "all" | ProviderKind
+import { mainLists, type ProviderTab } from "./main/lists"
 
 /**
  * Where the main list was left. The popup keeps one for as long as it is open and the main view
  * writes to it as the user moves, so coming back from an item finds the list as it was.
  */
 export interface ListPlace {
-  tab: Filter
+  tab: ProviderTab
   /** The list filter the user chose, or null while the site decides it. */
   itemFilter: ItemFilter | null
   /** Vaults whose logins for the site were folded. */
@@ -114,7 +109,7 @@ export function MainView({
   const [everythingError, setEverythingError] = useState<unknown>(null)
   /** Changes after a lock, so the search runs again. */
   const [version, setVersion] = useState(0)
-  const [filter, setFilter] = useState<Filter>(place.tab)
+  const [filter, setFilter] = useState<ProviderTab>(place.tab)
   const [itemFilter, setItemFilter] = useState(place.itemFilter)
   const [foldedSiteVaults, setFoldedSiteVaults] = useState(
     place.foldedSiteVaults,
@@ -124,7 +119,7 @@ export function MainView({
     place.groupFilters = next
     setGroupFilters(next)
   }
-  const changeTab = (next: Filter) => {
+  const changeTab = (next: ProviderTab) => {
     place.tab = next
     setFilter(next)
   }
@@ -169,9 +164,11 @@ export function MainView({
   }, [])
   useEffect(load, [load])
 
+  const loading = state === null
+  const page = state?.page ?? null
+  const vaults = state?.vaults ?? []
   // Nothing can be searched or filtered until a vault is ready; the view offers to connect instead.
-  const connected =
-    state?.vaults.some((vault) => vault.status === "ready") ?? false
+  const connected = vaults.some((vault) => vault.status === "ready")
   const search = connected ? query.trim() : ""
   useEffect(() => {
     setResults(null)
@@ -194,11 +191,6 @@ export function MainView({
     }
   }, [search, version])
 
-  const loading = state === null
-  const page = state?.page ?? null
-  const vaults = state?.vaults ?? []
-  const kinds = new Set(vaults.map((vault) => vault.kind))
-  const anyReady = vaults.some((vault) => vault.status === "ready")
   const lockAll = async () => {
     try {
       await callBackground("popup.lockAll", null)
@@ -207,34 +199,23 @@ export function MainView({
     }
     load()
   }
-  const inTab = (vault: VaultView) => filter === "all" || vault.kind === filter
-  // Every ready vault of the tab, as listed whole: what the group filter picks from.
-  const filterable = (everything ?? []).filter(
-    (vault) => inTab(vault) && vault.status === "ready" && !vault.error,
-  )
-  const shown = (search ? (results ?? []) : vaults).filter(inTab)
-  const tabs = connected && kinds.size > 1
-  // Whether the vaults in view can say a site has no logins, or take a new one.
-  const shownReady = shown.some((vault) => vault.status === "ready")
-  // With one provider in view and nothing searched, a provider that can list a whole vault offers
-  // it beside the site's logins. Passwords cannot, so its view stays as it is.
-  const oneProvider = filter !== "all" || kinds.size === 1
-  // Locked vaults have nothing to browse; their unlock cards show instead.
-  const browsing = connected && !search && oneProvider && shownReady
-  // Vaults to pair or unlock get a large button each, except on the "all" tab once one is open:
-  // each is then unlocked from its own tab. The others list their logins or say why they cannot.
-  const locked =
-    filter === "all" && tabs
-      ? []
-      : shown.filter((vault) => vault.status === "locked")
-  const listed = shown.filter(
-    (vault) =>
-      vault.status !== "locked" &&
-      (vault.status !== "ready" ||
-        vault.error ||
-        vault.logins.length ||
-        vault.notes?.length),
-  )
+  const {
+    tabsShown,
+    activeTab,
+    shownReady,
+    browsing,
+    locked,
+    listed,
+    filterable,
+    siteItemCount,
+    appleSearchHint,
+  } = mainLists({
+    vaults,
+    results,
+    allItems: everything,
+    search,
+    tab: filter,
+  })
   const lockedCards = locked.map((vault) => (
     <LockedVaultCard
       key={vault.id}
@@ -251,13 +232,6 @@ export function MainView({
   )
   const waitingForItems = browsing && everything === null
   const browsable = browsing && browsed.length > 0
-  const siteItemCount = listed.reduce(
-    (count, vault) =>
-      vault.status === "ready" && !vault.error
-        ? count + vault.logins.length + (vault.notes?.length ?? 0)
-        : count,
-    0,
-  )
   // The whole vault is asked for on every opening; its failure matters only where it would show. A
   // background without the request leaves the site's logins, which need no message.
   useEffect(() => {
@@ -276,11 +250,6 @@ export function MainView({
     scrollRestored.current = true
     if (listRef.current) listRef.current.scrollTop = place.scrollTop
   }, [listReady, place])
-  // Apple's helper looks logins up by site only, so a search for other text cannot reach it.
-  const appleSearchHint =
-    search !== "" &&
-    !search.includes(".") &&
-    shown.some((vault) => vault.kind === "apple" && vault.status === "ready")
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -311,7 +280,7 @@ export function MainView({
             size="icon"
             aria-label={t("popup.main.lockAll")}
             title={t("popup.main.lockAll")}
-            disabled={!anyReady}
+            disabled={!connected}
             onClick={() => void lockAll()}
           >
             <LockIcon />
@@ -367,11 +336,11 @@ export function MainView({
           </div>
         </div>
       )}
-      {tabs && (
+      {tabsShown && (
         <div className="px-2 pb-2">
           <Tabs
             value={filter}
-            onValueChange={(value) => changeTab(value as Filter)}
+            onValueChange={(value) => changeTab(value as ProviderTab)}
           >
             <TabsList className="w-full">
               <TabsTrigger value="all">{t("popup.main.all")}</TabsTrigger>
@@ -478,7 +447,7 @@ export function MainView({
           </div>
         ) : !listed.length ? (
           <EmptyState
-            icon={!anyReady}
+            icon={!connected}
             text={
               search
                 ? t("popup.main.noResults", { query: search })
@@ -512,7 +481,7 @@ export function MainView({
               <VaultGroup
                 key={vault.id}
                 vault={vault}
-                heading={filter === "apple" ? "tab" : "vault"}
+                heading={activeTab === "apple" ? "tab" : "vault"}
                 title={
                   !search && page
                     ? t("popup.main.currentSite", { host: page.host })
