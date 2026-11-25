@@ -1,4 +1,9 @@
-import { ExternalLinkIcon, PencilIcon, PlusIcon } from "lucide-react"
+import {
+  ExternalLinkIcon,
+  PencilIcon,
+  PlusIcon,
+  RefreshCwIcon,
+} from "lucide-react"
 import { useCallback, useEffect, useState } from "react"
 import { callBackground } from "@/background/api"
 import { BrandIcon, providerName } from "@/components/keyward/brand-icon"
@@ -22,11 +27,12 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
-import { t } from "@/lib/i18n"
+import { currentLanguage, t } from "@/lib/i18n"
 import { APPLE_VAULT_ID } from "@/lib/providers/apple/vault-id"
 import type { AccountSummary } from "@/lib/providers/bitwarden/bitwarden-provider"
 import { isCloudServer, serverHost } from "@/lib/providers/bitwarden/server"
 import type { VaultInfo } from "@/lib/providers/types"
+import { cn } from "@/lib/utils"
 import { navigate } from "./App"
 import { Card, Option, PageHeader, Section } from "./parts"
 import { useSettings } from "./use-settings"
@@ -48,6 +54,9 @@ export function VaultsPage() {
   const [accounts, setAccounts] = useState<AccountSummary[]>([])
   const [message, setMessage] = useState<string | null>(null)
   const [renaming, setRenaming] = useState<AccountSummary | null>(null)
+  /** The account being synced now. */
+  const [syncing, setSyncing] = useState<string | null>(null)
+  const [syncMessage, setSyncMessage] = useState<string | null>(null)
 
   const load = useCallback(() => {
     void callBackground("bitwarden.accounts", null).then(setAccounts)
@@ -67,6 +76,19 @@ export function VaultsPage() {
       return
     await callBackground("bitwarden.signOut", { accountId: account.id })
     load()
+  }
+
+  const syncNow = async (account: AccountSummary) => {
+    setSyncing(account.id)
+    setSyncMessage(null)
+    try {
+      await callBackground("bitwarden.sync", { accountId: account.id })
+    } catch (error) {
+      setSyncMessage(errorMessage(error))
+    } finally {
+      setSyncing(null)
+      load()
+    }
   }
 
   const openApp = async () => {
@@ -177,6 +199,22 @@ export function VaultsPage() {
               <Button
                 variant="ghost"
                 size="icon"
+                aria-label={t("options.vaults.bitwarden.syncNow")}
+                title={
+                  account.unlocked
+                    ? t("options.vaults.bitwarden.syncNow")
+                    : t("options.vaults.bitwarden.syncLocked")
+                }
+                disabled={!account.unlocked || syncing !== null}
+                onClick={() => void syncNow(account)}
+              >
+                <RefreshCwIcon
+                  className={cn(syncing === account.id && "animate-spin")}
+                />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
                 aria-label={t("options.vaults.bitwarden.rename")}
                 title={t("options.vaults.bitwarden.rename")}
                 onClick={() => setRenaming(account)}
@@ -189,6 +227,9 @@ export function VaultsPage() {
             </div>
           </Option>
         ))}
+        {syncMessage && (
+          <p className="px-4 pb-3 text-sm text-destructive">{syncMessage}</p>
+        )}
         {accounts.length > 0 && (
           <Option
             name={t("options.vaults.autoLock.name")}
@@ -263,12 +304,25 @@ export function VaultsPage() {
   )
 }
 
-/** Under an account's name: its server, and its email address once the account has a name. */
+/**
+ * Under an account's name: its server, its email address once the account has a name, and when it
+ * last synced while it is unlocked.
+ */
 function accountDetail(account: AccountSummary): string {
   const server = isCloudServer(account.server)
     ? serverHost(account.server)
     : account.server
-  return account.name ? `${account.email} · ${server}` : server
+  const parts = account.name ? [account.email, server] : [server]
+  if (account.unlocked && account.syncedAt !== undefined)
+    parts.push(
+      t("options.vaults.bitwarden.syncedAt", {
+        time: new Date(account.syncedAt).toLocaleTimeString(currentLanguage(), {
+          hour: "2-digit",
+          minute: "2-digit",
+        }),
+      }),
+    )
+  return parts.join(" · ")
 }
 
 function RenameDialog({

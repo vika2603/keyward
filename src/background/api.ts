@@ -230,6 +230,8 @@ export type BackgroundApi = {
     payload: { accountId: string; name: string }
     result: null
   }
+  /** Fetches an unlocked account's items from its server now. */
+  "bitwarden.sync": { payload: { accountId: string }; result: null }
   "bitwarden.signIn": {
     payload: {
       server: string

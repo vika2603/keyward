@@ -26,6 +26,9 @@ export const en = {
   "options.vaults.bitwarden.signIn": "Sign in",
   "options.vaults.bitwarden.signOut": "Sign out",
   "options.vaults.bitwarden.rename": "Rename",
+  "options.vaults.bitwarden.syncNow": "Sync now",
+  "options.vaults.bitwarden.syncLocked": "Unlock the account to sync it",
+  "options.vaults.bitwarden.syncedAt": "Synced {time}",
   "options.vaults.bitwarden.renameTitle": "Account name",
   "options.vaults.bitwarden.renameDescription":
     "The popup and menus show this name instead of the email address. Leave it empty to show the email address.",
@@ -246,6 +249,9 @@ export const zhCN: Record<keyof typeof en, string> = {
   "options.vaults.bitwarden.signIn": "登录",
   "options.vaults.bitwarden.signOut": "退出登录",
   "options.vaults.bitwarden.rename": "重命名",
+  "options.vaults.bitwarden.syncNow": "立即同步",
+  "options.vaults.bitwarden.syncLocked": "解锁账号后才能同步",
+  "options.vaults.bitwarden.syncedAt": "{time} 同步",
   "options.vaults.bitwarden.renameTitle": "账号名称",
   "options.vaults.bitwarden.renameDescription":
     "弹窗和菜单里用这个名称代替邮箱显示。留空则显示邮箱。",

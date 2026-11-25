@@ -91,6 +91,8 @@ export interface AccountSummary {
   /** What the interface calls the account: its name, else its email address. */
   label: string
   unlocked: boolean
+  /** When the account's items were last fetched from its server, while it is unlocked. */
+  syncedAt?: number
 }
 
 export interface PendingSignInView {
@@ -153,6 +155,7 @@ export class BitwardenProvider implements VaultProvider {
         name: account.name ?? "",
         label: accountLabel(account, accounts),
         unlocked: (await loadSession(account.id)) !== null,
+        syncedAt: (await loadSync(account.id))?.syncedAt,
       })),
     )
   }
