@@ -80,7 +80,7 @@ export function AddView({ onBack }: { onBack: () => void }) {
   const apple = targets?.find((t) => t.id === target)?.kind === "apple"
   return (
     <form
-      className="flex min-h-[376px] flex-col"
+      className="flex min-h-0 flex-1 flex-col"
       onSubmit={(event) => {
         event.preventDefault()
         void save()

@@ -104,7 +104,7 @@ export function EditView({
 
   return (
     <form
-      className="flex max-h-[600px] flex-col"
+      className="flex min-h-0 flex-1 flex-col"
       onSubmit={(event) => {
         event.preventDefault()
         void save()

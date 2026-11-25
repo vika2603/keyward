@@ -398,7 +398,7 @@ export function DetailView({
       : Math.max(0, Math.ceil((expiresAt - now) / 1000))
 
   return (
-    <div className="flex max-h-[600px] flex-col">
+    <div className="flex min-h-0 flex-1 flex-col">
       <BackHeader title={t("popup.detail.title")} onBack={onBack}>
         {details?.editable && (
           <IconButton label={t("popup.detail.edit")} onClick={onEdit}>

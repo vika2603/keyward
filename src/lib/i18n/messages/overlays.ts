@@ -7,7 +7,7 @@ export const en = {
   "overlay.menu.recent": "Just used · {site}",
   "overlay.menu.suggest": "Use a strong password",
   "overlay.menu.passkeyOnly":
-    "This Apple login has only a passkey, so it was taken off the list. Use the page's passkey option to sign in with it.",
+    "This iCloud Passwords login has only a passkey, so it was taken off the list. Use the page's passkey option to sign in with it.",
   "overlay.menu.confirmTouchId": "Confirm with Touch ID or your Mac password.",
   "overlay.prompt.guard":
     "The prompt had just appeared, moved or was covered by the page. Click again.",
@@ -31,7 +31,7 @@ export const zhCN: Record<keyof typeof en, string> = {
   "overlay.menu.recent": "刚才使用 · {site}",
   "overlay.menu.suggest": "使用强密码",
   "overlay.menu.passkeyOnly":
-    "这条 Apple 登录只有通行密钥，已从列表移除。要用它登录，请选网页上的通行密钥选项。",
+    "这条 iCloud 密码登录只有通行密钥，已从列表移除。要用它登录，请选网页上的通行密钥选项。",
   "overlay.menu.confirmTouchId": "用触控 ID 或 Mac 密码确认。",
   "overlay.prompt.guard": "提示刚出现、移动过或被页面遮挡，请再点一次。",
   "overlay.prompt.updateTitle": "更新已保存的密码？",

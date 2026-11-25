@@ -134,7 +134,7 @@ export function CodeSetupView({ onBack }: { onBack: () => void }) {
   const empty = setup !== null && !setup.apple && setup.sources.length === 0
 
   return (
-    <div className="flex max-h-[600px] flex-col">
+    <div className="flex min-h-0 flex-1 flex-col">
       <BackHeader title={t("popup.codeSetup.title")} onBack={onBack} />
       <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-3 pb-3">
         {setup && (

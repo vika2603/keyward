@@ -68,7 +68,7 @@ export function HistoryView({ onBack }: { onBack: () => void }) {
   }
 
   return (
-    <div className="flex max-h-[600px] min-h-[264px] flex-col">
+    <div className="flex min-h-0 flex-1 flex-col">
       <BackHeader title={t("popup.history.title")} onBack={onBack}>
         {confirming ? (
           <div className="flex gap-1">
@@ -120,7 +120,7 @@ export function HistoryView({ onBack }: { onBack: () => void }) {
           <p className="px-3 pt-2 text-xs text-destructive">{message}</p>
         )}
         {entries && !entries.length && (
-          <p className="px-3 py-6 text-center text-sm text-muted-foreground">
+          <p className="flex h-full items-center justify-center px-3 pb-12 text-center text-sm text-muted-foreground">
             {t("popup.history.empty")}
           </p>
         )}

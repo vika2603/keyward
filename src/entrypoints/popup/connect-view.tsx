@@ -1,17 +1,13 @@
-import { useState } from "react"
 import { ApplePairing } from "@/components/keyward/apple-pairing"
 import { BitwardenUnlock } from "@/components/keyward/bitwarden-unlock"
-import { BrandIcon, backendName } from "@/components/keyward/brand-icon"
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   accountIdOfSource,
   isBitwardenSource,
 } from "@/lib/backends/bitwarden/source-id"
 import type { BackendKind } from "@/lib/backends/types"
-import { t } from "@/lib/i18n"
-import { openOptions, SettingsButton } from "./header"
+import { BackHeader, openOptions } from "./header"
 
-/** Pairs Apple Passwords or unlocks an account; one backend at a time, chosen by the user. */
+/** Pairs Apple Passwords or unlocks one account, each on a page of its own. */
 export function ConnectView({
   kind,
   sourceId,
@@ -21,36 +17,16 @@ export function ConnectView({
   sourceId?: string
   onDone: () => void
 }) {
-  const [selected, setSelected] = useState<BackendKind>(kind)
   const accountId =
     sourceId && isBitwardenSource(sourceId)
       ? accountIdOfSource(sourceId)
       : undefined
 
   return (
-    <div className="flex min-h-[228px] flex-col">
-      <div className="flex items-center gap-1 p-2">
-        <Tabs
-          className="mr-1 min-w-0 flex-1"
-          value={selected}
-          onValueChange={(value) => setSelected(value as BackendKind)}
-        >
-          <TabsList
-            className="w-full"
-            aria-label={t("popup.connect.chooseBackend")}
-          >
-            {(["apple", "bitwarden"] as const).map((k) => (
-              <TabsTrigger key={k} value={k}>
-                <BrandIcon kind={k} />
-                {backendName(k)}
-              </TabsTrigger>
-            ))}
-          </TabsList>
-        </Tabs>
-        <SettingsButton />
-      </div>
-      <div className="flex min-h-0 flex-1 flex-col justify-center px-3 pb-3">
-        {selected === "apple" ? (
+    <div className="flex min-h-0 flex-1 flex-col">
+      <BackHeader onBack={onDone} />
+      <div className="flex min-h-0 flex-1 flex-col justify-center overflow-y-auto px-4 pb-12">
+        {kind === "apple" ? (
           <ApplePairing autoStart onPaired={onDone} />
         ) : (
           <BitwardenUnlock

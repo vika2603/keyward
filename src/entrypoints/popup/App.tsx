@@ -38,7 +38,9 @@ export function App() {
   if (!language) return null
   const main = () => setView({ name: "main" })
   return (
-    <div className="flex w-[380px] flex-col">
+    // A fixed size, as Chrome keeps a popup's size while it is open; every view fills it and
+    // scrolls its own content.
+    <div className="flex h-[600px] w-[380px] flex-col">
       {view?.name === "main" && (
         <MainView
           density={density}

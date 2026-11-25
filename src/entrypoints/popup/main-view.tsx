@@ -1,6 +1,7 @@
 import {
   CheckIcon,
   ChevronDownIcon,
+  ChevronRightIcon,
   ExternalLinkIcon,
   KeyRoundIcon,
   LockIcon,
@@ -11,7 +12,8 @@ import {
   UserIcon,
   XIcon,
 } from "lucide-react"
-import { useCallback, useEffect, useRef, useState } from "react"
+import { type ReactNode, useCallback, useEffect, useRef, useState } from "react"
+import keywardIcon from "@/assets/icon.svg"
 import {
   callBackground,
   type PageInfo,
@@ -95,7 +97,9 @@ export function MainView({
   }, [])
   useEffect(load, [load])
 
-  const search = query.trim()
+  // Nothing can be searched or filtered until a source is ready; the view offers to connect instead.
+  const connected = state?.sources.some((s) => s.status === "ready") ?? false
+  const search = connected ? query.trim() : ""
   useEffect(() => {
     setResults(null)
     if (!search || version < 1) return
@@ -129,9 +133,31 @@ export function MainView({
   const shown = (search ? (results ?? []) : sources).filter(
     (s) => filter === "all" || s.kind === filter,
   )
-  const groups = shown.filter(
-    (s) => s.status !== "ready" || s.error || s.logins.length,
+  // Sources to pair or unlock get a large button each; the others list their logins or say why
+  // they cannot.
+  const locked = shown.filter((s) => s.status === "locked")
+  const listed = shown.filter(
+    (s) =>
+      s.status !== "locked" &&
+      (s.status !== "ready" || s.error || s.logins.length),
   )
+  const lockedCards = locked.map((source) => (
+    <ConnectCard
+      key={source.id}
+      kind={source.kind}
+      title={
+        source.kind === "apple"
+          ? t("popup.main.pairApple")
+          : t("popup.main.unlockBitwarden")
+      }
+      detail={
+        source.kind === "apple" ? t("popup.main.pairAppleDetail") : source.label
+      }
+      onClick={() =>
+        onNavigate({ name: "connect", kind: source.kind, sourceId: source.id })
+      }
+    />
+  ))
   // Apple's helper looks logins up by site only, so a search for other text cannot reach it.
   const appleSearchHint =
     search !== "" &&
@@ -139,7 +165,7 @@ export function MainView({
     shown.some((s) => s.kind === "apple" && s.status === "ready")
 
   return (
-    <div className="flex max-h-[600px] flex-col">
+    <div className="flex min-h-0 flex-1 flex-col">
       <div className="flex items-center gap-1 py-2 pr-2 pl-3">
         <h1 className="min-w-0 flex-1 truncate text-sm font-medium">
           {loading ? (
@@ -181,7 +207,7 @@ export function MainView({
         )}
         <SettingsButton />
       </div>
-      {(loading || sources.length > 0) && (
+      {(loading || connected) && (
         <div className="relative px-2 pb-2">
           <SearchIcon className="pointer-events-none absolute top-2 left-4.5 size-4 text-muted-foreground" />
           <Input
@@ -227,7 +253,7 @@ export function MainView({
           )}
         </div>
       )}
-      {kinds.size > 1 && (
+      {connected && kinds.size > 1 && (
         <div className="px-2 pb-2">
           <Tabs
             value={filter}
@@ -245,7 +271,7 @@ export function MainView({
           </Tabs>
         </div>
       )}
-      <Separator />
+      {(loading || connected) && <Separator />}
       {/* biome-ignore lint/a11y/noStaticElementInteractions: arrow keys move between the rows' buttons, which take the focus. */}
       <div
         ref={listRef}
@@ -270,65 +296,57 @@ export function MainView({
         {loading || (search && results === null) ? (
           !message && <LoginListSkeleton compact={density === "compact"} />
         ) : !sources.length ? (
-          <div className="flex flex-col items-center gap-3 px-3 py-12 text-center">
-            <p className="text-sm text-muted-foreground">
-              {t("popup.main.noBackend")}
-            </p>
-            <div className="flex flex-wrap justify-center gap-2">
-              <Button
-                variant="outline"
-                onClick={() => onNavigate({ name: "connect", kind: "apple" })}
-              >
-                <BrandIcon kind="apple" />
-                {t("popup.main.pairApple")}
-              </Button>
-              <Button variant="outline" onClick={() => openOptions("onboard")}>
-                <BrandIcon kind="bitwarden" />
-                {t("popup.main.signInBitwarden")}
-              </Button>
-            </div>
-          </div>
-        ) : search && !groups.length ? (
-          <div className="flex flex-col items-center gap-2 px-3 py-10 text-center">
-            <p className="text-sm text-muted-foreground">
-              {t("popup.main.noResults", { query: search })}
-            </p>
+          <EmptyState icon text={t("popup.main.noBackend")}>
+            <ConnectCard
+              kind="apple"
+              title={t("popup.main.pairApple")}
+              detail={t("popup.main.pairAppleDetail")}
+              onClick={() => onNavigate({ name: "connect", kind: "apple" })}
+            />
+            <ConnectCard
+              kind="bitwarden"
+              title={t("popup.main.signInBitwarden")}
+              onClick={() => openOptions("onboard")}
+            />
+          </EmptyState>
+        ) : !listed.length ? (
+          <EmptyState
+            icon={!anyReady}
+            text={
+              search
+                ? t("popup.main.noResults", { query: search })
+                : !anyReady
+                  ? t("popup.main.connectHint")
+                  : page
+                    ? t("popup.main.noLogins", { host: page.host })
+                    : t("popup.main.notWebPage")
+            }
+          >
+            {lockedCards}
             {appleSearchHint && (
               <p className="text-xs text-muted-foreground">
                 {t("popup.main.appleSearchHint")}
               </p>
             )}
-          </div>
-        ) : !groups.length ? (
-          <div className="flex flex-col items-center gap-3 px-3 py-10 text-center">
-            <p className="text-sm text-muted-foreground">
-              {page
-                ? t("popup.main.noLogins", { host: page.host })
-                : t("popup.main.notWebPage")}
-            </p>
-            <Button
-              variant="outline"
-              onClick={() => onNavigate({ name: "add" })}
-            >
-              <PlusIcon />
-              {t("popup.add.title")}
-            </Button>
-          </div>
+            {anyReady && !search && (
+              <Button
+                variant="outline"
+                className="self-center"
+                onClick={() => onNavigate({ name: "add" })}
+              >
+                <PlusIcon />
+                {t("popup.add.title")}
+              </Button>
+            )}
+          </EmptyState>
         ) : (
           <div className={FADE_IN}>
-            {groups.map((source) => (
+            {listed.map((source) => (
               <SourceGroup
                 key={source.id}
                 source={source}
                 density={density}
                 onLocked={load}
-                onConnect={() =>
-                  onNavigate({
-                    name: "connect",
-                    kind: source.kind,
-                    sourceId: source.id,
-                  })
-                }
                 onOpen={(login) =>
                   onNavigate({ name: "detail", source, login })
                 }
@@ -344,6 +362,11 @@ export function MainView({
                 {t("popup.main.appleSearchHint")}
               </p>
             )}
+            {lockedCards.length > 0 && (
+              <div className="flex flex-col gap-2 px-3 pt-3 pb-2">
+                {lockedCards}
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -351,11 +374,72 @@ export function MainView({
   )
 }
 
+/** A centred message in the list area, with the actions that follow from it below. */
+function EmptyState({
+  text,
+  icon = false,
+  children,
+}: {
+  text: string
+  /** Shows Keyward's icon above, for the views before anything is connected. */
+  icon?: boolean
+  children?: ReactNode
+}) {
+  return (
+    <div className="flex h-full flex-col items-stretch justify-center gap-4 px-4 pb-12 text-center">
+      {icon && (
+        <img
+          src={keywardIcon}
+          alt=""
+          aria-hidden="true"
+          draggable={false}
+          className="mb-1 size-14 self-center rounded-2xl"
+        />
+      )}
+      <p className="text-sm text-muted-foreground">{text}</p>
+      {children}
+    </div>
+  )
+}
+
+/** A large button leading to pairing, unlocking or signing in. */
+function ConnectCard({
+  kind,
+  title,
+  detail,
+  onClick,
+}: {
+  kind: BackendKind
+  title: string
+  detail?: string
+  onClick: () => void
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="group/card flex w-full items-center gap-3 rounded-xl bg-card px-3.5 py-3 text-left ring-1 ring-foreground/10 outline-none transition-colors hover:bg-muted focus-visible:ring-foreground/35"
+    >
+      <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted group-hover/card:bg-background">
+        <BrandIcon kind={kind} className="size-5" />
+      </span>
+      <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+        <span className="text-sm font-medium">{title}</span>
+        {detail && (
+          <span className="truncate text-xs text-muted-foreground">
+            {detail}
+          </span>
+        )}
+      </span>
+      <ChevronRightIcon className="size-4 shrink-0 text-muted-foreground" />
+    </button>
+  )
+}
+
 function SourceGroup({
   source,
   density,
   onLocked,
-  onConnect,
   onOpen,
   onPasskeyOnly,
   onError,
@@ -363,7 +447,6 @@ function SourceGroup({
   source: SourceView
   density: Settings["density"]
   onLocked: () => void
-  onConnect: () => void
   onOpen: (login: LoginSummary) => void
   onPasskeyOnly: () => void
   onError: (message: string | null) => void
@@ -386,17 +469,11 @@ function SourceGroup({
         <h2 className="flex items-center gap-1.5 px-3 pt-1.5 pb-0.5 text-xs font-medium text-muted-foreground">
           <BrandIcon kind={source.kind} className="size-3.5" />
           <span className="min-w-0 flex-1 truncate">{sourceLabel(source)}</span>
-          {source.status === "locked" ? (
-            <Button variant="outline" size="sm" onClick={onConnect}>
-              {source.kind === "apple" ? t("source.pair") : t("source.unlock")}
-            </Button>
-          ) : (
-            <span className="py-1.5" title={source.error}>
-              {source.status === "ready"
-                ? t("source.failed")
-                : t("source.unavailable")}
-            </span>
-          )}
+          <span className="py-1.5" title={source.error}>
+            {source.status === "ready"
+              ? t("source.failed")
+              : t("source.unavailable")}
+          </span>
         </h2>
       </section>
     )

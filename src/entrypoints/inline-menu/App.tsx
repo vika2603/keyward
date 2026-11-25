@@ -203,7 +203,7 @@ export function App() {
                   {headed && (
                     <h2 className="flex items-center gap-1.5 px-3 pt-2.5 pb-0.5 text-xs font-medium text-muted-foreground">
                       <BrandIcon kind={source.kind} className="size-3.5" />
-                      <span className="truncate">{source.label}</span>
+                      <span className="truncate">{sourceLabel(source)}</span>
                     </h2>
                   )}
                   <div className="flex flex-col gap-0.5 p-1">

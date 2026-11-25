@@ -251,7 +251,7 @@ export function GeneratorView({
         : null
 
   return (
-    <div className="flex max-h-[600px] min-h-[276px] flex-col">
+    <div className="flex min-h-0 flex-1 flex-col">
       <BackHeader title={t("popup.generator.title")} onBack={onBack}>
         <Button
           variant="ghost"

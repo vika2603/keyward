@@ -8,7 +8,8 @@ export function BackHeader({
   onBack,
   children,
 }: {
-  title: string
+  /** Left out on a page whose content names it already. */
+  title?: string
   onBack: () => void
   children?: ReactNode
 }) {
@@ -22,7 +23,7 @@ export function BackHeader({
       >
         <ChevronLeftIcon />
       </Button>
-      <h1 className="flex-1 text-sm font-medium">{title}</h1>
+      {title && <h1 className="flex-1 text-sm font-medium">{title}</h1>}
       {children}
     </div>
   )

@@ -11,7 +11,7 @@ export default defineConfig({
   manifest: () => ({
     name: "Keyward",
     description:
-      "Fills, generates and saves passwords with Apple Passwords and Bitwarden.",
+      "Fills, generates and saves passwords with iCloud Passwords and Bitwarden.",
     permissions: [
       // The browser's favicon cache, for login icons without asking another server.
       "favicon",
