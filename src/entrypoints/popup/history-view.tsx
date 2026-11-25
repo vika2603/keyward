@@ -5,23 +5,27 @@ import { useCopyThrough } from "@/components/keyward/copy-through"
 import { errorMessage } from "@/components/keyward/errors"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
+import { currentLanguage, t } from "@/lib/i18n"
 import { BackHeader } from "./header"
 
 /** Fixed length, so the mask does not reveal how long a password is. */
 const MASK = "••••••••••••"
 
-const relative = new Intl.RelativeTimeFormat("zh-CN", { numeric: "auto" })
-const date = new Intl.DateTimeFormat("zh-CN", { month: "long", day: "numeric" })
-
 function whenText(at: number): string {
   const minutes = Math.round((Date.now() - at) / 60_000)
-  if (minutes < 1) return "刚刚"
+  const relative = new Intl.RelativeTimeFormat(currentLanguage(), {
+    numeric: "auto",
+  })
+  if (minutes < 1) return t("popup.history.justNow")
   if (minutes < 60) return relative.format(-minutes, "minute")
   const hours = Math.round(minutes / 60)
   if (hours < 24) return relative.format(-hours, "hour")
   const days = Math.round(hours / 24)
   if (days < 2) return relative.format(-days, "day")
-  return date.format(at)
+  return new Intl.DateTimeFormat(currentLanguage(), {
+    month: "long",
+    day: "numeric",
+  }).format(at)
 }
 
 export function HistoryView({ onBack }: { onBack: () => void }) {
@@ -65,7 +69,7 @@ export function HistoryView({ onBack }: { onBack: () => void }) {
 
   return (
     <div className="flex max-h-[600px] min-h-[264px] flex-col">
-      <BackHeader title="生成历史" onBack={onBack}>
+      <BackHeader title={t("popup.history.title")} onBack={onBack}>
         {confirming ? (
           <div className="flex gap-1">
             <Button
@@ -73,7 +77,7 @@ export function HistoryView({ onBack }: { onBack: () => void }) {
               size="sm"
               onClick={() => setConfirming(false)}
             >
-              取消
+              {t("popup.cancel")}
             </Button>
             <Button
               variant="outline"
@@ -81,7 +85,7 @@ export function HistoryView({ onBack }: { onBack: () => void }) {
               className="text-destructive"
               onClick={() => void clear()}
             >
-              清空全部
+              {t("popup.history.clearAll")}
             </Button>
           </div>
         ) : (
@@ -89,8 +93,8 @@ export function HistoryView({ onBack }: { onBack: () => void }) {
             <Button
               variant="ghost"
               size="icon"
-              aria-label="显示密码"
-              title="显示密码"
+              aria-label={t("popup.history.show")}
+              title={t("popup.history.show")}
               aria-pressed={shown}
               className="aria-pressed:bg-muted"
               onClick={() => setShown(!shown)}
@@ -100,8 +104,8 @@ export function HistoryView({ onBack }: { onBack: () => void }) {
             <Button
               variant="ghost"
               size="icon"
-              aria-label="清空历史"
-              title="清空历史"
+              aria-label={t("popup.history.clear")}
+              title={t("popup.history.clear")}
               disabled={!entries?.length}
               onClick={() => setConfirming(true)}
             >
@@ -117,7 +121,7 @@ export function HistoryView({ onBack }: { onBack: () => void }) {
         )}
         {entries && !entries.length && (
           <p className="px-3 py-6 text-center text-sm text-muted-foreground">
-            没有记录
+            {t("popup.history.empty")}
           </p>
         )}
         <div ref={list} className="flex flex-col gap-0.5 p-1">
@@ -141,8 +145,8 @@ export function HistoryView({ onBack }: { onBack: () => void }) {
                 variant="ghost"
                 size="icon-sm"
                 className="opacity-0 group-hover/row:opacity-100 group-focus-within/row:opacity-100 hover:bg-background"
-                aria-label="复制密码"
-                title="复制密码"
+                aria-label={t("popup.copyPassword")}
+                title={t("popup.copyPassword")}
                 onClick={() => void copy(entry.id)}
               >
                 {copied === entry.id ? <CheckIcon /> : <CopyIcon />}
@@ -153,7 +157,7 @@ export function HistoryView({ onBack }: { onBack: () => void }) {
       </div>
       <Separator />
       <p className="px-3 py-2 text-xs text-muted-foreground">
-        记录复制过的生成密码，以及添加密码时生成的密码。只保存在本机，关闭浏览器后清除。
+        {t("popup.history.note")}
       </p>
     </div>
   )

@@ -1,4 +1,5 @@
 import { BackendError } from "@/lib/backends/types"
+import { resolveLanguage } from "@/lib/i18n/language"
 import { ruleForHost } from "@/lib/matching"
 import { getSettings, type Settings } from "@/lib/settings"
 import type { ContentConfig, FieldInfo } from "./api"
@@ -30,6 +31,7 @@ export async function contentConfig(
     active: false,
     menuTrigger: settings.menuTrigger,
     theme: settings.theme,
+    language: resolveLanguage(settings.language),
   }
   if (!page || !(await frameAllowed(tabId, frameId, page, settings))) return off
   if (!(await backends.sourcesForPage(page)).length) return off
@@ -40,7 +42,7 @@ export async function contentConfig(
       : behavior === "menuOnClick"
         ? "click"
         : settings.menuTrigger
-  return { active: true, menuTrigger, theme: settings.theme }
+  return { ...off, active: true, menuTrigger }
 }
 
 /**

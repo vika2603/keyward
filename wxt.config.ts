@@ -13,6 +13,8 @@ export default defineConfig({
     description:
       "Fills, generates and saves passwords with Apple Passwords and Bitwarden.",
     permissions: [
+      // The browser's favicon cache, for login icons without asking another server.
+      "favicon",
       "nativeMessaging",
       "storage",
       "webNavigation",

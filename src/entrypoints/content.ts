@@ -195,6 +195,7 @@ export default defineContentScript({
       )
       if (!config || request !== requested || ctx.isInvalid) return
       theme = config.theme
+      icons.setLanguage(config.language)
       menuTrigger = config.menuTrigger
       if (config.active === active) return
       active = config.active

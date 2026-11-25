@@ -1,16 +1,18 @@
 import { useEffect, useRef, useState } from "react"
 import type { SourceView } from "@/background/api"
 import { useAppearance } from "@/components/keyward/appearance"
-import { BrandIcon } from "@/components/keyward/brand-icon"
+import { BrandIcon, sourceLabel } from "@/components/keyward/brand-icon"
 import { errorMessage } from "@/components/keyward/errors"
+import { useLanguage } from "@/components/keyward/language"
 import { LoginLabel } from "@/components/keyward/login-label"
 import {
   callOverlay,
   useClickGuard,
   useReportHeight,
 } from "@/components/keyward/overlay-frame"
-import { SiteLetter } from "@/components/keyward/site-letter"
+import { SiteIcon } from "@/components/keyward/site-icon"
 import { Button } from "@/components/ui/button"
+import { t } from "@/lib/i18n"
 import { cn } from "@/lib/utils"
 
 /**
@@ -19,6 +21,7 @@ import { cn } from "@/lib/utils"
  */
 export function App() {
   const density = useAppearance()
+  const language = useLanguage()
   const card = useRef<HTMLDivElement>(null)
   const [state, setState] = useState<{
     host: string
@@ -29,11 +32,11 @@ export function App() {
 
   useReportHeight(
     card,
-    state !== null,
+    state !== null && language !== null,
     (height) => void callOverlay("menu.resize", { height }).catch(() => {}),
   )
 
-  const clickCounts = useClickGuard(card, state !== null)
+  const clickCounts = useClickGuard(card, state !== null && language !== null)
 
   useEffect(() => {
     callOverlay("menu.state", {}).then(setState, (error) => {
@@ -70,7 +73,7 @@ export function App() {
 
   const fill = async (sourceId: string, loginId: string) => {
     if (!clickCounts()) {
-      setMessage("菜单刚出现、移动过或被页面遮挡，没有填入。请再选一次。")
+      setMessage(t("overlay.menu.guard"))
       return
     }
     setBusy(loginId)
@@ -84,7 +87,7 @@ export function App() {
     }
   }
 
-  if (!state) return null
+  if (!state || !language) return null
   const sources = state.sources.filter(
     (s) => s.status !== "ready" || s.error || s.logins.length,
   )
@@ -101,7 +104,7 @@ export function App() {
       >
         {!sources.length && !message && (
           <p className="px-3 py-3 text-sm text-muted-foreground">
-            没有 {state.host} 的密码
+            {t("overlay.menu.noLogins", { host: state.host })}
           </p>
         )}
         {sources.map((source) =>
@@ -111,7 +114,9 @@ export function App() {
               className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-muted-foreground first:pt-2"
             >
               <BrandIcon kind={source.kind} className="size-3.5" />
-              <span className="min-w-0 flex-1 truncate">{source.label}</span>
+              <span className="min-w-0 flex-1 truncate">
+                {sourceLabel(source)}
+              </span>
               {source.status === "locked" ? (
                 <Button
                   variant="outline"
@@ -122,11 +127,15 @@ export function App() {
                     }).catch(() => {})
                   }
                 >
-                  {source.kind === "apple" ? "配对" : "解锁"}
+                  {source.kind === "apple"
+                    ? t("source.pair")
+                    : t("source.unlock")}
                 </Button>
               ) : (
                 <span className="py-1.5" title={source.error}>
-                  {source.status === "ready" ? "读取失败" : "不可用"}
+                  {source.status === "ready"
+                    ? t("source.failed")
+                    : t("source.unavailable")}
                 </span>
               )}
             </h2>
@@ -153,7 +162,8 @@ export function App() {
                       busy === login.id && "bg-muted",
                     )}
                   >
-                    <SiteLetter
+                    <SiteIcon
+                      host={login.host}
                       text={login.title}
                       className={cn(
                         "group-hover/row:bg-background group-focus-visible/row:bg-background",
@@ -173,7 +183,7 @@ export function App() {
         )}
         {busy && source(sources, busy)?.kind === "apple" && (
           <p className="px-3 pb-2 text-xs text-muted-foreground">
-            用触控 ID 或 Mac 密码确认。
+            {t("overlay.menu.confirmTouchId")}
           </p>
         )}
         {message && (

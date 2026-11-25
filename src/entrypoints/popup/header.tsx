@@ -1,6 +1,7 @@
 import { ChevronLeftIcon, SlidersHorizontalIcon } from "lucide-react"
 import type { ReactNode } from "react"
 import { Button } from "@/components/ui/button"
+import { t } from "@/lib/i18n"
 
 export function BackHeader({
   title,
@@ -13,7 +14,12 @@ export function BackHeader({
 }) {
   return (
     <div className="flex items-center gap-2 p-2">
-      <Button variant="ghost" size="icon" aria-label="返回" onClick={onBack}>
+      <Button
+        variant="ghost"
+        size="icon"
+        aria-label={t("popup.back")}
+        onClick={onBack}
+      >
         <ChevronLeftIcon />
       </Button>
       <h1 className="flex-1 text-sm font-medium">{title}</h1>
@@ -27,8 +33,8 @@ export function SettingsButton() {
     <Button
       variant="ghost"
       size="icon"
-      aria-label="设置"
-      title="设置"
+      aria-label={t("popup.settings")}
+      title={t("popup.settings")}
       onClick={() => {
         void browser.runtime.openOptionsPage()
         window.close()

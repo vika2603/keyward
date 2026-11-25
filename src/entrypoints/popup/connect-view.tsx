@@ -1,13 +1,14 @@
 import { useState } from "react"
 import { ApplePairing } from "@/components/keyward/apple-pairing"
 import { BitwardenUnlock } from "@/components/keyward/bitwarden-unlock"
-import { BACKEND_NAMES, BrandIcon } from "@/components/keyward/brand-icon"
+import { BrandIcon, backendName } from "@/components/keyward/brand-icon"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   accountIdOfSource,
   isBitwardenSource,
 } from "@/lib/backends/bitwarden/source-id"
 import type { BackendKind } from "@/lib/backends/types"
+import { t } from "@/lib/i18n"
 import { openOptions, SettingsButton } from "./header"
 
 /** Pairs Apple Passwords or unlocks an account; one backend at a time, chosen by the user. */
@@ -34,11 +35,14 @@ export function ConnectView({
           value={selected}
           onValueChange={(value) => setSelected(value as BackendKind)}
         >
-          <TabsList className="w-full" aria-label="选择要连接的后端">
+          <TabsList
+            className="w-full"
+            aria-label={t("popup.connect.chooseBackend")}
+          >
             {(["apple", "bitwarden"] as const).map((k) => (
               <TabsTrigger key={k} value={k}>
                 <BrandIcon kind={k} />
-                {BACKEND_NAMES[k]}
+                {backendName(k)}
               </TabsTrigger>
             ))}
           </TabsList>

@@ -10,6 +10,7 @@ import type {
   LoginSummary,
   SourceInfo,
 } from "@/lib/backends/types"
+import type { Language } from "@/lib/i18n/language"
 import { sendRequest } from "@/lib/messaging"
 
 export interface SourceView extends SourceInfo {
@@ -37,6 +38,7 @@ export interface ContentConfig {
   active: boolean
   menuTrigger: "click" | "focus"
   theme: "system" | "light" | "dark"
+  language: Language
 }
 
 export interface PromptState {

@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react"
 import { useAppearance } from "@/components/keyward/appearance"
+import { useLanguage } from "@/components/keyward/language"
+import { t } from "@/lib/i18n"
 import { cn } from "@/lib/utils"
 import { BackendsPage } from "./backends-page"
 import { FillPage } from "./fill-page"
@@ -8,10 +10,10 @@ import { OnboardPage } from "./onboard-page"
 import { SitesPage } from "./sites-page"
 
 const PAGES = [
-  { hash: "backends", title: "后端", Page: BackendsPage },
-  { hash: "fill", title: "填充与保存", Page: FillPage },
-  { hash: "sites", title: "站点规则", Page: SitesPage },
-  { hash: "keys", title: "快捷键与外观", Page: KeysPage },
+  { hash: "backends", titleKey: "options.backends.title", Page: BackendsPage },
+  { hash: "fill", titleKey: "options.fill.title", Page: FillPage },
+  { hash: "sites", titleKey: "options.sites.title", Page: SitesPage },
+  { hash: "keys", titleKey: "options.keys.title", Page: KeysPage },
 ] as const
 
 function currentHash(): string {
@@ -23,6 +25,7 @@ export function navigate(hash: string): void {
 }
 
 export function App() {
+  const language = useLanguage()
   useAppearance()
   const [hash, setHash] = useState(currentHash)
 
@@ -32,16 +35,19 @@ export function App() {
     return () => removeEventListener("hashchange", update)
   }, [])
 
+  if (!language) return null
   if (hash === "onboard") return <OnboardPage />
 
   const page = PAGES.find((p) => p.hash === hash) ?? PAGES[0]
   return (
     <div className="flex min-h-screen flex-wrap bg-background">
       <nav
-        aria-label="设置分区"
+        aria-label={t("options.nav.label")}
         className="flex shrink grow basis-[220px] flex-col gap-1 border-r border-sidebar-border bg-sidebar p-2"
       >
-        <div className="px-2.5 pt-1 pb-3.5 text-sm font-semibold">设置</div>
+        <div className="px-2.5 pt-1 pb-3.5 text-sm font-semibold">
+          {t("options.nav.heading")}
+        </div>
         {PAGES.map((p) => (
           <a
             key={p.hash}
@@ -52,7 +58,7 @@ export function App() {
               p === page && "bg-sidebar-accent font-medium",
             )}
           >
-            {p.title}
+            {t(p.titleKey)}
           </a>
         ))}
       </nav>

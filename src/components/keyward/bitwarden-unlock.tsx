@@ -3,6 +3,7 @@ import { callBackground } from "@/background/api"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import type { AccountSummary } from "@/lib/backends/bitwarden/bitwarden-backend"
+import { t } from "@/lib/i18n"
 import { cn } from "@/lib/utils"
 import { errorMessage } from "./errors"
 
@@ -40,10 +41,8 @@ export function BitwardenUnlock({
   if (!accounts.length) {
     return (
       <div className="flex flex-col items-start gap-3">
-        <p className="text-sm text-muted-foreground">
-          还没有登录 Bitwarden 账号。
-        </p>
-        <Button onClick={onSignIn}>登录</Button>
+        <p className="text-sm text-muted-foreground">{t("unlock.noAccount")}</p>
+        <Button onClick={onSignIn}>{t("unlock.signIn")}</Button>
       </div>
     )
   }
@@ -70,9 +69,11 @@ export function BitwardenUnlock({
   return (
     <div className="flex flex-col gap-3">
       <div className="flex flex-col gap-2">
-        <span className="text-sm leading-none font-medium">账号</span>
+        <span className="text-sm leading-none font-medium">
+          {t("unlock.account")}
+        </span>
         <fieldset
-          aria-label="要解锁的账号"
+          aria-label={t("unlock.accountLabel")}
           className="flex min-w-0 flex-col gap-0.5"
         >
           {accounts.map((a) => (
@@ -97,7 +98,7 @@ export function BitwardenUnlock({
                 {a.email}
               </span>
               <span className="shrink-0 text-xs text-muted-foreground">
-                {a.unlocked ? "已解锁" : "未解锁"}
+                {a.unlocked ? t("unlock.unlocked") : t("unlock.locked")}
               </span>
             </label>
           ))}
@@ -112,7 +113,9 @@ export function BitwardenUnlock({
           }}
         >
           <label className="flex min-w-0 flex-1 flex-col gap-2">
-            <span className="text-sm leading-none font-medium">主密码</span>
+            <span className="text-sm leading-none font-medium">
+              {t("unlock.masterPassword")}
+            </span>
             <Input
               type="password"
               autoComplete="current-password"
@@ -122,13 +125,13 @@ export function BitwardenUnlock({
             />
           </label>
           <Button type="submit" disabled={busy || !password}>
-            解锁
+            {t("unlock.unlock")}
           </Button>
         </form>
       )}
       {account?.unlocked && (
         <p className="text-xs text-muted-foreground">
-          这个账号已解锁。切换到其他账号不会让它重新锁定。
+          {t("unlock.alreadyUnlocked")}
         </p>
       )}
       {message && <p className="text-xs text-destructive">{message}</p>}

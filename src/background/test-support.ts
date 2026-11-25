@@ -91,7 +91,7 @@ export function fakeBackends(sources: FakeSource[]) {
 export const appleSource: SourceInfo = {
   id: "apple",
   kind: "apple",
-  label: "Apple 密码",
+  label: "Apple Passwords",
   status: "ready",
 }
 

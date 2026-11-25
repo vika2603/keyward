@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
 import type { SourceInfo } from "@/lib/backends/types"
 import { generatePassword, generatorOptionsItem } from "@/lib/generator"
+import { t } from "@/lib/i18n"
 import { BackHeader } from "./header"
 
 export function AddView({ onBack }: { onBack: () => void }) {
@@ -66,10 +67,12 @@ export function AddView({ onBack }: { onBack: () => void }) {
         void save()
       }}
     >
-      <BackHeader title="添加密码" onBack={onBack} />
+      <BackHeader title={t("popup.add.title")} onBack={onBack} />
       <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-3 pt-1 pb-3">
         <label className="flex flex-col gap-2">
-          <span className="text-sm leading-none font-medium">网站</span>
+          <span className="text-sm leading-none font-medium">
+            {t("popup.add.site")}
+          </span>
           <Input
             value={site}
             onChange={(event) => setSite(event.target.value)}
@@ -77,7 +80,9 @@ export function AddView({ onBack }: { onBack: () => void }) {
           />
         </label>
         <label className="flex flex-col gap-2">
-          <span className="text-sm leading-none font-medium">用户名</span>
+          <span className="text-sm leading-none font-medium">
+            {t("popup.add.username")}
+          </span>
           <Input
             value={username}
             onChange={(event) => setUsername(event.target.value)}
@@ -89,7 +94,7 @@ export function AddView({ onBack }: { onBack: () => void }) {
             htmlFor="add-password"
             className="text-sm leading-none font-medium"
           >
-            密码
+            {t("popup.add.password")}
           </label>
           <div className="relative">
             <Input
@@ -106,8 +111,8 @@ export function AddView({ onBack }: { onBack: () => void }) {
               variant="ghost"
               size="icon-sm"
               className="absolute top-0.5 right-0.5"
-              aria-label="生成密码"
-              title="生成密码"
+              aria-label={t("popup.add.generate")}
+              title={t("popup.add.generate")}
               onClick={() => void generate()}
             >
               <RefreshCcwDotIcon />
@@ -115,22 +120,24 @@ export function AddView({ onBack }: { onBack: () => void }) {
           </div>
         </div>
         <div className="flex flex-col gap-2">
-          <span className="text-sm leading-none font-medium">保存到</span>
+          <span className="text-sm leading-none font-medium">
+            {t("popup.add.saveTo")}
+          </span>
           <SourceSelect
             sources={targets ?? []}
             value={target}
             onChange={setTarget}
-            label="保存到"
+            label={t("popup.add.saveTo")}
           />
           {targets?.length === 0 && (
             <p className="text-xs text-muted-foreground">
-              需要先在主界面连接 Apple 密码或解锁 Bitwarden 账户。
+              {t("popup.add.noTarget")}
             </p>
           )}
         </div>
         {busy && apple && (
           <p className="text-xs text-muted-foreground">
-            在 Mac 弹出的窗口中确认保存。
+            {t("popup.add.confirmOnMac")}
           </p>
         )}
         {message && <p className="text-xs text-destructive">{message}</p>}
@@ -142,7 +149,7 @@ export function AddView({ onBack }: { onBack: () => void }) {
           className="w-full"
           disabled={busy || !target || !site || !password}
         >
-          保存
+          {t("popup.add.save")}
         </Button>
       </div>
     </form>

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react"
 import { callBackground, type PopupView } from "@/background/api"
 import { useAppearance } from "@/components/keyward/appearance"
+import { useLanguage } from "@/components/keyward/language"
 import { AddView } from "./add-view"
 import { ConnectView } from "./connect-view"
 import { GeneratorView } from "./generator-view"
@@ -16,12 +17,14 @@ const initialView = callBackground("popup.takeView", null).catch(
 
 export function App() {
   const density = useAppearance()
+  const language = useLanguage()
   const [view, setView] = useState<View | null>(null)
 
   useEffect(() => {
     void initialView.then(setView)
   }, [])
 
+  if (!language) return null
   const main = () => setView({ name: "main" })
   return (
     <div className="flex w-[380px] flex-col">

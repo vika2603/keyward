@@ -2,6 +2,7 @@ import { ExternalLinkIcon } from "lucide-react"
 import { type ChangeEvent, useEffect, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Kbd, KbdGroup } from "@/components/ui/kbd"
+import { type MessageKey, t } from "@/lib/i18n"
 import {
   type ExportedSettings,
   exportableKeys,
@@ -11,16 +12,18 @@ import {
   updateSettings,
 } from "@/lib/settings"
 import { hostOfSavedUri } from "@/lib/site"
-import { CLEAR_TIMES } from "./fill-page"
+import { clearTimes } from "./fill-page"
 import { Card, Option, PageHeader, Section, Segmented } from "./parts"
 import { useSettings } from "./use-settings"
 
-const COMMAND_NAMES: [string, string][] = [
-  ["_execute_action", "打开弹窗"],
-  ["fill-first", "填充当前站点的第一个匹配"],
-  ["open-generator", "打开密码生成器"],
-  ["lock-all", "锁定全部后端"],
-]
+function commandNames(): [string, string][] {
+  return [
+    ["_execute_action", t("options.keys.command.openPopup")],
+    ["fill-first", t("options.keys.command.fillFirst")],
+    ["open-generator", t("options.keys.command.openGenerator")],
+    ["lock-all", t("options.keys.command.lockAll")],
+  ]
+}
 
 const EXPORT_FORMAT = "keyward-settings"
 
@@ -88,7 +91,7 @@ function importedSettings(data: unknown): Partial<ExportedSettings> | null {
   if (
     clearAfter === null ||
     (typeof clearAfter === "number" &&
-      CLEAR_TIMES.some(([value]) => value === String(clearAfter)))
+      clearTimes().some(([value]) => value === String(clearAfter)))
   ) {
     result.clipboardClearSeconds = clearAfter
   }
@@ -112,7 +115,7 @@ function importedSettings(data: unknown): Partial<ExportedSettings> | null {
 export function KeysPage() {
   const [settings, update] = useSettings()
   const [commands, setCommands] = useState<Browser.commands.Command[]>([])
-  const [message, setMessage] = useState<string | null>(null)
+  const [message, setMessage] = useState<MessageKey | null>(null)
   const fileInput = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -147,17 +150,17 @@ export function KeysPage() {
       const imported = importedSettings(JSON.parse(await file.text()))
       if (!imported) throw new Error("not a Keyward settings file")
       await updateSettings(imported)
-      setMessage("已导入。")
+      setMessage("options.keys.import.done")
     } catch {
-      setMessage("无法导入：文件不是 Keyward 导出的配置。")
+      setMessage("options.keys.import.failed")
     }
   }
 
   return (
     <>
-      <PageHeader title="快捷键与外观" />
+      <PageHeader title={t("options.keys.title")} />
       <Section
-        title="快捷键"
+        title={t("options.keys.shortcuts.title")}
         action={
           <Button
             variant="outline"
@@ -167,15 +170,15 @@ export function KeysPage() {
             }
           >
             <ExternalLinkIcon />
-            在浏览器中修改
+            {t("options.keys.shortcuts.change")}
           </Button>
         }
       >
         <p className="text-sm text-muted-foreground">
-          快捷键由浏览器管理，这里显示当前生效的按键。
+          {t("options.keys.shortcuts.description")}
         </p>
         <Card>
-          {COMMAND_NAMES.map(([name, title]) => {
+          {commandNames().map(([name, title]) => {
             const shortcut = commands.find((c) => c.name === name)?.shortcut
             return (
               <Option key={name} name={title}>
@@ -187,62 +190,76 @@ export function KeysPage() {
                     ))}
                   </KbdGroup>
                 ) : (
-                  <span className="text-sm text-muted-foreground">未设置</span>
+                  <span className="text-sm text-muted-foreground">
+                    {t("options.keys.shortcuts.notSet")}
+                  </span>
                 )}
               </Option>
             )
           })}
         </Card>
       </Section>
-      <Section title="外观">
+      <Section title={t("options.keys.appearance.title")}>
         <Card>
-          <Option name="主题">
+          <Option name={t("options.keys.theme.name")}>
             <Segmented
-              label="主题"
+              label={t("options.keys.theme.name")}
               value={settings.theme}
               options={[
-                ["system", "跟随系统"],
-                ["light", "浅色"],
-                ["dark", "深色"],
+                ["system", t("options.keys.theme.system")],
+                ["light", t("options.keys.theme.light")],
+                ["dark", t("options.keys.theme.dark")],
               ]}
               onChange={(theme) => update({ theme })}
             />
           </Option>
           <Option
-            name="列表密度"
-            description="紧凑时账号名和站点（Bitwarden 为条目名称）显示在同一行，一屏能放更多条目。"
+            name={t("options.keys.density.name")}
+            description={t("options.keys.density.description")}
           >
             <Segmented
-              label="列表密度"
+              label={t("options.keys.density.name")}
               value={settings.density}
               options={[
-                ["standard", "标准"],
-                ["compact", "紧凑"],
+                ["standard", t("options.keys.density.standard")],
+                ["compact", t("options.keys.density.compact")],
               ]}
               onChange={(density) => update({ density })}
             />
           </Option>
+          <Option name={t("options.keys.language.name")}>
+            <Segmented
+              label={t("options.keys.language.name")}
+              value={settings.language}
+              options={[
+                ["system", t("options.keys.language.system")],
+                ["zh-CN", t("options.keys.language.zhCN")],
+                ["en", t("options.keys.language.en")],
+              ]}
+              onChange={(language) => update({ language })}
+            />
+          </Option>
         </Card>
       </Section>
-      <Section title="配置文件">
+      <Section title={t("options.keys.file.title")}>
         <Card>
           <Option
-            name="导出配置"
-            description="站点规则和填充选项，导出为 JSON 文件。不包含任何密码。"
+            name={t("options.keys.export.name")}
+            description={t("options.keys.export.description")}
           >
             <Button variant="outline" onClick={() => void exportSettings()}>
-              导出
+              {t("options.keys.export.button")}
             </Button>
           </Option>
           <Option
-            name="导入配置"
-            description="导入会覆盖当前的站点规则和填充选项。"
+            name={t("options.keys.import.name")}
+            description={t("options.keys.import.description")}
           >
             <Button
               variant="outline"
               onClick={() => fileInput.current?.click()}
             >
-              选择文件
+              {t("options.keys.import.button")}
             </Button>
             <input
               ref={fileInput}
@@ -253,7 +270,9 @@ export function KeysPage() {
             />
           </Option>
           {message && (
-            <p className="px-4 pb-3 text-sm text-muted-foreground">{message}</p>
+            <p className="px-4 pb-3 text-sm text-muted-foreground">
+              {t(message)}
+            </p>
           )}
         </Card>
       </Section>

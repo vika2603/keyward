@@ -1,5 +1,6 @@
 import { ruleForHost, uriMatches } from "@/lib/matching"
 import { getSettings } from "@/lib/settings"
+import { hostOfSavedUri } from "@/lib/site"
 import {
   BackendError,
   type Credential,
@@ -115,7 +116,6 @@ export class BitwardenBackend implements PasswordBackend {
       id: a.sourceId,
       kind: "bitwarden",
       label: a.email,
-      detail: a.server || "官方服务",
       status: a.unlocked ? "ready" : "locked",
     }))
   }
@@ -462,6 +462,9 @@ export class BitwardenBackend implements PasswordBackend {
       id: item.id,
       username: item.username,
       title: item.name,
+      host:
+        item.uris.map((u) => hostOfSavedUri(u.uri)).find((h) => h !== null) ??
+        undefined,
     }))
   }
 

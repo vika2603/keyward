@@ -2,20 +2,23 @@ import { XIcon } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
 import type { PromptState } from "@/background/api"
 import { useAppearance } from "@/components/keyward/appearance"
-import { BrandIcon } from "@/components/keyward/brand-icon"
+import { BrandIcon, sourceLabel } from "@/components/keyward/brand-icon"
 import { errorMessage } from "@/components/keyward/errors"
+import { useLanguage } from "@/components/keyward/language"
 import {
   callOverlay,
   useClickGuard,
   useReportHeight,
 } from "@/components/keyward/overlay-frame"
-import { SiteLetter } from "@/components/keyward/site-letter"
+import { SiteIcon } from "@/components/keyward/site-icon"
 import { SourceSelect } from "@/components/keyward/source-select"
 import { Button } from "@/components/ui/button"
+import { t } from "@/lib/i18n"
 
 /** Asks to save or update a login after the user signed in; shown at the top right of the page. */
 export function App() {
   useAppearance()
+  const language = useLanguage()
   const card = useRef<HTMLDivElement>(null)
   const [state, setState] = useState<PromptState | null>(null)
   const [target, setTarget] = useState<string | null>(null)
@@ -24,13 +27,13 @@ export function App() {
 
   useReportHeight(
     card,
-    state !== null,
+    state !== null && language !== null,
     (height) => void callOverlay("prompt.resize", { height }).catch(() => {}),
   )
-  const clickCounts = useClickGuard(card, state !== null)
+  const clickCounts = useClickGuard(card, state !== null && language !== null)
   const guarded = (action: () => void) => () => {
     if (clickCounts()) action()
-    else setMessage("提示刚出现、移动过或被页面遮挡，请再点一次。")
+    else setMessage(t("overlay.prompt.guard"))
   }
 
   useEffect(() => {
@@ -45,7 +48,7 @@ export function App() {
 
   const confirm = async () => {
     if (!clickCounts()) {
-      setMessage("提示刚出现、移动过或被页面遮挡，请再点一次。")
+      setMessage(t("overlay.prompt.guard"))
       return
     }
     setBusy(true)
@@ -61,7 +64,7 @@ export function App() {
   const update = state?.mode === "update"
   const appleTarget = update
     ? state?.updateSource?.kind === "apple"
-    : state?.targets.find((t) => t.id === target)?.kind === "apple"
+    : state?.targets.find((s) => s.id === target)?.kind === "apple"
 
   return (
     <div className="p-2">
@@ -69,16 +72,18 @@ export function App() {
         ref={card}
         className="flex w-[340px] flex-col gap-3 rounded-lg bg-popover p-3 text-popover-foreground shadow-md ring-1 ring-foreground/10"
       >
-        {state && (
+        {state && language && (
           <>
             <div className="flex items-center gap-2">
               <h1 className="flex-1 text-sm font-medium">
-                {update ? "更新已保存的密码？" : "保存这个登录？"}
+                {update
+                  ? t("overlay.prompt.updateTitle")
+                  : t("overlay.prompt.saveTitle")}
               </h1>
               <Button
                 variant="ghost"
                 size="icon-sm"
-                aria-label="关闭"
+                aria-label={t("overlay.prompt.close")}
                 onClick={() =>
                   void callOverlay("prompt.close", {}).catch(() => {})
                 }
@@ -87,7 +92,7 @@ export function App() {
               </Button>
             </div>
             <div className="flex items-center gap-2.5">
-              <SiteLetter text={state.host} />
+              <SiteIcon host={state.host} text={state.host} />
               <div className="flex min-w-0 flex-1 flex-col gap-px">
                 <span className="truncate text-sm font-medium">
                   {state.username}
@@ -102,26 +107,28 @@ export function App() {
                 <p className="flex items-center gap-2 text-sm text-muted-foreground">
                   <BrandIcon kind={state.updateSource.kind} />
                   <span className="min-w-0">
-                    将更新 {state.updateSource.label} 里的这个条目
+                    {t("overlay.prompt.willUpdate", {
+                      source: sourceLabel(state.updateSource),
+                    })}
                   </span>
                 </p>
               )
             ) : (
               <div className="flex flex-col gap-2">
                 <span className="text-xs font-medium text-muted-foreground">
-                  保存到
+                  {t("overlay.prompt.saveTo")}
                 </span>
                 <SourceSelect
                   sources={state.targets}
                   value={target}
                   onChange={setTarget}
-                  label="保存到"
+                  label={t("overlay.prompt.saveTo")}
                 />
               </div>
             )}
             {busy && appleTarget && (
               <p className="text-xs text-muted-foreground">
-                在 Mac 弹出的窗口中确认保存。
+                {t("overlay.prompt.confirmOnMac")}
               </p>
             )}
             {message && <p className="text-xs text-destructive">{message}</p>}
@@ -133,14 +140,14 @@ export function App() {
                   () => void callOverlay("prompt.never", {}).catch(() => {}),
                 )}
               >
-                此站点不再询问
+                {t("overlay.prompt.never")}
               </Button>
               <Button
                 className="ml-auto"
                 disabled={busy || (!update && !target)}
                 onClick={() => void confirm()}
               >
-                {update ? "更新" : "保存"}
+                {update ? t("overlay.prompt.update") : t("overlay.prompt.save")}
               </Button>
             </div>
           </>

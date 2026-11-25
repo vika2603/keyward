@@ -1,7 +1,7 @@
 import { ExternalLinkIcon, PlusIcon } from "lucide-react"
 import { useCallback, useEffect, useState } from "react"
 import { callBackground } from "@/background/api"
-import { BrandIcon } from "@/components/keyward/brand-icon"
+import { BrandIcon, backendName } from "@/components/keyward/brand-icon"
 import { errorMessage } from "@/components/keyward/errors"
 import { SourceSelect } from "@/components/keyward/source-select"
 import { Button } from "@/components/ui/button"
@@ -16,19 +16,22 @@ import { Switch } from "@/components/ui/switch"
 import { APPLE_SOURCE_ID } from "@/lib/backends/apple/source-id"
 import type { AccountSummary } from "@/lib/backends/bitwarden/bitwarden-backend"
 import type { SourceInfo } from "@/lib/backends/types"
+import { t } from "@/lib/i18n"
 import { navigate } from "./App"
 import { Card, Option, PageHeader, Section } from "./parts"
 import { useSettings } from "./use-settings"
 
-const LOCK_TIMES: [string, string][] = [
-  ["1", "1 分钟"],
-  ["5", "5 分钟"],
-  ["15", "15 分钟"],
-  ["30", "30 分钟"],
-  ["60", "1 小时"],
-  ["240", "4 小时"],
-  ["never", "退出浏览器时"],
-]
+function lockTimes(): [string, string][] {
+  return [
+    ["1", t("options.duration.oneMinute")],
+    ["5", t("options.duration.minutes", { count: 5 })],
+    ["15", t("options.duration.minutes", { count: 15 })],
+    ["30", t("options.duration.minutes", { count: 30 })],
+    ["60", t("options.duration.oneHour")],
+    ["240", t("options.duration.hours", { count: 4 })],
+    ["never", t("options.backends.autoLock.onQuit")],
+  ]
+}
 
 export function BackendsPage() {
   const [settings, update] = useSettings()
@@ -45,7 +48,9 @@ export function BackendsPage() {
   const signOut = async (account: AccountSummary) => {
     if (
       !confirm(
-        `退出 ${account.email}？之后需要重新输入主密码和两步验证码登录。`,
+        t("options.backends.bitwarden.signOutConfirm", {
+          email: account.email,
+        }),
       )
     )
       return
@@ -68,7 +73,7 @@ export function BackendsPage() {
           {
             id: APPLE_SOURCE_ID,
             kind: "apple" as const,
-            label: "Apple 密码",
+            label: backendName("apple"),
             status: "ready" as const,
           },
         ]
@@ -81,40 +86,40 @@ export function BackendsPage() {
     })),
   ]
   const defaultTarget =
-    targets.find((t) => t.id === settings.defaultSaveTarget)?.id ??
+    targets.find((target) => target.id === settings.defaultSaveTarget)?.id ??
     targets[0]?.id ??
     null
 
   return (
     <>
       <PageHeader
-        title="后端"
-        description="弹窗和页面内菜单里的条目来自这里连接的后端。"
+        title={t("options.backends.title")}
+        description={t("options.backends.description")}
       />
       <Card>
         <Option
           name={
             <span className="flex items-center gap-2.5">
               <BrandIcon kind="apple" />
-              Apple 密码
+              {backendName("apple")}
             </span>
           }
-          description="连接不会长期保留，需要时在弹窗里输入 Mac 上显示的六位验证码。"
+          description={t("options.backends.apple.description")}
         >
           <Switch
-            aria-label="使用 Apple 密码"
+            aria-label={t("options.backends.apple.toggle")}
             checked={settings.appleEnabled}
             onCheckedChange={(checked) => update({ appleEnabled: checked })}
           />
         </Option>
         {settings.appleEnabled && (
           <Option
-            name="可用操作"
-            description="按当前站点列出账号、填充、复制密码和保存新密码。其余管理操作在密码 App 中完成。"
+            name={t("options.backends.apple.actions.name")}
+            description={t("options.backends.apple.actions.description")}
           >
             <Button variant="outline" onClick={() => void openApp()}>
               <ExternalLinkIcon />
-              打开密码 App
+              {t("options.backends.apple.openApp")}
             </Button>
           </Option>
         )}
@@ -127,13 +132,13 @@ export function BackendsPage() {
           name={
             <span className="flex items-center gap-2.5">
               <BrandIcon kind="bitwarden" />
-              Bitwarden
+              {backendName("bitwarden")}
             </span>
           }
           description={
             accounts.length
-              ? "可以同时登录多个账号，条目一起显示。锁定后在弹窗里逐个输入主密码解锁。"
-              : "尚未登录。支持官方服务和自建服务器，可以同时登录多个账号。"
+              ? t("options.backends.bitwarden.signedInDescription")
+              : t("options.backends.bitwarden.signedOutDescription")
           }
         >
           {accounts.length ? (
@@ -143,11 +148,11 @@ export function BackendsPage() {
               onClick={() => navigate("onboard")}
             >
               <PlusIcon />
-              添加账号
+              {t("options.backends.bitwarden.addAccount")}
             </Button>
           ) : (
             <Button size="sm" onClick={() => navigate("onboard")}>
-              登录
+              {t("options.backends.bitwarden.signIn")}
             </Button>
           )}
         </Option>
@@ -155,17 +160,19 @@ export function BackendsPage() {
           <Option
             key={account.id}
             name={account.email}
-            description={account.server || "官方服务"}
+            description={
+              account.server || t("options.backends.bitwarden.officialServer")
+            }
           >
             <Button variant="outline" onClick={() => void signOut(account)}>
-              退出登录
+              {t("options.backends.bitwarden.signOut")}
             </Button>
           </Option>
         ))}
         {accounts.length > 0 && (
           <Option
-            name="自动锁定"
-            description="超过这段时间没有使用插件就锁定，之后需要再次输入主密码。退出浏览器后也要重新解锁。"
+            name={t("options.backends.autoLock.name")}
+            description={t("options.backends.autoLock.description")}
           >
             <Select
               value={
@@ -178,13 +185,13 @@ export function BackendsPage() {
                   autoLockMinutes: value === "never" ? null : Number(value),
                 })
               }
-              items={LOCK_TIMES.map(([value, label]) => ({ value, label }))}
+              items={lockTimes().map(([value, label]) => ({ value, label }))}
             >
-              <SelectTrigger aria-label="自动锁定时间">
+              <SelectTrigger aria-label={t("options.backends.autoLock.label")}>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {LOCK_TIMES.map(([value, label]) => (
+                {lockTimes().map(([value, label]) => (
                   <SelectItem key={value} value={value}>
                     {label}
                   </SelectItem>
@@ -195,18 +202,18 @@ export function BackendsPage() {
         )}
       </Card>
       {targets.length > 0 && (
-        <Section title="保存位置">
+        <Section title={t("options.backends.saveTarget.title")}>
           <Card>
             <Option
-              name="新登录默认保存到"
-              description="保存提示里仍可临时改选。"
+              name={t("options.backends.saveTarget.name")}
+              description={t("options.backends.saveTarget.description")}
             >
               <div className="w-64 max-w-full">
                 <SourceSelect
                   sources={targets}
                   value={defaultTarget}
                   onChange={(id) => update({ defaultSaveTarget: id })}
-                  label="新登录默认保存到"
+                  label={t("options.backends.saveTarget.name")}
                 />
               </div>
             </Option>

@@ -1,3 +1,4 @@
+import { t } from "@/lib/i18n"
 import { cn } from "@/lib/utils"
 
 /**
@@ -21,7 +22,7 @@ export function LoginLabel({
       )}
     >
       <span className="truncate text-sm font-medium">
-        {username || "（无用户名）"}
+        {username || t("common.noUsername")}
       </span>
       <span
         className={cn(

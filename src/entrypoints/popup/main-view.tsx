@@ -12,10 +12,14 @@ import {
   type PageInfo,
   type SourceView,
 } from "@/background/api"
-import { BACKEND_NAMES, BrandIcon } from "@/components/keyward/brand-icon"
+import {
+  BrandIcon,
+  backendName,
+  sourceLabel,
+} from "@/components/keyward/brand-icon"
 import { errorMessage } from "@/components/keyward/errors"
 import { LoginLabel } from "@/components/keyward/login-label"
-import { SiteLetter } from "@/components/keyward/site-letter"
+import { SiteIcon } from "@/components/keyward/site-icon"
 import { Button } from "@/components/ui/button"
 import {
   Collapsible,
@@ -25,6 +29,7 @@ import {
 import { Separator } from "@/components/ui/separator"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import type { BackendKind, LoginSummary } from "@/lib/backends/types"
+import { t } from "@/lib/i18n"
 import type { Settings } from "@/lib/settings"
 import { cn } from "@/lib/utils"
 import type { View } from "./App"
@@ -70,8 +75,8 @@ export function MainView({
         <Button
           variant="ghost"
           size="icon"
-          aria-label="添加密码"
-          title="添加密码"
+          aria-label={t("popup.add.title")}
+          title={t("popup.add.title")}
           onClick={() => onNavigate({ name: "add" })}
         >
           <PlusIcon />
@@ -79,8 +84,8 @@ export function MainView({
         <Button
           variant="ghost"
           size="icon"
-          aria-label="密码生成器"
-          title="密码生成器"
+          aria-label={t("popup.generator.title")}
+          title={t("popup.generator.title")}
           onClick={() => onNavigate({ name: "generator" })}
         >
           <RefreshCcwDotIcon />
@@ -94,11 +99,11 @@ export function MainView({
             onValueChange={(value) => setFilter(value as Filter)}
           >
             <TabsList className="w-full">
-              <TabsTrigger value="all">全部</TabsTrigger>
+              <TabsTrigger value="all">{t("popup.main.all")}</TabsTrigger>
               {(["apple", "bitwarden"] as const).map((kind) => (
                 <TabsTrigger key={kind} value={kind}>
                   <BrandIcon kind={kind} />
-                  {BACKEND_NAMES[kind]}
+                  {backendName(kind)}
                 </TabsTrigger>
               ))}
             </TabsList>
@@ -112,20 +117,26 @@ export function MainView({
         )}
         {!sources.length ? (
           <div className="flex flex-col items-center gap-3 px-3 pt-14 text-center">
-            <p className="text-sm text-muted-foreground">还没有连接密码后端</p>
-            <Button onClick={() => openOptions("onboard")}>连接后端</Button>
+            <p className="text-sm text-muted-foreground">
+              {t("popup.main.noBackend")}
+            </p>
+            <Button onClick={() => openOptions("onboard")}>
+              {t("popup.main.connect")}
+            </Button>
           </div>
         ) : !groups.length ? (
           <div className="flex flex-col items-center gap-3 px-3 pt-10 text-center">
             <p className="text-sm text-muted-foreground">
-              {page ? `没有 ${page.host} 的密码` : "当前页面不是网页"}
+              {page
+                ? t("popup.main.noLogins", { host: page.host })
+                : t("popup.main.notWebPage")}
             </p>
             <Button
               variant="outline"
               onClick={() => onNavigate({ name: "add" })}
             >
               <PlusIcon />
-              添加密码
+              {t("popup.add.title")}
             </Button>
           </div>
         ) : (
@@ -168,14 +179,16 @@ function SourceGroup({
       <section>
         <h2 className="flex items-center gap-1.5 px-3 pt-1.5 pb-0.5 text-xs font-medium text-muted-foreground">
           <BrandIcon kind={source.kind} className="size-3.5" />
-          <span className="min-w-0 flex-1 truncate">{source.label}</span>
+          <span className="min-w-0 flex-1 truncate">{sourceLabel(source)}</span>
           {source.status === "locked" ? (
             <Button variant="outline" size="sm" onClick={onConnect}>
-              {source.kind === "apple" ? "配对" : "解锁"}
+              {source.kind === "apple" ? t("source.pair") : t("source.unlock")}
             </Button>
           ) : (
             <span className="py-1.5" title={source.error}>
-              {source.status === "ready" ? "读取失败" : "不可用"}
+              {source.status === "ready"
+                ? t("source.failed")
+                : t("source.unavailable")}
             </span>
           )}
         </h2>
@@ -188,7 +201,7 @@ function SourceGroup({
       <h2>
         <CollapsibleTrigger className="group/trigger flex w-full items-center gap-1.5 px-3 pt-2.5 pb-0.5 text-left text-xs font-medium text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50">
           <BrandIcon kind={source.kind} className="size-3.5" />
-          <span className="min-w-0 truncate">{source.label}</span>
+          <span className="min-w-0 truncate">{sourceLabel(source)}</span>
           <ChevronDownIcon className="ml-auto size-3.5 transition-transform group-data-[panel-open]/trigger:rotate-0 -rotate-90" />
         </CollapsibleTrigger>
       </h2>
@@ -255,7 +268,8 @@ function LoginRow({
         compact ? "min-h-9" : "min-h-12",
       )}
     >
-      <SiteLetter
+      <SiteIcon
+        host={login.host}
         text={login.title}
         className={cn(
           "group-hover/row:bg-background group-focus-within/row:bg-background",
@@ -264,7 +278,7 @@ function LoginRow({
       />
       <LoginLabel
         username={login.username}
-        detail={confirming ? "用触控 ID 或 Mac 密码确认" : login.title}
+        detail={confirming ? t("popup.main.confirmTouchId") : login.title}
         compact={compact}
       />
       <div
@@ -277,8 +291,8 @@ function LoginRow({
           variant="ghost"
           size="icon-sm"
           className="hover:bg-background"
-          aria-label="复制账号"
-          title="复制账号"
+          aria-label={t("popup.copyUsername")}
+          title={t("popup.copyUsername")}
           onClick={() => void copy("username")}
         >
           {copied === "username" ? <CheckIcon /> : <UserIcon />}
@@ -287,8 +301,8 @@ function LoginRow({
           variant="ghost"
           size="icon-sm"
           className="hover:bg-background"
-          aria-label="复制密码"
-          title="复制密码"
+          aria-label={t("popup.copyPassword")}
+          title={t("popup.copyPassword")}
           onClick={() => void copy("password")}
         >
           {copied === "password" ? <CheckIcon /> : <KeyRoundIcon />}

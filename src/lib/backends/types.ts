@@ -18,10 +18,8 @@ export type SourceStatus =
 export interface SourceInfo {
   id: string
   kind: BackendKind
-  /** Shown as the section title: "Apple 密码" or an account's email address. */
+  /** An account's email address; the interface names Apple Passwords itself. */
   label: string
-  /** Secondary text such as the server address. */
-  detail?: string
   status: SourceStatus
   error?: string
 }
@@ -33,6 +31,8 @@ export interface LoginSummary {
   username: string
   /** The line under the user name: the site for Apple, the item name for Bitwarden. */
   title: string
+  /** The host of the login's site, for its icon. */
+  host?: string
 }
 
 export interface Credential {

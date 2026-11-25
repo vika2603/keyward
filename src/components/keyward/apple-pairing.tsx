@@ -8,6 +8,7 @@ import {
   InputOTPSlot,
 } from "@/components/ui/input-otp"
 import type { AppleState } from "@/lib/backends/apple/apple-backend"
+import { t } from "@/lib/i18n"
 import { errorCodeOf, errorMessage } from "./errors"
 
 /**
@@ -60,7 +61,7 @@ export function ApplePairing({
     } catch (error) {
       setCode("")
       if (errorCodeOf(error) === "apple.wrongCode") {
-        setMessage("验证码不正确。Mac 上已显示新的验证码，请重新输入。")
+        setMessage(t("pairing.wrongCodeRestarted"))
         setBusy(false)
         await start(true)
         return
@@ -75,14 +76,14 @@ export function ApplePairing({
   const phase = state?.phase
   const waiting = phase === "awaitingCode"
   const hint =
-    waiting || autoStart
-      ? "输入 Mac 上显示的六位验证码。"
-      : "点击开始配对后，输入 Mac 上显示的六位验证码。"
+    waiting || autoStart ? t("pairing.enterCode") : t("pairing.startThenEnter")
 
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-2">
-        <span className="text-sm leading-none font-medium">验证码</span>
+        <span className="text-sm leading-none font-medium">
+          {t("pairing.code")}
+        </span>
         <InputOTP
           maxLength={6}
           pattern={REGEXP_ONLY_DIGITS}
@@ -91,7 +92,7 @@ export function ApplePairing({
           onComplete={(value: string) => void submit(value)}
           disabled={!waiting || busy}
           autoFocus
-          aria-label="六位验证码"
+          aria-label={t("pairing.codeLabel")}
         >
           <InputOTPGroup>
             {[0, 1, 2, 3, 4, 5].map((index) => (
@@ -105,15 +106,15 @@ export function ApplePairing({
         </InputOTP>
         <span className="text-xs text-muted-foreground">
           {phase === "connecting"
-            ? "正在连接 Apple 密码…"
+            ? t("pairing.connecting")
             : phase === "paired"
-              ? "已配对。"
+              ? t("pairing.paired")
               : hint}
         </span>
         {message && <span className="text-xs text-destructive">{message}</span>}
         {phase === "unavailable" && !message && (
           <span className="text-xs text-destructive">
-            无法连接 Apple 密码。需要 macOS 上的 Chrome 和系统自带的密码组件。
+            {t("error.apple.unavailable")}
           </span>
         )}
       </div>
@@ -123,7 +124,7 @@ export function ApplePairing({
           disabled={busy}
           onClick={() => void start(waiting)}
         >
-          {waiting ? "重新获取验证码" : "开始配对"}
+          {waiting ? t("pairing.newCode") : t("pairing.start")}
         </Button>
       )}
     </div>

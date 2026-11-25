@@ -1,5 +1,12 @@
 import type { ContentScriptContext } from "wxt/utils/content-script-context"
+import type { Language } from "@/lib/i18n/language"
 import { isVisible } from "./fields"
+
+/** The icon's only text; kept here so the content script does not carry the whole catalog. */
+const ICON_LABELS: Record<Language, string> = {
+  "zh-CN": "打开密码菜单",
+  en: "Open password menu",
+}
 
 const SIZE = 24
 const INSET = 6
@@ -69,6 +76,7 @@ export class FieldIcons {
   private readonly icons = new Map<HTMLInputElement, HTMLButtonElement>()
   private frame = 0
   private expanded: HTMLInputElement | null = null
+  private language: Language = "en"
 
   constructor(
     ctx: ContentScriptContext,
@@ -119,6 +127,12 @@ export class FieldIcons {
     this.schedule()
   }
 
+  setLanguage(language: Language): void {
+    this.language = language
+    for (const icon of this.icons.values())
+      icon.setAttribute("aria-label", ICON_LABELS[language])
+  }
+
   owns(target: EventTarget | null): boolean {
     return target === this.host
   }
@@ -133,7 +147,7 @@ export class FieldIcons {
     const icon = document.createElement("button")
     icon.type = "button"
     icon.title = "Keyward"
-    icon.setAttribute("aria-label", "打开密码菜单")
+    icon.setAttribute("aria-label", ICON_LABELS[this.language])
     icon.setAttribute("aria-expanded", String(this.expanded === field))
     icon.innerHTML = LOGO_SVG
     // Keeps the focus in the field while the icon is pressed.

@@ -1,5 +1,6 @@
 import { siApple, siBitwarden } from "simple-icons"
-import type { BackendKind } from "@/lib/backends/types"
+import type { BackendKind, SourceInfo } from "@/lib/backends/types"
+import { t } from "@/lib/i18n"
 import { cn } from "@/lib/utils"
 
 const PATHS: Record<BackendKind, string> = {
@@ -26,7 +27,13 @@ export function BrandIcon({
   )
 }
 
-export const BACKEND_NAMES: Record<BackendKind, string> = {
-  apple: "Apple 密码",
-  bitwarden: "Bitwarden",
+export function backendName(kind: BackendKind): string {
+  return kind === "apple" ? t("common.applePasswords") : t("common.bitwarden")
+}
+
+/** A source's name: Apple Passwords in the interface language, or a Bitwarden account's email. */
+export function sourceLabel(
+  source: Pick<SourceInfo, "kind" | "label">,
+): string {
+  return source.kind === "apple" ? backendName("apple") : source.label
 }

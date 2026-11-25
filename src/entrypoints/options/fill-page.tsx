@@ -6,16 +6,19 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
+import { t } from "@/lib/i18n"
 import { Card, Option, PageHeader, Section, Segmented } from "./parts"
 import { useSettings } from "./use-settings"
 
-export const CLEAR_TIMES: [string, string][] = [
-  ["30", "30 秒"],
-  ["60", "1 分钟"],
-  ["120", "2 分钟"],
-  ["300", "5 分钟"],
-  ["never", "从不"],
-]
+export function clearTimes(): [string, string][] {
+  return [
+    ["30", t("options.duration.seconds", { count: 30 })],
+    ["60", t("options.duration.oneMinute")],
+    ["120", t("options.duration.minutes", { count: 2 })],
+    ["300", t("options.duration.minutes", { count: 5 })],
+    ["never", t("options.fill.clipboardClear.never")],
+  ]
+}
 
 export function FillPage() {
   const [settings, update] = useSettings()
@@ -24,31 +27,31 @@ export function FillPage() {
   return (
     <>
       <PageHeader
-        title="填充与保存"
-        description="对所有站点生效，可在站点规则里按站点覆盖。"
+        title={t("options.fill.title")}
+        description={t("options.fill.description")}
       />
-      <Section title="页面内菜单">
+      <Section title={t("options.fill.menu.title")}>
         <Card>
           <Option
-            name="何时显示候选菜单"
-            description="图标显示在登录和注册表单的输入框里。选择点击图标时，菜单不会自动弹出遮挡页面。"
+            name={t("options.fill.menuTrigger.name")}
+            description={t("options.fill.menuTrigger.description")}
           >
             <Segmented
-              label="何时显示候选菜单"
+              label={t("options.fill.menuTrigger.name")}
               value={settings.menuTrigger}
               options={[
-                ["click", "点击图标时"],
-                ["focus", "输入框获得焦点时"],
+                ["click", t("options.fill.menuTrigger.click")],
+                ["focus", t("options.fill.menuTrigger.focus")],
               ]}
               onChange={(menuTrigger) => update({ menuTrigger })}
             />
           </Option>
           <Option
-            name="在跨域框架中显示"
-            description="登录框嵌在其他域名的框架里时也提供候选。"
+            name={t("options.fill.crossOriginFrames.name")}
+            description={t("options.fill.crossOriginFrames.description")}
           >
             <Switch
-              aria-label="在跨域框架中显示"
+              aria-label={t("options.fill.crossOriginFrames.name")}
               checked={settings.crossOriginFrames}
               onCheckedChange={(checked) =>
                 update({ crossOriginFrames: checked })
@@ -57,49 +60,49 @@ export function FillPage() {
           </Option>
         </Card>
       </Section>
-      <Section title="自动填充">
+      <Section title={t("options.fill.autofill.title")}>
         <Card>
           <Option
-            name="填充后自动提交"
-            description="填入用户名和密码后提交登录表单。只对有提交按钮的普通表单有效。"
+            name={t("options.fill.autoSubmit.name")}
+            description={t("options.fill.autoSubmit.description")}
           >
             <Switch
-              aria-label="填充后自动提交"
+              aria-label={t("options.fill.autoSubmit.name")}
               checked={settings.autoSubmit}
               onCheckedChange={(checked) => update({ autoSubmit: checked })}
             />
           </Option>
         </Card>
       </Section>
-      <Section title="保存">
+      <Section title={t("options.fill.save.title")}>
         <Card>
           <Option
-            name="询问保存新登录"
-            description="检测到登录或注册表单提交后显示保存提示，个别站点可能检测不到。"
+            name={t("options.fill.askSave.name")}
+            description={t("options.fill.askSave.description")}
           >
             <Switch
-              aria-label="询问保存新登录"
+              aria-label={t("options.fill.askSave.name")}
               checked={settings.askSave}
               onCheckedChange={(checked) => update({ askSave: checked })}
             />
           </Option>
           <Option
-            name="询问更新已变更的密码"
-            description="提交的密码与已保存的不一致时显示更新提示。"
+            name={t("options.fill.askUpdate.name")}
+            description={t("options.fill.askUpdate.description")}
           >
             <Switch
-              aria-label="询问更新已变更的密码"
+              aria-label={t("options.fill.askUpdate.name")}
               checked={settings.askUpdate}
               onCheckedChange={(checked) => update({ askUpdate: checked })}
             />
           </Option>
         </Card>
       </Section>
-      <Section title="剪贴板">
+      <Section title={t("options.fill.clipboard.title")}>
         <Card>
           <Option
-            name="自动覆盖剪贴板"
-            description="复制密码后，经过这段时间用空内容覆盖剪贴板。系统或剪贴板工具留存的历史不受影响。"
+            name={t("options.fill.clipboardClear.name")}
+            description={t("options.fill.clipboardClear.description")}
           >
             <Select
               value={
@@ -113,13 +116,15 @@ export function FillPage() {
                     value === "never" ? null : Number(value),
                 })
               }
-              items={CLEAR_TIMES.map(([value, label]) => ({ value, label }))}
+              items={clearTimes().map(([value, label]) => ({ value, label }))}
             >
-              <SelectTrigger aria-label="覆盖剪贴板前的等待时间">
+              <SelectTrigger
+                aria-label={t("options.fill.clipboardClear.label")}
+              >
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {CLEAR_TIMES.map(([value, label]) => (
+                {clearTimes().map(([value, label]) => (
                   <SelectItem key={value} value={value}>
                     {label}
                   </SelectItem>

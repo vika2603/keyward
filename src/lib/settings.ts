@@ -46,6 +46,8 @@ export interface Settings {
   autoLockMinutes: number | null
   theme: "system" | "light" | "dark"
   density: "standard" | "compact"
+  /** Interface language; "system" follows the browser. */
+  language: "system" | "zh-CN" | "en"
   siteRules: SiteRule[]
   equivalentDomains: string[][]
 }
@@ -63,6 +65,7 @@ export const defaultSettings: Settings = {
   autoLockMinutes: 15,
   theme: "system",
   density: "standard",
+  language: "system",
   siteRules: [],
   equivalentDomains: [],
 }

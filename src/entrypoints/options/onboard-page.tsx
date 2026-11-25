@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react"
 import { callBackground } from "@/background/api"
 import { ApplePairing } from "@/components/keyward/apple-pairing"
-import { BACKEND_NAMES, BrandIcon } from "@/components/keyward/brand-icon"
+import { BrandIcon, backendName } from "@/components/keyward/brand-icon"
 import { errorMessage } from "@/components/keyward/errors"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -16,22 +16,31 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import type { SecondStepMethod } from "@/lib/backends/bitwarden/auth"
 import type { PendingSignInView } from "@/lib/backends/bitwarden/bitwarden-backend"
 import type { BackendKind } from "@/lib/backends/types"
+import { t } from "@/lib/i18n"
 import { navigate } from "./App"
 
-const METHODS: Record<SecondStepMethod, { name: string; hint: string }> = {
-  authenticator: {
-    name: "验证器 App",
-    hint: "输入验证器 App 里显示的验证码。",
-  },
-  email: { name: "邮件", hint: "验证码已发送到登录邮箱。" },
-  recoveryCode: {
-    name: "恢复代码",
-    hint: "输入开启两步验证时保存的恢复代码。",
-  },
-  newDevice: {
-    name: "新设备验证",
-    hint: "服务器已向登录邮箱发送验证码，用来确认这台新设备。",
-  },
+function methodTexts(): Record<
+  SecondStepMethod,
+  { name: string; hint: string }
+> {
+  return {
+    authenticator: {
+      name: t("options.onboard.method.authenticator"),
+      hint: t("options.onboard.method.authenticatorHint"),
+    },
+    email: {
+      name: t("options.onboard.method.email"),
+      hint: t("options.onboard.method.emailHint"),
+    },
+    recoveryCode: {
+      name: t("options.onboard.method.recoveryCode"),
+      hint: t("options.onboard.method.recoveryCodeHint"),
+    },
+    newDevice: {
+      name: t("options.onboard.method.newDevice"),
+      hint: t("options.onboard.method.newDeviceHint"),
+    },
+  }
 }
 
 /** First run, and adding accounts later: connect one backend at a time. */
@@ -44,10 +53,10 @@ export function OnboardPage() {
       <main className="flex w-full max-w-[440px] flex-col gap-4">
         <header className="flex flex-col gap-1.5 pb-2 text-center">
           <h1 className="text-2xl leading-8 font-semibold tracking-tight">
-            连接密码后端
+            {t("options.onboard.title")}
           </h1>
           <p className="text-sm text-muted-foreground">
-            选择要使用的后端。其他后端和账号可以之后在设置里添加。
+            {t("options.onboard.description")}
           </p>
         </header>
         <section className="flex flex-col gap-4 rounded-xl bg-card p-4 ring-1 ring-foreground/10">
@@ -55,11 +64,14 @@ export function OnboardPage() {
             value={kind}
             onValueChange={(value) => setKind(value as BackendKind)}
           >
-            <TabsList className="w-full" aria-label="选择要连接的后端">
+            <TabsList
+              className="w-full"
+              aria-label={t("options.onboard.backendTabs")}
+            >
               {(["apple", "bitwarden"] as const).map((k) => (
                 <TabsTrigger key={k} value={k}>
                   <BrandIcon kind={k} />
-                  {BACKEND_NAMES[k]}
+                  {backendName(k)}
                 </TabsTrigger>
               ))}
             </TabsList>
@@ -72,7 +84,7 @@ export function OnboardPage() {
         </section>
         <div className="flex justify-end">
           <Button variant="ghost" onClick={done}>
-            稍后设置
+            {t("options.onboard.later")}
           </Button>
         </div>
       </main>
@@ -131,6 +143,7 @@ function SignIn({ onSignedIn }: { onSignedIn: () => void }) {
   }
 
   if (pending && method) {
+    const methods = methodTexts()
     return (
       <form
         className="flex flex-col gap-4"
@@ -143,29 +156,36 @@ function SignIn({ onSignedIn }: { onSignedIn: () => void }) {
         }}
       >
         <div className="flex flex-col gap-2">
-          <span className="text-sm leading-none font-medium">验证方式</span>
+          <span className="text-sm leading-none font-medium">
+            {t("options.onboard.secondStep.method")}
+          </span>
           <Select
             value={method}
             onValueChange={(value) => choose(value as SecondStepMethod)}
             items={pending.methods.map((m) => ({
               value: m,
-              label: METHODS[m].name,
+              label: methods[m].name,
             }))}
           >
-            <SelectTrigger className="w-full" aria-label="验证方式">
+            <SelectTrigger
+              className="w-full"
+              aria-label={t("options.onboard.secondStep.method")}
+            >
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
               {pending.methods.map((m) => (
                 <SelectItem key={m} value={m}>
-                  {METHODS[m].name}
+                  {methods[m].name}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
         </div>
         <label className="flex flex-col gap-2">
-          <span className="text-sm leading-none font-medium">验证码</span>
+          <span className="text-sm leading-none font-medium">
+            {t("options.onboard.secondStep.code")}
+          </span>
           <Input
             value={code}
             onChange={(event) => setCode(event.target.value)}
@@ -174,7 +194,7 @@ function SignIn({ onSignedIn }: { onSignedIn: () => void }) {
             autoFocus
           />
           <span className="text-xs text-muted-foreground">
-            {METHODS[method].hint}
+            {methods[method].hint}
           </span>
         </label>
         {message && <p className="text-xs text-destructive">{message}</p>}
@@ -184,7 +204,7 @@ function SignIn({ onSignedIn }: { onSignedIn: () => void }) {
             className="w-full"
             disabled={busy || !code.trim()}
           >
-            验证并登录
+            {t("options.onboard.secondStep.submit")}
           </Button>
           <Button
             type="button"
@@ -197,7 +217,7 @@ function SignIn({ onSignedIn }: { onSignedIn: () => void }) {
               setMessage(null)
             }}
           >
-            返回
+            {t("options.onboard.secondStep.back")}
           </Button>
         </div>
       </form>
@@ -222,7 +242,9 @@ function SignIn({ onSignedIn }: { onSignedIn: () => void }) {
       }}
     >
       <label className="flex flex-col gap-2">
-        <span className="text-sm leading-none font-medium">服务器地址</span>
+        <span className="text-sm leading-none font-medium">
+          {t("options.onboard.signIn.server")}
+        </span>
         <Input
           inputMode="url"
           spellCheck={false}
@@ -231,11 +253,13 @@ function SignIn({ onSignedIn }: { onSignedIn: () => void }) {
           placeholder="https://vault.example.com"
         />
         <span className="text-xs text-muted-foreground">
-          留空则使用官方服务。
+          {t("options.onboard.signIn.serverHint")}
         </span>
       </label>
       <label className="flex flex-col gap-2">
-        <span className="text-sm leading-none font-medium">邮箱</span>
+        <span className="text-sm leading-none font-medium">
+          {t("options.onboard.signIn.email")}
+        </span>
         <Input
           type="email"
           value={email}
@@ -245,7 +269,9 @@ function SignIn({ onSignedIn }: { onSignedIn: () => void }) {
         />
       </label>
       <label className="flex flex-col gap-2">
-        <span className="text-sm leading-none font-medium">主密码</span>
+        <span className="text-sm leading-none font-medium">
+          {t("options.onboard.signIn.masterPassword")}
+        </span>
         <Input
           type="password"
           value={password}
@@ -260,7 +286,9 @@ function SignIn({ onSignedIn }: { onSignedIn: () => void }) {
         className="w-full"
         disabled={busy || !email || !password}
       >
-        {busy ? "正在登录…" : "登录"}
+        {busy
+          ? t("options.onboard.signIn.busy")
+          : t("options.onboard.signIn.submit")}
       </Button>
     </form>
   )

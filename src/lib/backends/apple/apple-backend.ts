@@ -337,7 +337,7 @@ export class AppleBackend implements PasswordBackend {
       {
         id: APPLE_SOURCE_ID,
         kind: "apple",
-        label: "Apple 密码",
+        label: "Apple Passwords",
         status,
         error,
       },
@@ -351,6 +351,7 @@ export class AppleBackend implements PasswordBackend {
       id: loginId(entry.username, entry.site),
       username: entry.username,
       title: entry.customTitle || entry.site,
+      host: entry.site,
     }))
   }
 

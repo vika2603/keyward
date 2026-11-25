@@ -1,5 +1,6 @@
 import { PlusIcon, Trash2Icon } from "lucide-react"
 import { useState } from "react"
+import { backendName } from "@/components/keyward/brand-icon"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -25,6 +26,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { t } from "@/lib/i18n"
 import {
   MatchType,
   type RuleBackend,
@@ -35,26 +37,32 @@ import { hostOfSavedUri } from "@/lib/site"
 import { Card, Option, PageHeader, Section } from "./parts"
 import { useSettings } from "./use-settings"
 
-const MATCH_NAMES: [MatchType, string][] = [
-  [MatchType.Domain, "主域名"],
-  [MatchType.Host, "主机名"],
-  [MatchType.StartsWith, "开头一致"],
-  [MatchType.Exact, "完全一致"],
-  [MatchType.RegularExpression, "正则表达式"],
-  [MatchType.Never, "从不匹配"],
-]
-const BACKEND_NAMES: [RuleBackend, string][] = [
-  ["all", "全部"],
-  ["apple", "Apple 密码"],
-  ["bitwarden", "Bitwarden"],
-]
-const BEHAVIOR_NAMES: [SiteBehavior, string][] = [
-  ["default", "默认"],
-  ["menuOnClick", "点击图标时显示菜单"],
-  ["menuOnFocus", "获得焦点时显示菜单"],
-  ["noSave", "不询问保存"],
-  ["disabled", "不填充，不询问保存"],
-]
+function matchNames(): [MatchType, string][] {
+  return [
+    [MatchType.Domain, t("options.sites.match.domain")],
+    [MatchType.Host, t("options.sites.match.host")],
+    [MatchType.StartsWith, t("options.sites.match.startsWith")],
+    [MatchType.Exact, t("options.sites.match.exact")],
+    [MatchType.RegularExpression, t("options.sites.match.regularExpression")],
+    [MatchType.Never, t("options.sites.match.never")],
+  ]
+}
+function backendNames(): [RuleBackend, string][] {
+  return [
+    ["all", t("options.sites.backend.all")],
+    ["apple", backendName("apple")],
+    ["bitwarden", backendName("bitwarden")],
+  ]
+}
+function behaviorNames(): [SiteBehavior, string][] {
+  return [
+    ["default", t("options.sites.behavior.default")],
+    ["menuOnClick", t("options.sites.behavior.menuOnClick")],
+    ["menuOnFocus", t("options.sites.behavior.menuOnFocus")],
+    ["noSave", t("options.sites.behavior.noSave")],
+    ["disabled", t("options.sites.behavior.disabled")],
+  ]
+}
 
 function nameOf<T>(names: [T, string][], value: T): string {
   return names.find(([v]) => v === value)?.[1] ?? ""
@@ -104,33 +112,39 @@ export function SitesPage() {
 
   const ruleMatch = (rule: SiteRule) => {
     if (rule.backend === "apple")
-      return <span className="text-muted-foreground">由系统决定</span>
+      return (
+        <span className="text-muted-foreground">
+          {t("options.sites.match.bySystem")}
+        </span>
+      )
     return rule.match === null
-      ? `默认（${nameOf(MATCH_NAMES, settings.defaultMatch)}）`
-      : nameOf(MATCH_NAMES, rule.match)
+      ? t("options.sites.match.defaultWith", {
+          match: nameOf(matchNames(), settings.defaultMatch),
+        })
+      : nameOf(matchNames(), rule.match)
   }
 
   return (
     <>
       <PageHeader
-        title="站点规则"
-        description="决定条目与网址如何匹配，并按站点覆盖默认行为。"
+        title={t("options.sites.title")}
+        description={t("options.sites.description")}
       />
       <Card>
         <Option
-          name="默认匹配方式"
-          description="对 Bitwarden 条目生效。Apple 密码的匹配由系统决定。"
+          name={t("options.sites.defaultMatch.name")}
+          description={t("options.sites.defaultMatch.description")}
         >
           <ChoiceSelect
-            names={MATCH_NAMES}
+            names={matchNames()}
             value={settings.defaultMatch}
             onChange={(defaultMatch) => update({ defaultMatch })}
-            label="默认匹配方式"
+            label={t("options.sites.defaultMatch.name")}
           />
         </Option>
       </Card>
       <Section
-        title="按站点覆盖"
+        title={t("options.sites.rules.title")}
         action={
           <Button
             variant="outline"
@@ -138,7 +152,7 @@ export function SitesPage() {
             onClick={() => setAddingRule(true)}
           >
             <PlusIcon />
-            添加规则
+            {t("options.sites.rules.add")}
           </Button>
         }
       >
@@ -147,12 +161,22 @@ export function SitesPage() {
             <Table className="min-w-[540px]">
               <TableHeader>
                 <TableRow>
-                  <TableHead className="px-4">网址</TableHead>
-                  <TableHead className="px-4">匹配方式</TableHead>
-                  <TableHead className="px-4">后端</TableHead>
-                  <TableHead className="px-4">行为</TableHead>
                   <TableHead className="px-4">
-                    <span className="sr-only">操作</span>
+                    {t("options.sites.rules.site")}
+                  </TableHead>
+                  <TableHead className="px-4">
+                    {t("options.sites.rules.match")}
+                  </TableHead>
+                  <TableHead className="px-4">
+                    {t("options.sites.rules.backend")}
+                  </TableHead>
+                  <TableHead className="px-4">
+                    {t("options.sites.rules.behavior")}
+                  </TableHead>
+                  <TableHead className="px-4">
+                    <span className="sr-only">
+                      {t("options.sites.rules.actions")}
+                    </span>
                   </TableHead>
                 </TableRow>
               </TableHeader>
@@ -162,16 +186,18 @@ export function SitesPage() {
                     <TableCell className="px-4">{rule.host}</TableCell>
                     <TableCell className="px-4">{ruleMatch(rule)}</TableCell>
                     <TableCell className="px-4">
-                      {nameOf(BACKEND_NAMES, rule.backend)}
+                      {nameOf(backendNames(), rule.backend)}
                     </TableCell>
                     <TableCell className="px-4">
-                      {nameOf(BEHAVIOR_NAMES, rule.behavior)}
+                      {nameOf(behaviorNames(), rule.behavior)}
                     </TableCell>
                     <TableCell className="px-4 text-right">
                       <Button
                         variant="ghost"
                         size="icon-sm"
-                        aria-label={`删除 ${rule.host} 的规则`}
+                        aria-label={t("options.sites.rules.delete", {
+                          host: rule.host,
+                        })}
                         onClick={() =>
                           update({
                             siteRules: settings.siteRules.filter(
@@ -189,13 +215,13 @@ export function SitesPage() {
             </Table>
           ) : (
             <p className="px-4 py-3 text-sm text-muted-foreground">
-              还没有规则。
+              {t("options.sites.rules.empty")}
             </p>
           )}
         </Card>
       </Section>
       <Section
-        title="等价域名"
+        title={t("options.sites.domains.title")}
         action={
           <Button
             variant="outline"
@@ -203,7 +229,7 @@ export function SitesPage() {
             onClick={() => setAddingGroup(true)}
           >
             <PlusIcon />
-            添加一组
+            {t("options.sites.domains.add")}
           </Button>
         }
       >
@@ -212,13 +238,13 @@ export function SitesPage() {
             settings.equivalentDomains.map((group, index) => (
               <Option
                 key={group.join(",")}
-                name={group.join("、")}
-                description="同一组里的域名共用条目。Apple 密码不受影响。"
+                name={group.join(t("options.sites.domains.separator"))}
+                description={t("options.sites.domains.description")}
               >
                 <Button
                   variant="ghost"
                   size="icon-sm"
-                  aria-label="删除这一组等价域名"
+                  aria-label={t("options.sites.domains.delete")}
                   onClick={() =>
                     update({
                       equivalentDomains: settings.equivalentDomains.filter(
@@ -233,8 +259,7 @@ export function SitesPage() {
             ))
           ) : (
             <p className="px-4 py-3 text-sm text-muted-foreground">
-              还没有等价域名。同一组里的域名共用 Bitwarden 条目，Apple
-              密码不受影响。
+              {t("options.sites.domains.empty")}
             </p>
           )}
         </Card>
@@ -297,13 +322,15 @@ function RuleDialog({
           }}
         >
           <DialogHeader>
-            <DialogTitle>添加规则</DialogTitle>
+            <DialogTitle>{t("options.sites.rules.add")}</DialogTitle>
             <DialogDescription>
-              规则对这个主机名和它的子域名生效。
+              {t("options.sites.ruleDialog.description")}
             </DialogDescription>
           </DialogHeader>
           <label className="flex flex-col gap-2">
-            <span className="text-sm leading-none font-medium">网址</span>
+            <span className="text-sm leading-none font-medium">
+              {t("options.sites.rules.site")}
+            </span>
             <Input
               value={site}
               onChange={(event) => setSite(event.target.value)}
@@ -313,42 +340,51 @@ function RuleDialog({
           </label>
           <div className="grid grid-cols-2 gap-3">
             <div className="flex flex-col gap-2">
-              <span className="text-sm leading-none font-medium">后端</span>
+              <span className="text-sm leading-none font-medium">
+                {t("options.sites.rules.backend")}
+              </span>
               <ChoiceSelect
-                names={BACKEND_NAMES}
+                names={backendNames()}
                 value={backend}
                 onChange={setBackend}
-                label="后端"
+                label={t("options.sites.rules.backend")}
                 className="w-full"
               />
             </div>
             <div className="flex flex-col gap-2">
-              <span className="text-sm leading-none font-medium">匹配方式</span>
+              <span className="text-sm leading-none font-medium">
+                {t("options.sites.rules.match")}
+              </span>
               <ChoiceSelect<MatchType | "default">
-                names={[["default", "默认"], ...MATCH_NAMES]}
+                names={[
+                  ["default", t("options.sites.match.default")],
+                  ...matchNames(),
+                ]}
                 value={match}
                 onChange={setMatch}
-                label="匹配方式"
+                label={t("options.sites.rules.match")}
                 className="w-full"
               />
             </div>
           </div>
           <div className="flex flex-col gap-2">
-            <span className="text-sm leading-none font-medium">行为</span>
+            <span className="text-sm leading-none font-medium">
+              {t("options.sites.rules.behavior")}
+            </span>
             <ChoiceSelect
-              names={BEHAVIOR_NAMES}
+              names={behaviorNames()}
               value={behavior}
               onChange={setBehavior}
-              label="行为"
+              label={t("options.sites.rules.behavior")}
               className="w-full"
             />
           </div>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={onClose}>
-              取消
+              {t("options.sites.dialog.cancel")}
             </Button>
             <Button type="submit" disabled={!host}>
-              添加
+              {t("options.sites.dialog.add")}
             </Button>
           </DialogFooter>
         </form>
@@ -390,24 +426,24 @@ function DomainGroupDialog({
           }}
         >
           <DialogHeader>
-            <DialogTitle>添加等价域名</DialogTitle>
+            <DialogTitle>{t("options.sites.domainDialog.title")}</DialogTitle>
             <DialogDescription>
-              输入两个或更多域名，用逗号或空格分隔。
+              {t("options.sites.domainDialog.description")}
             </DialogDescription>
           </DialogHeader>
           <Input
             value={text}
             onChange={(event) => setText(event.target.value)}
             placeholder="example.com, example.net"
-            aria-label="域名"
+            aria-label={t("options.sites.domainDialog.input")}
             autoFocus
           />
           <DialogFooter>
             <Button type="button" variant="outline" onClick={onClose}>
-              取消
+              {t("options.sites.dialog.cancel")}
             </Button>
             <Button type="submit" disabled={domains.length < 2}>
-              添加
+              {t("options.sites.dialog.add")}
             </Button>
           </DialogFooter>
         </form>

@@ -17,13 +17,14 @@ import {
   LENGTH_MAX,
   LENGTH_MIN,
 } from "@/lib/generator"
+import { t } from "@/lib/i18n"
 import { BackHeader } from "./header"
 
 const CLASSES = [
-  ["upper", "大写"],
-  ["lower", "小写"],
-  ["digits", "数字"],
-  ["symbols", "符号"],
+  ["upper", "popup.generator.upper"],
+  ["lower", "popup.generator.lower"],
+  ["digits", "popup.generator.digits"],
+  ["symbols", "popup.generator.symbols"],
 ] as const
 
 function charClass(char: string): string | undefined {
@@ -97,12 +98,12 @@ export function GeneratorView({
 
   return (
     <div className="flex min-h-[276px] flex-col">
-      <BackHeader title="密码生成器" onBack={onBack}>
+      <BackHeader title={t("popup.generator.title")} onBack={onBack}>
         <Button
           variant="ghost"
           size="icon"
-          aria-label="生成历史"
-          title="生成历史"
+          aria-label={t("popup.history.title")}
+          title={t("popup.history.title")}
           onClick={onHistory}
         >
           <HistoryIcon />
@@ -124,8 +125,8 @@ export function GeneratorView({
           <Button
             variant="ghost"
             size="icon"
-            aria-label="重新生成"
-            title="重新生成"
+            aria-label={t("popup.generator.regenerate")}
+            title={t("popup.generator.regenerate")}
             onClick={() => update({})}
           >
             <RefreshCwIcon />
@@ -133,8 +134,8 @@ export function GeneratorView({
           <Button
             variant="ghost"
             size="icon"
-            aria-label={copied ? "已复制" : "复制密码"}
-            title={copied ? "已复制" : "复制密码"}
+            aria-label={copied ? t("popup.copied") : t("popup.copyPassword")}
+            title={copied ? t("popup.copied") : t("popup.copyPassword")}
             onClick={() => void copy()}
           >
             {copied ? <CheckIcon /> : <CopyIcon />}
@@ -145,7 +146,7 @@ export function GeneratorView({
       <Separator />
       <div className="flex items-center gap-3 px-3 py-2 min-h-[52px]">
         <span id="gen-length" className="w-14 shrink-0 text-sm font-medium">
-          长度
+          {t("popup.generator.length")}
         </span>
         <Slider
           className="min-w-0 flex-1"
@@ -167,9 +168,11 @@ export function GeneratorView({
       </div>
       <fieldset
         className="flex min-h-[52px] min-w-0 items-center gap-3 border-t px-3 py-2"
-        aria-label="包含的字符类型"
+        aria-label={t("popup.generator.classesLabel")}
       >
-        <span className="w-14 shrink-0 text-sm font-medium">包含</span>
+        <span className="w-14 shrink-0 text-sm font-medium">
+          {t("popup.generator.include")}
+        </span>
         {CLASSES.map(([key, label]) => (
           <label
             key={key}
@@ -179,7 +182,7 @@ export function GeneratorView({
               checked={options[key]}
               onCheckedChange={() => toggle(key)}
             />
-            {label}
+            {t(label)}
           </label>
         ))}
       </fieldset>
@@ -188,7 +191,7 @@ export function GeneratorView({
           htmlFor="gen-symbols"
           className="w-14 shrink-0 text-sm font-medium"
         >
-          符号集
+          {t("popup.generator.symbolSet")}
         </label>
         <Input
           id="gen-symbols"
