@@ -1,9 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { fakeBrowser } from "wxt/testing/fake-browser"
-import { updateSettings } from "@/lib/settings"
+import { getSettings, MatchType, updateSettings } from "@/lib/settings"
 import { prompts } from "./overlays"
 import {
   confirmPrompt,
+  neverForSite,
   onSubmitted,
   promptFolders,
   promptState,
@@ -199,6 +200,60 @@ describe("onSubmitted", () => {
       password: "typed-password",
     })
     expect(await prompts.get(TAB)).toBeNull()
+  })
+})
+
+describe("neverForSite", () => {
+  it("keeps the vaults and match type of a parent domain's rule in the subdomain's new rule", async () => {
+    const parentRule = {
+      id: "parent",
+      host: "example.com",
+      match: MatchType.Host,
+      provider: "bitwarden",
+      behavior: "menuOnClick",
+    } as const
+    await updateSettings({ siteRules: [parentRule] })
+    const { providers } = fakeProviders([{ info: accountVault }])
+    await onSubmitted(providers, TAB, 0, login)
+    await neverForSite(TAB)
+    const { siteRules } = await getSettings()
+    expect(siteRules).toEqual([
+      parentRule,
+      {
+        id: expect.any(String),
+        host: "accounts.example.com",
+        match: MatchType.Host,
+        provider: "bitwarden",
+        behavior: "noSave",
+      },
+    ])
+    expect(await prompts.get(TAB)).toBeNull()
+  })
+
+  it("changes the host's own rule instead of adding one", async () => {
+    await updateSettings({
+      siteRules: [
+        {
+          id: "own",
+          host: "accounts.example.com",
+          match: null,
+          provider: "apple",
+          behavior: "menuOnFocus",
+        },
+      ],
+    })
+    const { providers } = fakeProviders([{ info: appleVault }])
+    await onSubmitted(providers, TAB, 0, login)
+    await neverForSite(TAB)
+    expect((await getSettings()).siteRules).toEqual([
+      {
+        id: "own",
+        host: "accounts.example.com",
+        match: null,
+        provider: "apple",
+        behavior: "noSave",
+      },
+    ])
   })
 })
 

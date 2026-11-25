@@ -5,7 +5,7 @@ import {
   VaultError,
   type VaultInfo,
 } from "@/lib/providers/types"
-import { getSettings, updateSettings } from "@/lib/settings"
+import { getSettings, type SiteRule, updateSettings } from "@/lib/settings"
 import { siteDomainOf } from "@/lib/site"
 import type { PromptState, VaultView } from "./api"
 import { prompts } from "./overlays"
@@ -298,30 +298,36 @@ export async function confirmPrompt(
   await closePrompt(tabId)
 }
 
-/** Stops asking to save logins on the prompt's site. */
+/**
+ * Stops asking to save logins on the prompt's site. A new rule for the host keeps the vaults and
+ * match type of a rule for a parent domain, which it overrides as the more specific one.
+ */
 export async function neverForSite(tabId: number): Promise<void> {
   const session = await prompts.get(tabId)
   if (!session) return
   const host = new URL(session.url).hostname
   const { siteRules } = await getSettings()
-  const existing = siteRules.find((r) => r.host === host)
-  await updateSettings({
-    siteRules: existing
-      ? siteRules.map((r) =>
-          r === existing ? { ...r, behavior: "noSave" } : r,
-        )
-      : [
-          ...siteRules,
-          {
-            id: crypto.randomUUID(),
-            host,
-            match: null,
-            provider: "all",
-            behavior: "noSave",
-          },
-        ],
-  })
+  await updateSettings({ siteRules: withNoSaveRule(siteRules, host) })
   await closePrompt(tabId)
+}
+
+function withNoSaveRule(rules: SiteRule[], host: string): SiteRule[] {
+  const ownRule = rules.find((rule) => rule.host === host)
+  if (ownRule)
+    return rules.map((rule) =>
+      rule === ownRule ? { ...rule, behavior: "noSave" } : rule,
+    )
+  const parentRule = ruleForHost(rules, host)
+  return [
+    ...rules,
+    {
+      id: crypto.randomUUID(),
+      host,
+      match: parentRule?.match ?? null,
+      provider: parentRule?.provider ?? "all",
+      behavior: "noSave",
+    },
+  ]
 }
 
 export async function closePrompt(tabId: number): Promise<void> {
