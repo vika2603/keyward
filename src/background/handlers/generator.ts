@@ -11,7 +11,7 @@ import {
   listHistory,
   settleNow,
 } from "../history"
-import { activeHost, activePage, popupOnly } from "./request-context"
+import { activeHost, popupOnly } from "./request-context"
 import { generatorKind, requireText } from "./validation"
 
 export function generatorHandlers() {
@@ -19,32 +19,31 @@ export function generatorHandlers() {
     "generator.copy": {
       allow: popupOnly,
       handle: async ({ password }) => {
-        requireText(password, "password")
-        await copyText(password, true)
-        const { page } = await activePage()
-        await addHistory(password, page?.hostname ?? null)
+        const checkedPassword = requireText(password, "password")
+        await copyText(checkedPassword, true)
+        await addHistory(checkedPassword, await activeHost())
         return null
       },
     },
     "generator.record": {
       allow: popupOnly,
       handle: async ({ password, site }) => {
-        requireText(password, "password")
+        const checkedPassword = requireText(password, "password")
         const host = normalizeSiteInput(requireText(site, "site"))?.hostname
-        await addHistory(password, host ?? null)
+        await addHistory(checkedPassword, host ?? null)
         return null
       },
     },
     "generator.shown": {
       allow: popupOnly,
       handle: async ({ value, kind, copied }) => {
-        requireText(value, "value")
+        const checkedValue = requireText(value, "value")
         const checkedKind = generatorKind(kind)
         if (copied === true) {
-          await addShownNow(value, checkedKind, await activeHost())
+          await addShownNow(checkedValue, checkedKind, await activeHost())
         } else {
           // Nothing is awaited before this, so values wait to settle in the order the popup showed them.
-          addWhenSettled(value, checkedKind, activeHost)
+          addWhenSettled(checkedValue, checkedKind, activeHost)
         }
         return null
       },
@@ -59,7 +58,9 @@ export function generatorHandlers() {
     "history.copy": {
       allow: popupOnly,
       handle: async ({ id }) => {
-        const entry = (await listHistory()).find((e) => e.id === id)
+        const entry = (await listHistory()).find(
+          (candidate) => candidate.id === id,
+        )
         if (!entry) throw new VaultError("Unknown entry", "notFound")
         // A username is not a secret, so it stays on the clipboard.
         await copyText(entry.value, entry.kind !== "username")

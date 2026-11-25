@@ -1,13 +1,25 @@
 import type { Handlers } from "@/lib/messaging"
+import type { AccountSummary } from "@/lib/providers/bitwarden/bitwarden-provider"
 import { normalizeServerAddress } from "@/lib/providers/bitwarden/server"
 import { VaultError } from "@/lib/providers/types"
 import type { BackgroundApi } from "../api"
+import { MAX_ACCOUNT_NAME_LENGTH, MAX_SECOND_STEP_CODE_LENGTH } from "../limits"
 import type { Providers } from "../providers"
 import { connectPages } from "./request-context"
-import { customEndpointsOf, requireText } from "./validation"
+import { customEndpointsOf, requireText, secondStepMethod } from "./validation"
 
 export function bitwardenHandlers(providers: Providers) {
   const { bitwarden } = providers
+
+  const knownAccount = async (accountId: unknown): Promise<AccountSummary> => {
+    const checkedId = requireText(accountId, "accountId")
+    const account = (await bitwarden.accounts()).find(
+      (candidate) => candidate.id === checkedId,
+    )
+    if (!account) throw new VaultError("Unknown account", "unknownVault")
+    return account
+  }
+
   return {
     "bitwarden.accounts": {
       allow: connectPages,
@@ -16,39 +28,37 @@ export function bitwardenHandlers(providers: Providers) {
     "bitwarden.unlock": {
       allow: connectPages,
       handle: async ({ accountId, password }) => {
-        await bitwarden.unlock(accountId, requireText(password, "password"))
+        await bitwarden.unlock(
+          requireText(accountId, "accountId"),
+          requireText(password, "password"),
+        )
         return null
       },
     },
     "bitwarden.signOut": {
       allow: ["options"],
       handle: async ({ accountId }) => {
-        await bitwarden.signOut(accountId)
+        await bitwarden.signOut(requireText(accountId, "accountId"))
         return null
       },
     },
     "bitwarden.sync": {
       allow: ["options"],
       handle: async ({ accountId }) => {
-        const id = requireText(accountId, "accountId")
-        const account = (await bitwarden.accounts()).find(
-          (candidate) => candidate.id === id,
-        )
-        if (!account) throw new VaultError("Unknown account", "unknownVault")
+        const account = await knownAccount(accountId)
         if (!account.unlocked) throw new VaultError("Locked", "locked")
-        await bitwarden.sync(id)
+        await bitwarden.sync(account.id)
         return null
       },
     },
     "bitwarden.renameAccount": {
       allow: ["options"],
       handle: async ({ accountId, name }) => {
-        const id = requireText(accountId, "accountId")
-        const known = (await bitwarden.accounts()).some(
-          (account) => account.id === id,
+        const account = await knownAccount(accountId)
+        await bitwarden.renameAccount(
+          account.id,
+          requireText(name, "name", MAX_ACCOUNT_NAME_LENGTH),
         )
-        if (!known) throw new VaultError("Unknown account", "unknownVault")
-        await bitwarden.renameAccount(id, requireText(name, "name", 100))
         return null
       },
     },
@@ -79,8 +89,8 @@ export function bitwardenHandlers(providers: Providers) {
       allow: connectPages,
       handle: async ({ method, code }) => ({
         accountId: await bitwarden.submitSecondStep(
-          method,
-          requireText(code, "code", 128),
+          secondStepMethod(method),
+          requireText(code, "code", MAX_SECOND_STEP_CODE_LENGTH),
         ),
       }),
     },

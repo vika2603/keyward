@@ -14,7 +14,7 @@ export function contentHandlers(providers: Providers) {
       allow: ["contentScript"],
       handle: (candidate, sender) => {
         const { tabId, frameId } = tabFrame(sender)
-        return offerCandidate(tabId, frameId, candidate ?? {})
+        return offerCandidate(tabId, frameId, candidate)
       },
     },
     "content.init": {

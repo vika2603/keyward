@@ -4,9 +4,11 @@ import { normalizeSiteInput } from "@/lib/site"
 import { keyLabel } from "@/lib/totp"
 import type { BackgroundApi } from "../api"
 import { finishSetup, pendingSetup } from "../code-setup"
+import { MAX_URL_LENGTH } from "../limits"
 import type { Providers } from "../providers"
 import { defaultTarget, saveTargets } from "../save-flow"
-import { activePage, popupOnly } from "./request-context"
+import { namedVault } from "./capabilities"
+import { popupOnly, popupTab } from "./request-context"
 import { newLoginDetailsInput, requireText } from "./validation"
 
 export function popupSaveHandlers(providers: Providers) {
@@ -16,7 +18,9 @@ export function popupSaveHandlers(providers: Providers) {
       allow: popupOnly,
       handle: async ({ site }) => {
         const ready = await providers.savable()
-        const url = normalizeSiteInput(requireText(site, "site", 2048))
+        const url = normalizeSiteInput(
+          requireText(site, "site", MAX_URL_LENGTH),
+        )
         const targets = url ? await saveTargets(providers, url) : ready
         return {
           targets,
@@ -34,31 +38,26 @@ export function popupSaveHandlers(providers: Providers) {
       handle: async ({ vaultId, site, username, password, details }) => {
         const url = normalizeSiteInput(requireText(site, "site"))
         if (!url) throw new VaultError("Not a web address", "invalidSite")
-        if (!requireText(password, "password"))
+        const checkedPassword = requireText(password, "password")
+        if (!checkedPassword)
           throw new VaultError("Empty password", "invalidInput")
-        if (
-          !(await saveTargets(providers, url)).some(
-            (vault) => vault.id === vaultId,
-          )
-        ) {
+        const vault = namedVault(providers, vaultId)
+        const targets = await saveTargets(providers, url)
+        if (!targets.some((target) => target.id === vault.vaultId)) {
           throw new VaultError(
             "The chosen place is not available",
             "unknownVault",
           )
         }
-        const { tabId } = await activePage()
-        await providers.providerOf(vaultId).save(
-          vaultId,
+        await vault.provider.save(
+          vault.vaultId,
           {
             url,
             username: requireText(username, "username").trim(),
-            password,
+            password: checkedPassword,
             details: newLoginDetailsInput(details),
           },
-          {
-            tabId: tabId ?? 0,
-            frameId: 0,
-          },
+          await popupTab(),
         )
         return null
       },
@@ -92,7 +91,8 @@ export function popupSaveHandlers(providers: Providers) {
       allow: popupOnly,
       handle: async ({ vaultId, loginId }) => {
         const { uri, page } = await pendingSetup()
-        if (providers.providerOf(requireText(vaultId, "vaultId")) === apple) {
+        const vault = namedVault(providers, vaultId)
+        if (vault.provider === apple) {
           if (!apple.canSave(page))
             throw new VaultError(
               "Apple Passwords does not store logins for this host",
@@ -101,7 +101,7 @@ export function popupSaveHandlers(providers: Providers) {
           await apple.setUpCode(page.hostname, uri)
         } else {
           await bitwarden.setCode(
-            vaultId,
+            vault.vaultId,
             requireText(loginId, "loginId"),
             page,
             uri,

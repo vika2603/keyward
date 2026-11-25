@@ -10,7 +10,12 @@ import {
   promptFolders,
   promptState,
 } from "../save-flow"
-import { requireText } from "./validation"
+import {
+  optionalFolderId,
+  optionalText,
+  requireFiniteNumber,
+  requireText,
+} from "./validation"
 
 export function promptHandlers(providers: Providers) {
   return {
@@ -25,13 +30,10 @@ export function promptHandlers(providers: Providers) {
         await confirmPrompt(
           providers,
           (await prompts.claim(sender, token)).tabId,
-          targetId,
+          optionalText(targetId, "targetId"),
           {
             name: requireText(name ?? "", "name"),
-            folderId:
-              folderId === undefined || folderId === null
-                ? null
-                : requireText(folderId, "folderId", 64),
+            folderId: optionalFolderId(folderId),
           },
         )
         return null
@@ -66,7 +68,7 @@ export function promptHandlers(providers: Providers) {
         const session = await prompts.claim(sender, token)
         await sendToFrame(session.tabId, session.frameId, {
           type: "prompt.resize",
-          height: Number(height),
+          height: requireFiniteNumber(height, "height"),
         })
         return null
       },

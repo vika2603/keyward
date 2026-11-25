@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest"
 import { fakeBrowser } from "wxt/testing/fake-browser"
 import { serveRequests } from "./messaging"
 
-type Api = { "test.echo": { payload: string; result: string } }
+type Api = { "test.echo": { payload: { text: string }; result: string } }
 
 function popupSender(): Browser.runtime.MessageSender {
   return {
@@ -36,7 +36,7 @@ describe("serveRequests", () => {
     fakeBrowser.reset()
     serveRequests<Api>(
       {
-        "test.echo": { allow: ["popup"], handle: (text) => text },
+        "test.echo": { allow: ["popup"], handle: ({ text }) => String(text) },
       },
       () => "internal",
     )
@@ -46,9 +46,16 @@ describe("serveRequests", () => {
     const replies = await deliver({
       keyward: 1,
       type: "test.echo",
-      payload: "hello",
+      payload: { text: "hello" },
     })
     expect(replies).toEqual([{ ok: true, value: "hello" }])
+  })
+
+  it("gives a handler a payload without fields when the message has none", async () => {
+    for (const payload of [null, "hello", 7]) {
+      const replies = await deliver({ keyward: 1, type: "test.echo", payload })
+      expect(replies).toEqual([{ ok: true, value: "undefined" }])
+    }
   })
 
   it("says a request it does not know is unsupported", async () => {

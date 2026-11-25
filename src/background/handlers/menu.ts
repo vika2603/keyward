@@ -1,6 +1,5 @@
 import { generatePassword, getGeneratorOptions } from "@/lib/generator"
 import type { Handlers } from "@/lib/messaging"
-import { isBitwardenVault } from "@/lib/providers/bitwarden/vault-id"
 import { VaultError } from "@/lib/providers/types"
 import { siteDomainOf } from "@/lib/site"
 import type { BackgroundApi } from "../api"
@@ -10,7 +9,9 @@ import { frameUrl, sendToFrame } from "../page"
 import { openPopup } from "../popup-window"
 import type { Providers } from "../providers"
 import { markRecent, recallUsername } from "../save-flow"
+import { namedVault } from "./capabilities"
 import { closeMenu } from "./request-context"
+import { requireFiniteNumber, requireText } from "./validation"
 
 export function menuHandlers(providers: Providers) {
   return {
@@ -58,7 +59,13 @@ export function menuHandlers(providers: Providers) {
       handle: async ({ token, vaultId, loginId }, sender) => {
         const session = await menus.claim(sender, token)
         const fill = session.kind === "code" ? fillCode : fillLogin
-        await fill(providers, session.tabId, session.frameId, vaultId, loginId)
+        await fill(
+          providers,
+          session.tabId,
+          session.frameId,
+          requireText(vaultId, "vaultId"),
+          requireText(loginId, "loginId"),
+        )
         await closeMenu(session.tabId)
         return null
       },
@@ -97,7 +104,7 @@ export function menuHandlers(providers: Providers) {
         const session = await menus.claim(sender, token)
         await sendToFrame(session.tabId, session.frameId, {
           type: "menu.resize",
-          height: Number(height),
+          height: requireFiniteNumber(height, "height"),
         })
         return null
       },
@@ -113,9 +120,13 @@ export function menuHandlers(providers: Providers) {
       allow: ["menu"],
       handle: async ({ token, vaultId }, sender) => {
         const session = await menus.claim(sender, token)
-        const kind = isBitwardenVault(vaultId) ? "bitwarden" : "apple"
+        const vault = namedVault(providers, vaultId)
         await closeMenu(session.tabId)
-        await openPopup({ name: "connect", kind, vaultId })
+        await openPopup({
+          name: "connect",
+          kind: vault.provider.kind,
+          vaultId: vault.vaultId,
+        })
         return null
       },
     },

@@ -40,15 +40,24 @@ export class RequestError extends Error {
 }
 
 /** A map from request type to its payload and result, implemented by the background. */
-export type ApiShape = Record<string, { payload: unknown; result: unknown }>
+export type ApiShape = Record<
+  string,
+  { payload: object | null; result: unknown }
+>
 
 export type Sender = Browser.runtime.MessageSender & { kind: SenderKind }
+
+/**
+ * A payload as a handler receives it. A sender can put anything in a message, whatever the API
+ * says, so every field is unknown until the handler checks it.
+ */
+export type Untrusted<Payload> = { readonly [Key in keyof Payload]?: unknown }
 
 export type Handlers<Api extends ApiShape> = {
   [K in keyof Api]: {
     allow: readonly SenderKind[]
     handle: (
-      payload: Api[K]["payload"],
+      payload: Untrusted<Api[K]["payload"]>,
       sender: Sender,
     ) => Promise<Api[K]["result"]> | Api[K]["result"]
   }
@@ -99,7 +108,9 @@ export function serveRequests<Api extends ApiShape>(
         return false
       }
       Promise.resolve()
-        .then(() => entry.handle(message.payload as never, { ...sender, kind }))
+        .then(() =>
+          entry.handle(fieldsOf(message.payload), { ...sender, kind }),
+        )
         .then(
           (value) =>
             sendResponse({
@@ -131,6 +142,13 @@ export async function sendRequest<
     throw new RequestError("No response from the background", "noResponse")
   if (!reply.ok) throw new RequestError(reply.error, reply.code)
   return reply.value
+}
+
+/** A payload that is not an object reads as one without fields, so handlers can always destructure it. */
+function fieldsOf(payload: unknown): Record<string, unknown> {
+  return typeof payload === "object" && payload !== null
+    ? (payload as Record<string, unknown>)
+    : {}
 }
 
 function errorReply(error: string, code: string): Reply<never> {
