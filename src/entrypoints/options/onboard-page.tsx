@@ -12,13 +12,10 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { t } from "@/lib/i18n"
-import {
-  lastServerItem,
-  selfHostedServerItem,
-} from "@/lib/providers/bitwarden/account-store"
 import type { SecondStepMethod } from "@/lib/providers/bitwarden/auth"
 import type { PendingSignInView } from "@/lib/providers/bitwarden/bitwarden-provider"
 import { navigate } from "./App"
+import { lastServerItem, selfHostedServerItem } from "./remembered-server"
 
 function methodTexts(): Record<
   SecondStepMethod,
