@@ -8,6 +8,7 @@ import {
   type ReactNode,
   type RefObject,
   useEffect,
+  useId,
   useRef,
   useState,
 } from "react"
@@ -41,6 +42,8 @@ export function App() {
   const [state, setState] = useState<MenuState | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
+  const ids = useId()
+  const headingId = (vault: VaultView) => `${ids}-${vault.id}`
 
   // The frame shows placeholder rows while the logins load, so it opens at once.
   useReportHeight(
@@ -158,13 +161,19 @@ export function App() {
             )}
             {shownVaults.map((vault) =>
               vault.status !== "ready" || vault.error ? (
-                <VaultHeader
+                <fieldset
                   key={vault.id}
-                  vault={vault}
-                  className="py-1.5 first:pt-2"
+                  aria-labelledby={headingId(vault)}
+                  className="flex min-w-0 items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-muted-foreground first:pt-2"
                 >
+                  <VaultHeading
+                    vault={vault}
+                    id={headingId(vault)}
+                    className="min-w-0 flex-1"
+                  />
                   {vault.status === "locked" ? (
                     <Button
+                      role="menuitem"
                       variant="outline"
                       size="sm"
                       onClick={() =>
@@ -184,11 +193,20 @@ export function App() {
                         : t("vault.unavailable")}
                     </span>
                   )}
-                </VaultHeader>
+                </fieldset>
               ) : (
-                <section key={vault.id}>
+                <fieldset
+                  key={vault.id}
+                  aria-labelledby={headed ? headingId(vault) : undefined}
+                  aria-label={headed ? undefined : vaultLabel(vault)}
+                  className="min-w-0"
+                >
                   {headed && (
-                    <VaultHeader vault={vault} className="pt-2.5 pb-0.5" />
+                    <VaultHeading
+                      vault={vault}
+                      id={headingId(vault)}
+                      className="px-3 pt-2.5 pb-0.5 text-xs font-medium text-muted-foreground"
+                    />
                   )}
                   <div className="flex flex-col gap-0.5 p-1">
                     {vault.logins.map((login) => (
@@ -224,7 +242,7 @@ export function App() {
                       </MenuRow>
                     ))}
                   </div>
-                </section>
+                </fieldset>
               ),
             )}
             {state.passkey && (
@@ -314,29 +332,23 @@ function IconTile({
   )
 }
 
-/** A vault's name and brand, above its logins or beside what the vault needs. */
-function VaultHeader({
+/**
+ * A vault's name and brand, above its logins or beside what the vault needs. It names the vault's
+ * group of rows; a menu holds only rows and groups, so controls stay outside the heading.
+ */
+function VaultHeading({
   vault,
+  id,
   className,
-  children,
 }: {
   vault: VaultView
+  id: string
   className: string
-  /** A control or status after the name, which then takes the remaining width. */
-  children?: ReactNode
 }) {
   return (
-    <h2
-      className={cn(
-        "flex items-center gap-1.5 px-3 text-xs font-medium text-muted-foreground",
-        className,
-      )}
-    >
+    <h2 id={id} className={cn("flex items-center gap-1.5", className)}>
       <BrandIcon kind={vault.kind} className="size-3.5" />
-      <span className={cn(children && "min-w-0 flex-1", "truncate")}>
-        {vaultLabel(vault)}
-      </span>
-      {children}
+      <span className="truncate">{vaultLabel(vault)}</span>
     </h2>
   )
 }
