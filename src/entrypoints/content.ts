@@ -4,33 +4,20 @@ import {
   callBackground,
   type FieldInfo,
   isContentMessage,
-  VAULTS_CHANGED_KEY,
 } from "@/background/api"
 import { watchCodeImages } from "@/content/code-scan"
+import { ContentConfiguration } from "@/content/content-config"
 import {
-  codeFields,
-  deepActiveElement,
-  eventOrigin,
-  fillCodeField,
-  fillCustomFields,
-  fillTargets,
-  isPasswordField,
-  loginFields,
-  newPasswordFields,
-  newPasswordTargets,
-  setFieldValue,
-  submitFor,
-} from "@/content/fields"
+  listenToExtension,
+  notifyBackground,
+} from "@/content/extension-messages"
+import { FieldTracker } from "@/content/field-tracker"
+import { deepActiveElement, eventOrigin } from "@/content/fields"
+import { FillHandlers } from "@/content/fill-handlers"
 import { FieldIcons } from "@/content/icons"
 import { InlineMenu, SavePrompt } from "@/content/overlays"
-import {
-  PASSKEY_CONTROL_EVENT,
-  PASSKEY_STATE_EVENT,
-  PASSKEY_USED_EVENT,
-  type PasskeyControl,
-} from "@/content/passkey-events"
+import { PasskeySteering } from "@/content/passkey-steering"
 import { watchSubmissions } from "@/content/submit"
-import { ACCOUNTS_KEY } from "@/lib/providers/bitwarden/account-store"
 import { isDarkTheme } from "@/lib/theme"
 
 export default defineContentScript({
@@ -39,91 +26,116 @@ export default defineContentScript({
   runAt: "document_idle",
   async main(ctx) {
     const isTop = window === window.top
-    let theme: ContentConfig["theme"] = "system"
-    const scheme = () => (isDarkTheme(theme) ? "dark" : "light")
-    const prompt = isTop ? new SavePrompt(ctx, scheme) : null
-    let fields: HTMLInputElement[] = []
-    /** Fields for a new password; their menu offers a generated one above the logins. */
-    let newPasswords: HTMLInputElement[] = []
-    /** One-time code fields; they get the icon only while a ready vault has codes for the page. */
-    let codes: HTMLInputElement[] = []
-    let codesAvailable: boolean | null = null
-    let askingCodes = false
-    let lastField: HTMLInputElement | null = null
-    const isOurs = (field: HTMLInputElement) =>
-      fields.includes(field) ||
-      newPasswords.includes(field) ||
-      codes.includes(field)
-    /** Set while a fill moves the focus between fields, which must not reopen the menu. */
-    let filling = false
-    /**
-     * Removes an extension event listener when a newer copy of this script takes over. After the
-     * extension reloads, its APIs throw and its events stop, so there is nothing to remove.
-     */
-    const onInvalidatedRemove = (remove: () => void) =>
-      ctx.onInvalidated(() => {
-        if (browser.runtime?.id) remove()
-      })
+    const configuration = new ContentConfiguration(ctx, applyConfig)
+    const colorScheme = () =>
+      isDarkTheme(configuration.current.theme) ? "dark" : "light"
+    const savePrompt = isTop ? new SavePrompt(ctx, colorScheme) : null
 
     const menu = new InlineMenu(
       ctx,
-      scheme,
+      colorScheme,
       () => {
         icons.setExpanded(null)
-        void callBackground("content.closeMenu", null).catch(() => {})
+        notifyBackground("content.closeMenu", null)
       },
       (target) => icons.owns(target),
     )
-    const openMenu = async (field: HTMLInputElement) => {
+    const icons = new FieldIcons(ctx, (field) => void openMenu(field))
+    const fields = new FieldTracker(ctx, {
+      isKeywardNode: (node) =>
+        icons.owns(node) ||
+        menu.owns(node) ||
+        (savePrompt?.owns(node) ?? false),
+      askCodes: () =>
+        configuration.whileCurrent(
+          callBackground("content.hasCodes", null).catch(() => false),
+        ),
+      onScan: (found) => {
+        icons.update([...found.login, ...found.newPassword, ...found.code])
+        steerPasskeys()
+      },
+    })
+    const passkeys = new PasskeySteering(ctx, {
+      // An open menu learned about the request when it opened, so it opens again to match.
+      onWaitingChange: () => {
+        const field = menu.openFor
+        if (field && fields.isLogin(field)) {
+          menu.close()
+          void openMenu(field)
+        }
+      },
+      onUsed: () => notifyBackground("content.passkeyUsed", null),
+    })
+    /** Keeps the page's passkey request for the menu while this frame shows the menu on login fields. */
+    const steerPasskeys = () => {
+      const { active, takeOverPasskeys } = configuration.current
+      passkeys.steer(active && takeOverPasskeys && fields.login.length > 0)
+    }
+
+    let lastMenuField: HTMLInputElement | null = null
+    const fills = new FillHandlers(menu, fields, () => lastMenuField)
+
+    async function openMenu(field: HTMLInputElement): Promise<void> {
       if (menu.openFor === field) {
         menu.close()
         return
       }
       menu.close()
-      lastField = field
-      const { token } = await callBackground("content.openMenu", {
-        kind: codes.includes(field) ? "code" : "login",
-        newPassword: newPasswords.includes(field),
-        passkey: passkeyWaiting && fields.includes(field),
-      })
+      lastMenuField = field
+      const session = await callBackground("content.openMenu", {
+        kind: fields.isCode(field) ? "code" : "login",
+        newPassword: fields.isNewPassword(field),
+        passkey: passkeys.waiting && fields.isLogin(field),
+      }).catch(() => null)
       // The page may have stopped offering logins while the session was requested.
-      if (!active || !isOurs(field)) return
+      if (!session || !configuration.current.active || !fields.has(field))
+        return
       icons.setExpanded(field)
-      menu.show(field, token)
+      menu.show(field, session.token)
       // Keeps the keyboard path open: ArrowDown in the field moves into the menu.
       if (deepActiveElement() !== field) field.focus({ preventScroll: true })
     }
-    const icons = new FieldIcons(
-      ctx,
-      (field) => void openMenu(field).catch(() => {}),
-    )
 
-    const onMessage = (
-      message: unknown,
-      _sender: unknown,
-      sendResponse: (response: unknown) => void,
-    ) => {
-      if (!isContentMessage(message)) return false
-      sendResponse(handle(message) ?? null)
-      return false
+    function applyConfig(config: ContentConfig, previous: ContentConfig): void {
+      icons.setLanguage(config.language)
+      fields.forgetCodes()
+      if (config.active === previous.active) {
+        if (config.active) fields.scan()
+        else steerPasskeys()
+      } else if (config.active) {
+        fields.start()
+      } else {
+        menu.close()
+        fields.stop()
+      }
     }
-    browser.runtime.onMessage.addListener(onMessage)
-    onInvalidatedRemove(() =>
-      browser.runtime.onMessage.removeListener(onMessage),
+
+    listenToExtension(
+      ctx,
+      browser.runtime.onMessage,
+      (
+        message: unknown,
+        _sender: unknown,
+        sendResponse: (response: unknown) => void,
+      ) => {
+        if (!isContentMessage(message)) return false
+        sendResponse(handle(message) ?? null)
+        return false
+      },
     )
 
     function handle(message: ContentMessage): FieldInfo | boolean | undefined {
       switch (message.type) {
         case "fill":
-          fill(message)
+          fills.fill(message)
           return
         case "fillCode":
-          fillCode(message)
+          fills.fillCode(message)
           return
         case "fillNew":
-          return fillNew(message)
+          return fills.fillNew(message)
         case "usePasskey":
-          controlPasskeys("use")
+          passkeys.use()
           return
         case "menu.resize":
           menu.resize(message.height)
@@ -132,290 +144,57 @@ export default defineContentScript({
           menu.close()
           return
         case "prompt.show":
-          prompt?.show(message.token)
+          savePrompt?.show(message.token)
           return
         case "prompt.resize":
-          prompt?.resize(message.height)
+          savePrompt?.resize(message.height)
           return
         case "prompt.close":
-          prompt?.close()
+          savePrompt?.close()
           return
         case "fieldInfo": {
           const focused = deepActiveElement()
           return {
-            hasField: fields.length > 0,
+            hasField: fields.login.length > 0,
             focused:
-              focused instanceof HTMLInputElement && fields.includes(focused),
+              focused instanceof HTMLInputElement && fields.isLogin(focused),
           }
         }
       }
     }
 
-    function fill(message: Extract<ContentMessage, { type: "fill" }>): void {
-      // The background checked the login against this origin; the frame may have navigated since.
-      if (location.origin !== message.origin) return
-      const focused = deepActiveElement()
-      const anchor =
-        menu.openFor ??
-        (focused instanceof HTMLInputElement && fields.includes(focused)
-          ? focused
-          : null) ??
-        (lastField?.isConnected ? lastField : null) ??
-        fields.find(isPasswordField) ??
-        fields[0]
-      menu.close()
-      if (!anchor) return
-      const { username, password } = fillTargets(anchor)
-      const loginFields = [username, password].filter((field) => field !== null)
-      filling = true
-      try {
-        // Custom fields go first, so the focus ends on the login's own fields as typing would leave it.
-        fillCustomFields(anchor, message.fields, loginFields)
-        if (username && message.username)
-          setFieldValue(username, message.username)
-        if (password) setFieldValue(password, message.password)
-      } finally {
-        filling = false
-      }
-      if (message.autoSubmit && (password ?? username))
-        submitFor((password ?? username) as HTMLInputElement)
-    }
-
-    function fillCode(
-      message: Extract<ContentMessage, { type: "fillCode" }>,
-    ): void {
-      if (location.origin !== message.origin) return
-      const focused = deepActiveElement()
-      const anchor = [
-        menu.openFor,
-        focused instanceof HTMLInputElement ? focused : null,
-        lastField?.isConnected ? lastField : null,
-        codes[0],
-      ].find((field) => field && codes.includes(field))
-      menu.close()
-      if (!anchor) return
-      filling = true
-      try {
-        fillCodeField(anchor, message.code)
-      } finally {
-        filling = false
-      }
-    }
-
-    /**
-     * Fills a generated password: from the in-page menu into its new-password field and the
-     * confirmation beside it. From the right-click menu the right-clicked field has the focus; a
-     * password field there gets the password even when it does not look new, as it was chosen, and
-     * another field, such as a sign-up form's email, passes it to its form's new-password fields.
-     * Returns whether any field got it.
-     */
-    function fillNew(
-      message: Extract<ContentMessage, { type: "fillNew" }>,
-    ): boolean {
-      if (location.origin !== message.origin) return false
-      const focused = deepActiveElement()
-      const anchor =
-        (menu.openFor && newPasswords.includes(menu.openFor)
-          ? menu.openFor
-          : null) ??
-        (focused instanceof HTMLInputElement ? focused : null) ??
-        (lastField?.isConnected && newPasswords.includes(lastField)
-          ? lastField
-          : null)
-      menu.close()
-      if (!anchor) return false
-      const targets =
-        isPasswordField(anchor) && !newPasswords.includes(anchor)
-          ? [anchor]
-          : newPasswordTargets(anchor, newPasswords)
-      filling = true
-      try {
-        for (const field of targets) setFieldValue(field, message.password)
-      } finally {
-        filling = false
-      }
-      return targets.length > 0
-    }
-
-    let active = false
-    let scanCodes = false
-    let takeOverPasskeys = false
-    /** Whether the page-world script holds a passkey request for the menu. */
-    let passkeyWaiting = false
-    let passkeyMode: PasskeyControl | null = null
-    const controlPasskeys = (control: PasskeyControl) =>
-      document.dispatchEvent(
-        new CustomEvent(PASSKEY_CONTROL_EVENT, { detail: control }),
-      )
-    /**
-     * Keeps the page's passkey request for the menu while this frame shows the menu on login
-     * fields; otherwise the browser lists passkeys itself.
-     */
-    const steerPasskeys = () => {
-      const next =
-        active && takeOverPasskeys && fields.length > 0 ? "hold" : "release"
-      if (next === passkeyMode) return
-      passkeyMode = next
-      controlPasskeys(next)
-    }
-    let menuTrigger: ContentConfig["menuTrigger"] = "click"
-    let observer: MutationObserver | null = null
-    let rescan = 0
-    let pending = 0
-
-    const scan = () => {
-      fields = loginFields(document)
-      newPasswords = newPasswordFields(document)
-      const found = codeFields(document, [...fields, ...newPasswords])
-      if (found.length && codesAvailable === null) void checkCodes()
-      codes = codesAvailable ? found : []
-      icons.update([...fields, ...newPasswords, ...codes])
-      steerPasskeys()
-    }
-    /**
-     * Asks once per configuration whether code fields should get the icon. A configuration follows
-     * every change of the vaults, so an unlock after the page loaded shows the icon too.
-     */
-    const checkCodes = async () => {
-      if (askingCodes) return
-      askingCodes = true
-      const request = requested
-      const available = await callBackground("content.hasCodes", null).catch(
-        () => false,
-      )
-      askingCodes = false
-      if (request !== requested || ctx.isInvalid || !active) return
-      codesAvailable = available
-      if (available) scan()
-    }
-    const isKeywardNode = (node: Node) =>
-      icons.owns(node) || menu.owns(node) || (prompt?.owns(node) ?? false)
-    /** Keyward's icons and overlays change with every move of the menu; they hold no fields. */
-    const isKeywardChange = (record: MutationRecord) =>
-      record.type === "childList"
-        ? [...record.addedNodes, ...record.removedNodes].every(isKeywardNode)
-        : isKeywardNode(record.target)
-    const start = () => {
-      observer = new MutationObserver((records) => {
-        if (pending || records.every(isKeywardChange)) return
-        pending = window.setTimeout(() => {
-          pending = 0
-          scan()
-        }, 300)
-      })
-      observer.observe(document.documentElement, {
-        childList: true,
-        subtree: true,
-        attributes: true,
-        attributeFilter: ["type", "style", "class", "hidden", "disabled"],
-      })
-      // Changes inside shadow roots do not reach the observer above; a slow rescan picks them up.
-      rescan = ctx.setInterval(scan, 2000)
-      scan()
-    }
-    const stop = () => {
-      observer?.disconnect()
-      observer = null
-      clearInterval(rescan)
-      clearTimeout(pending)
-      pending = 0
-      menu.close()
-      fields = []
-      newPasswords = []
-      codes = []
-      icons.update([])
-      steerPasskeys()
-    }
-    ctx.onInvalidated(() => {
-      observer?.disconnect()
-      clearTimeout(pending)
-      // The menu of this copy is gone; a newer copy of the script takes over in new pages only.
-      controlPasskeys("release")
-    })
-
-    let requested = 0
-    /** Applies this frame's configuration, which follows the settings and the connected vaults. */
-    const configure = async () => {
-      const request = ++requested
-      const config = await callBackground("content.init", null).catch(
-        () => null,
-      )
-      if (!config || request !== requested || ctx.isInvalid) return
-      theme = config.theme
-      icons.setLanguage(config.language)
-      menuTrigger = config.menuTrigger
-      scanCodes = config.scanCodes
-      takeOverPasskeys = config.takeOverPasskeys
-      codesAvailable = null
-      if (config.active === active) {
-        if (active) scan()
-        else steerPasskeys()
-        return
-      }
-      active = config.active
-      if (active) start()
-      else stop()
-    }
-    const onStorage = (
-      changes: Record<string, Browser.storage.StorageChange>,
-    ) => {
-      if (
-        changes.settings ||
-        changes[ACCOUNTS_KEY] ||
-        changes[VAULTS_CHANGED_KEY]
-      )
-        void configure()
-    }
-    ctx.addEventListener(document, PASSKEY_STATE_EVENT, (event) => {
-      const waiting = (event as CustomEvent<unknown>).detail === "waiting"
-      if (waiting === passkeyWaiting) return
-      passkeyWaiting = waiting
-      // An open menu learned about the request when it opened, so it opens again to match.
-      const field = menu.openFor
-      if (field && fields.includes(field)) {
-        menu.close()
-        void openMenu(field).catch(() => {})
-      }
-    })
-    ctx.addEventListener(document, PASSKEY_USED_EVENT, () => {
-      void callBackground("content.passkeyUsed", null).catch(() => {})
-    })
-    browser.storage.local.onChanged.addListener(onStorage)
-    onInvalidatedRemove(() =>
-      browser.storage.local.onChanged.removeListener(onStorage),
-    )
-    await configure()
-    if (isTop) void callBackground("content.ready", null).catch(() => {})
+    await configuration.load()
+    if (isTop) notifyBackground("content.ready", null)
 
     // Only an empty field opens the menu on focus. A filled one, as after a fill when the focus
     // comes back from the menu's frame, opens it from its icon.
     ctx.addEventListener(document, "focusin", (event) => {
       const target = eventOrigin(event)
+      const { active, menuTrigger } = configuration.current
       if (
         active &&
         menuTrigger === "focus" &&
         event.isTrusted &&
-        !filling &&
+        !fills.filling &&
         target instanceof HTMLInputElement &&
         !target.value &&
-        isOurs(target) &&
+        fields.has(target) &&
         menu.openFor !== target
       ) {
-        void openMenu(target).catch(() => {})
+        void openMenu(target)
       }
     })
 
     watchCodeImages(
       ctx,
-      () => active && scanCodes,
+      () => configuration.current.active && configuration.current.scanCodes,
       (candidate) => callBackground("content.codeCandidate", candidate ?? {}),
     )
 
     watchSubmissions(
       ctx,
-      () => active,
-      (credentials) =>
-        void callBackground("content.submitted", credentials).catch(() => {}),
+      () => configuration.current.active,
+      (credentials) => notifyBackground("content.submitted", credentials),
     )
   },
 })
