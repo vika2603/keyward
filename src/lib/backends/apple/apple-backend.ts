@@ -66,7 +66,12 @@ function loginId(username: string, site: string): string {
 }
 
 function parseLoginId(id: string): { username: string; site: string } {
-  const parsed: unknown = JSON.parse(id)
+  let parsed: unknown = null
+  try {
+    parsed = JSON.parse(id)
+  } catch {
+    // Not one of the IDs `loginId` makes; reported as an unknown login below.
+  }
   if (
     !Array.isArray(parsed) ||
     typeof parsed[0] !== "string" ||

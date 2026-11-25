@@ -8,6 +8,7 @@ const MESSAGES: Record<string, MessageKey> = {
   invalidInput: "error.invalidInput",
   invalidSite: "error.invalidSite",
   notFound: "error.notFound",
+  unknownLogin: "error.notFound",
   unknownSource: "error.unknownSource",
   notWebPage: "error.notWebPage",
   fillDisabled: "error.fillDisabled",
