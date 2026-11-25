@@ -76,6 +76,17 @@ describe("onSubmitted", () => {
     }
   })
 
+  it("neither updates nor saves again a login the vault keeps but Keyward may not change", async () => {
+    const { providers } = fakeProviders([
+      {
+        info: accountVault,
+        existing: { loginId: "item-1", samePassword: false, editable: false },
+      },
+    ])
+    await onSubmitted(providers, TAB, 0, login)
+    expect(await prompts.get(TAB)).toBeNull()
+  })
+
   it("offers to update an Apple login when a new password was typed for it", async () => {
     const { providers } = fakeProviders([
       {

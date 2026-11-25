@@ -4,6 +4,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { fakeBrowser } from "wxt/testing/fake-browser"
 import {
   accountIdOf,
+  loadAccounts,
+  loadSync,
   saveAccount,
   saveSession,
   saveSync,
@@ -515,5 +517,153 @@ describe("account labels", () => {
     expect((await labels())[ACCOUNT_ID]).toBe(
       "someone@example.com · vault.example.test",
     )
+  })
+})
+
+describe("several accounts used at once", () => {
+  const OTHER_ACCOUNT_ID = accountIdOf(SERVER, "user-2")
+  const OTHER_VAULT = vaultIdOf(OTHER_ACCOUNT_ID)
+
+  /** Both accounts unlocked with access tokens that must be refreshed before use. */
+  async function twoAccountsDueForRefresh() {
+    const data = { Profile: {}, Ciphers: ciphers }
+    for (const [accountId, userId] of [
+      [ACCOUNT_ID, "user-1"],
+      [OTHER_ACCOUNT_ID, "user-2"],
+    ] as const) {
+      await saveAccount({
+        id: accountId,
+        userId,
+        email: `${userId}@example.com`,
+        server: SERVER,
+        kdf: { type: KdfType.Pbkdf2Sha256, iterations: 5000 },
+        salt: "",
+        wrappedUserKey: "unused",
+        encryptedRefreshToken: enc(`refresh-${userId}`),
+      })
+      await saveSession(accountId, {
+        userKey: userKey.toBase64(),
+        accessToken: "",
+        accessTokenExpiresAt: 0,
+        refreshToken: `refresh-${userId}`,
+      })
+      await saveSync(accountId, { syncedAt: Date.now(), data })
+    }
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string, init: RequestInit = {}) => {
+        if (url.endsWith("/connect/token")) {
+          const used = new URLSearchParams(init.body as URLSearchParams).get(
+            "refresh_token",
+          )
+          return Response.json({
+            access_token: `access-for-${used}`,
+            refresh_token: `rotated-${used}`,
+            expires_in: 3600,
+          })
+        }
+        return Response.json(url.includes("/sync") ? data : {})
+      }),
+    )
+  }
+
+  it("keeps each account's rotated refresh token", async () => {
+    await twoAccountsDueForRefresh()
+    const bw = provider()
+    await Promise.all([bw.sync(ACCOUNT_ID), bw.sync(OTHER_ACCOUNT_ID)])
+    const tokens = (await loadAccounts()).map((account) => [
+      account.userId,
+      dec(account.encryptedRefreshToken),
+    ])
+    expect(Object.fromEntries(tokens)).toEqual({
+      "user-1": "rotated-refresh-user-1",
+      "user-2": "rotated-refresh-user-2",
+    })
+  })
+
+  it("counts both accounts as used, so neither locks as idle", async () => {
+    await twoAccountsDueForRefresh()
+    vi.useFakeTimers({ toFake: ["Date"] })
+    try {
+      const bw = provider()
+      const page = new URL("https://example.com/")
+      await Promise.all([bw.logins(VAULT, page), bw.logins(OTHER_VAULT, page)])
+      vi.advanceTimersByTime(30_000)
+      await bw.lockIdle(1)
+      const statuses = (await bw.vaults()).map((vault) => vault.status)
+      expect(statuses).toEqual(["ready", "ready"])
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+})
+
+describe("locking during a sync", () => {
+  it("keeps the synced data out of the session once the account is locked", async () => {
+    let requested: () => void = () => {}
+    const requestSent = new Promise<void>((resolve) => {
+      requested = resolve
+    })
+    let answer: () => void = () => {}
+    const answered = new Promise<void>((resolve) => {
+      answer = resolve
+    })
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        requested()
+        await answered
+        return Response.json({ Profile: {}, Ciphers: ciphers })
+      }),
+    )
+    const bw = provider()
+    const syncing = bw.sync(ACCOUNT_ID)
+    // Locked while the server is answering, after the sync has read the session.
+    await requestSent
+    await bw.lock(VAULT)
+    answer()
+    await expect(syncing).rejects.toMatchObject({ code: "locked" })
+    expect(await loadSync(ACCOUNT_ID)).toBeNull()
+  })
+})
+
+describe("logins Keyward may not change", () => {
+  it("are found as kept but not editable, and refuse an update", async () => {
+    const bw = provider()
+    const example = new URL("https://example.com/")
+    expect(
+      await bw.findExisting(VAULT, example, "reader", "new password"),
+    ).toMatchObject({ loginId: "item-3", editable: false })
+    expect(
+      await bw.findExisting(
+        VAULT,
+        new URL("https://guarded.test/"),
+        "careful",
+        "new password",
+      ),
+    ).toMatchObject({ loginId: "item-6", editable: false })
+    expect(
+      await bw.findExisting(VAULT, example, "someone@example.com", "x"),
+    ).toMatchObject({ loginId: "item-1", editable: true })
+    await expect(
+      bw.update(
+        VAULT,
+        "item-3",
+        { url: example, username: "reader", password: "new password" },
+        { tabId: 1, frameId: 0 },
+      ),
+    ).rejects.toMatchObject({ code: "notEditable" })
+    expect(writes()).toEqual([])
+  })
+})
+
+describe("signOut", () => {
+  it("tells listeners, so the toolbar and pages follow", async () => {
+    const bw = provider()
+    const listener = vi.fn()
+    bw.onChange(listener)
+    await bw.signOut(ACCOUNT_ID)
+    expect(listener).toHaveBeenCalled()
+    expect(await bw.vaults()).toEqual([])
   })
 })

@@ -1,3 +1,4 @@
+import { serialQueue } from "@/lib/serial-queue"
 import type { KdfConfig } from "./crypto"
 import type { CustomEndpoints } from "./server"
 
@@ -38,6 +39,19 @@ export const ACCOUNTS_KEY = "bitwarden.accounts"
 const DEVICE_KEY = "bitwarden.deviceId"
 const sessionKey = (accountId: string) => `bitwarden.session.${accountId}`
 const syncKey = (accountId: string) => `bitwarden.sync.${accountId}`
+const activityKey = (accountId: string) => `bitwarden.activity.${accountId}`
+
+/** All accounts are one stored list; its changes run one at a time so none is lost. */
+const accountsChange = serialQueue()
+
+function changeAccounts(
+  change: (accounts: StoredAccount[]) => StoredAccount[],
+): Promise<void> {
+  return accountsChange(async () => {
+    const accounts = change(await loadAccounts())
+    await browser.storage.local.set({ [ACCOUNTS_KEY]: accounts })
+  })
+}
 
 export function accountIdOf(server: string, userId: string): string {
   return `${server || "official"}|${userId}`
@@ -48,27 +62,33 @@ export async function loadAccounts(): Promise<StoredAccount[]> {
   return Array.isArray(stored) ? (stored as StoredAccount[]) : []
 }
 
-export async function saveAccount(account: StoredAccount): Promise<void> {
-  const accounts = (await loadAccounts()).filter((a) => a.id !== account.id)
-  await browser.storage.local.set({ [ACCOUNTS_KEY]: [...accounts, account] })
+export function saveAccount(account: StoredAccount): Promise<void> {
+  return changeAccounts((accounts) => [
+    ...accounts.filter((stored) => stored.id !== account.id),
+    account,
+  ])
 }
 
-export async function setAccountName(
+/** Changes a stored account in place; nothing happens when it was signed out meanwhile. */
+export function updateAccount(
   accountId: string,
-  name: string,
+  change: (account: StoredAccount) => StoredAccount,
 ): Promise<void> {
-  const accounts = (await loadAccounts()).map((account) =>
-    account.id === accountId ? { ...account, name } : account,
+  return changeAccounts((accounts) =>
+    accounts.map((account) =>
+      account.id === accountId ? change(account) : account,
+    ),
   )
-  await browser.storage.local.set({ [ACCOUNTS_KEY]: accounts })
 }
 
 export async function removeAccount(accountId: string): Promise<void> {
-  const accounts = (await loadAccounts()).filter((a) => a.id !== accountId)
-  await browser.storage.local.set({ [ACCOUNTS_KEY]: accounts })
+  await changeAccounts((accounts) =>
+    accounts.filter((account) => account.id !== accountId),
+  )
   await browser.storage.session.remove([
     sessionKey(accountId),
     syncKey(accountId),
+    activityKey(accountId),
   ])
 }
 
@@ -116,6 +136,24 @@ export async function saveSync(
   sync: StoredSync,
 ): Promise<void> {
   await browser.storage.session.set({ [syncKey(accountId)]: sync })
+}
+
+/** Notes that the account was just used, for locking accounts that sit idle. */
+export async function touchAccount(accountId: string): Promise<void> {
+  await browser.storage.session.set({ [activityKey(accountId)]: Date.now() })
+}
+
+/** When each account was last used; an account not used in this browser session is missing. */
+export async function lastActivity(
+  accountIds: readonly string[],
+): Promise<Record<string, number>> {
+  const stored = await browser.storage.session.get(accountIds.map(activityKey))
+  return Object.fromEntries(
+    accountIds.flatMap((accountId) => {
+      const at = stored[activityKey(accountId)]
+      return typeof at === "number" ? [[accountId, at]] : []
+    }),
+  )
 }
 
 /** A random device ID, created once; the server lists signed-in devices by it. */

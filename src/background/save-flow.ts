@@ -138,6 +138,7 @@ export async function onSubmitted(
   )
   if (!vaults.length) return
   let update: { vaultId: string; loginId: string } | null = null
+  let keptUnchangeable = false
   for (const vault of vaults) {
     const existing = await providers
       .providerOf(vault.id)
@@ -146,8 +147,14 @@ export async function onSubmitted(
     if (!existing) continue
     if (existing.samePassword === true) return
     if (existing.samePassword === undefined && !submitted.newPassword) return
+    if (existing.editable === false) {
+      keptUnchangeable = true
+      continue
+    }
     update ??= { vaultId: vault.id, loginId: existing.loginId }
   }
+  // A login a vault keeps but Keyward may not change is neither updated nor saved a second time.
+  if (!update && keptUnchangeable) return
   if (update ? !settings.askUpdate : !settings.askSave) return
   if (!update && !(await promptTargets(providers, page)).length) return
 

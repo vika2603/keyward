@@ -31,6 +31,7 @@ import {
   accountIdOf,
   clearSession,
   deviceIdentifier,
+  lastActivity,
   loadAccounts,
   loadSession,
   loadSync,
@@ -39,7 +40,8 @@ import {
   saveAccount,
   saveSession,
   saveSync,
-  setAccountName,
+  touchAccount,
+  updateAccount,
 } from "./account-store"
 import { ApiError, BitwardenApi, type Device, prop } from "./api"
 import {
@@ -86,7 +88,6 @@ const REPROMPT_PASSES_KEY = "bitwarden.repromptPasses"
  * copying from it do not each ask. Keyward's choice; Bitwarden's apps ask for each action.
  */
 const REPROMPT_PASS_MS = 5 * 60_000
-const ACTIVITY_KEY = "bitwarden.lastActivity"
 /** Refresh the access token this long before it expires. */
 const TOKEN_MARGIN_MS = 60_000
 /** Synced data older than this is refreshed in the background when it is used. */
@@ -146,6 +147,11 @@ export class BitwardenProvider implements VaultProvider {
   private readonly syncing = new Map<string, Promise<void>>()
   private readonly refreshing = new Map<string, Promise<string>>()
   private readonly listeners = new Set<() => void>()
+  /**
+   * How many times each account was locked or signed out in this worker. A sync or decryption that
+   * started before a change of the count must leave nothing behind.
+   */
+  private readonly accessEnds = new Map<string, number>()
 
   constructor(private readonly loadCrypto: () => Promise<VaultCrypto>) {}
 
@@ -186,7 +192,8 @@ export class BitwardenProvider implements VaultProvider {
 
   /** Gives an account the name the interface shows for it; an empty name goes back to the email. */
   async renameAccount(accountId: string, name: string): Promise<void> {
-    await setAccountName(accountId, name.trim())
+    const trimmed = name.trim()
+    await updateAccount(accountId, (account) => ({ ...account, name: trimmed }))
     this.changed()
   }
 
@@ -309,7 +316,7 @@ export class BitwardenProvider implements VaultProvider {
       accessTokenExpiresAt: expiryOf(token),
       refreshToken,
     })
-    await this.touch(account.id)
+    await touchAccount(account.id)
     this.changed()
     await this.sync(account.id).catch(() => {})
     return account.id
@@ -343,7 +350,7 @@ export class BitwardenProvider implements VaultProvider {
       accessTokenExpiresAt: 0,
       refreshToken,
     })
-    await this.touch(account.id)
+    await touchAccount(account.id)
     this.changed()
     void this.sync(account.id).catch(() => {})
   }
@@ -358,10 +365,19 @@ export class BitwardenProvider implements VaultProvider {
   }
 
   private async lockAccount(accountId: string): Promise<void> {
-    this.cache.delete(accountId)
+    this.endAccess(accountId)
     await clearSession(accountId)
     await this.dropRepromptPasses(vaultIdOf(accountId))
     this.changed()
+  }
+
+  private endAccess(accountId: string): void {
+    this.accessEnds.set(accountId, this.accessEndsOf(accountId) + 1)
+    this.cache.delete(accountId)
+  }
+
+  private accessEndsOf(accountId: string): number {
+    return this.accessEnds.get(accountId) ?? 0
   }
 
   private async repromptPasses(): Promise<Record<string, number>> {
@@ -433,36 +449,22 @@ export class BitwardenProvider implements VaultProvider {
   }
 
   async signOut(accountId: string): Promise<void> {
-    this.cache.delete(accountId)
+    this.endAccess(accountId)
     await removeAccount(accountId)
     await this.dropRepromptPasses(vaultIdOf(accountId))
+    this.changed()
   }
 
   /** Locks accounts that have not been used for `minutes`. */
   async lockIdle(minutes: number): Promise<void> {
-    const activity = await this.activity()
+    const accounts = await loadAccounts()
+    const activity = await lastActivity(accounts.map((account) => account.id))
     const cutoff = Date.now() - minutes * 60_000
-    for (const account of await loadAccounts()) {
-      if (
-        (activity[account.id] ?? 0) < cutoff &&
-        (await loadSession(account.id))
-      ) {
+    for (const account of accounts) {
+      const idle = (activity[account.id] ?? 0) < cutoff
+      if (idle && (await loadSession(account.id)))
         await this.lockAccount(account.id)
-      }
     }
-  }
-
-  private async activity(): Promise<Record<string, number>> {
-    const stored = (await browser.storage.session.get(ACTIVITY_KEY))[
-      ACTIVITY_KEY
-    ]
-    return (stored as Record<string, number> | undefined) ?? {}
-  }
-
-  private async touch(accountId: string): Promise<void> {
-    await browser.storage.session.set({
-      [ACTIVITY_KEY]: { ...(await this.activity()), [accountId]: Date.now() },
-    })
   }
 
   private async account(accountId: string): Promise<StoredAccount> {
@@ -528,14 +530,14 @@ export class BitwardenProvider implements VaultProvider {
       accessTokenExpiresAt: expiryOf(token),
       refreshToken,
     })
-    const stored = (await loadAccounts()).find((a) => a.id === account.id)
-    if (stored && refreshToken !== session.refreshToken) {
+    if (refreshToken !== session.refreshToken) {
       const crypto = await this.loadCrypto()
       const userKey = Uint8Array.fromBase64(current.userKey)
-      await saveAccount({
+      const encryptedRefreshToken = crypto.encryptString(refreshToken, userKey)
+      await updateAccount(account.id, (stored) => ({
         ...stored,
-        encryptedRefreshToken: crypto.encryptString(refreshToken, userKey),
-      })
+        encryptedRefreshToken,
+      }))
     }
     return accessToken
   }
@@ -544,11 +546,15 @@ export class BitwardenProvider implements VaultProvider {
     let running = this.syncing.get(accountId)
     if (!running) {
       running = (async () => {
+        const accessEndsBefore = this.accessEndsOf(accountId)
         const account = await this.account(accountId)
         const api = new BitwardenApi(
           serverUrls(account.server, account.endpoints),
         )
         const data = await api.sync(await this.accessToken(account))
+        // Saved right after the check, with no wait between, so a lock cannot slip in.
+        if (this.accessEndsOf(accountId) !== accessEndsBefore)
+          throw new VaultError("The account is locked", "locked")
         await saveSync(accountId, { syncedAt: Date.now(), data })
         this.cache.delete(accountId)
         this.changed()
@@ -560,8 +566,9 @@ export class BitwardenProvider implements VaultProvider {
 
   /** Decrypted item summaries; synced first when there is no data yet, refreshed in the background when old. */
   private async vault(accountId: string, passive = false): Promise<Vault> {
+    const accessEndsBefore = this.accessEndsOf(accountId)
     const session = await this.unlockedSession(accountId)
-    if (!passive) await this.touch(accountId)
+    if (!passive) await touchAccount(accountId)
     let stored = await loadSync(accountId)
     if (!stored) {
       await this.sync(accountId)
@@ -596,7 +603,9 @@ export class BitwardenProvider implements VaultProvider {
       notes,
       noteCiphers: noteCiphersOfVault,
     }
-    this.cache.set(accountId, vault)
+    // A lock while decrypting must not leave the keys and items in memory.
+    if (this.accessEndsOf(accountId) === accessEndsBefore)
+      this.cache.set(accountId, vault)
     return vault
   }
 
@@ -1009,13 +1018,18 @@ export class BitwardenProvider implements VaultProvider {
       accountIdOfVault(vaultId),
       page,
     )
-    const item = items.find((i) => i.username === username)
-    if (!item) return null
-    const cipher = vault.ciphers.find((c) => prop(c, "Id") === item.id)
-    const saved = cipher ? decryptPassword(cipher, vault.keys) : undefined
+    const found = items.find((item) => item.username === username)
+    if (!found) return null
+    const item = await this.withPass(vaultId, found)
+    const cipher = vault.ciphers.find((saved) => prop(saved, "Id") === item.id)
+    const savedPassword = cipher
+      ? decryptPassword(cipher, vault.keys)
+      : undefined
     return {
       loginId: item.id,
-      samePassword: saved === undefined ? undefined : saved === password,
+      samePassword:
+        savedPassword === undefined ? undefined : savedPassword === password,
+      editable: cipher !== undefined && isEditable(item, cipher),
     }
   }
 
@@ -1061,9 +1075,8 @@ export class BitwardenProvider implements VaultProvider {
     login: NewLogin,
     _tab: TabRef,
   ): Promise<void> {
-    const { ciphers } = await this.vault(accountIdOfVault(vaultId))
-    const cipher = ciphers.find((c) => prop(c, "Id") === loginId)
-    if (!cipher) throw new VaultError("Unknown login", "notFound")
+    const { item, cipher } = await this.pageItem(vaultId, loginId, null)
+    refuseEdit(item, cipher)
     await this.change(vaultId, cipher, { password: login.password })
   }
 }

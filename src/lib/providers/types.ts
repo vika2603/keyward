@@ -219,6 +219,11 @@ export interface ExistingLogin {
   loginId: string
   /** Whether the saved password equals the submitted one; undefined when the provider cannot tell without asking the user. */
   samePassword: boolean | undefined
+  /**
+   * False when Keyward may not change the login, such as an organization's read-only item, so no
+   * update is offered for it; missing when it can be changed.
+   */
+  editable?: boolean
 }
 
 export interface ListOptions {
