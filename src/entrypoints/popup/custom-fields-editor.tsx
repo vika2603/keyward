@@ -110,9 +110,9 @@ function CustomFieldEditor({
         />
         <Select
           value={field.kind}
-          onValueChange={(kind) =>
-            onChange(withKind(field, kind as CustomFieldKind))
-          }
+          onValueChange={(kind) => {
+            if (kind) onChange(withKind(field, kind))
+          }}
           items={KINDS.map((kind) => ({
             value: kind,
             label: t(KIND_LABELS[kind]),
@@ -201,9 +201,9 @@ function FieldValueEditor({
           </span>
           <Select
             value={field.linkedTo}
-            onValueChange={(linkedTo) =>
-              onChange({ ...field, linkedTo: linkedTo as LinkTarget })
-            }
+            onValueChange={(linkedTo) => {
+              if (linkedTo) onChange({ ...field, linkedTo })
+            }}
             items={LINK_TARGETS.map((target) => ({
               value: target,
               label: t(LINK_LABELS[target]),

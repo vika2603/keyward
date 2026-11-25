@@ -31,7 +31,9 @@ export function UsernameOptionsForm({
       <OptionRow label={t("popup.generator.usernameType")}>
         <Select
           value={options.type}
-          onValueChange={(type) => onChange({ type: type as UsernameType })}
+          onValueChange={(type) => {
+            if (type) onChange({ type })
+          }}
           items={USERNAME_TYPES.map(([type, label]) => ({
             value: type,
             label: t(label),

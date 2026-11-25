@@ -408,7 +408,9 @@ export function ItemBrowser({
         {filters.length > 1 ? (
           <Select
             value={filter}
-            onValueChange={(value) => onChoose(value as ItemFilter)}
+            onValueChange={(value) => {
+              if (value) onChoose(value)
+            }}
             items={filters.map((value) => ({ value, label: labelOf(value) }))}
           >
             <SelectTrigger
