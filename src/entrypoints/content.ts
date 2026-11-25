@@ -203,20 +203,34 @@ export default defineContentScript({
       }
     }
 
+    /**
+     * Fills a generated password: from the in-page menu into its new-password field and the
+     * confirmation beside it. From the right-click menu the right-clicked field has the focus; a
+     * password field there gets the password even when it does not look new, as it was chosen, and
+     * another field, such as a sign-up form's email, passes it to its form's new-password fields.
+     */
     function fillNew(
       message: Extract<ContentMessage, { type: "fillNew" }>,
     ): void {
       if (location.origin !== message.origin) return
-      const anchor = [
-        menu.openFor,
-        lastField?.isConnected ? lastField : null,
-      ].find((field) => field && newPasswords.includes(field))
+      const focused = deepActiveElement()
+      const anchor =
+        (menu.openFor && newPasswords.includes(menu.openFor)
+          ? menu.openFor
+          : null) ??
+        (focused instanceof HTMLInputElement ? focused : null) ??
+        (lastField?.isConnected && newPasswords.includes(lastField)
+          ? lastField
+          : null)
       menu.close()
       if (!anchor) return
+      const targets =
+        isPasswordField(anchor) && !newPasswords.includes(anchor)
+          ? [anchor]
+          : newPasswordTargets(anchor, newPasswords)
       filling = true
       try {
-        for (const field of newPasswordTargets(anchor, newPasswords))
-          setFieldValue(field, message.password)
+        for (const field of targets) setFieldValue(field, message.password)
       } finally {
         filling = false
       }

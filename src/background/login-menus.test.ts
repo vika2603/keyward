@@ -2,12 +2,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 import { fakeBrowser } from "wxt/testing/fake-browser"
 import { updateSettings } from "@/lib/settings"
 import type { VaultView } from "./api"
-import { fillLogin } from "./autofill"
+import { fillLogin, fillNewPassword } from "./autofill"
 import { copyText } from "./clipboard"
 import { LoginMenus } from "./login-menus"
 import { accountVault, fakeProviders } from "./test-support"
 
-vi.mock("./autofill", () => ({ fillLogin: vi.fn() }))
+vi.mock("./autofill", () => ({ fillLogin: vi.fn(), fillNewPassword: vi.fn() }))
 vi.mock("./clipboard", () => ({ copyText: vi.fn() }))
 
 type Clicked = (
@@ -33,6 +33,7 @@ let created: {
   title?: string
   type?: string
   enabled?: boolean
+  contexts?: string[]
 }[]
 let clicked: Clicked
 
@@ -95,6 +96,7 @@ describe("LoginMenus", () => {
       "someone",
       "Shared account",
       "---",
+      expect.any(String),
       expect.any(String),
     ])
     expect(created[0]?.enabled).toBe(false)
@@ -165,6 +167,22 @@ describe("LoginMenus", () => {
     expect(calls.credential.mock.calls[0]?.[2]).toEqual(new URL(PAGE_URL))
   })
 
+  it("fills a generated password into the right-clicked field's frame, offered only on fields", async () => {
+    const { menus } = setUp()
+    await menus.show([], tab)
+    const generateFill = created.find(
+      (item) => item.id === "loginMenus.generateFill",
+    )
+    expect(generateFill?.contexts).toEqual(["editable"])
+    clicked({ menuItemId: "loginMenus.generateFill", frameId: 2 }, tab)
+    await vi.waitFor(() =>
+      expect(fillNewPassword).toHaveBeenCalledWith(TAB, 2, expect.any(String)),
+    )
+    const password = vi.mocked(fillNewPassword).mock.calls[0]?.[2] ?? ""
+    expect(password.length).toBeGreaterThanOrEqual(8)
+    expect(copyText).not.toHaveBeenCalled()
+  })
+
   it("ignores clicks on another tab or page, and on menus from an earlier listing", async () => {
     const { menus, vaults } = setUp()
     await menus.show(vaults, tab)
@@ -199,7 +217,10 @@ describe("LoginMenus", () => {
   it("shows only the generator without logins, and nothing when turned off", async () => {
     const { menus } = setUp()
     await menus.show([], tab)
-    expect(created.map((item) => item.id)).toEqual(["loginMenus.generate"])
+    expect(created.map((item) => item.id)).toEqual([
+      "loginMenus.generateFill",
+      "loginMenus.generate",
+    ])
     created = []
     await updateSettings({ contextMenu: false })
     await menus.show([], tab)

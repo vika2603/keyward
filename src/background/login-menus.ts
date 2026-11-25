@@ -2,7 +2,7 @@ import { generatePassword, getGeneratorOptions } from "@/lib/generator"
 import { type Language, resolveLanguage } from "@/lib/i18n/language"
 import { getSettings } from "@/lib/settings"
 import type { VaultView } from "./api"
-import { fillLogin } from "./autofill"
+import { fillLogin, fillNewPassword } from "./autofill"
 import { copyText } from "./clipboard"
 import { addHistory } from "./history"
 import { webPage } from "./page"
@@ -17,6 +17,7 @@ const ACTIONS: readonly Action[] = [
   "copyCode",
 ]
 const GENERATE_ID = "loginMenus.generate"
+const GENERATE_FILL_ID = "loginMenus.generateFill"
 /** The IDs of the top-level menus the last rendering made; removing them removes their submenus. */
 const MENUS_KEY = "loginMenus.topLevel"
 /**
@@ -35,13 +36,17 @@ const CONTEXTS: Browser.contextMenus.CreateProperties["contexts"] = [
 ]
 
 /** The menus' texts; kept here so the background does not carry the whole catalog. */
-const TITLES: Record<Language, Record<Action | "generate", string>> = {
+const TITLES: Record<
+  Language,
+  Record<Action | "generate" | "generateFill", string>
+> = {
   "zh-CN": {
     fill: "填充登录",
     copyUsername: "复制用户名",
     copyPassword: "复制密码",
     copyCode: "复制验证码",
     generate: "生成密码并复制",
+    generateFill: "生成密码并填充",
   },
   en: {
     fill: "Fill Login",
@@ -49,6 +54,7 @@ const TITLES: Record<Language, Record<Action | "generate", string>> = {
     copyPassword: "Copy Password",
     copyCode: "Copy Verification Code",
     generate: "Generate Password and Copy",
+    generateFill: "Generate Password and Fill",
   },
 }
 
@@ -101,8 +107,8 @@ function itemId(action: Action, renderId: string, index: number): string {
 
 /**
  * The browser's context menu for the active page: the page's logins under a heading for each vault,
- * each with a submenu that fills it or copies its username, password or verification code, and an
- * entry that generates a password and copies it. The logins follow the active page, which the
+ * each with a submenu that fills it or copies its username, password or verification code, and
+ * entries that generate a password and fill it into the right-clicked field or copy it. The logins follow the active page, which the
  * toolbar recomputes as tabs change.
  */
 export class LoginMenus {
@@ -135,6 +141,11 @@ export class LoginMenus {
     frameId: number,
     tabUrl: string | undefined,
   ): Promise<void> {
+    if (menuItemId === GENERATE_FILL_ID) {
+      const password = generatePassword(await getGeneratorOptions())
+      await fillNewPassword(tabId, frameId, password)
+      return
+    }
     if (menuItemId === GENERATE_ID) {
       const password = generatePassword(await getGeneratorOptions())
       await copyText(password, true)
@@ -228,7 +239,7 @@ async function render(
   const add = async (
     properties: Browser.contextMenus.CreateProperties & { id: string },
   ) => {
-    await create({ ...properties, contexts: CONTEXTS })
+    await create({ contexts: CONTEXTS, ...properties })
     if (properties.parentId === undefined) made.push(properties.id)
   }
   const listed = ready.filter((vault) =>
@@ -259,6 +270,11 @@ async function render(
   }
   if (listed.length)
     await add({ id: `loginMenus.${renderId}.separator.end`, type: "separator" })
+  await add({
+    id: GENERATE_FILL_ID,
+    title: titles.generateFill,
+    contexts: ["editable"],
+  })
   await add({ id: GENERATE_ID, title: titles.generate })
   await browser.storage.session.set({ [MENUS_KEY]: made })
 }
