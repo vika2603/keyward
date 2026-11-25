@@ -4,6 +4,7 @@ import type {
   ItemGrouping,
   PastPassword,
   VaultGroups,
+  Website,
 } from "@/lib/providers/types"
 import { MatchType } from "@/lib/settings"
 import { pick, prop } from "./api"
@@ -513,7 +514,7 @@ export interface ItemChange {
   name?: string
   username?: string
   password?: string
-  uris?: string[]
+  uris?: Website[]
   notes?: string
   /** An authenticator key: an `otpauth://` URI, a `steam://` key or a base32 secret. */
   totp?: string
@@ -533,10 +534,13 @@ async function uriHash(uri: string): Promise<string> {
   return new Uint8Array(digest).toBase64()
 }
 
-/** The item's addresses for a request: unchanged ones as they are, new ones encrypted with checksums. */
+/**
+ * The item's addresses for a request: kept ones as they were saved, with the match chosen now, and
+ * new ones encrypted with checksums.
+ */
 async function urisRequest(
   saved: unknown,
-  next: string[] | undefined,
+  next: Website[] | undefined,
   keys: VaultKeys,
   key: Uint8Array,
 ): Promise<Record<string, unknown>[]> {
@@ -553,15 +557,17 @@ async function urisRequest(
   )
   return Promise.all(
     next
-      .filter((uri) => uri !== "")
-      .map(
-        async (uri) =>
-          byText.get(uri) ?? {
-            uri: keys.encrypt(uri, key),
-            match: null,
-            uriChecksum: keys.encrypt(await uriHash(uri), key),
-          },
-      ),
+      .filter((website) => website.uri !== "")
+      .map(async ({ uri, match }) => {
+        const kept = byText.get(uri)
+        return kept
+          ? { ...kept, match }
+          : {
+              uri: keys.encrypt(uri, key),
+              match,
+              uriChecksum: keys.encrypt(await uriHash(uri), key),
+            }
+      }),
   )
 }
 

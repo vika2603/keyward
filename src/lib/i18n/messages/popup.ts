@@ -116,6 +116,9 @@ export const en = {
   "popup.edit.name": "Name",
   "popup.edit.addWebsite": "Add website",
   "popup.edit.removeWebsite": "Remove website",
+  "popup.edit.match": "Match detection",
+  "popup.edit.regularExpressionHint":
+    "A loose pattern offers this login on other sites too. Anchor it with ^ and $.",
   "popup.edit.codeKey": "Authenticator key",
   "popup.edit.codeKeyHint": "otpauth:// address or setup key",
   "popup.edit.cancel": "Cancel",
@@ -303,6 +306,9 @@ export const zhCN: Record<keyof typeof en, string> = {
   "popup.edit.name": "名称",
   "popup.edit.addWebsite": "添加网址",
   "popup.edit.removeWebsite": "删除网址",
+  "popup.edit.match": "匹配方式",
+  "popup.edit.regularExpressionHint":
+    "写得宽松的正则会让其他网站也出现这个登录，请用 ^ 和 $ 限定首尾。",
   "popup.edit.codeKey": "验证器密钥",
   "popup.edit.codeKeyHint": "otpauth:// 地址或设置密钥",
   "popup.edit.cancel": "取消",

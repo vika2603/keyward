@@ -11,8 +11,9 @@ import {
   type LoginEdit,
   type TabRef,
   VaultError,
+  type Website,
 } from "@/lib/providers/types"
-import { getSettings, updateSettings } from "@/lib/settings"
+import { getSettings, MatchType, updateSettings } from "@/lib/settings"
 import { normalizeSiteInput, siteDomainOf } from "@/lib/site"
 import { keyLabel } from "@/lib/totp"
 import type { BackgroundApi, FieldKind, PopupView } from "./api"
@@ -142,11 +143,23 @@ function loginEdit(value: unknown): LoginEdit {
   if (input.uris !== undefined) {
     if (!Array.isArray(input.uris) || input.uris.length > MAX_URIS)
       throw new VaultError("Invalid addresses", "invalidInput")
-    edit.uris = input.uris.map((uri) => requireText(uri, "uri", 2048))
+    edit.uris = input.uris.map(websiteInput)
   }
   if (input.customFields !== undefined)
     edit.customFields = customFieldsInput(input.customFields)
   return edit
+}
+
+const MATCH_TYPES: readonly unknown[] = Object.values(MatchType)
+
+function websiteInput(value: unknown): Website {
+  const { uri, match } = (value ?? {}) as Record<string, unknown>
+  if (match !== null && !MATCH_TYPES.includes(match))
+    throw new VaultError("Invalid match", "invalidInput")
+  return {
+    uri: requireText(uri, "uri", 2048),
+    match: match as Website["match"],
+  }
 }
 
 function noNotes(): VaultError {

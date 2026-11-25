@@ -9,8 +9,17 @@ import { type ReactNode, useEffect, useState } from "react"
 import { callBackground } from "@/background/api"
 import { errorMessage } from "@/components/keyward/errors"
 import { FADE_IN } from "@/components/keyward/loading"
+import { matchNames } from "@/components/keyward/match-names"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { Separator } from "@/components/ui/separator"
 import { Skeleton } from "@/components/ui/skeleton"
 import { generatePassword, getGeneratorOptions } from "@/lib/generator"
@@ -19,7 +28,9 @@ import type {
   EditableLogin,
   LoginSummary,
   VaultInfo,
+  Website,
 } from "@/lib/providers/types"
+import { MatchType } from "@/lib/settings"
 import { cn } from "@/lib/utils"
 import { CustomFieldsEditor } from "./custom-fields-editor"
 import { BackHeader } from "./header"
@@ -40,6 +51,52 @@ function Field({
       </label>
       {children}
     </div>
+  )
+}
+
+const DEFAULT_MATCH = "default"
+
+/** How pages are compared with one website; the default follows the site rules and settings. */
+function MatchSelect({
+  value,
+  onChange,
+}: {
+  value: MatchType | null
+  onChange: (match: MatchType | null) => void
+}) {
+  const choices: [string, string][] = [
+    [DEFAULT_MATCH, t("options.sites.match.default")],
+    ...matchNames().map(([match, name]): [string, string] => [
+      String(match),
+      name,
+    ]),
+  ]
+  return (
+    <Select
+      value={value === null ? DEFAULT_MATCH : String(value)}
+      onValueChange={(next) =>
+        onChange(next === DEFAULT_MATCH ? null : (Number(next) as MatchType))
+      }
+      items={choices.map(([choice, label]) => ({ value: choice, label }))}
+    >
+      <SelectTrigger
+        size="sm"
+        className="w-24 shrink-0 text-xs"
+        aria-label={t("popup.edit.match")}
+        title={t("popup.edit.match")}
+      >
+        <SelectValue className="truncate" />
+      </SelectTrigger>
+      <SelectContent align="end" className="w-auto min-w-(--anchor-width)">
+        <SelectGroup>
+          {choices.map(([choice, label]) => (
+            <SelectItem key={choice} value={choice}>
+              {label}
+            </SelectItem>
+          ))}
+        </SelectGroup>
+      </SelectContent>
+    </Select>
   )
 }
 
@@ -65,15 +122,23 @@ export function EditView({
       loginId: login.id,
     }).then(
       (loaded) =>
-        setForm({ ...loaded, uris: loaded.uris.length ? loaded.uris : [""] }),
+        setForm({
+          ...loaded,
+          uris: loaded.uris.length ? loaded.uris : [{ uri: "", match: null }],
+        }),
       (error) => setMessage(errorMessage(error)),
     )
   }, [vault.id, login.id])
 
   const update = (change: Partial<EditableLogin>) =>
     setForm((current) => (current ? { ...current, ...change } : current))
-  const setUri = (index: number, value: string) =>
-    form && update({ uris: form.uris.map((u, i) => (i === index ? value : u)) })
+  const setWebsite = (index: number, change: Partial<Website>) =>
+    form &&
+    update({
+      uris: form.uris.map((website, i) =>
+        i === index ? { ...website, ...change } : website,
+      ),
+    })
 
   const generate = async () => {
     const generated = generatePassword(await getGeneratorOptions())
@@ -188,31 +253,44 @@ export function EditView({
             </Field>
             <Field label={t("popup.detail.websites")}>
               <div className="flex flex-col gap-1.5">
-                {form.uris.map((uri, index) => (
+                {form.uris.map((website, index) => (
                   // biome-ignore lint/suspicious/noArrayIndexKey: addresses may repeat while typed; their position is their identity.
-                  <div key={index} className="flex items-center gap-1">
-                    <Input
-                      value={uri}
-                      aria-label={t("popup.detail.websites")}
-                      placeholder="https://example.com"
-                      onChange={(event) => setUri(index, event.target.value)}
-                      autoComplete="off"
-                      spellCheck={false}
-                    />
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon-sm"
-                      aria-label={t("popup.edit.removeWebsite")}
-                      title={t("popup.edit.removeWebsite")}
-                      onClick={() =>
-                        update({
-                          uris: form.uris.filter((_, i) => i !== index),
-                        })
-                      }
-                    >
-                      <XIcon />
-                    </Button>
+                  <div key={index} className="flex flex-col gap-1">
+                    <div className="flex items-center gap-1">
+                      <Input
+                        value={website.uri}
+                        aria-label={t("popup.detail.websites")}
+                        placeholder="https://example.com"
+                        onChange={(event) =>
+                          setWebsite(index, { uri: event.target.value })
+                        }
+                        autoComplete="off"
+                        spellCheck={false}
+                      />
+                      <MatchSelect
+                        value={website.match}
+                        onChange={(match) => setWebsite(index, { match })}
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-sm"
+                        aria-label={t("popup.edit.removeWebsite")}
+                        title={t("popup.edit.removeWebsite")}
+                        onClick={() =>
+                          update({
+                            uris: form.uris.filter((_, i) => i !== index),
+                          })
+                        }
+                      >
+                        <XIcon />
+                      </Button>
+                    </div>
+                    {website.match === MatchType.RegularExpression && (
+                      <p className="text-xs text-muted-foreground">
+                        {t("popup.edit.regularExpressionHint")}
+                      </p>
+                    )}
                   </div>
                 ))}
                 <Button
@@ -220,7 +298,9 @@ export function EditView({
                   variant="ghost"
                   size="sm"
                   className="self-start"
-                  onClick={() => update({ uris: [...form.uris, ""] })}
+                  onClick={() =>
+                    update({ uris: [...form.uris, { uri: "", match: null }] })
+                  }
                 >
                   <PlusIcon />
                   {t("popup.edit.addWebsite")}

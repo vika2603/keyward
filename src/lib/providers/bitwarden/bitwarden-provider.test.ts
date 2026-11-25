@@ -158,7 +158,10 @@ describe("edit", () => {
       name: "Example Mail",
       username: "someone@example.com",
       password: "first-test-value",
-      uris: ["https://example.com", " https://login.example.com "],
+      uris: [
+        { uri: "https://example.com", match: null },
+        { uri: " https://login.example.com ", match: 3 },
+      ],
       notes: "second note",
       totp: "",
     })
@@ -181,6 +184,9 @@ describe("edit", () => {
       "https://login.example.com",
     ])
     expect(body.login.uris[0]?.uri).toBe(saved.Login.Uris[0]?.Uri)
+    expect(
+      body.login.uris.map((u) => (u as { match?: unknown }).match),
+    ).toEqual([null, 3])
   })
 
   it("sends nothing when nothing changed", async () => {

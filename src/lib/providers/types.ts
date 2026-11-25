@@ -5,6 +5,8 @@
  * signed-in Bitwarden account is another.
  */
 
+import type { MatchType } from "@/lib/settings"
+
 export type ProviderKind = "apple" | "bitwarden"
 
 export type VaultStatus =
@@ -151,11 +153,17 @@ export interface NewLogin {
 }
 
 /** A login's fields as an edit form shows them, secrets included. */
+/** A login's web address and how pages are compared with it; null follows the site rules. */
+export interface Website {
+  uri: string
+  match: MatchType | null
+}
+
 export interface EditableLogin {
   name: string
   username: string
   password: string
-  uris: string[]
+  uris: Website[]
   notes: string
   /** The authenticator key as saved: an `otpauth://` URI, a `steam://` key or a base32 secret. */
   totp: string

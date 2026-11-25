@@ -216,7 +216,10 @@ describe("organization items", () => {
       {
         name: "Renamed",
         notes: "",
-        uris: ["https://example.com", "https://login.example.com"],
+        uris: [
+          { uri: "https://example.com", match: 2 },
+          { uri: "https://login.example.com", match: null },
+        ],
       },
       keys,
       "user-1",
@@ -228,9 +231,10 @@ describe("organization items", () => {
       "Renamed",
     )
     expect(request.notes).toBeNull()
+    // A kept address keeps its encrypted text and takes the match chosen now.
     expect(login.uris[0]).toEqual({
       uri: cipher.Login.Uris[0]?.Uri,
-      match: 1,
+      match: 2,
       uriChecksum: null,
     })
     const added = login.uris[1]

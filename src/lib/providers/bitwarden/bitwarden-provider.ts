@@ -774,7 +774,9 @@ export class BitwardenProvider implements VaultProvider {
       name: item.name,
       username: item.username,
       password: decryptPassword(cipher, vault.keys),
-      uris: item.uris.map((u) => u.uri).filter((uri) => uri !== ""),
+      uris: item.uris
+        .filter((website) => website.uri !== "")
+        .map(({ uri, match }) => ({ uri, match })),
       notes,
       totp: item.hasTotp ? decryptTotp(cipher, vault.keys) : "",
       customFields,
@@ -797,8 +799,13 @@ export class BitwardenProvider implements VaultProvider {
       if (change.totp.trim()) requireCodeKey(change.totp.trim())
       changed.totp = change.totp.trim()
     }
-    const uris = change.uris?.map((uri) => uri.trim()).filter(Boolean)
-    if (uris !== undefined && uris.join("\n") !== current.uris.join("\n"))
+    const uris = change.uris
+      ?.map((website) => ({ ...website, uri: website.uri.trim() }))
+      .filter((website) => website.uri !== "")
+    if (
+      uris !== undefined &&
+      JSON.stringify(uris) !== JSON.stringify(current.uris)
+    )
       changed.uris = uris
     const fieldsChanged =
       change.customFields !== undefined &&

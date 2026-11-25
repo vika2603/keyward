@@ -1,6 +1,7 @@
 import { PencilIcon, PlusIcon, Trash2Icon } from "lucide-react"
 import { useState } from "react"
 import { providerName } from "@/components/keyward/brand-icon"
+import { matchNames } from "@/components/keyward/match-names"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -27,26 +28,16 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { t } from "@/lib/i18n"
-import {
+import type {
   MatchType,
-  type RuleProvider,
-  type SiteBehavior,
-  type SiteRule,
+  RuleProvider,
+  SiteBehavior,
+  SiteRule,
 } from "@/lib/settings"
 import { hostOfSavedUri, siteDomainOf } from "@/lib/site"
 import { Card, Option, PageHeader, Section } from "./parts"
 import { useSettings } from "./use-settings"
 
-function matchNames(): [MatchType, string][] {
-  return [
-    [MatchType.Domain, t("options.sites.match.domain")],
-    [MatchType.Host, t("options.sites.match.host")],
-    [MatchType.StartsWith, t("options.sites.match.startsWith")],
-    [MatchType.Exact, t("options.sites.match.exact")],
-    [MatchType.RegularExpression, t("options.sites.match.regularExpression")],
-    [MatchType.Never, t("options.sites.match.never")],
-  ]
-}
 function providerNames(): [RuleProvider, string][] {
   return [
     ["all", t("options.sites.provider.all")],
