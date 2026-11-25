@@ -316,6 +316,8 @@ export function ItemBrowser({
   chosen,
   onChoose,
   site,
+  filterButton,
+  filterBar,
   density,
   scrollElement,
   onOpenLogin,
@@ -331,6 +333,10 @@ export function ItemBrowser({
   onChoose: (filter: ItemFilter) => void
   /** The site's items, shown while the filter is on them. */
   site: ReactNode
+  /** Shows or hides `filterBar`; none when there is nothing to filter by. */
+  filterButton?: ReactNode
+  /** More ways to narrow the list, under its header. */
+  filterBar?: ReactNode
   density: Settings["density"]
   scrollElement: RefObject<HTMLDivElement | null>
   onOpenLogin: (vault: VaultView, login: LoginSummary) => void
@@ -414,10 +420,12 @@ export function ItemBrowser({
             {t("popup.main.allItems")}
           </h2>
         )}
+        {filterButton}
         <span className="ml-auto shrink-0 text-xs text-muted-foreground tabular-nums">
           {itemCount}
         </span>
       </div>
+      {filterBar}
       {filter === "site" ? (
         site
       ) : itemCount === 0 ? (

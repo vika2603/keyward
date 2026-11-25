@@ -227,25 +227,29 @@ export function MainView({
   const filterable = (everything ?? []).filter(
     (vault) => inTab(vault) && vault.status === "ready" && !vault.error,
   )
-  // A filter on an account that left the tab, or was locked, no longer applies.
-  const activeFilter = filterable.some(
-    (vault) => vault.id === groupFilter.vaultId,
-  )
-    ? groupFilter
-    : NO_GROUP_FILTER
-  const filtering = isFiltering(activeFilter)
-  const shown = (search ? (results ?? []) : vaults)
-    .filter(inTab)
-    .map((vault) => narrowed(vault, activeFilter))
+  const inView = (search ? (results ?? []) : vaults).filter(inTab)
   const tabs = connected && kinds.size > 1
+  // Whether the vaults in view can say a site has no logins, or take a new one.
+  const shownReady = inView.some((vault) => vault.status === "ready")
+  // With one provider in view and nothing searched, a provider that can list a whole vault offers
+  // it beside the site's logins. Passwords cannot, so its view stays as it is.
+  const oneProvider = filter !== "all" || kinds.size === 1
+  // Locked vaults have nothing to browse; their unlock cards show instead.
+  const browsing = connected && !search && oneProvider && shownReady
+  // The group filter sits in the whole-vault list's header and narrows that list only. A filter on
+  // an account that left the tab, or was locked, no longer applies.
+  const activeFilter =
+    browsing && filterable.some((vault) => vault.id === groupFilter.vaultId)
+      ? groupFilter
+      : NO_GROUP_FILTER
+  const filtering = isFiltering(activeFilter)
+  const shown = inView.map((vault) => narrowed(vault, activeFilter))
   // Vaults to pair or unlock get a large button each, except on the "all" tab once one is open:
   // each is then unlocked from its own tab. The others list their logins or say why they cannot.
   const locked =
     filter === "all" && tabs
       ? []
       : shown.filter((vault) => vault.status === "locked")
-  // Whether the vaults in view can say a site has no logins, or take a new one.
-  const shownReady = shown.some((vault) => vault.status === "ready")
   const listed = shown.filter(
     (vault) =>
       vault.status !== "locked" &&
@@ -263,11 +267,6 @@ export function MainView({
       }
     />
   ))
-  // With one provider in view and nothing searched, a provider that can list a whole vault offers
-  // it beside the site's logins. Passwords cannot, so its view stays as it is.
-  const oneProvider = filter !== "all" || kinds.size === 1
-  // Locked vaults have nothing to browse; their unlock cards show instead.
-  const browsing = connected && !search && oneProvider && shownReady
   const browsed = filterable
     .filter((vault) => !filtering || vault.id === activeFilter.vaultId)
     .map((vault) => narrowed(vault, activeFilter))
@@ -387,26 +386,7 @@ export function MainView({
               </Button>
             )}
           </div>
-          {canFilter(filterable) && (
-            <Button
-              variant={groupFilterShown || filtering ? "secondary" : "ghost"}
-              size="icon"
-              aria-label={t("popup.main.filter.toggle")}
-              title={t("popup.main.filter.toggle")}
-              aria-pressed={groupFilterShown}
-              onClick={() => showGroupFilter(!groupFilterShown)}
-            >
-              <ListFilterIcon />
-            </Button>
-          )}
         </div>
-      )}
-      {groupFilterShown && canFilter(filterable) && (
-        <GroupFilterBar
-          vaults={filterable}
-          filter={activeFilter}
-          onChange={changeGroupFilter}
-        />
       )}
       {tabs && (
         <div className="px-2 pb-2">
@@ -468,6 +448,32 @@ export function MainView({
             )}
             <ItemBrowser
               vaults={browsed}
+              filterButton={
+                canFilter(filterable) && (
+                  <Button
+                    variant={
+                      groupFilterShown || filtering ? "secondary" : "ghost"
+                    }
+                    size="icon-sm"
+                    aria-label={t("popup.main.filter.toggle")}
+                    title={t("popup.main.filter.toggle")}
+                    aria-pressed={groupFilterShown}
+                    onClick={() => showGroupFilter(!groupFilterShown)}
+                  >
+                    <ListFilterIcon />
+                  </Button>
+                )
+              }
+              filterBar={
+                groupFilterShown &&
+                canFilter(filterable) && (
+                  <GroupFilterBar
+                    vaults={filterable}
+                    filter={activeFilter}
+                    onChange={changeGroupFilter}
+                  />
+                )
+              }
               host={page?.host ?? null}
               siteItemCount={siteItemCount}
               chosen={itemFilter}
