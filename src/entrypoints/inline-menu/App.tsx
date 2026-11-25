@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react"
 import type { FieldKind, SourceView } from "@/background/api"
 import { useAppearance } from "@/components/keyward/appearance"
 import { BrandIcon, sourceLabel } from "@/components/keyward/brand-icon"
-import { errorMessage } from "@/components/keyward/errors"
+import { errorCodeOf, errorMessage } from "@/components/keyward/errors"
 import { useLanguage } from "@/components/keyward/language"
 import { FADE_IN, LoginListSkeleton } from "@/components/keyward/loading"
 import { LoginLabel } from "@/components/keyward/login-label"
@@ -33,6 +33,8 @@ export function App() {
   } | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
+  /** A note that is not an error, such as why a login left the list. */
+  const [note, setNote] = useState<string | null>(null)
 
   // The frame shows placeholder rows while the logins load, so it opens at once.
   useReportHeight(
@@ -84,10 +86,16 @@ export function App() {
     }
     setBusy(id)
     setMessage(null)
+    setNote(null)
     try {
       await task()
     } catch (error) {
-      setMessage(errorMessage(error))
+      // Apple lists a login with only a passkey like any other; once a read finds no password,
+      // the background marks it and a fresh list leaves it out.
+      if (errorCodeOf(error) === "apple.noPassword") {
+        setNote(t("overlay.menu.passkeyOnly"))
+        void callOverlay("menu.state", {}).then(setState, () => {})
+      } else setMessage(errorMessage(error))
     } finally {
       setBusy(null)
     }
@@ -245,6 +253,11 @@ export function App() {
             {busy && source(sources, busy)?.kind === "apple" && (
               <p className="px-3 pb-2 text-xs text-muted-foreground">
                 {t("overlay.menu.confirmTouchId")}
+              </p>
+            )}
+            {note && (
+              <p className="px-3 pt-2 pb-2 text-xs text-muted-foreground">
+                {note}
               </p>
             )}
             {message && (

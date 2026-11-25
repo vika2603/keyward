@@ -59,6 +59,8 @@ export const en = {
   "popup.main.notWebPage": "This page is not a web page",
   "popup.main.search": "Search all logins",
   "popup.main.clearSearch": "Clear search",
+  "popup.main.passkeyOnly":
+    "That Apple login has only a passkey. It's now at the end of the list and no longer offered for filling.",
   "popup.main.noResults": "No logins match “{query}”",
   "popup.main.appleSearchHint":
     "Apple Passwords can only be searched by website address, such as github.com.",
@@ -190,6 +192,8 @@ export const zhCN: Record<keyof typeof en, string> = {
   "popup.main.notWebPage": "当前页面不是网页",
   "popup.main.search": "搜索全部登录",
   "popup.main.clearSearch": "清除搜索",
+  "popup.main.passkeyOnly":
+    "这条 Apple 登录只有通行密钥，已移到列表末尾，填充时不再列出。",
   "popup.main.noResults": "没有与「{query}」匹配的登录",
   "popup.main.appleSearchHint": "Apple 密码只能按网址搜索，例如 github.com。",
   "popup.detail.edit": "编辑",
