@@ -17,7 +17,7 @@ function scan() {
 
 /** The fields' names; the order a scan lists them in plays no part. */
 function names(fields: readonly HTMLInputElement[]): Set<string> {
-  return new Set(fields.map((field) => field.name))
+  return new Set(fields.map((input) => input.name))
 }
 
 function field(name: string, root: ParentNode = document): HTMLInputElement {

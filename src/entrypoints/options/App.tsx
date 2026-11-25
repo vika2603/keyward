@@ -5,6 +5,7 @@ import { t } from "@/lib/i18n"
 import { cn } from "@/lib/utils"
 import { FillPage } from "./fill-page"
 import { KeysPage } from "./keys-page"
+import { currentHash } from "./navigation"
 import { OnboardPage } from "./onboard-page"
 import { SitesPage } from "./sites-page"
 import { VaultsPage } from "./vaults-page"
@@ -15,14 +16,6 @@ const PAGES = [
   { hash: "sites", titleKey: "options.sites.title", Page: SitesPage },
   { hash: "keys", titleKey: "options.keys.title", Page: KeysPage },
 ] as const
-
-function currentHash(): string {
-  return location.hash.replace(/^#/, "")
-}
-
-export function navigate(hash: string): void {
-  location.hash = hash
-}
 
 export function App() {
   const language = useLanguage()
@@ -38,7 +31,7 @@ export function App() {
   if (!language) return null
   if (hash === "onboard") return <OnboardPage />
 
-  const page = PAGES.find((p) => p.hash === hash) ?? PAGES[0]
+  const page = PAGES.find((candidate) => candidate.hash === hash) ?? PAGES[0]
   return (
     <div className="flex min-h-screen flex-wrap bg-background">
       <nav
@@ -48,17 +41,18 @@ export function App() {
         <div className="px-2.5 pt-1 pb-3.5 text-sm font-semibold">
           {t("options.nav.heading")}
         </div>
-        {PAGES.map((p) => (
+        {PAGES.map((navPage) => (
           <a
-            key={p.hash}
-            href={`#${p.hash}`}
-            aria-current={p === page ? "page" : undefined}
+            key={navPage.hash}
+            href={`#${navPage.hash}`}
+            aria-current={navPage === page ? "page" : undefined}
             className={cn(
               "flex h-8 items-center gap-2 rounded-md p-2 text-sm hover:bg-foreground/5",
-              p === page && "bg-foreground/8 font-medium hover:bg-foreground/8",
+              navPage === page &&
+                "bg-foreground/8 font-medium hover:bg-foreground/8",
             )}
           >
-            {t(p.titleKey)}
+            {t(navPage.titleKey)}
           </a>
         ))}
       </nav>

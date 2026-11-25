@@ -37,7 +37,7 @@ import { isCloudServer, serverHost } from "@/lib/providers/bitwarden/server"
 import type { VaultInfo } from "@/lib/providers/types"
 import { AUTO_LOCK_MINUTES, type AutoLockMinutes } from "@/lib/settings"
 import { cn } from "@/lib/utils"
-import { navigate } from "./App"
+import { navigate } from "./navigation"
 import {
   Card,
   ChoiceSelect,

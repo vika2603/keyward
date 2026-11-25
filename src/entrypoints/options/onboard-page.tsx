@@ -10,11 +10,8 @@ import { Label } from "@/components/ui/label"
 import { t } from "@/lib/i18n"
 import type { SecondStepMethod } from "@/lib/providers/bitwarden/auth"
 import type { PendingSignInView } from "@/lib/providers/bitwarden/bitwarden-provider"
-import {
-  isCloudServer,
-  normalizeServerAddress,
-} from "@/lib/providers/bitwarden/server"
-import { navigate } from "./App"
+import { isCloudServer } from "@/lib/providers/bitwarden/server"
+import { navigate } from "./navigation"
 import { ChoiceSelect } from "./parts"
 import {
   lastServerItem,
@@ -27,6 +24,7 @@ import {
   ServerPicker,
   serverAddressOf,
   serverChoiceOf,
+  tryNormalizeServerAddress,
 } from "./server-picker"
 
 function methodTexts(): Record<
@@ -92,11 +90,7 @@ export function OnboardPage() {
 
 /** An address as saved by an earlier version, normalized; empty when it is not an address. */
 function savedAddress(address: string): string {
-  try {
-    return normalizeServerAddress(address)
-  } catch {
-    return ""
-  }
+  return tryNormalizeServerAddress(address) ?? ""
 }
 
 function SignIn({ onSignedIn }: { onSignedIn: () => void }) {

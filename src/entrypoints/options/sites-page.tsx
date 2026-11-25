@@ -193,7 +193,7 @@ export function SitesPage() {
                         onClick={() =>
                           update({
                             siteRules: settings.siteRules.filter(
-                              (r) => r.id !== rule.id,
+                              (saved) => saved.id !== rule.id,
                             ),
                           })
                         }
@@ -253,7 +253,7 @@ export function SitesPage() {
                     onClick={() =>
                       update({
                         equivalentDomains: settings.equivalentDomains.filter(
-                          (_, i) => i !== index,
+                          (_, position) => position !== index,
                         ),
                       })
                     }
@@ -428,8 +428,8 @@ function DomainGroupDialog({
   onSave: (group: string[]) => void
 }) {
   const [text, setText] = useState("")
-  const opened = useDialogOpening(editing, ({ domains }) =>
-    setText(domains.join(", ")),
+  const opened = useDialogOpening(editing, (opening) =>
+    setText(opening.domains.join(", ")),
   )
   const isNew = opened?.index === null
   const domains = [

@@ -165,8 +165,8 @@ export function ServerPicker({
   )
 }
 
-/** The address in a field, normalized; empty for an empty field, null for one that is not an address. */
-function addressIn(text: string): string | null {
+/** A server address, normalized; empty for empty text, null for text that is not an address. */
+export function tryNormalizeServerAddress(text: string): string | null {
   try {
     return normalizeServerAddress(text)
   } catch {
@@ -196,9 +196,9 @@ function SelfHostedDialog({
   })
 
   const checked = {
-    address: addressIn(address),
-    api: addressIn(api),
-    identity: addressIn(identity),
+    address: tryNormalizeServerAddress(address),
+    api: tryNormalizeServerAddress(api),
+    identity: tryNormalizeServerAddress(identity),
   }
   const valid =
     Boolean(checked.address) &&

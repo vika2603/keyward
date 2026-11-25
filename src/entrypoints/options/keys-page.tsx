@@ -96,7 +96,9 @@ export function KeysPage() {
         </p>
         <Card>
           {commandNames().map(([name, title]) => {
-            const shortcut = commands.find((c) => c.name === name)?.shortcut
+            const shortcut = commands.find(
+              (command) => command.name === name,
+            )?.shortcut
             return (
               <Option key={name} name={title}>
                 {shortcut ? (
