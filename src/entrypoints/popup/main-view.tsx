@@ -1,7 +1,6 @@
 import {
   CheckIcon,
   ChevronDownIcon,
-  ChevronRightIcon,
   ExternalLinkIcon,
   KeyRoundIcon,
   LockIcon,
@@ -46,6 +45,7 @@ import { t } from "@/lib/i18n"
 import type { Settings } from "@/lib/settings"
 import { cn } from "@/lib/utils"
 import type { View } from "./App"
+import { ConnectCard, LockedSourceCard } from "./connect-card"
 import { openOptions, SettingsButton } from "./header"
 
 type Filter = "all" | BackendKind
@@ -139,17 +139,9 @@ export function MainView({
       (s.status !== "ready" || s.error || s.logins.length),
   )
   const lockedCards = locked.map((source) => (
-    <ConnectCard
+    <LockedSourceCard
       key={source.id}
-      kind={source.kind}
-      title={
-        source.kind === "apple"
-          ? t("popup.main.pairApple")
-          : t("popup.main.unlockBitwarden")
-      }
-      detail={
-        source.kind === "apple" ? t("popup.main.pairAppleDetail") : source.label
-      }
+      source={source}
       onClick={() =>
         onNavigate({ name: "connect", kind: source.kind, sourceId: source.id })
       }
@@ -383,40 +375,6 @@ function EmptyState({
       <p className="text-sm text-muted-foreground">{text}</p>
       {children}
     </div>
-  )
-}
-
-/** A large button leading to pairing, unlocking or signing in. */
-function ConnectCard({
-  kind,
-  title,
-  detail,
-  onClick,
-}: {
-  kind: BackendKind
-  title: string
-  detail?: string
-  onClick: () => void
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="group/card flex w-full items-center gap-3 rounded-xl bg-card px-3.5 py-3 text-left ring-1 ring-foreground/10 outline-none transition-colors hover:bg-muted focus-visible:ring-foreground/35"
-    >
-      <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted group-hover/card:bg-background">
-        <BrandIcon kind={kind} className="size-5" />
-      </span>
-      <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-        <span className="text-sm font-medium">{title}</span>
-        {detail && (
-          <span className="truncate text-xs text-muted-foreground">
-            {detail}
-          </span>
-        )}
-      </span>
-      <ChevronRightIcon className="size-4 shrink-0 text-muted-foreground" />
-    </button>
   )
 }
 

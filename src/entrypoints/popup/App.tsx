@@ -74,9 +74,29 @@ export function App() {
       {view?.name === "history" && (
         <HistoryView onBack={() => setView({ name: "generator" })} />
       )}
-      {view?.name === "codeSetup" && <CodeSetupView onBack={main} />}
+      {view?.name === "codeSetup" && (
+        <CodeSetupView
+          onBack={main}
+          onConnect={(source) =>
+            setView({
+              name: "connect",
+              kind: source.kind,
+              sourceId: source.id,
+              back: "codeSetup",
+            })
+          }
+        />
+      )}
       {view?.name === "connect" && (
-        <ConnectView kind={view.kind} sourceId={view.sourceId} onDone={main} />
+        <ConnectView
+          kind={view.kind}
+          sourceId={view.sourceId}
+          onDone={
+            view.back === "codeSetup"
+              ? () => setView({ name: "codeSetup" })
+              : main
+          }
+        />
       )}
     </div>
   )

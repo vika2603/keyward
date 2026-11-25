@@ -8,9 +8,10 @@ import { LoginLabel } from "@/components/keyward/login-label"
 import { SiteIcon } from "@/components/keyward/site-icon"
 import { Button } from "@/components/ui/button"
 import { APPLE_SOURCE_ID } from "@/lib/backends/apple/source-id"
-import type { LoginSummary } from "@/lib/backends/types"
+import type { LoginSummary, SourceInfo } from "@/lib/backends/types"
 import { t } from "@/lib/i18n"
 import { cn } from "@/lib/utils"
+import { LockedSourceCard } from "./connect-card"
 import { BackHeader } from "./header"
 
 type Setup = BackgroundApi["popup.codeSetup"]["result"]
@@ -52,7 +53,14 @@ function Group({
  * Where an authenticator key picked from a page goes: the Passwords app, which asks on the Mac
  * which login gets it, or a Bitwarden login of the site. The key itself stays in the background.
  */
-export function CodeSetupView({ onBack }: { onBack: () => void }) {
+export function CodeSetupView({
+  onBack,
+  onConnect,
+}: {
+  onBack: () => void
+  /** Pairs or unlocks a source, then comes back here; the key waits in the background. */
+  onConnect: (source: SourceInfo) => void
+}) {
   const [setup, setSetup] = useState<Setup | null>(null)
   const [message, setMessage] = useState<string | null>(null)
   /** The choice waiting for a second click, because it replaces a login's current code. */
@@ -227,6 +235,13 @@ export function CodeSetupView({ onBack }: { onBack: () => void }) {
                     </p>
                   )}
                 </Group>
+              ))}
+              {setup.locked.map((source) => (
+                <LockedSourceCard
+                  key={source.id}
+                  source={source}
+                  onClick={() => onConnect(source)}
+                />
               ))}
             </div>
           )

@@ -24,7 +24,13 @@ export interface SourceView extends SourceInfo {
 export type PopupView =
   | { name: "main" }
   | { name: "generator" }
-  | { name: "connect"; kind: BackendKind; sourceId?: string }
+  /** `back` names the view to return to once connected; the main view otherwise. */
+  | {
+      name: "connect"
+      kind: BackendKind
+      sourceId?: string
+      back?: "codeSetup"
+    }
   /** Where an authenticator key picked from a page goes. */
   | { name: "codeSetup" }
 
@@ -135,6 +141,8 @@ export type BackgroundApi = {
       apple: boolean
       /** Bitwarden accounts that are unlocked, with their logins for the site. */
       sources: SourceView[]
+      /** Sources that could take the key once paired or unlocked. */
+      locked: SourceInfo[]
     }
   }
   /** Stores the picked key: in a Bitwarden login, or through the Passwords app. */

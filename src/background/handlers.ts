@@ -241,6 +241,13 @@ export function createHandlers(backends: Backends): Handlers<BackgroundApi> {
           sources: sources.filter(
             (s) => s.kind === "bitwarden" && s.status === "ready" && !s.error,
           ),
+          locked: sources
+            .filter(
+              (s) =>
+                s.status === "locked" &&
+                (s.kind === "bitwarden" || apple.canSave(page)),
+            )
+            .map(({ logins: _, ...info }) => info),
         }
       },
     },
