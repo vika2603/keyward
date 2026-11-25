@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { generatePassword, generatorOptionsItem } from "@/lib/generator"
+import { generatePassword, getGeneratorOptions } from "@/lib/generator"
 import { t } from "@/lib/i18n"
 import type { VaultInfo } from "@/lib/providers/types"
 import { BackHeader } from "./header"
@@ -53,7 +53,7 @@ function AddLoginForm({ onDone }: { onDone: () => void }) {
   }, [site])
 
   const generate = async () => {
-    const generated = generatePassword(await generatorOptionsItem.getValue())
+    const generated = generatePassword(await getGeneratorOptions())
     setPassword(generated)
     await callBackground("generator.record", {
       password: generated,

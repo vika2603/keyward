@@ -1,5 +1,6 @@
 import { CheckIcon, CopyIcon, HistoryIcon, RefreshCwIcon } from "lucide-react"
 import {
+  type ComponentProps,
   Fragment,
   type ReactNode,
   useCallback,
@@ -25,7 +26,6 @@ import { Slider } from "@/components/ui/slider"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   defaultGeneratorChoices,
-  defaultGeneratorOptions,
   type GeneratorChoices,
   type GeneratorKind,
   type GeneratorOptions,
@@ -35,10 +35,13 @@ import {
   generateUsername,
   generatorChoicesItem,
   generatorOptionsItem,
+  getGeneratorOptions,
   LENGTH_MAX,
   LENGTH_MIN,
   loadWords,
+  MINIMUM_COUNT_MAX,
   type PassphraseOptions,
+  passwordLength,
   type UsernameOptions,
   type UsernameType,
   WORDS_MAX,
@@ -110,6 +113,49 @@ function CheckboxOption({
   )
 }
 
+/** A number input that keeps what is typed and reports it once it is a whole number from `min` to `max`. */
+function NumberInput({
+  value,
+  min,
+  max,
+  onValueChange,
+  ...props
+}: Omit<
+  ComponentProps<typeof Input>,
+  "type" | "value" | "min" | "max" | "onChange" | "onBlur"
+> & {
+  value: number
+  min: number
+  max: number
+  onValueChange: (value: number) => void
+}) {
+  // Typing a number passes through values out of range, such as "1" on the way to "128".
+  const [draft, setDraft] = useState<string | null>(null)
+  return (
+    <Input
+      {...props}
+      type="number"
+      inputMode="numeric"
+      min={min}
+      max={max}
+      value={draft ?? String(value)}
+      onChange={(event) => {
+        const text = event.target.value
+        const number = Number(text)
+        setDraft(text)
+        if (
+          text !== "" &&
+          Number.isInteger(number) &&
+          number >= min &&
+          number <= max
+        )
+          onValueChange(number)
+      }}
+      onBlur={() => setDraft(null)}
+    />
+  )
+}
+
 /** Generates passwords, passphrases and usernames; the shown values last for the browser session. */
 export function GeneratorView({
   onBack,
@@ -130,11 +176,11 @@ export function GeneratorView({
 
   useEffect(() => {
     void Promise.all([
-      generatorOptionsItem.getValue(),
+      getGeneratorOptions(),
       generatorChoicesItem.getValue(),
       generatedItem.getValue(),
     ]).then(([savedPassword, savedChoices, savedValues]) => {
-      setPassword({ ...defaultGeneratorOptions, ...savedPassword })
+      setPassword(savedPassword)
       setChoices({
         ...defaultGeneratorChoices,
         ...savedChoices,
@@ -213,7 +259,9 @@ export function GeneratorView({
   if (!password || !choices) return <div className="h-[276px]" />
 
   const updatePassword = (patch: Partial<GeneratorOptions>) => {
-    const next = { ...password, ...patch }
+    const changed = { ...password, ...patch }
+    // The saved length follows the generated one, so the length controls show the length the password has.
+    const next = { ...changed, length: passwordLength(changed) }
     setPassword(next)
     void generatorOptionsItem.setValue(next)
     show("password", generatePassword(next))
@@ -372,9 +420,14 @@ export function GeneratorView({
                   })
                 }
               />
-              <span className="w-6 shrink-0 text-right font-mono text-sm">
-                {password.length}
-              </span>
+              <NumberInput
+                className="w-20 shrink-0"
+                aria-labelledby="gen-length"
+                min={LENGTH_MIN}
+                max={LENGTH_MAX}
+                value={password.length}
+                onValueChange={(length) => updatePassword({ length })}
+              />
             </div>
             <fieldset
               className="flex min-h-[52px] min-w-0 items-center gap-3 border-t px-3 py-2"
@@ -402,6 +455,55 @@ export function GeneratorView({
                 onChange={(event) =>
                   updatePassword({ symbolSet: event.target.value })
                 }
+              />
+            </Row>
+            <div className="grid min-h-[52px] grid-cols-2 items-center gap-3 border-t px-3 py-2">
+              <div className="flex items-center gap-3">
+                <label
+                  htmlFor="gen-minimum-digits"
+                  className="w-16 shrink-0 text-sm font-medium"
+                >
+                  {t("popup.generator.minimumDigits")}
+                </label>
+                <NumberInput
+                  id="gen-minimum-digits"
+                  className="w-14"
+                  min={0}
+                  max={MINIMUM_COUNT_MAX}
+                  value={password.minimumDigits}
+                  disabled={!password.digits}
+                  onValueChange={(minimumDigits) =>
+                    updatePassword({ minimumDigits })
+                  }
+                />
+              </div>
+              <div className="flex items-center gap-3">
+                <label
+                  htmlFor="gen-minimum-symbols"
+                  className="w-16 shrink-0 text-sm font-medium"
+                >
+                  {t("popup.generator.minimumSymbols")}
+                </label>
+                <NumberInput
+                  id="gen-minimum-symbols"
+                  className="w-14"
+                  min={0}
+                  max={MINIMUM_COUNT_MAX}
+                  value={password.minimumSymbols}
+                  disabled={!password.symbols}
+                  onValueChange={(minimumSymbols) =>
+                    updatePassword({ minimumSymbols })
+                  }
+                />
+              </div>
+            </div>
+            <Row label={t("popup.generator.options")}>
+              <CheckboxOption
+                checked={password.avoidAmbiguousCharacters}
+                onChange={(avoidAmbiguousCharacters) =>
+                  updatePassword({ avoidAmbiguousCharacters })
+                }
+                label={t("popup.generator.avoidAmbiguous")}
               />
             </Row>
           </>

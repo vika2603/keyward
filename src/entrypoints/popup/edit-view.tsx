@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
 import { Skeleton } from "@/components/ui/skeleton"
-import { generatePassword, generatorOptionsItem } from "@/lib/generator"
+import { generatePassword, getGeneratorOptions } from "@/lib/generator"
 import { t } from "@/lib/i18n"
 import type {
   EditableLogin,
@@ -76,7 +76,7 @@ export function EditView({
     form && update({ uris: form.uris.map((u, i) => (i === index ? value : u)) })
 
   const generate = async () => {
-    const generated = generatePassword(await generatorOptionsItem.getValue())
+    const generated = generatePassword(await getGeneratorOptions())
     update({ password: generated })
     setRevealed(true)
     await callBackground("generator.record", {

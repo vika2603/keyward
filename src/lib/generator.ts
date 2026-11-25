@@ -8,10 +8,17 @@ export interface GeneratorOptions {
   symbols: boolean
   /** The symbol characters to draw from; spaces and repeats are ignored. */
   symbolSet: string
+  /** The fewest digits a password has while digits are included. */
+  minimumDigits: number
+  /** The fewest symbols a password has while symbols are included. */
+  minimumSymbols: number
+  avoidAmbiguousCharacters: boolean
 }
 
-export const LENGTH_MIN = 8
-export const LENGTH_MAX = 64
+export const LENGTH_MIN = 5
+export const LENGTH_MAX = 128
+/** The largest minimum count of digits or of symbols; the smallest is 0. */
+export const MINIMUM_COUNT_MAX = 9
 
 export const defaultGeneratorOptions: GeneratorOptions = {
   length: 20,
@@ -20,12 +27,23 @@ export const defaultGeneratorOptions: GeneratorOptions = {
   digits: true,
   symbols: true,
   symbolSet: "!@#$%^*-_=+?",
+  minimumDigits: 1,
+  minimumSymbols: 0,
+  avoidAmbiguousCharacters: false,
 }
 
-export const generatorOptionsItem = storage.defineItem<GeneratorOptions>(
-  "local:generatorOptions",
-  { fallback: defaultGeneratorOptions },
-)
+/** Options saved by an older version lack the options added since, so read them with `getGeneratorOptions`. */
+export const generatorOptionsItem = storage.defineItem<
+  Partial<GeneratorOptions>
+>("local:generatorOptions", { fallback: defaultGeneratorOptions })
+
+/** The saved password options, with the default for each option the saved value lacks. */
+export async function getGeneratorOptions(): Promise<GeneratorOptions> {
+  return {
+    ...defaultGeneratorOptions,
+    ...(await generatorOptionsItem.getValue()),
+  }
+}
 
 export type GeneratorKind = "password" | "passphrase" | "username"
 
@@ -91,10 +109,11 @@ export const generatedItem = storage.defineItem<
   Partial<Record<GeneratorKind, string>>
 >("session:generator.shown", { fallback: {} })
 
-// Characters that are easy to confuse (l, I, O, 0, 1) are left out of the built-in sets.
-const UPPER = "ABCDEFGHJKLMNPQRSTUVWXYZ"
-const LOWER = "abcdefghijkmnopqrstuvwxyz"
-const DIGITS = "23456789"
+const UPPER = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+const LOWER = "abcdefghijklmnopqrstuvwxyz"
+const DIGITS = "0123456789"
+// Avoiding ambiguous characters leaves out the same ones Bitwarden does: I, O, l, 0 and 1.
+const AMBIGUOUS = /[IOl01]/g
 
 /** A uniformly random integer in [0, n), without modulo bias. */
 function randomIndex(n: number): number {
@@ -111,31 +130,72 @@ function pick<T>(items: readonly T[]): T {
   return items[randomIndex(items.length)] as T
 }
 
+function clampedInteger(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, Math.round(value)))
+}
+
 export function symbolChars(symbolSet: string): string[] {
   return [...new Set([...symbolSet.replace(/\s/g, "")])]
 }
 
-/** The character sets the options enable; lowercase stands in when none is usable. */
-export function characterSets(options: GeneratorOptions): string[][] {
-  const sets: string[][] = []
-  if (options.upper) sets.push([...UPPER])
-  if (options.lower) sets.push([...LOWER])
-  if (options.digits) sets.push([...DIGITS])
-  const symbols = symbolChars(options.symbolSet)
-  if (options.symbols && symbols.length) sets.push(symbols)
-  if (!sets.length) sets.push([...LOWER])
-  return sets
+interface CharacterClass {
+  characters: string[]
+  /** How many characters of a password must come from this class. */
+  required: number
 }
 
-/** A password with at least one character from every enabled set, the rest from all of them. */
-export function generatePassword(options: GeneratorOptions): string {
-  const length = Math.min(
-    LENGTH_MAX,
-    Math.max(LENGTH_MIN, Math.round(options.length)),
+/** The character classes the options enable; lowercase stands in when none is usable. */
+function characterClasses(options: GeneratorOptions): CharacterClass[] {
+  const builtIn = (characters: string) => [
+    ...(options.avoidAmbiguousCharacters
+      ? characters.replace(AMBIGUOUS, "")
+      : characters),
+  ]
+  // An included class always has at least one character, even with a minimum of 0, as in Bitwarden.
+  const atLeastOne = (minimum: number) =>
+    Math.max(1, clampedInteger(minimum, 0, MINIMUM_COUNT_MAX))
+  const classes: CharacterClass[] = []
+  if (options.upper) classes.push({ characters: builtIn(UPPER), required: 1 })
+  if (options.lower) classes.push({ characters: builtIn(LOWER), required: 1 })
+  if (options.digits)
+    classes.push({
+      characters: builtIn(DIGITS),
+      required: atLeastOne(options.minimumDigits),
+    })
+  const symbols = symbolChars(options.symbolSet)
+  if (options.symbols && symbols.length)
+    classes.push({
+      characters: symbols,
+      required: atLeastOne(options.minimumSymbols),
+    })
+  if (!classes.length) classes.push({ characters: builtIn(LOWER), required: 1 })
+  return classes
+}
+
+/**
+ * The length a password is generated at: the chosen length kept within range, raised when it is
+ * too short for the required characters (one of each included class, or its minimum when higher).
+ * Raising the length, as Bitwarden does, keeps every minimum met instead of dropping some.
+ */
+export function passwordLength(options: GeneratorOptions): number {
+  const required = characterClasses(options).reduce(
+    (sum, characterClass) => sum + characterClass.required,
+    0,
   )
-  const sets = characterSets(options)
-  const pool = sets.flat()
-  const chars = sets.map((set) => pick(set))
+  return Math.max(
+    required,
+    clampedInteger(options.length, LENGTH_MIN, LENGTH_MAX),
+  )
+}
+
+/** A password with the required characters of every enabled class, the rest drawn from all of them. */
+export function generatePassword(options: GeneratorOptions): string {
+  const classes = characterClasses(options)
+  const pool = classes.flatMap((characterClass) => characterClass.characters)
+  const chars = classes.flatMap(({ characters, required }) =>
+    Array.from({ length: required }, () => pick(characters)),
+  )
+  const length = passwordLength(options)
   while (chars.length < length) chars.push(pick(pool))
   for (let i = chars.length - 1; i > 0; i--) {
     const j = randomIndex(i + 1)

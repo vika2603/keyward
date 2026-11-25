@@ -1,4 +1,4 @@
-import { generatePassword, generatorOptionsItem } from "@/lib/generator"
+import { generatePassword, getGeneratorOptions } from "@/lib/generator"
 import type { Handlers, Sender } from "@/lib/messaging"
 import {
   type CustomEndpoints,
@@ -654,7 +654,7 @@ export function createHandlers(providers: Providers): Handlers<BackgroundApi> {
         if (kind === "login") {
           let suggestion = session.suggestion
           if (session.newPassword && !suggestion) {
-            suggestion = generatePassword(await generatorOptionsItem.getValue())
+            suggestion = generatePassword(await getGeneratorOptions())
             await menus.set({ ...session, suggestion })
           }
           return {
