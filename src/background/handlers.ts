@@ -199,6 +199,21 @@ export function createHandlers(providers: Providers): Handlers<BackgroundApi> {
           .providerOf(vaultId)
           .oneTimeCode(vaultId, loginId, null, await popupTab()),
     },
+    "popup.passwordHistory": {
+      allow: popup,
+      handle: ({ vaultId, loginId }) => {
+        const provider = providers.providerOf(vaultId)
+        if (!provider.passwordHistory)
+          throw new VaultError(
+            "The vault keeps no password history",
+            "notFound",
+          )
+        return provider.passwordHistory(
+          vaultId,
+          requireText(loginId, "loginId"),
+        )
+      },
+    },
     "popup.editable": {
       allow: popup,
       handle: ({ vaultId, loginId }) => {

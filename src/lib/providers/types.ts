@@ -52,10 +52,27 @@ export interface LoginDetails {
   secretsWithheld: boolean
   /** Whether Keyward can edit and delete the login. */
   editable: boolean
+  /** Fields the user added to the login, in their saved order. */
+  customFields?: CustomField[]
+  /** How many earlier passwords the provider keeps for the login; read with `passwordHistory`. */
+  pastPasswordCount?: number
   /** Milliseconds since the epoch. */
   created?: number
   modified?: number
   passwordModified?: number
+}
+
+/** A field the user added to a login. A hidden field's value is a secret, shown on request. */
+export type CustomField =
+  | { kind: "text" | "hidden"; name: string; value: string }
+  | { kind: "checkbox"; name: string; checked: boolean }
+  /** Stands for one of the login's own fields when a page asks for it under this name. */
+  | { kind: "linked"; name: string; linkedTo: "username" | "password" }
+
+export interface PastPassword {
+  password: string
+  /** When the password was replaced, in milliseconds since the epoch. */
+  replaced?: number
 }
 
 export interface OneTimeCode {
@@ -151,6 +168,8 @@ export interface VaultProvider {
     page: URL | null,
     tab: TabRef,
   ): Promise<OneTimeCode>
+  /** Earlier passwords of a login, newest first; only providers whose details count them have it. */
+  passwordHistory?(vaultId: string, loginId: string): Promise<PastPassword[]>
   /** A login's fields for an edit form; only providers whose details say `editable` have it. */
   editable?(vaultId: string, loginId: string): Promise<EditableLogin>
   edit?(vaultId: string, loginId: string, change: LoginEdit): Promise<void>

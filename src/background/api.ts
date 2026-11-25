@@ -13,6 +13,7 @@ import type {
   LoginEdit,
   LoginSummary,
   OneTimeCode,
+  PastPassword,
   ProviderKind,
   VaultInfo,
 } from "@/lib/providers/types"
@@ -106,6 +107,11 @@ export type BackgroundApi = {
   "popup.oneTimeCode": {
     payload: { vaultId: string; loginId: string }
     result: OneTimeCode
+  }
+  /** A login's earlier passwords, when its details count them. */
+  "popup.passwordHistory": {
+    payload: { vaultId: string; loginId: string }
+    result: PastPassword[]
   }
   /** A login's fields for the edit view, when its details say it is editable. */
   "popup.editable": {

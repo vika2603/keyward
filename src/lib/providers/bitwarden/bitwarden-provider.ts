@@ -12,6 +12,7 @@ import {
   type LoginSummary,
   type NewLogin,
   type OneTimeCode,
+  type PastPassword,
   type TabRef,
   VaultError,
   type VaultInfo,
@@ -48,6 +49,7 @@ import {
   decryptDetails,
   decryptLogin,
   decryptPassword,
+  decryptPasswordHistory,
   decryptTotp,
   type ItemChange,
   itemUpdateRequest,
@@ -556,8 +558,10 @@ export class BitwardenProvider implements VaultProvider {
       username: item.username,
       name: item.name,
       uris: item.uris.map((u) => u.uri).filter((uri) => uri !== ""),
-      // Notes may hold secrets too, so a re-prompted item keeps them back.
+      // Notes, fields and earlier passwords may hold secrets too, so a re-prompted item keeps them back.
       notes: item.reprompt ? undefined : details.notes || undefined,
+      customFields: item.reprompt ? undefined : details.customFields,
+      pastPasswordCount: item.reprompt ? undefined : details.pastPasswordCount,
       hasCode: item.hasTotp,
       secretsWithheld: item.reprompt,
       editable: isEditable(item, cipher),
@@ -565,6 +569,15 @@ export class BitwardenProvider implements VaultProvider {
       modified: details.modified,
       passwordModified: details.passwordModified,
     }
+  }
+
+  async passwordHistory(
+    vaultId: string,
+    loginId: string,
+  ): Promise<PastPassword[]> {
+    const { vault, item, cipher } = await this.pageItem(vaultId, loginId, null)
+    refuseReprompt(item)
+    return decryptPasswordHistory(cipher, vault.keys)
   }
 
   async codeLogins(vaultId: string, page: URL): Promise<LoginSummary[]> {

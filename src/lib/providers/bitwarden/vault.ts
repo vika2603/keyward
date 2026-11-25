@@ -1,3 +1,4 @@
+import type { CustomField, PastPassword } from "@/lib/providers/types"
 import { MatchType } from "@/lib/settings"
 import { pick, prop } from "./api"
 import type { VaultCrypto } from "./crypto"
@@ -141,9 +142,51 @@ function timeOf(value: unknown): number | undefined {
 
 export interface ItemDetails {
   notes: string
+  customFields: CustomField[]
+  pastPasswordCount: number
   created?: number
   modified?: number
   passwordModified?: number
+}
+
+/** Bitwarden's field types and the login fields a linked field can stand for. */
+const FIELD_TEXT = 0
+const FIELD_HIDDEN = 1
+const FIELD_BOOLEAN = 2
+const FIELD_LINKED = 3
+const LINKED_USERNAME = 100
+const LINKED_PASSWORD = 101
+
+function decryptCustomField(
+  field: unknown,
+  keys: VaultKeys,
+  key: Uint8Array,
+): CustomField | null {
+  const name = keys.decrypt(prop(field, "Name"), key)
+  const value = () => keys.decrypt(prop(field, "Value"), key)
+  switch (prop(field, "Type")) {
+    case FIELD_TEXT:
+      return { kind: "text", name, value: value() }
+    case FIELD_HIDDEN:
+      return { kind: "hidden", name, value: value() }
+    case FIELD_BOOLEAN:
+      return { kind: "checkbox", name, checked: value() === "true" }
+    case FIELD_LINKED: {
+      const linkedId = prop(field, "LinkedId")
+      if (linkedId === LINKED_USERNAME)
+        return { kind: "linked", name, linkedTo: "username" }
+      if (linkedId === LINKED_PASSWORD)
+        return { kind: "linked", name, linkedTo: "password" }
+      return null
+    }
+    default:
+      return null
+  }
+}
+
+function savedList(cipher: Record<string, unknown>, name: string): unknown[] {
+  const list = prop(cipher, name)
+  return Array.isArray(list) ? list : []
 }
 
 /** The parts of an item that only its detail view shows. */
@@ -151,14 +194,35 @@ export function decryptDetails(
   cipher: Record<string, unknown>,
   keys: VaultKeys,
 ): ItemDetails {
+  const key = keys.forCipher(cipher)
+  const customFields = savedList(cipher, "Fields")
+    .map((field) => decryptCustomField(field, keys, key))
+    .filter((field) => field !== null)
   return {
-    notes: keys.decrypt(prop(cipher, "Notes"), keys.forCipher(cipher)),
+    notes: keys.decrypt(prop(cipher, "Notes"), key),
+    customFields,
+    pastPasswordCount: savedList(cipher, "PasswordHistory").length,
     created: timeOf(prop(cipher, "CreationDate")),
     modified: timeOf(prop(cipher, "RevisionDate")),
     passwordModified: timeOf(
       prop(pick(cipher, "Login"), "PasswordRevisionDate"),
     ),
   }
+}
+
+/** The item's earlier passwords, newest first, as Bitwarden's apps keep them. */
+export function decryptPasswordHistory(
+  cipher: Record<string, unknown>,
+  keys: VaultKeys,
+): PastPassword[] {
+  const key = keys.forCipher(cipher)
+  const history = savedList(cipher, "PasswordHistory").map((entry) => ({
+    password: keys.decrypt(prop(entry, "Password"), key),
+    replaced: timeOf(prop(entry, "LastUsedDate")),
+  }))
+  const newestFirst = (first: PastPassword, second: PastPassword) =>
+    (second.replaced ?? 0) - (first.replaced ?? 0)
+  return history.sort(newestFirst)
 }
 
 /** The item's authenticator key: an `otpauth://` URI, a `steam://` key or a base32 secret. */

@@ -11,6 +11,7 @@ import { EditView } from "./edit-view"
 import { GeneratorView } from "./generator-view"
 import { HistoryView } from "./history-view"
 import { MainView } from "./main-view"
+import { PasswordHistoryView } from "./password-history-view"
 
 export type View =
   | PopupView
@@ -18,6 +19,7 @@ export type View =
   | { name: "history" }
   | { name: "detail"; vault: VaultInfo; login: LoginSummary }
   | { name: "edit"; vault: VaultInfo; login: LoginSummary }
+  | { name: "passwordHistory"; vault: VaultInfo; login: LoginSummary }
 
 // Requested once per popup: the background hands out a pending view only to the first request.
 const initialView = callBackground("popup.takeView", null).catch(
@@ -56,6 +58,16 @@ export function App() {
           login={view.login}
           onBack={main}
           onEdit={() => setView({ ...view, name: "edit" })}
+          onPasswordHistory={() =>
+            setView({ ...view, name: "passwordHistory" })
+          }
+        />
+      )}
+      {view?.name === "passwordHistory" && (
+        <PasswordHistoryView
+          vault={view.vault}
+          login={view.login}
+          onBack={() => setView({ ...view, name: "detail" })}
         />
       )}
       {view?.name === "edit" && (

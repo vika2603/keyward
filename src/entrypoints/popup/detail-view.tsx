@@ -1,17 +1,12 @@
 import {
-  CheckIcon,
-  CopyIcon,
+  ChevronRightIcon,
   ExternalLinkIcon,
-  EyeIcon,
-  EyeOffIcon,
   PencilIcon,
   RefreshCwIcon,
-  TimerIcon,
   Trash2Icon,
 } from "lucide-react"
 import {
   type ReactNode,
-  type RefObject,
   useCallback,
   useEffect,
   useMemo,
@@ -26,31 +21,27 @@ import { FADE_IN } from "@/components/keyward/loading"
 import { SiteIcon } from "@/components/keyward/site-icon"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
-import { currentLanguage, t } from "@/lib/i18n"
+import { t } from "@/lib/i18n"
 import type {
+  CustomField,
   LoginDetails,
   LoginSummary,
   OneTimeCode,
   VaultInfo,
 } from "@/lib/providers/types"
 import { cn } from "@/lib/utils"
+import {
+  CopyButton,
+  Field,
+  formatDate,
+  IconButton,
+  MaskText,
+  RevealButton,
+  SecretText,
+  Section,
+  toggled,
+} from "./detail-parts"
 import { BackHeader } from "./header"
-
-/** Shown in place of a password that is not revealed; it does not tell the password's length. */
-const MASK = "••••••••••••"
-
-function charClass(char: string): string | undefined {
-  if (/[0-9]/.test(char)) return "text-blue-600 dark:text-blue-400"
-  if (/[a-zA-Z]/.test(char)) return undefined
-  return "text-amber-700 dark:text-amber-400"
-}
-
-function formatDate(time: number): string {
-  return new Intl.DateTimeFormat(currentLanguage(), {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(time)
-}
 
 /** An address that can be opened in a tab: one with a web scheme, or a bare host. */
 function webUrl(uri: string): string | null {
@@ -63,99 +54,6 @@ function webUrl(uri: string): string | null {
   } catch {
     return null
   }
-}
-
-function Section({ title, children }: { title?: string; children: ReactNode }) {
-  return (
-    <section className="flex flex-col gap-1.5">
-      {title && (
-        <h2 className="px-1 text-xs font-medium text-muted-foreground">
-          {title}
-        </h2>
-      )}
-      <div className="rounded-xl bg-card ring-1 ring-foreground/10">
-        {children}
-      </div>
-    </section>
-  )
-}
-
-function Field({
-  label,
-  children,
-  actions,
-  valueRef,
-}: {
-  label?: string
-  children: ReactNode
-  actions?: ReactNode
-  valueRef?: RefObject<HTMLDivElement | null>
-}) {
-  return (
-    <div className="flex min-h-12 items-center gap-1 border-t py-2 pr-2 pl-3 first:border-t-0">
-      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-        {label && (
-          <span className="text-xs text-muted-foreground">{label}</span>
-        )}
-        <div ref={valueRef} className="text-sm break-all">
-          {children}
-        </div>
-      </div>
-      {actions && <div className="flex shrink-0 gap-0.5">{actions}</div>}
-    </div>
-  )
-}
-
-function IconButton({
-  label,
-  onClick,
-  disabled,
-  children,
-}: {
-  label: string
-  onClick: () => void
-  disabled?: boolean
-  children: ReactNode
-}) {
-  return (
-    <Button
-      variant="ghost"
-      size="icon"
-      aria-label={label}
-      title={label}
-      disabled={disabled}
-      onClick={onClick}
-    >
-      {children}
-    </Button>
-  )
-}
-
-/** A copy button that shows a check for a moment once the copy went through. */
-function CopyButton({
-  label,
-  copy,
-  disabled,
-}: {
-  label: string
-  copy: () => Promise<boolean>
-  disabled?: boolean
-}) {
-  const [done, setDone] = useState(false)
-  useEffect(() => {
-    if (!done) return
-    const timer = setTimeout(() => setDone(false), 1500)
-    return () => clearTimeout(timer)
-  }, [done])
-  return (
-    <IconButton
-      label={done ? t("popup.copied") : label}
-      disabled={disabled}
-      onClick={() => void copy().then(setDone)}
-    >
-      {done ? <CheckIcon /> : <CopyIcon />}
-    </IconButton>
-  )
 }
 
 /** Seconds left of a code, drawn as a shrinking ring. */
@@ -243,21 +141,114 @@ function CodeText({ code }: { code: string }) {
   )
 }
 
+/** What a code looks like before it is shown; as wide as the code itself. */
+const CODE_MASK = "••••••"
+
+function CustomFieldRow({
+  field,
+  shown,
+  onToggle,
+  copyText,
+}: {
+  field: CustomField
+  shown: boolean
+  onToggle: () => void
+  copyText: (text: string, secret: boolean) => Promise<boolean>
+}) {
+  switch (field.kind) {
+    case "text":
+      return (
+        <Field
+          label={field.name}
+          actions={
+            field.value && (
+              <CopyButton
+                label={t("popup.detail.copyField")}
+                copy={() => copyText(field.value, false)}
+              />
+            )
+          }
+        >
+          <span className="whitespace-pre-wrap">{field.value}</span>
+        </Field>
+      )
+    case "hidden":
+      return (
+        <Field
+          label={field.name}
+          actions={
+            field.value && (
+              <>
+                <RevealButton
+                  shown={shown}
+                  showLabel={t("popup.detail.showField")}
+                  hideLabel={t("popup.detail.hideField")}
+                  onClick={onToggle}
+                />
+                <CopyButton
+                  label={t("popup.detail.copyField")}
+                  copy={() => copyText(field.value, true)}
+                />
+              </>
+            )
+          }
+        >
+          {shown ? <SecretText value={field.value} /> : <MaskText />}
+        </Field>
+      )
+    case "checkbox":
+      return (
+        <Field label={field.name}>
+          {field.checked
+            ? t("popup.detail.checked")
+            : t("popup.detail.unchecked")}
+        </Field>
+      )
+    case "linked": {
+      const target =
+        field.linkedTo === "username"
+          ? t("popup.detail.username")
+          : t("popup.detail.password")
+      return (
+        <Field label={field.name}>
+          <span className="text-muted-foreground">
+            {t("popup.detail.linkedTo", { field: target })}
+          </span>
+        </Field>
+      )
+    }
+  }
+}
+
+/** A line of the item info card: a name on the left, its value on the right. */
+function InfoRow({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="flex min-h-10 items-center gap-3 border-t px-3 py-2 text-sm first:border-t-0">
+      <span className="shrink-0">{label}</span>
+      <span className="flex min-w-0 flex-1 items-center justify-end gap-1.5 text-muted-foreground">
+        {children}
+      </span>
+    </div>
+  )
+}
+
 /**
- * One login of the page: its username, password, one-time code, addresses, notes and dates. The
- * password and code are read only when asked for; Apple asks for Touch ID first.
+ * One login of the page: its username, password, one-time code, addresses, notes, custom fields and
+ * history. The password and code are read only when asked for; Apple asks for Touch ID first.
  */
 export function DetailView({
   vault,
   login,
   onBack,
   onEdit,
+  onPasswordHistory,
 }: {
   vault: VaultInfo
   login: LoginSummary
   /** Also where the view goes once the login was deleted. */
   onBack: () => void
   onEdit: () => void
+  onPasswordHistory: () => void
 }) {
   const ids = useMemo(
     () => ({ vaultId: vault.id, loginId: login.id }),
@@ -269,6 +260,11 @@ export function DetailView({
   const [password, setPassword] = useState<string | null>(null)
   const [revealed, setRevealed] = useState(false)
   const [code, setCode] = useState<OneTimeCode | null>(null)
+  const [codeShown, setCodeShown] = useState(false)
+  /** Indexes of the hidden custom fields the user revealed. */
+  const [shownFields, setShownFields] = useState<ReadonlySet<number>>(
+    () => new Set(),
+  )
   /** What waits for Touch ID or the provider right now. */
   const [waiting, setWaiting] = useState<"password" | "code" | null>(null)
   const [now, setNow] = useState(Date.now)
@@ -321,19 +317,38 @@ export function DetailView({
     return value !== null && copyText(value, true)
   }, [readPassword, copyText])
 
-  const loadCode = useCallback(async () => {
+  const loadCode = useCallback(async (): Promise<OneTimeCode | null> => {
     setWaiting("code")
     const result = await run(() =>
       callBackground("popup.oneTimeCode", ids),
     ).finally(() => setWaiting(null))
     setCode(result)
     setNow(Date.now())
+    return result
   }, [run, ids])
 
-  const copyCode = useCallback(
-    async () => code !== null && copyText(code.code, true),
-    [code, copyText],
-  )
+  const copyCode = useCallback(async () => {
+    const current = code ?? (await loadCode())
+    return current !== null && copyText(current.code, true)
+  }, [code, loadCode, copyText])
+
+  const togglePassword = async () => {
+    if (revealed) {
+      setRevealed(false)
+      return
+    }
+    const value = await readPassword()
+    if (value !== null) setRevealed(true)
+  }
+
+  const toggleCode = async () => {
+    if (codeShown) {
+      setCodeShown(false)
+      return
+    }
+    const current = code ?? (await loadCode())
+    if (current) setCodeShown(true)
+  }
 
   // Bitwarden codes need no confirmation, so they show at once; Apple's wait for a click.
   const autoCode =
@@ -378,6 +393,8 @@ export function DetailView({
   }
 
   const name = details?.name || login.title
+  const customFields = details?.customFields ?? []
+  const pastPasswordCount = details?.pastPasswordCount ?? 0
   const remaining =
     expiresAt === undefined
       ? null
@@ -395,13 +412,7 @@ export function DetailView({
       <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-3 pb-3">
         <div className="flex items-center gap-3 px-1">
           <SiteIcon host={login.host} text={name} className="size-10" />
-          <div className="flex min-w-0 flex-col gap-0.5">
-            <span className="truncate text-sm font-medium">{name}</span>
-            <span className="flex items-center gap-1 text-xs text-muted-foreground">
-              <BrandIcon kind={vault.kind} className="size-3.5" />
-              <span className="truncate">{vaultLabel(vault)}</span>
-            </span>
-          </div>
+          <span className="min-w-0 truncate text-base font-medium">{name}</span>
         </div>
         {message && <p className="px-1 text-xs text-destructive">{message}</p>}
         {!details && !message && <DetailSkeleton />}
@@ -436,23 +447,13 @@ export function DetailView({
                     valueRef={passwordRef}
                     actions={
                       <>
-                        <IconButton
-                          label={
-                            revealed
-                              ? t("popup.detail.hidePassword")
-                              : t("popup.detail.showPassword")
-                          }
+                        <RevealButton
+                          shown={revealed}
+                          showLabel={t("popup.detail.showPassword")}
+                          hideLabel={t("popup.detail.hidePassword")}
                           disabled={waiting === "password"}
-                          onClick={() => {
-                            if (revealed) setRevealed(false)
-                            else
-                              void readPassword().then(
-                                (value) => value !== null && setRevealed(true),
-                              )
-                          }}
-                        >
-                          {revealed ? <EyeOffIcon /> : <EyeIcon />}
-                        </IconButton>
+                          onClick={() => void togglePassword()}
+                        />
                         <CopyButton
                           label={t("popup.copyPassword")}
                           disabled={waiting === "password"}
@@ -466,16 +467,9 @@ export function DetailView({
                         {t("popup.main.confirmTouchId")}
                       </span>
                     ) : revealed && password !== null ? (
-                      <span className="font-mono select-all">
-                        {[...password].map((char, index) => (
-                          // biome-ignore lint/suspicious/noArrayIndexKey: characters repeat; their position is their identity.
-                          <span key={index} className={charClass(char)}>
-                            {char}
-                          </span>
-                        ))}
-                      </span>
+                      <SecretText value={password} />
                     ) : (
-                      <span className="font-mono tracking-wider">{MASK}</span>
+                      <MaskText />
                     )}
                   </Field>
                   {details.hasCode && (
@@ -483,9 +477,9 @@ export function DetailView({
                       label={t("popup.detail.code")}
                       valueRef={codeRef}
                       actions={
-                        code ? (
-                          <>
-                            {remaining !== null && code.period ? (
+                        <>
+                          {code &&
+                            (remaining !== null && code.period ? (
                               <span className="flex size-8 items-center justify-center">
                                 <Countdown
                                   remaining={remaining}
@@ -500,34 +494,31 @@ export function DetailView({
                               >
                                 <RefreshCwIcon />
                               </IconButton>
-                            )}
-                            <CopyButton
-                              label={t("popup.copyCode")}
-                              copy={copyCode}
-                            />
-                          </>
-                        ) : (
-                          <IconButton
-                            label={t("popup.detail.showCode")}
+                            ))}
+                          <RevealButton
+                            shown={codeShown}
+                            showLabel={t("popup.detail.showCode")}
+                            hideLabel={t("popup.detail.hideCode")}
                             disabled={waiting === "code"}
-                            onClick={() => void loadCode()}
-                          >
-                            <TimerIcon />
-                          </IconButton>
-                        )
+                            onClick={() => void toggleCode()}
+                          />
+                          <CopyButton
+                            label={t("popup.copyCode")}
+                            disabled={waiting === "code"}
+                            copy={copyCode}
+                          />
+                        </>
                       }
                     >
-                      {code ? (
-                        <span className="select-all">
-                          <CodeText code={code.code} />
-                        </span>
-                      ) : waiting === "code" && apple ? (
+                      {waiting === "code" && apple ? (
                         <span className="text-xs text-muted-foreground">
                           {t("popup.main.confirmTouchId")}
                         </span>
                       ) : (
-                        <span className="font-mono tracking-wider">
-                          {"••• •••"}
+                        <span className="select-all">
+                          <CodeText
+                            code={code && codeShown ? code.code : CODE_MASK}
+                          />
                         </span>
                       )}
                     </Field>
@@ -585,33 +576,58 @@ export function DetailView({
                 </Field>
               </Section>
             )}
-            {(details.modified ??
-              details.created ??
-              details.passwordModified) !== undefined && (
-              <div className="flex flex-col gap-0.5 px-1 text-xs text-muted-foreground">
-                {details.modified !== undefined && (
-                  <span>
-                    {t("popup.detail.modified", {
-                      date: formatDate(details.modified),
-                    })}
-                  </span>
-                )}
-                {details.created !== undefined && (
-                  <span>
-                    {t("popup.detail.created", {
-                      date: formatDate(details.created),
-                    })}
-                  </span>
-                )}
-                {details.passwordModified !== undefined && (
-                  <span>
-                    {t("popup.detail.passwordModified", {
-                      date: formatDate(details.passwordModified),
-                    })}
-                  </span>
-                )}
-              </div>
+            {customFields.length > 0 && (
+              <Section title={t("popup.detail.customFields")}>
+                {customFields.map((field, index) => (
+                  <CustomFieldRow
+                    // biome-ignore lint/suspicious/noArrayIndexKey: field names may repeat; their position is their identity.
+                    key={index}
+                    field={field}
+                    shown={shownFields.has(index)}
+                    onToggle={() =>
+                      setShownFields((shown) => toggled(shown, index))
+                    }
+                    copyText={copyText}
+                  />
+                ))}
+              </Section>
             )}
+            <Section title={t("popup.detail.info")}>
+              <InfoRow label={t("popup.detail.vault")}>
+                <BrandIcon kind={vault.kind} className="size-3.5 shrink-0" />
+                <span className="truncate">{vaultLabel(vault)}</span>
+              </InfoRow>
+              {details.modified !== undefined && (
+                <InfoRow label={t("popup.detail.modified")}>
+                  {formatDate(details.modified)}
+                </InfoRow>
+              )}
+              {details.created !== undefined && (
+                <InfoRow label={t("popup.detail.created")}>
+                  {formatDate(details.created)}
+                </InfoRow>
+              )}
+              {details.passwordModified !== undefined && (
+                <InfoRow label={t("popup.detail.passwordModified")}>
+                  {formatDate(details.passwordModified)}
+                </InfoRow>
+              )}
+              {pastPasswordCount > 0 && (
+                <button
+                  type="button"
+                  onClick={onPasswordHistory}
+                  className="flex min-h-10 w-full items-center gap-3 border-t px-3 py-2 text-left text-sm outline-none first:border-t-0 last:rounded-b-xl hover:bg-muted focus-visible:bg-muted"
+                >
+                  <span className="flex-1">
+                    {t("popup.detail.passwordHistory")}
+                  </span>
+                  <span className="text-muted-foreground tabular-nums">
+                    {pastPasswordCount}
+                  </span>
+                  <ChevronRightIcon className="size-4 text-muted-foreground" />
+                </button>
+              )}
+            </Section>
             {apple && (
               <Button
                 variant="outline"

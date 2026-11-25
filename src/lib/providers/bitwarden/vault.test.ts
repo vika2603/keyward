@@ -13,6 +13,7 @@ import {
   decryptDetails,
   decryptLogin,
   decryptPassword,
+  decryptPasswordHistory,
   decryptTotp,
   itemUpdateRequest,
   type LoginItem,
@@ -250,6 +251,8 @@ describe("item details", () => {
   it("decrypts the notes and reads the dates", () => {
     expect(decryptDetails(cipher, keys)).toEqual({
       notes: "first line\nsecond line",
+      customFields: [],
+      pastPasswordCount: 0,
       created: Date.parse("2026-03-01T08:00:00.000Z"),
       modified: Date.parse("2026-04-02T09:30:00.000Z"),
       passwordModified: Date.parse("2026-04-01T12:00:00.000Z"),
@@ -260,12 +263,56 @@ describe("item details", () => {
     expect(decryptTotp(cipher, keys)).toBe(totpKey)
   })
 
+  it("decrypts custom fields of each type and skips a link to a field logins do not have", () => {
+    const encrypt = (text: string) =>
+      sdk.symmetric_encrypt_string(text, userKey)
+    const withFields = {
+      ...cipher,
+      Fields: [
+        { Type: 0, Name: encrypt("Account number"), Value: encrypt("12345") },
+        { Type: 1, Name: encrypt("Recovery phrase"), Value: encrypt("a b c") },
+        { Type: 2, Name: encrypt("Work account"), Value: encrypt("true") },
+        { Type: 3, Name: encrypt("Login"), Value: null, LinkedId: 100 },
+        { Type: 3, Name: encrypt("Card number"), Value: null, LinkedId: 304 },
+      ],
+    }
+    expect(decryptDetails(withFields, keys).customFields).toEqual([
+      { kind: "text", name: "Account number", value: "12345" },
+      { kind: "hidden", name: "Recovery phrase", value: "a b c" },
+      { kind: "checkbox", name: "Work account", checked: true },
+      { kind: "linked", name: "Login", linkedTo: "username" },
+    ])
+  })
+
+  it("counts earlier passwords and decrypts them newest first", () => {
+    const withHistory = {
+      ...cipher,
+      PasswordHistory: [
+        {
+          Password: sdk.symmetric_encrypt_string("older", userKey),
+          LastUsedDate: "2026-02-01T00:00:00.000Z",
+        },
+        {
+          Password: sdk.symmetric_encrypt_string("newer", userKey),
+          LastUsedDate: "2026-03-01T00:00:00.000Z",
+        },
+      ],
+    }
+    expect(decryptDetails(withHistory, keys).pastPasswordCount).toBe(2)
+    expect(decryptPasswordHistory(withHistory, keys)).toEqual([
+      { password: "newer", replaced: Date.parse("2026-03-01T00:00:00.000Z") },
+      { password: "older", replaced: Date.parse("2026-02-01T00:00:00.000Z") },
+    ])
+  })
+
   it("reports no key and no dates for an item without them", () => {
     const bare = { Id: "item-3", Type: 1, Login: {} }
     expect(decryptLogin(bare, keys).hasTotp).toBe(false)
     expect(decryptTotp(bare, keys)).toBe("")
     expect(decryptDetails(bare, keys)).toEqual({
       notes: "",
+      customFields: [],
+      pastPasswordCount: 0,
       created: undefined,
       modified: undefined,
       passwordModified: undefined,
