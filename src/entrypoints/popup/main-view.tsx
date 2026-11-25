@@ -23,6 +23,7 @@ import {
   providerName,
   vaultLabel,
 } from "@/components/keyward/brand-icon"
+import { isUnsupportedRequest } from "@/components/keyward/errors"
 import { FADE_IN, LoginListSkeleton } from "@/components/keyward/loading"
 import { notifyError } from "@/components/keyward/notify"
 import { Button } from "@/components/ui/button"
@@ -193,9 +194,11 @@ export function MainView({
         : count,
     0,
   )
-  // The whole vault is asked for on every opening; its failure matters only where it would show.
+  // The whole vault is asked for on every opening; its failure matters only where it would show. A
+  // background without the request leaves the site's logins, which need no message.
   useEffect(() => {
-    if (browsing && everythingError) notifyError(everythingError)
+    if (browsing && everythingError && !isUnsupportedRequest(everythingError))
+      notifyError(everythingError)
   }, [browsing, everythingError])
   // Apple's helper looks logins up by site only, so a search for other text cannot reach it.
   const appleSearchHint =

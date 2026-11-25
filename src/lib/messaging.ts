@@ -84,7 +84,16 @@ export function serveRequests<Api extends ApiShape>(
     (message: unknown, sender, sendResponse) => {
       if (!isEnvelope(message)) return false
       const entry = handlers[message.type as keyof Api]
-      if (!entry) return false
+      // A page built after this background can ask for requests it does not know. Saying so, rather
+      // than not answering, lets the page do without the feature.
+      if (!entry) {
+        sendResponse({
+          ok: false,
+          error: "Unsupported request",
+          code: "unsupported",
+        } satisfies Reply<never>)
+        return false
+      }
       const kind = senderKind(sender)
       if (!kind || !entry.allow.includes(kind)) {
         sendResponse({

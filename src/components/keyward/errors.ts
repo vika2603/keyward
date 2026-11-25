@@ -13,7 +13,8 @@ const MESSAGES: Record<string, MessageKey> = {
   notWebPage: "error.notWebPage",
   fillDisabled: "error.fillDisabled",
   pageChanged: "error.pageChanged",
-  noResponse: "error.noResponse",
+  noResponse: "error.unsupported",
+  unsupported: "error.unsupported",
   noCode: "error.noCode",
   invalidCodeKey: "error.invalidCodeKey",
   noSetup: "error.noSetup",
@@ -57,4 +58,13 @@ export function errorMessage(error: unknown): string | null {
 
 export function errorCodeOf(error: unknown): string | null {
   return error instanceof RequestError ? error.code : null
+}
+
+/**
+ * Whether the background lacks the request, as one still running code from before an update does.
+ * Backgrounds built before `unsupported` existed leave such requests unanswered.
+ */
+export function isUnsupportedRequest(error: unknown): boolean {
+  const code = errorCodeOf(error)
+  return code === "unsupported" || code === "noResponse"
 }

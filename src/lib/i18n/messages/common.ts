@@ -19,10 +19,9 @@ export const en = {
   "error.notWebPage": "This page is not a web page.",
   "error.fillDisabled": "Filling is not allowed on this page.",
   "error.pageChanged": "The page changed, so nothing was filled.",
-  "error.noResponse": "Keyward's background isn't responding",
-  "error.noResponse.reloadHint":
-    "Reload Keyward to fix it, then pair and unlock again.",
-  "error.noResponse.reload": "Reload",
+  "error.unsupported": "This isn't available yet",
+  "error.unsupported.detail":
+    "Keyward's background still runs the version from before the update. This works once Keyward starts again, such as after restarting the browser; everything else works now.",
   "common.close": "Close",
   "error.noCode": "This login has no verification code.",
   "error.invalidCodeKey": "The saved authenticator key can't be read.",
@@ -98,9 +97,9 @@ export const zhCN: Record<keyof typeof en, string> = {
   "error.notWebPage": "当前页面不是网页。",
   "error.fillDisabled": "这个页面不允许填充。",
   "error.pageChanged": "页面已经变化，没有填入。",
-  "error.noResponse": "Keyward 后台没有响应",
-  "error.noResponse.reloadHint": "重新加载即可恢复，之后要重新配对和解锁。",
-  "error.noResponse.reload": "重新加载",
+  "error.unsupported": "这项功能暂时不能用",
+  "error.unsupported.detail":
+    "Keyward 的后台还在运行更新前的版本。Keyward 下次启动后（比如重启浏览器）就能用，其他功能现在照常可用。",
   "common.close": "关闭",
   "error.noCode": "这个登录没有验证码。",
   "error.invalidCodeKey": "无法读取保存的验证器密钥。",

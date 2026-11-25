@@ -1,6 +1,6 @@
 import { toast } from "@/components/ui/toast"
 import { t } from "@/lib/i18n"
-import { errorCodeOf, errorMessage } from "./errors"
+import { errorMessage, isUnsupportedRequest } from "./errors"
 
 /** Shows a short message at the bottom of the view; the same message shown again replaces it. */
 export function notify(text: string, type: "error" | "info" = "info"): void {
@@ -8,21 +8,17 @@ export function notify(text: string, type: "error" | "info" = "info"): void {
 }
 
 /**
- * Shows an error as a toast. A background that does not answer most often runs older code than
- * the page, as after a rebuild without a reload, so its toast offers to reload Keyward.
+ * Shows an error as a toast. A request the background lacks gets an explanation rather than an
+ * error: reloading Keyward would end the Passwords pairing and lock Bitwarden, so the feature
+ * waits for Keyward's next start.
  */
 export function notifyError(error: unknown): void {
-  if (errorCodeOf(error) === "noResponse") {
+  if (isUnsupportedRequest(error)) {
     toast.add({
-      id: "noResponse",
-      type: "error",
-      title: t("error.noResponse"),
-      description: t("error.noResponse.reloadHint"),
-      timeout: 0,
-      actionProps: {
-        children: t("error.noResponse.reload"),
-        onClick: () => browser.runtime.reload(),
-      },
+      id: "unsupported",
+      type: "info",
+      title: t("error.unsupported"),
+      description: t("error.unsupported.detail"),
     })
     return
   }
