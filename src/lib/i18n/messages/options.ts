@@ -146,7 +146,8 @@ export const en = {
     "Keyboard shortcuts are managed by the browser. The keys currently in effect are shown here.",
   "options.keys.shortcuts.notSet": "Not set",
   "options.keys.command.openPopup": "Open popup",
-  "options.keys.command.fillFirst": "Fill the first match for the current site",
+  "options.keys.command.fillFirst":
+    "Fill a login for the current site; press again for the next",
   "options.keys.command.openGenerator": "Open generator",
   "options.keys.command.lockAll": "Lock all vaults",
   "options.keys.appearance.title": "Appearance",
@@ -360,7 +361,7 @@ export const zhCN: Record<keyof typeof en, string> = {
     "快捷键由浏览器管理，这里显示当前生效的按键。",
   "options.keys.shortcuts.notSet": "未设置",
   "options.keys.command.openPopup": "打开弹窗",
-  "options.keys.command.fillFirst": "填充当前站点的第一个匹配",
+  "options.keys.command.fillFirst": "填充当前站点的登录，再按一次换下一个",
   "options.keys.command.openGenerator": "打开生成器",
   "options.keys.command.lockAll": "锁定全部密码库",
   "options.keys.appearance.title": "外观",

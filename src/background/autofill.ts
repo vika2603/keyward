@@ -199,9 +199,69 @@ export async function hasCodes(
   return views.some((view) => view.logins.length > 0)
 }
 
+/** The fill shortcut's last press, so the next press on the same page fills the next login. */
+const FILL_CYCLE_KEY = "autofill.cycle"
 /**
- * Fills the first matching login into the frame with the focused login field, else the top frame.
- * "noLogin" means the page has a login field but no ready vault has a login for it.
+ * Presses further apart than this start again from the first login, so coming back to a login
+ * page later does not pick up where an earlier visit left off. Keyward's choice.
+ */
+const FILL_CYCLE_MS = 30_000
+
+interface FillCycle {
+  tabId: number
+  /** The page's origin and path; another page starts again. */
+  page: string
+  /** The logins in the order the first press found them, as `vaultId|loginId`. */
+  order: string[]
+  /** The position in `order` of the login filled last. */
+  index: number
+  at: number
+}
+
+function cycleKeyOf(vaultId: string, loginId: string): string {
+  return JSON.stringify([vaultId, loginId])
+}
+
+/**
+ * The login the shortcut fills: the first one, or the one after the last press's while the same
+ * page is pressed again soon. The order is kept from the first press, as filling one login moves
+ * it to the front of later lists.
+ */
+async function nextInCycle(
+  tabId: number,
+  page: URL,
+  available: string[],
+): Promise<string | undefined> {
+  const pageKey = `${page.origin}${page.pathname}`
+  const stored = (await browser.storage.session.get(FILL_CYCLE_KEY))[
+    FILL_CYCLE_KEY
+  ] as FillCycle | undefined
+  const now = Date.now()
+  const continues =
+    stored &&
+    stored.tabId === tabId &&
+    stored.page === pageKey &&
+    now - stored.at < FILL_CYCLE_MS
+  const order = continues
+    ? [
+        ...stored.order.filter((key) => available.includes(key)),
+        ...available.filter((key) => !stored.order.includes(key)),
+      ]
+    : available
+  const last = continues ? order.indexOf(stored.order[stored.index] ?? "") : -1
+  const index = order.length ? (last + 1) % order.length : 0
+  const next = order[index]
+  if (next !== undefined) {
+    const cycle: FillCycle = { tabId, page: pageKey, order, index, at: now }
+    await browser.storage.session.set({ [FILL_CYCLE_KEY]: cycle })
+  }
+  return next
+}
+
+/**
+ * Fills a matching login into the frame with the focused login field, else the top frame: the
+ * first one, and on each further press soon after, the next. "noLogin" means the page has a login
+ * field but no ready vault has a login for it.
  */
 export async function fillFirst(
   providers: Providers,
@@ -234,12 +294,12 @@ export async function fillFirst(
     await providers.loginsForPage(page),
     await recallUsername(tabId, siteDomainOf(page.hostname)),
   )
-  for (const view of views) {
-    const login = view.logins[0]
-    if (login) {
-      await fillLogin(providers, tabId, target.frameId, view.id, login.id)
-      return "filled"
-    }
-  }
-  return "noLogin"
+  const available = views.flatMap((view) =>
+    view.logins.map((login) => cycleKeyOf(view.id, login.id)),
+  )
+  const next = await nextInCycle(tabId, page, available)
+  if (next === undefined) return "noLogin"
+  const [vaultId, loginId] = JSON.parse(next) as [string, string]
+  await fillLogin(providers, tabId, target.frameId, vaultId, loginId)
+  return "filled"
 }

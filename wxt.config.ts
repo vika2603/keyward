@@ -48,7 +48,8 @@ export default defineConfig({
       },
       "fill-first": {
         suggested_key: { default: "Ctrl+Shift+U", mac: "MacCtrl+Shift+U" },
-        description: "Fill the first login for the current site",
+        description:
+          "Fill a login for the current site; press again for the next",
       },
       "open-generator": {
         suggested_key: { default: "Ctrl+Shift+G", mac: "MacCtrl+Shift+G" },

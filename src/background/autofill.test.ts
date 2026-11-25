@@ -197,6 +197,45 @@ describe("fillFirst", () => {
     )
   })
 
+  it("fills the next login on each further press, and starts over after a while", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] })
+    try {
+      const second = { id: "item-2", username: "another", title: "Example" }
+      const third = { id: "item-3", username: "third", title: "Example" }
+      const { providers, calls } = fakeProviders([
+        { info: accountVault, credential, logins: [login, second, third] },
+      ])
+      const filled: string[] = []
+      calls.credential.mockImplementation(async (_vault, loginId) => {
+        filled.push(loginId)
+        return credential
+      })
+      for (let press = 0; press < 4; press++) {
+        await fillFirst(providers)
+        vi.advanceTimersByTime(2_000)
+      }
+      vi.advanceTimersByTime(60_000)
+      await fillFirst(providers)
+      expect(filled).toEqual(["item-1", "item-2", "item-3", "item-1", "item-1"])
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it("starts over on another page of the tab", async () => {
+    const second = { id: "item-2", username: "another", title: "Example" }
+    const { providers, calls } = fakeProviders([
+      { info: accountVault, credential, logins: [login, second] },
+    ])
+    await fillFirst(providers)
+    setFrame(TAB, 0, "https://accounts.example.com/other")
+    await fillFirst(providers)
+    expect(calls.credential.mock.calls.map((call) => call[1])).toEqual([
+      "item-1",
+      "item-1",
+    ])
+  })
+
   it("reports a login field with nothing to fill when the vaults are locked", async () => {
     const { providers } = fakeProviders([
       {
