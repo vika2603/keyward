@@ -18,9 +18,14 @@ export function stubLayout(): void {
   vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue(
     new DOMRect(10, 10, 200, 32),
   )
-  const style = document.createElement("style")
-  style.textContent = "* { opacity: 1 }"
-  document.head.append(style)
+  const computedStyle = globalThis.getComputedStyle
+  vi.spyOn(globalThis, "getComputedStyle").mockImplementation(
+    (element, pseudoElement) =>
+      new Proxy(computedStyle(element, pseudoElement), {
+        get: (style, key) =>
+          key === "opacity" ? style.opacity || "1" : Reflect.get(style, key),
+      }),
+  )
   // The global Document and ShadowRoot are not the classes of happy-dom's nodes.
   const shadowRoot = document
     .createElement("div")
@@ -61,12 +66,19 @@ const ACTIVE_CONFIG: ContentConfig = {
  * Runs the content script in the current document with a background that turns it on. Returns the
  * requests it made and a way to send it the background's messages.
  */
-export async function startContentScript(config: Partial<ContentConfig> = {}) {
+export async function startContentScript({
+  config = {},
+  hasCodes = false,
+}: {
+  config?: Partial<ContentConfig>
+  /** Whether a vault has one-time codes for the page. */
+  hasCodes?: boolean
+} = {}) {
   const requests: Request[] = []
   const replies: Partial<Record<keyof BackgroundApi, unknown>> = {
     "content.init": { ...ACTIVE_CONFIG, ...config },
     "content.openMenu": { token: "menu-token" },
-    "content.hasCodes": false,
+    "content.hasCodes": hasCodes,
   }
   fakeBrowser.runtime.onMessage.addListener(
     (message, _sender, sendResponse: (response: unknown) => void) => {
