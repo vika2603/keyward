@@ -17,15 +17,15 @@ import type { ItemGrouping } from "@/lib/providers/types"
 
 /** The account's own vault, as an owner beside its organizations. */
 const MY_VAULT = "mine"
-/** Items in no folder, as a folder. */
-const NO_FOLDER = "none"
+/** No folder, as a choice among the folders: for items in none, or a new login put in none. */
+export const NO_FOLDER = "none"
 const ALL = "all"
 
 /**
  * A narrowing of one account's items to an owner, a folder and a collection, as Bitwarden's own
  * filters do; organizations, folders and collections are each account's own.
  */
-export interface GroupFilter {
+interface GroupFilter {
   /** MY_VAULT or an organization ID. */
   owner: string | null
   /** A folder ID or NO_FOLDER. */
@@ -33,7 +33,7 @@ export interface GroupFilter {
   collection: string | null
 }
 
-export const NO_GROUP_FILTER: GroupFilter = {
+const NO_GROUP_FILTER: GroupFilter = {
   owner: null,
   folder: null,
   collection: null,

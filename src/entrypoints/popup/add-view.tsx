@@ -30,9 +30,11 @@ import type {
 import { CodeKeyInput } from "./code-key-input"
 import { CustomFieldsEditor } from "./custom-fields-editor"
 import { BackHeader } from "./header"
+import { NO_FOLDER } from "./main/group-filter"
 import { NoteForm } from "./note-form"
 
-const NO_FOLDER = "none"
+/** The places that can store a login are asked for once typing in the site pauses this long. */
+const SITE_TYPING_DELAY_MS = 200
 
 /**
  * The fields of a new login beyond its site, username and password, for a vault that keeps them:
@@ -172,7 +174,7 @@ function AddLoginForm({ onDone }: { onDone: () => void }) {
             setUnsupported(result.unsupported)
             setTargetsError(null)
             setTarget((current) =>
-              result.targets.some((t) => t.id === current)
+              result.targets.some((candidate) => candidate.id === current)
                 ? current
                 : result.defaultTarget,
             )
@@ -187,7 +189,7 @@ function AddLoginForm({ onDone }: { onDone: () => void }) {
           },
         ),
       // The first request runs at once; later ones wait for typing to pause.
-      id === 1 ? 0 : 200,
+      id === 1 ? 0 : SITE_TYPING_DELAY_MS,
     )
     return () => clearTimeout(timer)
   }, [site])
@@ -215,7 +217,7 @@ function AddLoginForm({ onDone }: { onDone: () => void }) {
     })
   }
 
-  const targetKind = targets?.find((t) => t.id === target)?.kind
+  const targetKind = targets?.find((candidate) => candidate.id === target)?.kind
   const apple = targetKind === "apple"
   const bitwarden = targetKind === "bitwarden"
 

@@ -14,10 +14,8 @@ import {
 } from "@/hooks/use-transient-value"
 import type { GeneratorKind } from "@/lib/generator"
 import { type MessageKey, t } from "@/lib/i18n"
+import { SECRET_MASK } from "./detail/detail-parts"
 import { BackHeader } from "./header"
-
-/** Fixed length, so the mask does not reveal how long a password is. */
-const MASK = "••••••••••••"
 
 const COPY_LABELS: Record<GeneratorKind, MessageKey> = {
   password: "popup.history.copyPassword",
@@ -149,7 +147,7 @@ export function HistoryView({ onBack }: { onBack: () => void }) {
                     data-entry={visible ? entry.id : undefined}
                     className="truncate font-mono text-sm font-medium select-all"
                   >
-                    {visible ? entry.value : MASK}
+                    {visible ? entry.value : SECRET_MASK}
                   </span>
                   <span className="truncate text-xs text-muted-foreground">
                     {[entry.host, whenText(entry.at)]

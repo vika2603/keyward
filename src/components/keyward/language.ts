@@ -7,14 +7,14 @@ import { getSettings, settingsItem } from "@/lib/settings"
  * that, so text never shows in the wrong language first.
  */
 export function useLanguage(): Language | null {
-  const [language, setState] = useState<Language | null>(null)
+  const [language, setAppliedLanguage] = useState<Language | null>(null)
 
   useEffect(() => {
     const apply = (setting: Parameters<typeof resolveLanguage>[0]) => {
       const next = resolveLanguage(setting)
       setLanguage(next)
       document.documentElement.lang = next
-      setState(next)
+      setAppliedLanguage(next)
     }
     void getSettings().then((settings) => apply(settings.language))
     return settingsItem.watch((next) => {

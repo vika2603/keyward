@@ -22,10 +22,10 @@ import type { CustomField } from "@/lib/providers/types"
 import { cn } from "@/lib/utils"
 
 /** Shown in place of a secret that is not revealed; it does not tell the secret's length. */
-const MASK = "••••••••••••"
+export const SECRET_MASK = "••••••••••••"
 
 export function MaskText() {
-  return <span className="font-mono tracking-wider">{MASK}</span>
+  return <span className="font-mono tracking-wider">{SECRET_MASK}</span>
 }
 
 function charClass(char: string): string | undefined {
@@ -253,7 +253,6 @@ export function RepromptForm({
   )
 }
 
-/** The eye button that shows or hides a secret. */
 export function RevealButton({
   shown,
   showLabel,

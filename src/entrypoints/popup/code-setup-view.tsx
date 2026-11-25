@@ -123,8 +123,9 @@ export function CodeSetupView({
                 : t("popup.codeSetup.add")}
           </Button>
         </div>
+        {/* Lined up with the login's name: past the icon (size-8) and the gap after it (2.5). */}
         {confirmingChoiceId === id && (
-          <p className="pb-1 pl-[42px] text-xs text-muted-foreground">
+          <p className="pb-1 pl-10.5 text-xs text-muted-foreground">
             {t("popup.codeSetup.replaceHint")}
           </p>
         )}

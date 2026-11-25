@@ -127,8 +127,8 @@ export function EditView({
   const setWebsite = (index: number, change: Partial<Website>) =>
     form &&
     update({
-      uris: form.uris.map((website, i) =>
-        i === index ? { ...website, ...change } : website,
+      uris: form.uris.map((website, position) =>
+        position === index ? { ...website, ...change } : website,
       ),
     })
 
@@ -253,7 +253,9 @@ export function EditView({
                         title={t("popup.edit.removeWebsite")}
                         onClick={() =>
                           update({
-                            uris: form.uris.filter((_, i) => i !== index),
+                            uris: form.uris.filter(
+                              (_, position) => position !== index,
+                            ),
                           })
                         }
                       >

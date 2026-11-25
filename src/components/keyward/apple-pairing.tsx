@@ -17,6 +17,10 @@ import type { AppleState } from "@/lib/providers/apple/apple-provider"
 import { errorCodeOf, errorMessage } from "./errors"
 import { FormError } from "./form-field"
 
+/** The digits of the code the Mac shows. */
+const CODE_LENGTH = 6
+const CODE_SLOTS = Array.from({ length: CODE_LENGTH }, (_, slot) => slot)
+
 /**
  * Pairs with Apple Passwords: the helper shows a six-digit code on the Mac, which the user types
  * here. A wrong code ends the attempt, so one new attempt starts and the Mac shows a new code.
@@ -27,7 +31,7 @@ export function ApplePairing({ onPaired }: { onPaired: () => void }) {
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
   const started = useRef(false)
-  const input = useRef<HTMLInputElement>(null)
+  const codeInputRef = useRef<HTMLInputElement>(null)
 
   const start = async (restart: boolean) => {
     setBusy(true)
@@ -85,14 +89,14 @@ export function ApplePairing({ onPaired }: { onPaired: () => void }) {
 
   // The field is disabled until the Mac shows a code, so focusing it on mount would do nothing.
   useEffect(() => {
-    if (ready) input.current?.focus()
+    if (ready) codeInputRef.current?.focus()
   }, [ready])
 
   // The Mac's code window can take the keyboard from the browser. When the popup gets it back, from
   // a click anywhere but on another control or from switching back, the code goes into the field.
   useEffect(() => {
     if (!ready) return
-    const focusCode = () => input.current?.focus()
+    const focusCode = () => codeInputRef.current?.focus()
     const onMouseDown = (event: MouseEvent) => {
       if (
         event.target instanceof Element &&
@@ -130,8 +134,8 @@ export function ApplePairing({ onPaired }: { onPaired: () => void }) {
         </p>
       </div>
       <InputOTP
-        ref={input}
-        maxLength={6}
+        ref={codeInputRef}
+        maxLength={CODE_LENGTH}
         pattern={REGEXP_ONLY_DIGITS}
         value={code}
         onChange={setCode}
@@ -141,10 +145,10 @@ export function ApplePairing({ onPaired }: { onPaired: () => void }) {
         aria-label={t("pairing.codeLabel")}
       >
         <InputOTPGroup>
-          {[0, 1, 2, 3, 4, 5].map((index) => (
+          {CODE_SLOTS.map((slot) => (
             <InputOTPSlot
-              key={index}
-              index={index}
+              key={slot}
+              index={slot}
               className="size-10 text-base font-medium"
             />
           ))}

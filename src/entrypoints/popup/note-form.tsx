@@ -22,7 +22,7 @@ import { CustomFieldsEditor } from "./custom-fields-editor"
 const EMPTY_NOTE: EditableNote = { name: "", text: "", customFields: [] }
 
 /** What the form works on: an existing note, or a new one saved to one of `targets`. */
-export type NoteFormTarget =
+type NoteFormTarget =
   | { mode: "edit"; vault: VaultInfo; note: NoteSummary }
   | { mode: "create"; targets: VaultInfo[] }
 

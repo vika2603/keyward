@@ -13,16 +13,16 @@ import { type MessageKey, t } from "@/lib/i18n"
 import type { CustomField } from "@/lib/providers/types"
 import { SecretInput } from "./secret-input"
 
-type FieldKind = CustomField["kind"]
+type CustomFieldKind = CustomField["kind"]
 type LinkTarget = Extract<CustomField, { kind: "linked" }>["linkedTo"]
 
-const KIND_LABELS: Record<FieldKind, MessageKey> = {
+const KIND_LABELS: Record<CustomFieldKind, MessageKey> = {
   text: "popup.edit.fieldKind.text",
   hidden: "popup.edit.fieldKind.hidden",
   checkbox: "popup.edit.fieldKind.checkbox",
   linked: "popup.edit.fieldKind.linked",
 }
-const KINDS = Object.keys(KIND_LABELS) as FieldKind[]
+const KINDS = Object.keys(KIND_LABELS) as CustomFieldKind[]
 
 const LINK_LABELS: Record<LinkTarget, MessageKey> = {
   username: "popup.detail.username",
@@ -31,7 +31,7 @@ const LINK_LABELS: Record<LinkTarget, MessageKey> = {
 const LINK_TARGETS = Object.keys(LINK_LABELS) as LinkTarget[]
 
 /** The field turned into another kind; a value carries over between text and hidden fields. */
-function withKind(field: CustomField, kind: FieldKind): CustomField {
+function withKind(field: CustomField, kind: CustomFieldKind): CustomField {
   const value =
     field.kind === "text" || field.kind === "hidden" ? field.value : ""
   switch (kind) {
@@ -109,7 +109,9 @@ function CustomFieldEditor({
         />
         <Select
           value={field.kind}
-          onValueChange={(kind) => onChange(withKind(field, kind as FieldKind))}
+          onValueChange={(kind) =>
+            onChange(withKind(field, kind as CustomFieldKind))
+          }
           items={KINDS.map((kind) => ({
             value: kind,
             label: t(KIND_LABELS[kind]),

@@ -52,7 +52,7 @@ type ItemRow =
   | { type: "note"; vault: VaultView; note: NoteSummary; name: string }
   | { type: "trashed"; vault: VaultView; item: TrashedItem; name: string }
 
-export type Row =
+type ListRow =
   | ItemRow
   /** An account's heading when several are listed; its items follow it while it is open. */
   | { type: "vault"; vault: VaultView; count: number; open: boolean }
@@ -93,8 +93,8 @@ function rowsOf(
   foldedVaults: ReadonlySet<string>,
   /** Accounts whose group filter pickers are shown. */
   filtersShown: readonly string[],
-): { rows: Row[]; itemCount: number } {
-  const rows: Row[] = []
+): { rows: ListRow[]; itemCount: number } {
+  const rows: ListRow[] = []
   let itemCount = 0
   for (const vault of vaults) {
     const logins: ItemRow[] =
@@ -154,7 +154,7 @@ function rowsOf(
 }
 
 /** A vault's logins, then its notes, in the order the background listed them. */
-export function rowsOfVault(vault: VaultView): Row[] {
+export function rowsOfVault(vault: VaultView): ListRow[] {
   const logins: ItemRow[] = vault.logins.map((login) => ({
     type: "login",
     vault,
@@ -170,7 +170,7 @@ export function rowsOfVault(vault: VaultView): Row[] {
   return [...logins, ...notes]
 }
 
-function keyOf(row: Row): string {
+function keyOf(row: ListRow): string {
   switch (row.type) {
     case "vault":
       return `vault:${row.vault.id}`
@@ -200,7 +200,7 @@ export function VirtualRows({
   onOpenNote,
   onChanged,
 }: {
-  rows: readonly Row[]
+  rows: readonly ListRow[]
   density: Settings["density"]
   /** The element that scrolls the rows. */
   scrollElement: RefObject<HTMLDivElement | null>

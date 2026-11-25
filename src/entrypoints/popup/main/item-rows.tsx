@@ -165,7 +165,6 @@ export function NoteRow({
         notify(t("popup.note.withheld"))
         return
       }
-      // An empty note has nothing to copy.
       if (!details.text) return
       await callBackground("popup.copyText", {
         text: details.text,
