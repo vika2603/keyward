@@ -12,6 +12,7 @@ import {
   type RefObject,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -44,11 +45,38 @@ import type {
 import type { Settings } from "@/lib/settings"
 import { cn } from "@/lib/utils"
 import type { View } from "./App"
-import { ItemBrowser, rowsOfVault, VirtualRows } from "./all-items"
+import {
+  ItemBrowser,
+  type ItemFilter,
+  rowsOfVault,
+  VirtualRows,
+} from "./all-items"
 import { ConnectCard, LockedVaultCard } from "./connect-card"
 import { openOptions, SettingsButton } from "./header"
 
 type Filter = "all" | ProviderKind
+
+/**
+ * Where the main list was left. The popup keeps one for as long as it is open and the main view
+ * writes to it as the user moves, so coming back from an item finds the list as it was.
+ */
+export interface ListPlace {
+  tab: Filter
+  /** The list filter the user chose, or null while the site decides it. */
+  itemFilter: ItemFilter | null
+  /** Vaults whose logins for the site were folded. */
+  foldedSiteVaults: ReadonlySet<string>
+  scrollTop: number
+}
+
+export function newListPlace(): ListPlace {
+  return {
+    tab: "all",
+    itemFilter: null,
+    foldedSiteVaults: new Set(),
+    scrollTop: 0,
+  }
+}
 
 /** A search waits for typing to pause this long. */
 const SEARCH_DELAY_MS = 150
@@ -57,12 +85,14 @@ export function MainView({
   density,
   query,
   onQuery,
+  place,
   onNavigate,
 }: {
   density: Settings["density"]
   /** Searches the whole vault while not empty; the page's logins show otherwise. */
   query: string
   onQuery: (query: string) => void
+  place: ListPlace
   onNavigate: (view: View) => void
 }) {
   const [state, setState] = useState<{
@@ -76,7 +106,26 @@ export function MainView({
   const [everythingError, setEverythingError] = useState<unknown>(null)
   /** Changes after a lock, so the search runs again. */
   const [version, setVersion] = useState(0)
-  const [filter, setFilter] = useState<Filter>("all")
+  const [filter, setFilter] = useState<Filter>(place.tab)
+  const [itemFilter, setItemFilter] = useState(place.itemFilter)
+  const [foldedSiteVaults, setFoldedSiteVaults] = useState(
+    place.foldedSiteVaults,
+  )
+  const changeTab = (next: Filter) => {
+    place.tab = next
+    setFilter(next)
+  }
+  const chooseItemFilter = (next: ItemFilter) => {
+    place.itemFilter = next
+    setItemFilter(next)
+  }
+  const foldSiteVault = (vaultId: string, open: boolean) => {
+    const next = new Set(foldedSiteVaults)
+    if (open) next.delete(vaultId)
+    else next.add(vaultId)
+    place.foldedSiteVaults = next
+    setFoldedSiteVaults(next)
+  }
   /** A list request failed; its toast says why, and the list stops waiting for it. */
   const [failed, setFailed] = useState(false)
   const searchRef = useRef<HTMLInputElement>(null)
@@ -200,6 +249,18 @@ export function MainView({
     if (browsing && everythingError && !isUnsupportedRequest(everythingError))
       notifyError(everythingError)
   }, [browsing, everythingError])
+  const listReady = !(
+    loading ||
+    (search && results === null) ||
+    waitingForItems
+  )
+  // Once the list is drawn the first time, it scrolls back to where it was left.
+  const scrollRestored = useRef(false)
+  useLayoutEffect(() => {
+    if (!listReady || scrollRestored.current) return
+    scrollRestored.current = true
+    if (listRef.current) listRef.current.scrollTop = place.scrollTop
+  }, [listReady, place])
   // Apple's helper looks logins up by site only, so a search for other text cannot reach it.
   const appleSearchHint =
     search !== "" &&
@@ -293,7 +354,7 @@ export function MainView({
         <div className="px-2 pb-2">
           <Tabs
             value={filter}
-            onValueChange={(value) => setFilter(value as Filter)}
+            onValueChange={(value) => changeTab(value as Filter)}
           >
             <TabsList className="w-full">
               <TabsTrigger value="all">{t("popup.main.all")}</TabsTrigger>
@@ -312,6 +373,9 @@ export function MainView({
       <div
         ref={listRef}
         className="min-h-0 flex-1 overflow-y-auto pb-1"
+        onScroll={(event) => {
+          place.scrollTop = event.currentTarget.scrollTop
+        }}
         onKeyDown={(event) => {
           if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return
           const list = rows()
@@ -323,7 +387,7 @@ export function MainView({
           else list[Math.min(next, list.length - 1)]?.focus()
         }}
       >
-        {loading || (search && results === null) || waitingForItems ? (
+        {!listReady ? (
           !failed && <LoginListSkeleton compact={density === "compact"} />
         ) : !vaults.length ? (
           <EmptyState icon text={t("popup.main.noVault")}>
@@ -348,6 +412,8 @@ export function MainView({
               vaults={browsed}
               host={page?.host ?? null}
               siteItemCount={siteItemCount}
+              chosen={itemFilter}
+              onChoose={chooseItemFilter}
               site={
                 listed.length ? (
                   listed.map((vault) => (
@@ -356,6 +422,8 @@ export function MainView({
                       vault={vault}
                       density={density}
                       scrollElement={listRef}
+                      open={!foldedSiteVaults.has(vault.id)}
+                      onOpenChange={(open) => foldSiteVault(vault.id, open)}
                       onLocked={load}
                       onOpen={(login) =>
                         onNavigate({ name: "detail", vault, login })
@@ -419,6 +487,8 @@ export function MainView({
                 vault={vault}
                 density={density}
                 scrollElement={listRef}
+                open={!foldedSiteVaults.has(vault.id)}
+                onOpenChange={(open) => foldSiteVault(vault.id, open)}
                 onLocked={load}
                 onOpen={(login) => onNavigate({ name: "detail", vault, login })}
                 onOpenNote={(note) => onNavigate({ name: "note", vault, note })}
@@ -473,6 +543,8 @@ function VaultGroup({
   vault,
   density,
   scrollElement,
+  open,
+  onOpenChange,
   onLocked,
   onOpen,
   onOpenNote,
@@ -481,11 +553,12 @@ function VaultGroup({
   density: Settings["density"]
   /** The list area, which scrolls the group's rows. */
   scrollElement: RefObject<HTMLDivElement | null>
+  open: boolean
+  onOpenChange: (open: boolean) => void
   onLocked: () => void
   onOpen: (login: LoginSummary) => void
   onOpenNote: (note: NoteSummary) => void
 }) {
-  const [open, setOpen] = useState(true)
   const rows = useMemo(() => rowsOfVault(vault), [vault])
 
   const lock = async () => {
@@ -514,7 +587,7 @@ function VaultGroup({
   }
 
   return (
-    <Collapsible open={open} onOpenChange={setOpen} render={<section />}>
+    <Collapsible open={open} onOpenChange={onOpenChange} render={<section />}>
       {/* The chevron stays last and the lock, which every group has, next to it, so both line up
           across groups; the Apple group's extra button sits further left. */}
       <h2 className="flex items-center gap-0.5 pt-1.5 pr-1.5">

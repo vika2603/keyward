@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { callBackground, type PopupView } from "@/background/api"
 import { useAppearance } from "@/components/keyward/appearance"
 import { useLanguage } from "@/components/keyward/language"
@@ -17,7 +17,7 @@ import { EditView } from "./edit-view"
 import { GeneratorView } from "./generator-view"
 import { BackHeader } from "./header"
 import { HistoryView } from "./history-view"
-import { MainView } from "./main-view"
+import { MainView, newListPlace } from "./main-view"
 import { NoteForm } from "./note-form"
 import { NoteView } from "./note-view"
 import { PasswordHistoryView } from "./password-history-view"
@@ -43,6 +43,8 @@ export function App() {
   const [view, setView] = useState<View | null>(null)
   /** The main view's search, kept while a found login's details are open. */
   const [query, setQuery] = useState("")
+  /** Where the main list was left, kept the same way. */
+  const listPlace = useRef(newListPlace())
 
   useEffect(() => {
     void initialView.then(setView)
@@ -60,6 +62,7 @@ export function App() {
             density={density}
             query={query}
             onQuery={setQuery}
+            place={listPlace.current}
             onNavigate={setView}
           />
         )}

@@ -27,7 +27,7 @@ import { LoginRow, NoteRow } from "./item-rows"
 
 type ItemKind = "all" | "logins" | "notes"
 /** What the list shows: the site's items, or every item of a kind. */
-type ItemFilter = "site" | ItemKind
+export type ItemFilter = "site" | ItemKind
 
 const KIND_LABELS: Record<ItemKind, MessageKey> = {
   all: "popup.main.itemKind.all",
@@ -278,6 +278,8 @@ export function ItemBrowser({
   vaults,
   host,
   siteItemCount,
+  chosen,
+  onChoose,
   site,
   density,
   scrollElement,
@@ -288,6 +290,9 @@ export function ItemBrowser({
   /** The page's host; the filter offers the site's items only when there is one. */
   host: string | null
   siteItemCount: number
+  /** The filter the user chose; until there is one, the site's items if it has any, else every item. */
+  chosen: ItemFilter | null
+  onChoose: (filter: ItemFilter) => void
   /** The site's items, shown while the filter is on them. */
   site: ReactNode
   density: Settings["density"]
@@ -301,8 +306,6 @@ export function ItemBrowser({
     "all",
     ...(hasNotes ? (["logins", "notes"] as const) : []),
   ]
-  /** The user's choice; until there is one, the site's items if it has any, every item otherwise. */
-  const [chosen, setChosen] = useState<ItemFilter | null>(null)
   const filter =
     chosen && filters.includes(chosen)
       ? chosen
@@ -335,7 +338,7 @@ export function ItemBrowser({
         {filters.length > 1 ? (
           <Select
             value={filter}
-            onValueChange={(value) => setChosen(value as ItemFilter)}
+            onValueChange={(value) => onChoose(value as ItemFilter)}
             items={filters.map((value) => ({ value, label: labelOf(value) }))}
           >
             <SelectTrigger
