@@ -6,7 +6,7 @@ import {
   siteDomainOf,
 } from "./site"
 
-export interface MatchOptions {
+interface MatchOptions {
   defaultMatch: MatchType
   equivalentDomains: string[][]
 }

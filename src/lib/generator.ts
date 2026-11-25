@@ -134,7 +134,7 @@ function clampedInteger(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, Math.round(value)))
 }
 
-export function symbolChars(symbolSet: string): string[] {
+function symbolChars(symbolSet: string): string[] {
   return [...new Set([...symbolSet.replace(/\s/g, "")])]
 }
 

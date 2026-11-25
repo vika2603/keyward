@@ -15,12 +15,12 @@ interface Waiter {
   timer: ReturnType<typeof setTimeout> | undefined
 }
 
-export class HelperDisconnectedError extends Error {}
-export class HelperTimeoutError extends Error {}
+class HelperDisconnectedError extends Error {}
+class HelperTimeoutError extends Error {}
 /** A newer request waiting for the same reply replaced this one. */
 export class SupersededError extends Error {}
 
-export interface RequestOptions {
+interface RequestOptions {
   /** null waits without limit, for replies that follow a system prompt. */
   timeoutMs: number | null
   /** The command number of the reply when it differs from the request's. */
