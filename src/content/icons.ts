@@ -60,13 +60,13 @@ button:hover, button[aria-expanded="true"] {
  */
 function coveringElement(
   field: HTMLInputElement,
-  x: number,
-  y: number,
+  pointX: number,
+  pointY: number,
   ignore: Element,
 ): Element | null {
   const root = field.getRootNode() as Document | ShadowRoot
   const fieldRect = field.getBoundingClientRect()
-  for (const element of root.elementsFromPoint(x, y)) {
+  for (const element of root.elementsFromPoint(pointX, pointY)) {
     if (element === field || element.contains(field)) return null
     if (element === ignore) continue
     let outer = element
@@ -189,11 +189,11 @@ export class FieldIcons {
   /** The right edge for the icon: inside the field, left of page controls drawn over its end. */
   private freeRight(field: HTMLInputElement, rect: DOMRect): number {
     let right = rect.right - INSET
-    const y = rect.top + rect.height / 2
+    const middleY = rect.top + rect.height / 2
     for (let step = 0; step < MAX_COVERS; step++) {
-      const x = right - SIZE / 2
-      if (x < rect.left + rect.width / 2) break
-      const cover = coveringElement(field, x, y, this.host)
+      const iconMiddleX = right - SIZE / 2
+      if (iconMiddleX < rect.left + rect.width / 2) break
+      const cover = coveringElement(field, iconMiddleX, middleY, this.host)
       if (!cover) break
       right = Math.min(right, cover.getBoundingClientRect().left) - COVER_GAP
     }
