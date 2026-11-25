@@ -4,7 +4,7 @@ import { type Language, resolveLanguage } from "@/lib/i18n/language"
 import { getSettings, settingsItem } from "@/lib/settings"
 import { oneTimeCode } from "@/lib/totp"
 import type { PopupView } from "./api"
-import { webPage } from "./page"
+import { frameUrl, webPage } from "./page"
 
 const MENU_ID = "setUpCode"
 /** The menu's only text; kept here so the background does not carry the whole catalog. */
@@ -26,7 +26,7 @@ const candidates = new Map<number, { uri: string; frameId: number }>()
 /** An authenticator key picked from a page, waiting for the popup to say where it goes. */
 export interface PendingSetup {
   uri: string
-  /** The page of the tab the key was picked on. */
+  /** The page of the frame the key was picked in, which may be an embedded one of another site. */
   site: string
   at: number
 }
@@ -134,19 +134,19 @@ export function watchCodeSetup(openPopup: (view: PopupView) => void): void {
         .catch(() => {})
   })
 
-  browser.contextMenus.onClicked.addListener((info, tab) => {
+  browser.contextMenus.onClicked.addListener(async (info, tab) => {
     if (info.menuItemId !== MENU_ID || tab?.id === undefined) return
     const candidate = candidates.get(tab.id)
-    const page = webPage(tab.url)
-    if (!candidate || candidate.frameId !== info.frameId || !page) return
+    if (!candidate || candidate.frameId !== info.frameId) return
+    const page = await frameUrl(tab.id, candidate.frameId).catch(() => null)
+    if (!page) return
     const pending: PendingSetup = {
       uri: candidate.uri,
       site: page.href,
       at: Date.now(),
     }
-    void browser.storage.session
-      .set({ [PENDING_KEY]: pending })
-      .then(() => openPopup({ name: "codeSetup" }))
+    await browser.storage.session.set({ [PENDING_KEY]: pending })
+    openPopup({ name: "codeSetup" })
   })
   // The item belongs to what the pointer is on in one tab.
   browser.tabs.onActivated.addListener(() => {

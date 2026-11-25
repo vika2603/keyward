@@ -19,8 +19,13 @@ const NOT_AUTHENTICATOR_HINT =
   /captcha|image|图形|图片|圖形|短信|簡訊|sms|text message|mail|邮箱|郵箱|邮件|郵件|card|cvv|cvc|csc|credit|coupon|promo|gift|invite|referral|邀请|邀請/i
 /** Longer fields take something other than a one-time code. */
 const CODE_MAX_LENGTH = 12
+/** Matched against `hintWords`, so English words stand apart. */
 const NEW_PASSWORD_HINT =
-  /new|confirm|repeat|retype|again|register|sign-?up|create|新密码|新密碼|确认|確認|重复|重複|再次/i
+  /\b(new|register|registration|sign ?up|create)\b|新密码|新密碼|设置密码|設定密碼/i
+const CONFIRM_PASSWORD_HINT =
+  /\b(confirm|confirmation|repeat|retype|again|verify)\b|确认|確認|重复|重複|再次/i
+const CURRENT_PASSWORD_HINT =
+  /\b(current|old|existing|previous)\b|当前|目前|旧密码|舊密碼|原密码|原密碼/i
 
 export function isVisible(element: HTMLElement): boolean {
   if (!element.isConnected) return false
@@ -55,6 +60,13 @@ function hints(input: HTMLInputElement): string {
     input.placeholder,
     input.getAttribute("aria-label") ?? "",
   ].join(" ")
+}
+
+/** The field's hints with camelCase, underscores and dashes split into words. */
+function hintWords(input: HTMLInputElement): string {
+  return hints(input)
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .replace(/[_\-.[\]]+/g, " ")
 }
 
 function hasCodeAutocomplete(input: HTMLInputElement): boolean {
@@ -174,17 +186,30 @@ class Scopes {
 
   /**
    * Whether a password field takes a new password: the page or the field's name says so, or its
-   * form has more password fields, as a sign-up form asks twice and a change-password form asks
-   * for the current one first.
+   * form has more password fields. Three fields are the current password, a new one and its
+   * confirmation. Two are either a new password and its confirmation, as on sign-up, or the current
+   * password and a new one; the first field counts as new only when the second asks to confirm it
+   * or a username comes before it. Taking a current password for a new one would let a suggested
+   * password overwrite it, so the unclear case keeps the first field as the current one.
    */
   isNewPassword(input: HTMLInputElement): boolean {
     const autocomplete = input.autocomplete.toLowerCase()
     if (autocomplete.includes("current-password")) return false
-    if (isNewPassword(input) || NEW_PASSWORD_HINT.test(hints(input)))
-      return true
+    if (isNewPassword(input)) return true
+    const text = hintWords(input)
+    if (CURRENT_PASSWORD_HINT.test(text)) return false
+    if (NEW_PASSWORD_HINT.test(text)) return true
     const passwords = this.inputs(scopeOf(input)).filter(isPasswordField)
+    const index = passwords.indexOf(input)
+    if (index < 0 || passwords.length < 2) return false
+    if (index > 0) return true
+    if (passwords.length > 2) return false
+    const second = passwords[1] as HTMLInputElement
+    if (isNewPassword(second) || NEW_PASSWORD_HINT.test(hintWords(second)))
+      return false
     return (
-      passwords.length === 2 || (passwords.length > 2 && passwords[0] !== input)
+      CONFIRM_PASSWORD_HINT.test(hintWords(second)) ||
+      this.usernameFor(input) !== null
     )
   }
 }

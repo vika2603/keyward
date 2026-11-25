@@ -184,6 +184,8 @@ export function MainView({
             value={query}
             onChange={(event) => onQuery(event.target.value)}
             onKeyDown={(event) => {
+              // While an input method composes text, Enter, Escape and the arrows belong to it.
+              if (event.nativeEvent.isComposing) return
               // Escape clears a search before it closes the popup.
               if (event.key === "Escape" && query) {
                 event.preventDefault()
