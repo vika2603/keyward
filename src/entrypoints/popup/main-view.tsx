@@ -133,9 +133,11 @@ export function MainView({
   const shown = (search ? (results ?? []) : sources).filter(
     (s) => filter === "all" || s.kind === filter,
   )
-  // Sources to pair or unlock get a large button each; the others list their logins or say why
-  // they cannot.
-  const locked = shown.filter((s) => s.status === "locked")
+  const tabs = connected && kinds.size > 1
+  // Sources to pair or unlock get a large button each, except on the "all" tab once one is open:
+  // each is then unlocked from its own tab. The others list their logins or say why they cannot.
+  const locked =
+    filter === "all" && tabs ? [] : shown.filter((s) => s.status === "locked")
   // Whether the sources in view can say a site has no logins, or take a new one.
   const shownReady = shown.some((s) => s.status === "ready")
   const listed = shown.filter(
@@ -255,7 +257,7 @@ export function MainView({
           )}
         </div>
       )}
-      {connected && kinds.size > 1 && (
+      {tabs && (
         <div className="px-2 pb-2">
           <Tabs
             value={filter}

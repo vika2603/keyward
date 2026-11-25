@@ -106,8 +106,13 @@ export function App() {
     run(SUGGESTION_ID, () => callOverlay("menu.fillSuggestion", {}))
 
   if (!language) return null
-  const sources = (state?.sources ?? []).filter(
-    (s) => s.status !== "ready" || s.error || s.logins.length,
+  const allSources = state?.sources ?? []
+  // Once one source is open, the others are paired or unlocked from the popup instead.
+  const anyReady = allSources.some((s) => s.status === "ready")
+  const sources = allSources.filter((s) =>
+    s.status === "locked"
+      ? !anyReady
+      : s.status !== "ready" || s.error || s.logins.length,
   )
   const compact = density === "compact"
   // A lone list of logins needs no heading saying where they come from.
