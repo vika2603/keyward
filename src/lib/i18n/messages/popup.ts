@@ -85,7 +85,7 @@ export const en = {
   "popup.main.connectHint": "Pair or unlock to see and fill passwords here.",
   "popup.main.noLogins": "No passwords for {host}",
   "popup.main.notWebPage": "This page is not a web page",
-  "popup.main.search": "Search logins and notes",
+  "popup.main.search": "Search",
   "popup.main.clearSearch": "Clear search",
   "popup.main.noResults": "Nothing matches “{query}”",
   "popup.main.appleSearchHint":
@@ -253,7 +253,7 @@ export const zhCN: Record<keyof typeof en, string> = {
   "popup.main.connectHint": "配对或解锁后，就能在这里查看和填充密码。",
   "popup.main.noLogins": "没有 {host} 的密码",
   "popup.main.notWebPage": "当前页面不是网页",
-  "popup.main.search": "搜索登录和笔记",
+  "popup.main.search": "搜索",
   "popup.main.clearSearch": "清除搜索",
   "popup.main.noResults": "没有与「{query}」匹配的条目",
   "popup.main.appleSearchHint": "Passwords 只能按网址搜索，例如 github.com。",
