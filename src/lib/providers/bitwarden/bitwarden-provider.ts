@@ -350,7 +350,7 @@ export class BitwardenProvider implements VaultProvider {
     itemId: string,
   ): Promise<{ item: RepromptItem; cipher: Record<string, unknown> }> {
     const { notes } = await this.vaultOf(vaultId)
-    const isNote = notes.some((note) => note.id === itemId)
+    const isNote = notes.some((candidate) => candidate.id === itemId)
     if (!isNote) return this.pageItem(vaultId, itemId, null)
     const { note, cipher } = await this.noteEntry(vaultId, itemId)
     return { item: note, cipher }
@@ -616,7 +616,7 @@ export class BitwardenProvider implements VaultProvider {
     password: string,
   ): Promise<ExistingLogin | null> {
     const { vault, items } = await this.matching(vaultId, page)
-    const found = items.find((item) => item.username === username)
+    const found = items.find((candidate) => candidate.username === username)
     if (!found) return null
     const item = await withPass(vaultId, found)
     const cipher = vault.ciphers.find(

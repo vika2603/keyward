@@ -25,7 +25,10 @@ interface SubmittedLogin {
   newPassword?: boolean
 }
 
-type StoredLogin = { vaultId: string; loginId: string }
+interface StoredLogin {
+  vaultId: string
+  loginId: string
+}
 
 /** How the ready vaults hold a submitted login, which decides what the prompt offers. */
 type Holding =
