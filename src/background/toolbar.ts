@@ -42,20 +42,27 @@ function fadedIcon(): Promise<Record<number, ImageData>> {
  */
 export function watchToolbar(
   providers: Providers,
-  /** Told the active page's logins after each refresh. */
-  onLogins?: (vaults: VaultView[]) => unknown,
+  /** Told the active tab and its page's logins after each refresh. */
+  onLogins?: (
+    vaults: VaultView[],
+    tab: Browser.tabs.Tab | undefined,
+  ) => unknown,
 ): () => void {
   void browser.action.setBadgeBackgroundColor({ color: BADGE_COLOR })
   void browser.action.setBadgeTextColor?.({ color: "#ffffff" })
 
   let timer: ReturnType<typeof setTimeout> | undefined
   let ready: boolean | null = null
+  /** Counts refreshes; one that finishes after a later one started is dropped. */
+  let refreshes = 0
   const update = async () => {
+    const refreshId = ++refreshes
     const tab = await activeTab()
     const vaults = await providers.loginsForPage(webPage(tab?.url), {
       passive: true,
     })
-    void Promise.resolve(onLogins?.(vaults)).catch(() => {})
+    if (refreshId !== refreshes) return
+    void Promise.resolve(onLogins?.(vaults, tab)).catch(() => {})
     const anyReady = vaults.some((vault) => vault.status === "ready")
     if (anyReady !== ready) {
       ready = anyReady

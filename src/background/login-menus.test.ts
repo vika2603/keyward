@@ -12,10 +12,12 @@ vi.mock("./clipboard", () => ({ copyText: vi.fn() }))
 
 type Clicked = (
   info: { menuItemId: string; frameId?: number },
-  tab?: { id?: number },
+  tab?: { id?: number; url?: string },
 ) => void
 
 const TAB = 4
+const PAGE_URL = "https://example.com/login"
+const tab = { id: TAB, url: PAGE_URL }
 const credential = { username: "someone", password: "{{SECRET_kctwy60h}}" }
 const someone = {
   id: "item-1",
@@ -48,6 +50,15 @@ beforeEach(() => {
   }
 })
 
+function id(action: string, title: string): string {
+  return (
+    created.find(
+      (item) =>
+        item.parentId === `loginMenus.${action}` && item.title === title,
+    )?.id ?? ""
+  )
+}
+
 function setUp() {
   const { providers, calls } = fakeProviders([
     { info: accountVault, credential, logins: [someone, shared] },
@@ -59,7 +70,7 @@ function setUp() {
 describe("LoginMenus", () => {
   it("lists the page's logins under each action, leaving out what a login lacks", async () => {
     const { menus, vaults } = setUp()
-    await menus.show(vaults)
+    await menus.show(vaults, tab)
     const under = (parent: string) =>
       created
         .filter((item) => item.parentId === parent)
@@ -71,21 +82,10 @@ describe("LoginMenus", () => {
   })
 
   it("fills into the frame that was right-clicked, and copies a password as a secret", async () => {
-    const { menus, vaults } = setUp()
-    await menus.show(vaults)
-    const id = (action: string, title: string) =>
-      created.find(
-        (item) =>
-          item.parentId === `loginMenus.${action}` && item.title === title,
-      )?.id ?? ""
-    clicked(
-      { menuItemId: id("fill", "Shared account"), frameId: 2 },
-      { id: TAB },
-    )
-    clicked(
-      { menuItemId: id("copyPassword", "someone"), frameId: 0 },
-      { id: TAB },
-    )
+    const { menus, vaults, calls } = setUp()
+    await menus.show(vaults, tab)
+    clicked({ menuItemId: id("fill", "Shared account"), frameId: 2 }, tab)
+    clicked({ menuItemId: id("copyPassword", "someone"), frameId: 0 }, tab)
     // The listener starts the work without waiting for it.
     await vi.waitFor(() => {
       expect(fillLogin).toHaveBeenCalledWith(
@@ -97,21 +97,36 @@ describe("LoginMenus", () => {
       )
       expect(copyText).toHaveBeenCalledWith(credential.password, true)
     })
+    // The password is read for the clicked page, so the provider checks the login belongs to it.
+    expect(calls.credential.mock.calls[0]?.[2]).toEqual(new URL(PAGE_URL))
+  })
+
+  it("ignores clicks on another tab or page, and on menus from an earlier listing", async () => {
+    const { menus, vaults } = setUp()
+    await menus.show(vaults, tab)
+    const earlier = id("copyPassword", "someone")
+    clicked({ menuItemId: earlier, frameId: 0 }, { id: TAB + 1, url: PAGE_URL })
+    clicked(
+      { menuItemId: earlier, frameId: 0 },
+      { id: TAB, url: "https://other.example/" },
+    )
+    created = []
+    await menus.show(vaults, tab)
+    clicked({ menuItemId: earlier, frameId: 0 }, tab)
+    clicked({ menuItemId: id("copyUsername", "someone"), frameId: 0 }, tab)
+    await vi.waitFor(() =>
+      expect(copyText).toHaveBeenCalledWith("someone", false),
+    )
+    expect(copyText).toHaveBeenCalledTimes(1)
   })
 
   it("finds the clicked login after the service worker started again", async () => {
     const { menus, vaults } = setUp()
-    await menus.show(vaults)
-    const id =
-      created.find(
-        (item) =>
-          item.parentId === "loginMenus.copyUsername" &&
-          item.title === "someone",
-      )?.id ?? ""
+    await menus.show(vaults, tab)
     // A new worker has the stored entries but none of the earlier one's memory.
     const { providers } = fakeProviders([{ info: accountVault, credential }])
     new LoginMenus(providers)
-    clicked({ menuItemId: id, frameId: 0 }, { id: TAB })
+    clicked({ menuItemId: id("copyUsername", "someone"), frameId: 0 }, tab)
     await vi.waitFor(() =>
       expect(copyText).toHaveBeenCalledWith("someone", false),
     )
@@ -119,11 +134,11 @@ describe("LoginMenus", () => {
 
   it("shows only the generator without logins, and nothing when turned off", async () => {
     const { menus } = setUp()
-    await menus.show([])
+    await menus.show([], tab)
     expect(created.map((item) => item.id)).toEqual(["loginMenus.generate"])
     created = []
     await updateSettings({ contextMenu: false })
-    await menus.show([])
+    await menus.show([], tab)
     expect(created).toEqual([])
   })
 })

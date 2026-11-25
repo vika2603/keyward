@@ -59,8 +59,8 @@ export function startBackground(): void {
 
   serveRequests(createHandlers(providers), errorCode)
   const loginMenus = new LoginMenus(providers)
-  const refreshToolbar = watchToolbar(providers, (vaults) =>
-    loginMenus.show(vaults),
+  const refreshToolbar = watchToolbar(providers, (vaults, tab) =>
+    loginMenus.show(vaults, tab),
   )
   watchCodeSetup((view) => void openPopup(view).catch(() => {}))
 

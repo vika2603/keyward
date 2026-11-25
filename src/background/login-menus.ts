@@ -18,10 +18,10 @@ const ACTIONS: readonly Action[] = [
 ]
 const GENERATE_ID = "loginMenus.generate"
 /**
- * The logins the submenus list, by position. Kept in storage.session rather than in memory: the
- * menus outlive the service worker, and a click can start a new one.
+ * The logins the submenus list and the page they were listed for. Kept in storage.session rather
+ * than in memory: the menus outlive the service worker, and a click can start a new one.
  */
-const ENTRIES_KEY = "loginMenus.entries"
+const LISTING_KEY = "loginMenus.listing"
 /** Web pages only; "all" would also fill the toolbar button's own menu. */
 const CONTEXTS: Browser.contextMenus.CreateProperties["contexts"] = [
   "page",
@@ -61,8 +61,25 @@ interface Entry {
   hasCode: boolean
 }
 
-function itemId(action: Action, index: number): string {
-  return `loginMenus.${action}.${index}`
+interface Listing {
+  /**
+   * Different for each rendering and part of its menu IDs, so a click on a menu that was opened
+   * before the logins changed matches nothing rather than whichever login took its place.
+   */
+  renderId: string
+  tabId: number
+  /** The origin of the page the logins were listed for. */
+  origin: string
+  entries: Entry[]
+}
+
+/** The tab the logins are listed for; only what identifies its page. */
+type ListedTab = Pick<Browser.tabs.Tab, "id" | "url">
+
+const ITEM_ID = /^loginMenus\.(\w+)\.([\da-f]+)\.(\d+)$/
+
+function itemId(action: Action, renderId: string, index: number): string {
+  return `loginMenus.${action}.${renderId}.${index}`
 }
 
 /**
@@ -86,9 +103,11 @@ export class LoginMenus {
     })
   }
 
-  /** Lists the logins of the active page in the submenus, or leaves them out when it has none. */
-  show(vaults: VaultView[]): Promise<void> {
-    this.changing = this.changing.then(() => render(vaults)).catch(() => {})
+  /** Lists the logins of the active tab's page in the submenus, or leaves them out when it has none. */
+  show(vaults: VaultView[], tab: ListedTab | undefined): Promise<void> {
+    this.changing = this.changing
+      .then(() => render(vaults, tab))
+      .catch(() => {})
     return this.changing
   }
 
@@ -104,13 +123,22 @@ export class LoginMenus {
       await addHistory(password, webPage(tabUrl)?.hostname ?? null)
       return
     }
-    const match = /^loginMenus\.(\w+)\.(\d+)$/.exec(menuItemId)
+    const match = ITEM_ID.exec(menuItemId)
     const action = match?.[1] as Action | undefined
     if (!match || !action || !ACTIONS.includes(action)) return
-    const entries = (await browser.storage.session.get(ENTRIES_KEY))[
-      ENTRIES_KEY
-    ] as Entry[] | undefined
-    const entry = entries?.[Number(match[2])]
+    const listing = (await browser.storage.session.get(LISTING_KEY))[
+      LISTING_KEY
+    ] as Listing | undefined
+    const page = webPage(tabUrl)
+    // The menus are shared by every tab and window; they only act on the page they were listed for.
+    if (
+      !listing ||
+      listing.renderId !== match[2] ||
+      listing.tabId !== tabId ||
+      page?.origin !== listing.origin
+    )
+      return
+    const entry = listing.entries[Number(match[3])]
     if (!entry) return
     const { vaultId, loginId } = entry
     const provider = this.providers.providerOf(vaultId)
@@ -127,14 +155,14 @@ export class LoginMenus {
         const credential = await provider.credential(
           vaultId,
           loginId,
-          null,
+          page,
           tab,
         )
         await copyText(credential.password, true)
         return
       }
       case "copyCode": {
-        const { code } = await provider.oneTimeCode(vaultId, loginId, null, tab)
+        const { code } = await provider.oneTimeCode(vaultId, loginId, page, tab)
         await copyText(code, true)
         return
       }
@@ -142,31 +170,43 @@ export class LoginMenus {
   }
 }
 
-async function render(vaults: VaultView[]): Promise<void> {
+async function render(
+  vaults: VaultView[],
+  tab: ListedTab | undefined,
+): Promise<void> {
   const settings = await getSettings()
   const titles = TITLES[resolveLanguage(settings.language)]
+  const page = webPage(tab?.url)
+  const tabId = tab?.id
+  const listing = settings.contextMenu && page !== null && tabId !== undefined
   const ready = vaults.filter(
     (vault) => vault.status === "ready" && !vault.error && vault.logins.length,
   )
-  const entries: Entry[] = ready
-    .flatMap((vault) =>
-      vault.logins.map((login) => {
-        const name = login.username || login.title
-        return {
-          vaultId: vault.id,
-          loginId: login.id,
-          username: login.username,
-          label: ready.length > 1 ? `${name} · ${vault.label}` : name,
-          hasCode: login.hasCode === true,
-        }
-      }),
-    )
-    .slice(0, MAX_LOGINS)
+  const entries: Entry[] = listing
+    ? ready
+        .flatMap((vault) =>
+          vault.logins.map((login) => {
+            const name = login.username || login.title
+            return {
+              vaultId: vault.id,
+              loginId: login.id,
+              username: login.username,
+              label: ready.length > 1 ? `${name} · ${vault.label}` : name,
+              hasCode: login.hasCode === true,
+            }
+          }),
+        )
+        .slice(0, MAX_LOGINS)
+    : []
+  const renderId = crypto.randomUUID().slice(0, 8)
 
   await removeOwn()
-  await browser.storage.session.set({
-    [ENTRIES_KEY]: settings.contextMenu ? entries : [],
-  })
+  if (listing && entries.length) {
+    const stored: Listing = { renderId, tabId, origin: page.origin, entries }
+    await browser.storage.session.set({ [LISTING_KEY]: stored })
+  } else {
+    await browser.storage.session.remove(LISTING_KEY)
+  }
   if (!settings.contextMenu) return
   for (const action of ACTIONS) {
     const shown = entries
@@ -184,7 +224,7 @@ async function render(vaults: VaultView[]): Promise<void> {
     })
     for (const { entry, index } of shown)
       await create({
-        id: itemId(action, index),
+        id: itemId(action, renderId, index),
         parentId: `loginMenus.${action}`,
         title: entry.label,
         contexts: CONTEXTS,
