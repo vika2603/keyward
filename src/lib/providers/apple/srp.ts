@@ -28,12 +28,12 @@ export function modPow(
   modulus: bigint,
 ): bigint {
   let result = 1n
-  let b = ((base % modulus) + modulus) % modulus
-  let e = exponent
-  while (e > 0n) {
-    if (e & 1n) result = (result * b) % modulus
-    b = (b * b) % modulus
-    e >>= 1n
+  let square = ((base % modulus) + modulus) % modulus
+  let remaining = exponent
+  while (remaining > 0n) {
+    if (remaining & 1n) result = (result * square) % modulus
+    square = (square * square) % modulus
+    remaining >>= 1n
   }
   return result
 }
@@ -103,7 +103,7 @@ export class SrpClient {
 
     const hN = await sha256(bigIntToBytes(N))
     const hg = await sha256(bigIntToBytes(g, N_LENGTH))
-    const hNxorHg = hN.map((byte, i) => byte ^ (hg[i] as number))
+    const hNxorHg = hN.map((byte, index) => byte ^ (hg[index] as number))
     const M = await sha256(
       hNxorHg,
       await sha256(utf8(this.username)),
@@ -120,10 +120,12 @@ export class SrpClient {
 /** Session IDs are numbers; the helper may encode the same number with different padding. */
 export function sameSessionId(
   codec: BinaryCodec,
-  a: string,
-  b: string,
+  first: string,
+  second: string,
 ): boolean {
-  return bytesToBigInt(codec.decode(a)) === bytesToBigInt(codec.decode(b))
+  return (
+    bytesToBigInt(codec.decode(first)) === bytesToBigInt(codec.decode(second))
+  )
 }
 
 export function verifyServerProof(

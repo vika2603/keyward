@@ -115,18 +115,18 @@ const DIGITS = "0123456789"
 // Avoiding ambiguous characters leaves out the same ones Bitwarden does: I, O, l, 0 and 1.
 const AMBIGUOUS = /[IOl01]/g
 
-/** A uniformly random integer in [0, n), without modulo bias. */
-function randomIndex(n: number): number {
-  const limit = Math.floor(0x1_0000_0000 / n) * n
-  const buf = new Uint32Array(1)
+/** A uniformly random integer in [0, count), without modulo bias. */
+function randomIndex(count: number): number {
+  const limit = Math.floor(0x1_0000_0000 / count) * count
+  const random = new Uint32Array(1)
   for (;;) {
-    crypto.getRandomValues(buf)
-    const value = buf[0] as number
-    if (value < limit) return value % n
+    crypto.getRandomValues(random)
+    const value = random[0] as number
+    if (value < limit) return value % count
   }
 }
 
-function pick<T>(items: readonly T[]): T {
+function randomItem<T>(items: readonly T[]): T {
   return items[randomIndex(items.length)] as T
 }
 
@@ -193,13 +193,16 @@ export function generatePassword(options: GeneratorOptions): string {
   const classes = characterClasses(options)
   const pool = classes.flatMap((characterClass) => characterClass.characters)
   const chars = classes.flatMap(({ characters, required }) =>
-    Array.from({ length: required }, () => pick(characters)),
+    Array.from({ length: required }, () => randomItem(characters)),
   )
   const length = passwordLength(options)
-  while (chars.length < length) chars.push(pick(pool))
-  for (let i = chars.length - 1; i > 0; i--) {
-    const j = randomIndex(i + 1)
-    ;[chars[i], chars[j]] = [chars[j] as string, chars[i] as string]
+  while (chars.length < length) chars.push(randomItem(pool))
+  for (let last = chars.length - 1; last > 0; last--) {
+    const other = randomIndex(last + 1)
+    ;[chars[last], chars[other]] = [
+      chars[other] as string,
+      chars[last] as string,
+    ]
   }
   return chars.join("")
 }
@@ -226,7 +229,7 @@ function capitalized(word: string): string {
 const ADDRESS_CHARS = [..."abcdefghijklmnopqrstuvwxyz0123456789"]
 
 function randomAddressPart(length: number): string {
-  return Array.from({ length }, () => pick(ADDRESS_CHARS)).join("")
+  return Array.from({ length }, () => randomItem(ADDRESS_CHARS)).join("")
 }
 
 export function generatePassphrase(
@@ -238,7 +241,7 @@ export function generatePassphrase(
     Math.max(WORDS_MIN, Math.round(options.words) || WORDS_MIN),
   )
   const parts = Array.from({ length: count }, () => {
-    const word = pick(words)
+    const word = randomItem(words)
     return options.capitalize ? capitalized(word) : word
   })
   if (options.includeNumber) {
@@ -255,7 +258,7 @@ export function generateUsername(
 ): string | null {
   switch (options.type) {
     case "word": {
-      const word = pick(words)
+      const word = randomItem(words)
       const base = options.capitalize ? capitalized(word) : word
       return options.includeNumber
         ? `${base}${String(randomIndex(10_000)).padStart(4, "0")}`

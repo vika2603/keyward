@@ -10,7 +10,9 @@ export function fromUtf8(bytes: Uint8Array): string {
 }
 
 export function concat(...parts: Uint8Array[]): Uint8Array<ArrayBuffer> {
-  const out = new Uint8Array(parts.reduce((n, p) => n + p.length, 0))
+  const out = new Uint8Array(
+    parts.reduce((total, part) => total + part.length, 0),
+  )
   let offset = 0
   for (const part of parts) {
     out.set(part, offset)
@@ -23,25 +25,26 @@ export function randomBytes(length: number): Uint8Array<ArrayBuffer> {
   return crypto.getRandomValues(new Uint8Array(length))
 }
 
-export function bytesEqual(a: Uint8Array, b: Uint8Array): boolean {
-  if (a.length !== b.length) return false
+export function bytesEqual(first: Uint8Array, second: Uint8Array): boolean {
+  if (first.length !== second.length) return false
   let diff = 0
-  for (let i = 0; i < a.length; i++) diff |= (a[i] as number) ^ (b[i] as number)
+  for (let index = 0; index < first.length; index++)
+    diff |= (first[index] as number) ^ (second[index] as number)
   return diff === 0
 }
 
 export function bytesToBigInt(bytes: Uint8Array): bigint {
-  let n = 0n
-  for (const byte of bytes) n = (n << 8n) | BigInt(byte)
-  return n
+  let value = 0n
+  for (const byte of bytes) value = (value << 8n) | BigInt(byte)
+  return value
 }
 
 /** Big-endian bytes of a non-negative integer: the minimal length, or left-padded to `length`. */
 export function bigIntToBytes(
-  n: bigint,
+  value: bigint,
   length?: number,
 ): Uint8Array<ArrayBuffer> {
-  const hex = n.toString(16)
+  const hex = value.toString(16)
   const minimal = Uint8Array.fromHex(hex.length % 2 ? `0${hex}` : hex)
   if (length === undefined || minimal.length >= length) return minimal
   const out = new Uint8Array(length)

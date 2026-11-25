@@ -32,9 +32,9 @@ export function iconHostsOf(host: string): string[] {
 
 /** True when `host` equals `parent` or is one of its subdomains. */
 export function isHostOrSubdomain(host: string, parent: string): boolean {
-  const h = host.toLowerCase().replace(/\.$/, "")
-  const p = parent.toLowerCase().replace(/\.$/, "")
-  return h === p || h.endsWith(`.${p}`)
+  const hostName = host.toLowerCase().replace(/\.$/, "")
+  const parentName = parent.toLowerCase().replace(/\.$/, "")
+  return hostName === parentName || hostName.endsWith(`.${parentName}`)
 }
 
 /** Host name of a saved address, which may lack a scheme. */

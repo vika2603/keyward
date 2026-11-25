@@ -39,7 +39,7 @@ async function serverHandshake(username: string, pin: string, A: bigint) {
   const hN = await sha256(bigIntToBytes(N))
   const hg = await sha256(bigIntToBytes(g, length))
   const expectedM = await sha256(
-    hN.map((byte, i) => byte ^ (hg[i] as number)),
+    hN.map((byte, index) => byte ^ (hg[index] as number)),
     await sha256(utf8(username)),
     salt,
     bigIntToBytes(A),

@@ -38,7 +38,7 @@ describe("generatePassword", () => {
   })
 
   it("contains every enabled character class, even with a minimum of 0", () => {
-    for (let i = 0; i < 200; i++) {
+    for (let round = 0; round < 200; round++) {
       const password = generatePassword({
         ...defaultGeneratorOptions,
         length: LENGTH_MIN,
@@ -59,7 +59,7 @@ describe("generatePassword", () => {
       minimumDigits: 4,
       minimumSymbols: 3,
     }
-    for (let i = 0; i < 500; i++) {
+    for (let round = 0; round < 500; round++) {
       const password = generatePassword(options)
       expect(password).toHaveLength(12)
       expect(count(password, /[0-9]/g)).toBeGreaterThanOrEqual(4)
@@ -74,7 +74,7 @@ describe("generatePassword", () => {
       minimumDigits: 9,
       minimumSymbols: 9,
     }
-    for (let i = 0; i < 100; i++) {
+    for (let round = 0; round < 100; round++) {
       const password = generatePassword(options)
       // One uppercase, one lowercase, nine digits and nine symbols.
       expect(password).toHaveLength(20)
@@ -92,7 +92,7 @@ describe("generatePassword", () => {
       digits: false,
       minimumDigits: 9,
     }
-    for (let i = 0; i < 50; i++) {
+    for (let round = 0; round < 50; round++) {
       const password = generatePassword(options)
       expect(password).toHaveLength(LENGTH_MIN)
       expect(password).not.toMatch(/[0-9]/)
@@ -120,7 +120,7 @@ describe("generatePassword", () => {
       lower: false,
       symbolSet: "& ~&",
     }
-    for (let i = 0; i < 50; i++) {
+    for (let round = 0; round < 50; round++) {
       expect(generatePassword(options)).toMatch(/^[0-9&~]+$/)
     }
   })
