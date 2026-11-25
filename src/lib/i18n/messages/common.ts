@@ -41,8 +41,7 @@ export const en = {
   "error.apple.unsupportedSite":
     "Passwords doesn't save logins for local or reserved addresses such as localhost, .local or .test.",
   "error.apple.query": "The Passwords request failed.",
-  "error.apple.noPassword":
-    "This Passwords login has no password. It may have only a passkey.",
+  "error.apple.noPassword": "This login has no saved password.",
   "error.bitwarden.wrongPassword": "The master password is not correct.",
   "error.bitwarden.auth": "The email, master password or code is not correct.",
   "error.bitwarden.signedOut":
@@ -114,7 +113,7 @@ export const zhCN: Record<keyof typeof en, string> = {
   "error.apple.unsupportedSite":
     "Passwords 不保存 localhost、.local、.test 这类本地或保留地址的登录。",
   "error.apple.query": "Passwords 请求失败。",
-  "error.apple.noPassword": "这个 Passwords 条目没有密码，可能只有通行密钥。",
+  "error.apple.noPassword": "这个登录没有保存密码。",
   "error.bitwarden.wrongPassword": "主密码不正确。",
   "error.bitwarden.auth": "邮箱、主密码或验证码不正确。",
   "error.bitwarden.signedOut": "服务器已让这个账号退出，请重新登录。",
