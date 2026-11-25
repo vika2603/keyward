@@ -88,7 +88,7 @@ function Row({
 }) {
   return (
     <div className="flex min-h-[52px] items-center gap-3 border-t px-3 py-2">
-      <label htmlFor={htmlFor} className="w-16 shrink-0 text-sm font-medium">
+      <label htmlFor={htmlFor} className="w-20 shrink-0 text-sm font-medium">
         {label}
       </label>
       {children}
@@ -424,7 +424,7 @@ export function GeneratorView({
             <div className="flex min-h-[52px] items-center gap-3 px-3 py-2">
               <span
                 id="gen-length"
-                className="w-16 shrink-0 text-sm font-medium"
+                className="w-20 shrink-0 text-sm font-medium"
               >
                 {t("popup.generator.length")}
               </span>
@@ -455,7 +455,7 @@ export function GeneratorView({
               className="flex min-h-[52px] min-w-0 items-center gap-3 border-t px-3 py-2"
               aria-label={t("popup.generator.classesLabel")}
             >
-              <span className="w-16 shrink-0 text-sm font-medium">
+              <span className="w-20 shrink-0 text-sm font-medium">
                 {t("popup.generator.include")}
               </span>
               {CLASSES.map(([key, label]) => (
@@ -479,17 +479,15 @@ export function GeneratorView({
                 }
               />
             </Row>
-            <div className="grid min-h-[52px] grid-cols-2 items-center gap-3 border-t px-3 py-2">
-              <div className="flex items-center gap-3">
-                <label
-                  htmlFor="gen-minimum-digits"
-                  className="w-16 shrink-0 text-sm font-medium"
-                >
-                  {t("popup.generator.minimumDigits")}
+            <Row label={t("popup.generator.minimum")}>
+              <div className="flex items-center gap-2">
+                <label htmlFor="gen-minimum-digits" className="text-sm">
+                  {t("popup.generator.digits")}
                 </label>
                 <NumberInput
                   id="gen-minimum-digits"
                   className="w-14"
+                  aria-label={t("popup.generator.minimumDigits")}
                   min={0}
                   max={MINIMUM_COUNT_MAX}
                   value={password.minimumDigits}
@@ -499,16 +497,14 @@ export function GeneratorView({
                   }
                 />
               </div>
-              <div className="flex items-center gap-3">
-                <label
-                  htmlFor="gen-minimum-symbols"
-                  className="w-16 shrink-0 text-sm font-medium"
-                >
-                  {t("popup.generator.minimumSymbols")}
+              <div className="flex items-center gap-2">
+                <label htmlFor="gen-minimum-symbols" className="text-sm">
+                  {t("popup.generator.symbols")}
                 </label>
                 <NumberInput
                   id="gen-minimum-symbols"
                   className="w-14"
+                  aria-label={t("popup.generator.minimumSymbols")}
                   min={0}
                   max={MINIMUM_COUNT_MAX}
                   value={password.minimumSymbols}
@@ -518,7 +514,7 @@ export function GeneratorView({
                   }
                 />
               </div>
-            </div>
+            </Row>
             <Row label={t("popup.generator.options")}>
               <CheckboxOption
                 checked={password.avoidAmbiguousCharacters}
@@ -536,7 +532,7 @@ export function GeneratorView({
               <div className="flex min-h-9 items-center gap-3">
                 <label
                   htmlFor="gen-words"
-                  className="w-16 shrink-0 text-sm font-medium"
+                  className="w-20 shrink-0 text-sm font-medium"
                 >
                   {t("popup.generator.words")}
                 </label>
@@ -554,7 +550,7 @@ export function GeneratorView({
                   }}
                 />
               </div>
-              <p className="pl-[76px] text-xs text-muted-foreground">
+              <p className="pl-[92px] text-xs text-muted-foreground">
                 {t("popup.generator.wordsHint", {
                   min: WORDS_MIN,
                   max: WORDS_MAX,
@@ -594,7 +590,7 @@ export function GeneratorView({
         {kind === "username" && (
           <>
             <div className="flex min-h-[52px] items-center gap-3 px-3 py-2">
-              <span className="w-16 shrink-0 text-sm font-medium">
+              <span className="w-20 shrink-0 text-sm font-medium">
                 {t("popup.generator.usernameType")}
               </span>
               <Select
@@ -645,7 +641,7 @@ export function GeneratorView({
                 <div className="flex min-h-9 items-center gap-3">
                   <label
                     htmlFor="gen-address"
-                    className="w-16 shrink-0 text-sm font-medium"
+                    className="w-20 shrink-0 text-sm font-medium"
                   >
                     {username.type === "plusEmail"
                       ? t("popup.generator.email")
@@ -675,7 +671,7 @@ export function GeneratorView({
                     }
                   />
                 </div>
-                <p className="pl-[76px] text-xs text-muted-foreground">
+                <p className="pl-[92px] text-xs text-muted-foreground">
                   {username.type === "plusEmail"
                     ? t("popup.generator.emailHint")
                     : t("popup.generator.domainHint")}

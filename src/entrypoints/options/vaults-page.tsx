@@ -309,16 +309,16 @@ export function VaultsPage() {
  * last synced while it is unlocked.
  */
 function accountDetail(account: AccountSummary): string {
+  // A self-hosted server keeps its path, which may tell two servers on one host apart.
   const server = isCloudServer(account.server)
     ? serverHost(account.server)
-    : account.server
+    : account.server.replace(/^https:\/\//, "")
   const parts = account.name ? [account.email, server] : [server]
   if (account.unlocked && account.syncedAt !== undefined)
     parts.push(
       t("options.vaults.bitwarden.syncedAt", {
         time: new Date(account.syncedAt).toLocaleTimeString(currentLanguage(), {
-          hour: "2-digit",
-          minute: "2-digit",
+          timeStyle: "short",
         }),
       }),
     )

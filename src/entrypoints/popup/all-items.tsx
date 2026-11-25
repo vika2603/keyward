@@ -138,6 +138,14 @@ function rowsOf(
             )
             .sort((first, second) => collator.compare(first.name, second.name))
     itemCount += items.length
+    // An account with nothing of a narrower kind is left out, unless its pickers are shown and may
+    // be what narrowed it.
+    if (
+      kind !== "all" &&
+      items.length === 0 &&
+      !filtersShown.includes(vault.id)
+    )
+      continue
     const open = vaults.length === 1 || !foldedVaults.has(vault.id)
     if (vaults.length > 1) {
       rows.push({ type: "vault", vault, count: items.length, open })

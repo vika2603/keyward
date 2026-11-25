@@ -116,7 +116,7 @@ function CustomFieldEditor({
           }))}
         >
           <SelectTrigger
-            className="w-24 shrink-0"
+            className="w-28 shrink-0"
             aria-label={t("popup.edit.fieldKind")}
           >
             <SelectValue />
@@ -174,7 +174,7 @@ function FieldValueEditor({
         <div className="relative">
           <Input
             type={revealed ? "text" : "password"}
-            className="pr-9 font-mono"
+            className="pr-9 font-mono placeholder:font-sans"
             value={field.value}
             placeholder={t("popup.edit.fieldValue")}
             aria-label={t("popup.edit.fieldValue")}

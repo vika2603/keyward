@@ -24,7 +24,6 @@ import {
 } from "@/components/ui/select"
 import { t } from "@/lib/i18n"
 import type { Folder } from "@/lib/providers/types"
-import { cn } from "@/lib/utils"
 
 const NO_FOLDER = "none"
 
@@ -161,7 +160,20 @@ export function App() {
                 </p>
               )
             ) : (
+              // The vault comes first: the fields after it depend on it, so choosing another one
+              // does not move the vault picker.
               <div className="flex flex-col gap-3">
+                <div className="flex min-w-0 flex-col gap-2">
+                  <span className="text-xs font-medium text-muted-foreground">
+                    {t("overlay.prompt.saveTo")}
+                  </span>
+                  <VaultSelect
+                    vaults={state.targets}
+                    value={target}
+                    onChange={setTarget}
+                    label={t("overlay.prompt.saveTo")}
+                  />
+                </div>
                 {bitwardenTarget && named && (
                   <label className="flex flex-col gap-2">
                     <span className="text-xs font-medium text-muted-foreground">
@@ -175,57 +187,36 @@ export function App() {
                     />
                   </label>
                 )}
-                <div
-                  className={cn(
-                    "grid gap-2",
-                    folders.length > 0 && "grid-cols-2",
-                  )}
-                >
+                {folders.length > 0 && (
                   <div className="flex min-w-0 flex-col gap-2">
                     <span className="text-xs font-medium text-muted-foreground">
-                      {t("overlay.prompt.saveTo")}
+                      {t("overlay.prompt.folder")}
                     </span>
-                    <VaultSelect
-                      vaults={state.targets}
-                      value={target}
-                      onChange={setTarget}
-                      label={t("overlay.prompt.saveTo")}
-                    />
-                  </div>
-                  {folders.length > 0 && (
-                    <div className="flex min-w-0 flex-col gap-2">
-                      <span className="text-xs font-medium text-muted-foreground">
-                        {t("overlay.prompt.folder")}
-                      </span>
-                      <Select
-                        value={folderId ?? NO_FOLDER}
-                        onValueChange={(value) =>
-                          setFolderId(value === NO_FOLDER ? null : value)
-                        }
-                        items={folderChoices}
+                    <Select
+                      value={folderId ?? NO_FOLDER}
+                      onValueChange={(value) =>
+                        setFolderId(value === NO_FOLDER ? null : value)
+                      }
+                      items={folderChoices}
+                    >
+                      <SelectTrigger
+                        className="w-full min-w-0"
+                        aria-label={t("overlay.prompt.folder")}
                       >
-                        <SelectTrigger
-                          className="w-full min-w-0"
-                          aria-label={t("overlay.prompt.folder")}
-                        >
-                          <SelectValue className="truncate" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectGroup>
-                            {folderChoices.map((choice) => (
-                              <SelectItem
-                                key={choice.value}
-                                value={choice.value}
-                              >
-                                {choice.label}
-                              </SelectItem>
-                            ))}
-                          </SelectGroup>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  )}
-                </div>
+                        <SelectValue className="truncate" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectGroup>
+                          {folderChoices.map((choice) => (
+                            <SelectItem key={choice.value} value={choice.value}>
+                              {choice.label}
+                            </SelectItem>
+                          ))}
+                        </SelectGroup>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
               </div>
             )}
             {busy && appleTarget && (

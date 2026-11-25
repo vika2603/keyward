@@ -262,13 +262,15 @@ export function SitesPage() {
           </Button>
         }
       >
+        <p className="text-sm text-muted-foreground">
+          {t("options.sites.domains.description")}
+        </p>
         <Card>
           {settings.equivalentDomains.length ? (
             settings.equivalentDomains.map((group, index) => (
               <Option
                 key={group.join(",")}
                 name={group.join(t("options.sites.domains.separator"))}
-                description={t("options.sites.domains.description")}
               >
                 <div className="flex gap-0.5">
                   <Button
@@ -284,6 +286,7 @@ export function SitesPage() {
                     variant="ghost"
                     size="icon-sm"
                     aria-label={t("options.sites.domains.delete")}
+                    title={t("options.sites.domains.delete")}
                     onClick={() =>
                       update({
                         equivalentDomains: settings.equivalentDomains.filter(

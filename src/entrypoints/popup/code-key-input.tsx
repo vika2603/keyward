@@ -23,7 +23,7 @@ export function CodeKeyInput({
       <Input
         id={id}
         type={shown ? "text" : "password"}
-        className="pr-9 font-mono"
+        className="pr-9 font-mono placeholder:font-sans"
         value={value}
         placeholder={t("popup.edit.codeKeyHint")}
         onChange={(event) => onChange(event.target.value)}

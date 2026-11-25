@@ -134,8 +134,7 @@ export const en = {
     "Domains in the same group share items. Saving a new login still uses the page's own domain.",
   "options.sites.domains.delete": "Delete this group of equivalent domains",
   "options.sites.domains.edit": "Edit this group of equivalent domains",
-  "options.sites.domains.empty":
-    "No equivalent domains yet. Domains in the same group share items in every vault.",
+  "options.sites.domains.empty": "No equivalent domains yet.",
   "options.sites.domainDialog.title": "Add equivalent domains",
   "options.sites.domainDialog.editTitle": "Edit equivalent domains",
   "options.sites.domainDialog.description":
@@ -271,7 +270,7 @@ export const zhCN: Record<keyof typeof en, string> = {
   "options.vaults.autoLock.onQuit": "退出浏览器时",
   "options.vaults.lockOnSystemLock.name": "电脑锁屏时锁定",
   "options.vaults.lockOnSystemLock.description":
-    "电脑锁屏时锁定 Bitwarden 账号。 Passwords 保持配对，它每次取密码都会要求触控 ID。",
+    "电脑锁屏时锁定 Bitwarden 账号。Passwords 保持配对，它每次取密码都会要求触控 ID。",
   "options.vaults.saveTarget.title": "保存位置",
   "options.vaults.saveTarget.name": "新登录默认保存到",
   "options.vaults.saveTarget.description": "保存提示里仍可临时改选。",
@@ -336,7 +335,7 @@ export const zhCN: Record<keyof typeof en, string> = {
   "options.sites.behavior.disabled": "不填充，不询问保存",
   "options.sites.defaultMatch.name": "默认匹配方式",
   "options.sites.defaultMatch.description":
-    "对 Bitwarden 条目生效。 Passwords 的匹配由系统决定。",
+    "对 Bitwarden 条目生效。Passwords 的匹配由系统决定。",
   "options.sites.rules.title": "按站点覆盖",
   "options.sites.rules.add": "添加规则",
   "options.sites.rules.site": "网址",
@@ -356,8 +355,7 @@ export const zhCN: Record<keyof typeof en, string> = {
     "同一组里的域名共用条目。保存新登录时仍记在当前网页的域名下。",
   "options.sites.domains.delete": "删除这一组等价域名",
   "options.sites.domains.edit": "编辑这一组等价域名",
-  "options.sites.domains.empty":
-    "还没有等价域名。同一组里的域名在所有密码库里共用条目。",
+  "options.sites.domains.empty": "还没有等价域名。",
   "options.sites.domainDialog.title": "添加等价域名",
   "options.sites.domainDialog.editTitle": "编辑等价域名",
   "options.sites.domainDialog.description":
