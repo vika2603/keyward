@@ -1,4 +1,5 @@
 import { useVirtualizer } from "@tanstack/react-virtual"
+import { ChevronDownIcon } from "lucide-react"
 import {
   type ReactNode,
   type RefObject,
@@ -11,6 +12,11 @@ import {
 import type { VaultView } from "@/background/api"
 import { BrandIcon, vaultLabel } from "@/components/keyward/brand-icon"
 import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible"
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -20,6 +26,7 @@ import {
 import { currentLanguage, type MessageKey, t } from "@/lib/i18n"
 import type { LoginSummary, NoteSummary } from "@/lib/providers/types"
 import type { Settings } from "@/lib/settings"
+import { cn } from "@/lib/utils"
 import { LoginRow, NoteRow } from "./item-rows"
 
 type ItemKind = "all" | "logins" | "notes"
@@ -36,6 +43,12 @@ type ItemRow =
   | { type: "note"; vault: VaultView; note: NoteSummary; name: string }
 
 export type Row = ItemRow | { type: "vault"; vault: VaultView; count: number }
+
+/**
+ * Whether the list of all items was last left folded. A view preference of the popup, kept in its
+ * own page storage so it is known before the first draw.
+ */
+const ALL_ITEMS_FOLDED_KEY = "keyward.allItemsFolded"
 
 /** Estimated heights in pixels; each row is measured once it is drawn. */
 const VAULT_ROW_HEIGHT = 28
@@ -262,57 +275,78 @@ export function AllItems({
   const rows = useMemo(() => rowsOf(vaults, kind), [vaults, kind])
   const itemCount = rows.filter((row) => row.type !== "vault").length
   const hasNotes = vaults.some((vault) => vault.notes?.length)
+  const [open, setOpen] = useState(
+    () => localStorage.getItem(ALL_ITEMS_FOLDED_KEY) !== "true",
+  )
+  const changeOpen = (next: boolean) => {
+    setOpen(next)
+    localStorage.setItem(ALL_ITEMS_FOLDED_KEY, String(!next))
+  }
 
   return (
-    <section>
-      <SectionHeading
-        action={
-          hasNotes && (
-            <Select
-              value={kind}
-              onValueChange={(value) => setKind(value as ItemKind)}
-              items={KINDS.map((value) => ({
-                value,
-                label: t(KIND_LABELS[value]),
-              }))}
+    <Collapsible open={open} onOpenChange={changeOpen} render={<section />}>
+      <div className="flex min-h-9 items-center gap-1 pt-2 pr-1.5">
+        <CollapsibleTrigger className="flex min-w-0 flex-1 items-center self-stretch px-3 text-left text-xs font-semibold outline-none hover:text-muted-foreground focus-visible:ring-3 focus-visible:ring-ring/50">
+          <span className="truncate">
+            {t("popup.main.allItems")}
+            <span className="font-normal text-muted-foreground">
+              {` · ${itemCount}`}
+            </span>
+          </span>
+        </CollapsibleTrigger>
+        {open && hasNotes && (
+          <Select
+            value={kind}
+            onValueChange={(value) => setKind(value as ItemKind)}
+            items={KINDS.map((value) => ({
+              value,
+              label: t(KIND_LABELS[value]),
+            }))}
+          >
+            <SelectTrigger
+              size="sm"
+              className="text-xs"
+              aria-label={t("popup.main.itemKind")}
             >
-              <SelectTrigger
-                size="sm"
-                className="text-xs"
-                aria-label={t("popup.main.itemKind")}
-              >
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent align="end">
-                {KINDS.map((value) => (
-                  <SelectItem key={value} value={value}>
-                    {t(KIND_LABELS[value])}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          )
-        }
-      >
-        {t("popup.main.allItems")}
-        <span className="font-normal text-muted-foreground">
-          {` · ${itemCount}`}
-        </span>
-      </SectionHeading>
-      {itemCount === 0 && (
-        <p className="px-3 py-2 text-xs text-muted-foreground">
-          {t("popup.main.noItems")}
-        </p>
-      )}
-      <VirtualRows
-        rows={rows}
-        density={density}
-        scrollElement={scrollElement}
-        nameFirst
-        onOpenLogin={onOpenLogin}
-        onOpenNote={onOpenNote}
-        onError={onError}
-      />
-    </section>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent align="end">
+              {KINDS.map((value) => (
+                <SelectItem key={value} value={value}>
+                  {t(KIND_LABELS[value])}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+        {/* The title above is the keyboard's way to fold; this is a second target for the pointer. */}
+        <CollapsibleTrigger
+          tabIndex={-1}
+          aria-label={t("popup.main.toggleGroup")}
+          title={t("popup.main.toggleGroup")}
+          className="flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground outline-none hover:bg-muted hover:text-foreground [&_svg]:size-3"
+        >
+          <ChevronDownIcon
+            className={cn("transition-transform", !open && "-rotate-90")}
+          />
+        </CollapsibleTrigger>
+      </div>
+      <CollapsibleContent>
+        {itemCount === 0 && (
+          <p className="px-3 py-2 text-xs text-muted-foreground">
+            {t("popup.main.noItems")}
+          </p>
+        )}
+        <VirtualRows
+          rows={rows}
+          density={density}
+          scrollElement={scrollElement}
+          nameFirst
+          onOpenLogin={onOpenLogin}
+          onOpenNote={onOpenNote}
+          onError={onError}
+        />
+      </CollapsibleContent>
+    </Collapsible>
   )
 }
