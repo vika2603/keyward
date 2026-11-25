@@ -1,15 +1,13 @@
 import { useEffect, useState } from "react"
+import { type IconTone, iconToneOf } from "@/lib/icon-tone"
 import { iconHostsOf } from "@/lib/site"
 import { cn } from "@/lib/utils"
-
-/** Whether an icon is drawn in mostly dark or mostly light pixels; `null` for coloured ones. */
-type Tone = "dark" | "light" | null
 
 /**
  * The tone of a loaded favicon. The browser keeps the variant a site served for the tab strip's
  * colour at the time of the visit, so the same site's icon may be black or white.
  */
-function toneOf(image: HTMLImageElement): Tone {
+function toneOf(image: HTMLImageElement): IconTone {
   const size = 16
   const canvas = document.createElement("canvas")
   canvas.width = size
@@ -18,18 +16,7 @@ function toneOf(image: HTMLImageElement): Tone {
   if (!context) return null
   try {
     context.drawImage(image, 0, 0, size, size)
-    const data = context.getImageData(0, 0, size, size).data
-    let sum = 0
-    let count = 0
-    for (let i = 0; i < data.length; i += 4) {
-      if ((data[i + 3] ?? 0) < 128) continue
-      const [r = 0, g = 0, b = 0] = [data[i], data[i + 1], data[i + 2]]
-      sum += (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255
-      count++
-    }
-    if (!count) return null
-    const luminance = sum / count
-    return luminance < 0.3 ? "dark" : luminance > 0.75 ? "light" : null
+    return iconToneOf(context.getImageData(0, 0, size, size).data)
   } catch {
     return null
   }
@@ -122,7 +109,7 @@ export function SiteIcon({
 }) {
   const icon = useFavicon(host)
   const [failed, setFailed] = useState(false)
-  const [tone, setTone] = useState<Tone>(null)
+  const [tone, setTone] = useState<IconTone>(null)
   const letter =
     [...text.replace(/^www\./i, "").trim()][0]?.toUpperCase() ?? "?"
   const favicon = Boolean(icon) && !failed
