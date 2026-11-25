@@ -1,5 +1,4 @@
-import { EyeIcon, EyeOffIcon, PlusIcon, XIcon } from "lucide-react"
-import { useState } from "react"
+import { PlusIcon, XIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
@@ -12,6 +11,7 @@ import {
 } from "@/components/ui/select"
 import { type MessageKey, t } from "@/lib/i18n"
 import type { CustomField } from "@/lib/providers/types"
+import { SecretInput } from "./secret-input"
 
 type FieldKind = CustomField["kind"]
 type LinkTarget = Extract<CustomField, { kind: "linked" }>["linkedTo"]
@@ -152,7 +152,6 @@ function FieldValueEditor({
   field: CustomField
   onChange: (field: CustomField) => void
 }) {
-  const [revealed, setRevealed] = useState(false)
   switch (field.kind) {
     case "text":
       return (
@@ -166,38 +165,19 @@ function FieldValueEditor({
           autoComplete="off"
         />
       )
-    case "hidden": {
-      const eyeLabel = revealed
-        ? t("popup.detail.hideField")
-        : t("popup.detail.showField")
+    case "hidden":
       return (
-        <div className="relative">
-          <Input
-            type={revealed ? "text" : "password"}
-            className="pr-9 font-mono placeholder:font-sans"
-            value={field.value}
-            placeholder={t("popup.edit.fieldValue")}
-            aria-label={t("popup.edit.fieldValue")}
-            onChange={(event) =>
-              onChange({ ...field, value: event.target.value })
-            }
-            autoComplete="off"
-            spellCheck={false}
-          />
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            className="absolute top-0.5 right-0.5"
-            aria-label={eyeLabel}
-            title={eyeLabel}
-            onClick={() => setRevealed((shown) => !shown)}
-          >
-            {revealed ? <EyeOffIcon /> : <EyeIcon />}
-          </Button>
-        </div>
+        <SecretInput
+          showLabel={t("popup.detail.showField")}
+          hideLabel={t("popup.detail.hideField")}
+          value={field.value}
+          placeholder={t("popup.edit.fieldValue")}
+          aria-label={t("popup.edit.fieldValue")}
+          onChange={(event) =>
+            onChange({ ...field, value: event.target.value })
+          }
+        />
       )
-    }
     case "checkbox":
       return (
         <label className="flex items-center gap-2 px-1 py-1 text-sm">

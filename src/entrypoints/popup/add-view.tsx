@@ -2,6 +2,7 @@ import { ExternalLinkIcon, RefreshCcwDotIcon } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
 import { callBackground } from "@/background/api"
 import { errorMessage, isUnsupportedRequest } from "@/components/keyward/errors"
+import { FormError, FormField } from "@/components/keyward/form-field"
 import { notifyError } from "@/components/keyward/notify"
 import { VaultSelect } from "@/components/keyward/vault-select"
 import { Button } from "@/components/ui/button"
@@ -16,6 +17,7 @@ import {
 } from "@/components/ui/select"
 import { Separator } from "@/components/ui/separator"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Textarea } from "@/components/ui/textarea"
 import { useAsyncAction } from "@/hooks/use-async-action"
 import { useBackgroundQuery } from "@/hooks/use-background-query"
 import { generatePassword, getGeneratorOptions } from "@/lib/generator"
@@ -64,22 +66,17 @@ function LoginDetailsFields({
 
   return (
     <>
-      <label className="flex flex-col gap-2">
-        <span className="text-sm leading-none font-medium">
-          {t("popup.edit.name")}
-        </span>
+      <FormField label={t("popup.edit.name")} htmlFor="add-name">
         <Input
+          id="add-name"
           value={details.name}
           placeholder={site}
           onChange={(event) => onChange({ name: event.target.value })}
           autoComplete="off"
         />
-      </label>
+      </FormField>
       {folders && folders.length > 0 && (
-        <div className="flex flex-col gap-2">
-          <span className="text-sm leading-none font-medium">
-            {t("popup.add.folder")}
-          </span>
+        <FormField label={t("popup.add.folder")}>
           <Select
             value={details.folderId ?? NO_FOLDER}
             onValueChange={(value) =>
@@ -103,38 +100,29 @@ function LoginDetailsFields({
               </SelectGroup>
             </SelectContent>
           </Select>
-        </div>
+        </FormField>
       )}
-      <div className="flex flex-col gap-2">
-        <label htmlFor="add-totp" className="text-sm leading-none font-medium">
-          {t("popup.edit.codeKey")}
-        </label>
+      <FormField label={t("popup.edit.codeKey")} htmlFor="add-totp">
         <CodeKeyInput
           id="add-totp"
           value={details.totp}
           onChange={(totp) => onChange({ totp })}
         />
-      </div>
-      <label className="flex flex-col gap-2">
-        <span className="text-sm leading-none font-medium">
-          {t("popup.detail.notes")}
-        </span>
-        <textarea
+      </FormField>
+      <FormField label={t("popup.detail.notes")} htmlFor="add-notes">
+        <Textarea
+          id="add-notes"
           rows={3}
           value={details.notes}
           onChange={(event) => onChange({ notes: event.target.value })}
-          className="w-full min-w-0 resize-y rounded-lg border border-input bg-transparent px-2.5 py-1.5 text-sm outline-none placeholder:text-muted-foreground focus-visible:border-foreground/35 focus-visible:ring-3 focus-visible:ring-foreground/6 dark:bg-input/30"
         />
-      </label>
-      <div className="flex flex-col gap-2">
-        <span className="text-sm leading-none font-medium">
-          {t("popup.detail.customFields")}
-        </span>
+      </FormField>
+      <FormField label={t("popup.detail.customFields")}>
         <CustomFieldsEditor
           fields={details.customFields}
           onChange={(customFields: CustomField[]) => onChange({ customFields })}
         />
-      </div>
+      </FormField>
     </>
   )
 }
@@ -249,33 +237,23 @@ function AddLoginForm({ onDone }: { onDone: () => void }) {
       }}
     >
       <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-3 pt-1 pb-3">
-        <label className="flex flex-col gap-2">
-          <span className="text-sm leading-none font-medium">
-            {t("popup.add.site")}
-          </span>
+        <FormField label={t("popup.add.site")} htmlFor="add-site">
           <Input
+            id="add-site"
             value={site}
             onChange={(event) => setSite(event.target.value)}
             required
           />
-        </label>
-        <label className="flex flex-col gap-2">
-          <span className="text-sm leading-none font-medium">
-            {t("popup.add.username")}
-          </span>
+        </FormField>
+        <FormField label={t("popup.add.username")} htmlFor="add-username">
           <Input
+            id="add-username"
             value={username}
             onChange={(event) => setUsername(event.target.value)}
             autoComplete="off"
           />
-        </label>
-        <div className="flex flex-col gap-2">
-          <label
-            htmlFor="add-password"
-            className="text-sm leading-none font-medium"
-          >
-            {t("popup.add.password")}
-          </label>
+        </FormField>
+        <FormField label={t("popup.add.password")} htmlFor="add-password">
           <div className="relative">
             <Input
               id="add-password"
@@ -298,31 +276,31 @@ function AddLoginForm({ onDone }: { onDone: () => void }) {
               <RefreshCcwDotIcon />
             </Button>
           </div>
-        </div>
-        <div className="flex flex-col gap-2">
-          <span className="text-sm leading-none font-medium">
-            {t("popup.add.saveTo")}
-          </span>
+        </FormField>
+        <FormField label={t("popup.add.saveTo")}>
           <VaultSelect
             vaults={targets ?? []}
             value={target}
             onChange={setTarget}
             label={t("popup.add.saveTo")}
           />
+          {/* In a block of its own, so the field does not stretch the button across. */}
           {apple && (
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="self-start text-muted-foreground"
-              onClick={() => void openNewPasswordSheet()}
-            >
-              <ExternalLinkIcon />
-              {t("popup.add.openNewPasswordSheet")}
-            </Button>
+            <div>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="text-muted-foreground"
+                onClick={() => void openNewPasswordSheet()}
+              >
+                <ExternalLinkIcon />
+                {t("popup.add.openNewPasswordSheet")}
+              </Button>
+            </div>
           )}
           {targetsError ? (
-            <p className="text-xs text-destructive">{targetsError}</p>
+            <FormError>{targetsError}</FormError>
           ) : unsupported.some((vault) => vault.kind === "apple") ? (
             <p className="text-xs text-muted-foreground">
               {t("error.apple.unsupportedSite")}
@@ -334,7 +312,7 @@ function AddLoginForm({ onDone }: { onDone: () => void }) {
               </p>
             )
           )}
-        </div>
+        </FormField>
         {bitwarden && target && (
           <LoginDetailsFields
             vaultId={target}
@@ -350,7 +328,7 @@ function AddLoginForm({ onDone }: { onDone: () => void }) {
             {t("popup.add.confirmOnMac")}
           </p>
         )}
-        {message && <p className="text-xs text-destructive">{message}</p>}
+        <FormError>{message}</FormError>
       </div>
       <Separator />
       <div className="px-3 pt-2.5 pb-3">

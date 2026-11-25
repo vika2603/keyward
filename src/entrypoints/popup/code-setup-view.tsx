@@ -3,6 +3,7 @@ import { type ReactNode, useState } from "react"
 import { callBackground } from "@/background/api"
 import { BrandIcon, vaultLabel } from "@/components/keyward/brand-icon"
 import { errorMessage } from "@/components/keyward/errors"
+import { FormError } from "@/components/keyward/form-field"
 import { FADE_IN, LoginListSkeleton } from "@/components/keyward/loading"
 import { LoginLabel } from "@/components/keyward/login-label"
 import { SiteIcon } from "@/components/keyward/site-icon"
@@ -155,7 +156,7 @@ export function CodeSetupView({
             </div>
           </div>
         )}
-        {message && <p className="px-1 text-xs text-destructive">{message}</p>}
+        <FormError className="px-1">{message}</FormError>
         {!setup && !message && (
           <LoginListSkeleton compact={false} heading={false} />
         )}

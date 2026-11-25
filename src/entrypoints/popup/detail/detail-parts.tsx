@@ -8,6 +8,7 @@ import {
 } from "lucide-react"
 import { type ReactNode, type RefObject, useState } from "react"
 import { callBackground } from "@/background/api"
+import { FormError } from "@/components/keyward/form-field"
 import { notifyError } from "@/components/keyward/notify"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -254,7 +255,7 @@ export function RepromptForm({
           {t("popup.reprompt.submit")}
         </Button>
       </div>
-      {message && <p className="text-xs text-destructive">{message}</p>}
+      <FormError>{message}</FormError>
     </form>
   )
 }

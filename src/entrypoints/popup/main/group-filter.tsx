@@ -1,7 +1,6 @@
 import { ListFilterIcon } from "lucide-react"
 import { createContext, useContext } from "react"
 import type { VaultView } from "@/background/api"
-import { Button } from "@/components/ui/button"
 import {
   Select,
   SelectContent,
@@ -11,6 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { Toggle } from "@/components/ui/toggle"
 import { currentLanguage, type MessageKey, t } from "@/lib/i18n"
 import type { ItemGrouping } from "@/lib/providers/types"
 
@@ -209,17 +209,16 @@ export function GroupFilterButton({
     })
   }
   return (
-    <Button
-      variant={shown ? "secondary" : "ghost"}
+    <Toggle
       size={size}
       className="text-muted-foreground"
       aria-label={t("popup.main.filter.toggle")}
       title={t("popup.main.filter.toggle")}
-      aria-pressed={shown}
-      onClick={toggle}
+      pressed={shown}
+      onPressedChange={toggle}
     >
       <ListFilterIcon />
-    </Button>
+    </Toggle>
   )
 }
 

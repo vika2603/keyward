@@ -5,6 +5,7 @@ import { useCopyThrough } from "@/components/keyward/copy-through"
 import { notifyError } from "@/components/keyward/notify"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
+import { Toggle } from "@/components/ui/toggle"
 import { useBackgroundQuery } from "@/hooks/use-background-query"
 import {
   COPIED_FEEDBACK_MS,
@@ -109,17 +110,15 @@ export function HistoryView({ onBack }: { onBack: () => void }) {
           </div>
         ) : (
           <div className="flex gap-1">
-            <Button
-              variant="ghost"
+            <Toggle
               size="icon"
               aria-label={t("popup.history.show")}
               title={t("popup.history.show")}
-              aria-pressed={shown}
-              className="aria-pressed:bg-muted"
-              onClick={() => setShown(!shown)}
+              pressed={shown}
+              onPressedChange={setShown}
             >
               <EyeIcon />
-            </Button>
+            </Toggle>
             <Button
               variant="ghost"
               size="icon"

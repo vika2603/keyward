@@ -1,12 +1,14 @@
 import { useEffect, useState } from "react"
 import { callBackground } from "@/background/api"
 import { errorMessage } from "@/components/keyward/errors"
+import { FormError, FormField } from "@/components/keyward/form-field"
 import { FADE_IN } from "@/components/keyward/loading"
 import { VaultSelect } from "@/components/keyward/vault-select"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
 import { Skeleton } from "@/components/ui/skeleton"
+import { Textarea } from "@/components/ui/textarea"
 import { useAsyncAction } from "@/hooks/use-async-action"
 import { t } from "@/lib/i18n"
 import type {
@@ -93,53 +95,42 @@ export function NoteForm({
         )}
         {form && (
           <div className={cn("flex flex-col gap-3", FADE_IN)}>
-            <label className="flex flex-col gap-2">
-              <span className="text-sm leading-none font-medium">
-                {t("popup.edit.name")}
-              </span>
+            <FormField label={t("popup.edit.name")} htmlFor="note-name">
               <Input
+                id="note-name"
                 value={form.name}
                 onChange={(event) => update({ name: event.target.value })}
                 autoComplete="off"
                 required
               />
-            </label>
-            <label className="flex flex-col gap-2">
-              <span className="text-sm leading-none font-medium">
-                {t("popup.note.content")}
-              </span>
-              <textarea
+            </FormField>
+            <FormField label={t("popup.note.content")} htmlFor="note-text">
+              <Textarea
+                id="note-text"
                 rows={6}
                 value={form.text}
                 onChange={(event) => update({ text: event.target.value })}
-                className="w-full min-w-0 resize-y rounded-lg border border-input bg-transparent px-2.5 py-1.5 text-sm outline-none placeholder:text-muted-foreground focus-visible:border-foreground/35 focus-visible:ring-3 focus-visible:ring-foreground/6 dark:bg-input/30"
               />
-            </label>
-            <div className="flex flex-col gap-2">
-              <span className="text-sm leading-none font-medium">
-                {t("popup.detail.customFields")}
-              </span>
+            </FormField>
+            <FormField label={t("popup.detail.customFields")}>
               <CustomFieldsEditor
                 fields={form.customFields}
                 onChange={(customFields) => update({ customFields })}
               />
-            </div>
+            </FormField>
             {target.mode === "create" && (
-              <div className="flex flex-col gap-2">
-                <span className="text-sm leading-none font-medium">
-                  {t("popup.add.saveTo")}
-                </span>
+              <FormField label={t("popup.add.saveTo")}>
                 <VaultSelect
                   vaults={target.targets}
                   value={vaultId}
                   onChange={setVaultId}
                   label={t("popup.add.saveTo")}
                 />
-              </div>
+              </FormField>
             )}
           </div>
         )}
-        {message && <p className="text-xs text-destructive">{message}</p>}
+        <FormError>{message}</FormError>
       </div>
       <Separator />
       <div className="flex gap-2 px-3 pt-2.5 pb-3">

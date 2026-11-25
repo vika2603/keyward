@@ -1,13 +1,8 @@
-import {
-  EyeIcon,
-  EyeOffIcon,
-  PlusIcon,
-  RefreshCcwDotIcon,
-  XIcon,
-} from "lucide-react"
-import { type ReactNode, useEffect, useState } from "react"
+import { PlusIcon, RefreshCcwDotIcon, XIcon } from "lucide-react"
+import { useEffect, useState } from "react"
 import { callBackground } from "@/background/api"
 import { errorMessage } from "@/components/keyward/errors"
+import { FormError, FormField } from "@/components/keyward/form-field"
 import { FADE_IN } from "@/components/keyward/loading"
 import { matchNames } from "@/components/keyward/match-names"
 import { Button } from "@/components/ui/button"
@@ -22,6 +17,7 @@ import {
 } from "@/components/ui/select"
 import { Separator } from "@/components/ui/separator"
 import { Skeleton } from "@/components/ui/skeleton"
+import { Textarea } from "@/components/ui/textarea"
 import { useAsyncAction } from "@/hooks/use-async-action"
 import { generatePassword, getGeneratorOptions } from "@/lib/generator"
 import { t } from "@/lib/i18n"
@@ -36,25 +32,7 @@ import { cn } from "@/lib/utils"
 import { CodeKeyInput } from "./code-key-input"
 import { CustomFieldsEditor } from "./custom-fields-editor"
 import { BackHeader } from "./header"
-
-function Field({
-  label,
-  htmlFor,
-  children,
-}: {
-  label: string
-  htmlFor?: string
-  children: ReactNode
-}) {
-  return (
-    <div className="flex flex-col gap-2">
-      <label htmlFor={htmlFor} className="text-sm leading-none font-medium">
-        {label}
-      </label>
-      {children}
-    </div>
-  )
-}
+import { SecretInput } from "./secret-input"
 
 const DEFAULT_MATCH = "default"
 
@@ -205,7 +183,7 @@ export function EditView({
         )}
         {form && (
           <div className={cn("flex flex-col gap-3", FADE_IN)}>
-            <Field label={t("popup.edit.name")} htmlFor="edit-name">
+            <FormField label={t("popup.edit.name")} htmlFor="edit-name">
               <Input
                 id="edit-name"
                 value={form.name}
@@ -213,45 +191,25 @@ export function EditView({
                 autoComplete="off"
                 required
               />
-            </Field>
-            <Field label={t("popup.add.username")} htmlFor="edit-username">
+            </FormField>
+            <FormField label={t("popup.add.username")} htmlFor="edit-username">
               <Input
                 id="edit-username"
                 value={form.username}
                 onChange={(event) => update({ username: event.target.value })}
                 autoComplete="off"
               />
-            </Field>
-            <Field label={t("popup.add.password")} htmlFor="edit-password">
-              <div className="relative">
-                <Input
-                  id="edit-password"
-                  type={revealed ? "text" : "password"}
-                  className="pr-16 font-mono"
-                  value={form.password}
-                  onChange={(event) => update({ password: event.target.value })}
-                  autoComplete="off"
-                  spellCheck={false}
-                />
-                <div className="absolute top-0.5 right-0.5 flex">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-sm"
-                    aria-label={
-                      revealed
-                        ? t("popup.detail.hidePassword")
-                        : t("popup.detail.showPassword")
-                    }
-                    title={
-                      revealed
-                        ? t("popup.detail.hidePassword")
-                        : t("popup.detail.showPassword")
-                    }
-                    onClick={() => setRevealed((value) => !value)}
-                  >
-                    {revealed ? <EyeOffIcon /> : <EyeIcon />}
-                  </Button>
+            </FormField>
+            <FormField label={t("popup.add.password")} htmlFor="edit-password">
+              <SecretInput
+                id="edit-password"
+                showLabel={t("popup.detail.showPassword")}
+                hideLabel={t("popup.detail.hidePassword")}
+                shown={revealed}
+                onShownChange={setRevealed}
+                value={form.password}
+                onChange={(event) => update({ password: event.target.value })}
+                action={
                   <Button
                     type="button"
                     variant="ghost"
@@ -262,10 +220,10 @@ export function EditView({
                   >
                     <RefreshCcwDotIcon />
                   </Button>
-                </div>
-              </div>
-            </Field>
-            <Field label={t("popup.detail.websites")}>
+                }
+              />
+            </FormField>
+            <FormField label={t("popup.detail.websites")}>
               <div className="flex flex-col gap-1.5">
                 {form.uris.map((website, index) => (
                   // biome-ignore lint/suspicious/noArrayIndexKey: addresses may repeat while typed; their position is their identity.
@@ -322,32 +280,31 @@ export function EditView({
                   {t("popup.edit.addWebsite")}
                 </Button>
               </div>
-            </Field>
-            <Field label={t("popup.edit.codeKey")} htmlFor="edit-totp">
+            </FormField>
+            <FormField label={t("popup.edit.codeKey")} htmlFor="edit-totp">
               <CodeKeyInput
                 id="edit-totp"
                 value={form.totp}
                 onChange={(totp) => update({ totp })}
               />
-            </Field>
-            <Field label={t("popup.detail.notes")} htmlFor="edit-notes">
-              <textarea
+            </FormField>
+            <FormField label={t("popup.detail.notes")} htmlFor="edit-notes">
+              <Textarea
                 id="edit-notes"
                 rows={3}
                 value={form.notes}
                 onChange={(event) => update({ notes: event.target.value })}
-                className="w-full min-w-0 resize-y rounded-lg border border-input bg-transparent px-2.5 py-1.5 text-sm outline-none placeholder:text-muted-foreground focus-visible:border-foreground/35 focus-visible:ring-3 focus-visible:ring-foreground/6 dark:bg-input/30"
               />
-            </Field>
-            <Field label={t("popup.detail.customFields")}>
+            </FormField>
+            <FormField label={t("popup.detail.customFields")}>
               <CustomFieldsEditor
                 fields={form.customFields}
                 onChange={(customFields) => update({ customFields })}
               />
-            </Field>
+            </FormField>
           </div>
         )}
-        {message && <p className="text-xs text-destructive">{message}</p>}
+        <FormError>{message}</FormError>
       </div>
       <Separator />
       <div className="flex gap-2 px-3 pt-2.5 pb-3">

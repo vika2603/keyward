@@ -9,6 +9,7 @@ import { serverHost } from "@/lib/providers/bitwarden/server"
 import { cn } from "@/lib/utils"
 import { BrandIcon } from "./brand-icon"
 import { errorMessage } from "./errors"
+import { FormError } from "./form-field"
 import { FADE_IN, FieldsSkeleton } from "./loading"
 import { VaultSelect } from "./vault-select"
 
@@ -36,9 +37,7 @@ export function BitwardenUnlock({
   // Without its accounts the view has nothing else to show, so the error takes the form's place.
   if (!accounts) {
     return loadError ? (
-      <p className="text-center text-xs text-destructive">
-        {errorMessage(loadError)}
-      </p>
+      <FormError className="text-center">{errorMessage(loadError)}</FormError>
     ) : (
       <FieldsSkeleton rows={2} />
     )
@@ -138,7 +137,7 @@ export function BitwardenUnlock({
             onChange={(event) => setPassword(event.target.value)}
             className="h-9"
           />
-          {message && <p className="text-xs text-destructive">{message}</p>}
+          <FormError>{message}</FormError>
           <Button type="submit" size="lg" className="w-full" disabled={busy}>
             {busy ? t("unlock.busy") : t("unlock.unlock")}
           </Button>

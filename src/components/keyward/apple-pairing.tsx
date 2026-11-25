@@ -15,6 +15,7 @@ import {
 import { t } from "@/lib/i18n"
 import type { AppleState } from "@/lib/providers/apple/apple-provider"
 import { errorCodeOf, errorMessage } from "./errors"
+import { FormError } from "./form-field"
 
 /**
  * Pairs with Apple Passwords: the helper shows a six-digit code on the Mac, which the user types
@@ -149,11 +150,10 @@ export function ApplePairing({ onPaired }: { onPaired: () => void }) {
           ))}
         </InputOTPGroup>
       </InputOTP>
-      {(message || phase === "unavailable") && (
-        <p className="text-xs text-destructive">
-          {message ?? t("error.apple.unavailable")}
-        </p>
-      )}
+      <FormError>
+        {message ??
+          (phase === "unavailable" ? t("error.apple.unavailable") : null)}
+      </FormError>
       {/* For a code that was dismissed or expired on the Mac; each click asks for one new code. */}
       {(phase === "awaitingCode" || phase === "unpaired") && (
         <Button

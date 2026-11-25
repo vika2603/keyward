@@ -1,4 +1,5 @@
 import { HistoryIcon } from "lucide-react"
+import { FormError } from "@/components/keyward/form-field"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -76,9 +77,7 @@ export function GeneratorView({
             onRegenerate={generator.regenerate}
             onMessage={generator.setMessage}
           />
-          {generator.message && (
-            <p className="text-xs text-destructive">{generator.message}</p>
-          )}
+          <FormError>{generator.message}</FormError>
         </div>
         <Separator />
         {kind === "password" && (
