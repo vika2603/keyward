@@ -1,7 +1,6 @@
 import {
   ChevronDownIcon,
   ExternalLinkIcon,
-  ListFilterIcon,
   LockIcon,
   PlusIcon,
   RefreshCcwDotIcon,
@@ -54,11 +53,9 @@ import {
 } from "./all-items"
 import { ConnectCard, LockedVaultCard } from "./connect-card"
 import {
-  canFilter,
-  type GroupFilter,
-  GroupFilterBar,
-  isFiltering,
-  NO_GROUP_FILTER,
+  type AccountFilters,
+  GroupFilterContext,
+  NO_ACCOUNT_FILTERS,
   narrowed,
 } from "./group-filter"
 import { openOptions, SettingsButton } from "./header"
@@ -75,9 +72,7 @@ export interface ListPlace {
   itemFilter: ItemFilter | null
   /** Vaults whose logins for the site were folded. */
   foldedSiteVaults: ReadonlySet<string>
-  groupFilter: GroupFilter
-  /** Whether the pickers of the group filter are shown. */
-  groupFilterShown: boolean
+  groupFilters: AccountFilters
   scrollTop: number
 }
 
@@ -86,8 +81,7 @@ export function newListPlace(): ListPlace {
     tab: "all",
     itemFilter: null,
     foldedSiteVaults: new Set(),
-    groupFilter: NO_GROUP_FILTER,
-    groupFilterShown: false,
+    groupFilters: NO_ACCOUNT_FILTERS,
     scrollTop: 0,
   }
 }
@@ -125,19 +119,10 @@ export function MainView({
   const [foldedSiteVaults, setFoldedSiteVaults] = useState(
     place.foldedSiteVaults,
   )
-  const [groupFilter, setGroupFilter] = useState(place.groupFilter)
-  const [groupFilterShown, setGroupFilterShown] = useState(
-    place.groupFilterShown,
-  )
-  const changeGroupFilter = (next: GroupFilter) => {
-    place.groupFilter = next
-    setGroupFilter(next)
-  }
-  const showGroupFilter = (shown: boolean) => {
-    place.groupFilterShown = shown
-    setGroupFilterShown(shown)
-    // Hiding the pickers drops what they chose, so nothing filters the list unseen.
-    if (!shown) changeGroupFilter(NO_GROUP_FILTER)
+  const [groupFilters, setGroupFilters] = useState(place.groupFilters)
+  const changeGroupFilters = (next: AccountFilters) => {
+    place.groupFilters = next
+    setGroupFilters(next)
   }
   const changeTab = (next: Filter) => {
     place.tab = next
@@ -227,23 +212,15 @@ export function MainView({
   const filterable = (everything ?? []).filter(
     (vault) => inTab(vault) && vault.status === "ready" && !vault.error,
   )
-  const inView = (search ? (results ?? []) : vaults).filter(inTab)
+  const shown = (search ? (results ?? []) : vaults).filter(inTab)
   const tabs = connected && kinds.size > 1
   // Whether the vaults in view can say a site has no logins, or take a new one.
-  const shownReady = inView.some((vault) => vault.status === "ready")
+  const shownReady = shown.some((vault) => vault.status === "ready")
   // With one provider in view and nothing searched, a provider that can list a whole vault offers
   // it beside the site's logins. Passwords cannot, so its view stays as it is.
   const oneProvider = filter !== "all" || kinds.size === 1
   // Locked vaults have nothing to browse; their unlock cards show instead.
   const browsing = connected && !search && oneProvider && shownReady
-  // The group filter sits in the whole-vault list's header and narrows that list only. A filter on
-  // an account that left the tab, or was locked, no longer applies.
-  const activeFilter =
-    browsing && filterable.some((vault) => vault.id === groupFilter.vaultId)
-      ? groupFilter
-      : NO_GROUP_FILTER
-  const filtering = isFiltering(activeFilter)
-  const shown = inView.map((vault) => narrowed(vault, activeFilter))
   // Vaults to pair or unlock get a large button each, except on the "all" tab once one is open:
   // each is then unlocked from its own tab. The others list their logins or say why they cannot.
   const locked =
@@ -267,9 +244,11 @@ export function MainView({
       }
     />
   ))
-  const browsed = filterable
-    .filter((vault) => !filtering || vault.id === activeFilter.vaultId)
-    .map((vault) => narrowed(vault, activeFilter))
+  // Each account's group filter narrows its part of the list of whole vaults; the site's logins
+  // are few and stay as they are.
+  const browsed = filterable.map((vault) =>
+    narrowed(vault, groupFilters.choices[vault.id]),
+  )
   const waitingForItems = browsing && everything === null
   const browsable = browsing && browsed.length > 0
   const siteItemCount = listed.reduce(
@@ -446,73 +425,56 @@ export function MainView({
             {lockedCards.length > 0 && (
               <div className="flex flex-col gap-2 px-3 pt-3">{lockedCards}</div>
             )}
-            <ItemBrowser
-              vaults={browsed}
-              filterButton={
-                canFilter(filterable) && (
-                  <Button
-                    variant={
-                      groupFilterShown || filtering ? "secondary" : "ghost"
-                    }
-                    size="icon-sm"
-                    aria-label={t("popup.main.filter.toggle")}
-                    title={t("popup.main.filter.toggle")}
-                    aria-pressed={groupFilterShown}
-                    onClick={() => showGroupFilter(!groupFilterShown)}
-                  >
-                    <ListFilterIcon />
-                  </Button>
-                )
-              }
-              filterBar={
-                groupFilterShown &&
-                canFilter(filterable) && (
-                  <GroupFilterBar
-                    vaults={filterable}
-                    filter={activeFilter}
-                    onChange={changeGroupFilter}
-                  />
-                )
-              }
-              host={page?.host ?? null}
-              siteItemCount={siteItemCount}
-              chosen={itemFilter}
-              onChoose={chooseItemFilter}
-              onChanged={load}
-              site={
-                listed.length ? (
-                  listed.map((vault) => (
-                    <VaultGroup
-                      key={vault.id}
-                      vault={vault}
-                      density={density}
-                      scrollElement={listRef}
-                      open={!foldedSiteVaults.has(vault.id)}
-                      onOpenChange={(open) => foldSiteVault(vault.id, open)}
-                      onLocked={load}
-                      onOpen={(login) =>
-                        onNavigate({ name: "detail", vault, login })
-                      }
-                      onOpenNote={(note) =>
-                        onNavigate({ name: "note", vault, note })
-                      }
-                    />
-                  ))
-                ) : (
-                  <p className="px-3 py-1.5 text-xs text-muted-foreground">
-                    {t("popup.main.noLoginsHere")}
-                  </p>
-                )
-              }
-              density={density}
-              scrollElement={listRef}
-              onOpenLogin={(vault, login) =>
-                onNavigate({ name: "detail", vault, login })
-              }
-              onOpenNote={(vault, note) =>
-                onNavigate({ name: "note", vault, note })
-              }
-            />
+            <GroupFilterContext
+              value={{
+                filters: groupFilters,
+                vaults: filterable,
+                onChange: changeGroupFilters,
+              }}
+            >
+              <ItemBrowser
+                vaults={browsed}
+                host={page?.host ?? null}
+                siteItemCount={siteItemCount}
+                chosen={itemFilter}
+                onChoose={chooseItemFilter}
+                onChanged={load}
+                site={
+                  listed.length ? (
+                    listed.map((vault) => (
+                      <VaultGroup
+                        key={vault.id}
+                        vault={vault}
+                        headed={filter !== "apple"}
+                        density={density}
+                        scrollElement={listRef}
+                        open={!foldedSiteVaults.has(vault.id)}
+                        onOpenChange={(open) => foldSiteVault(vault.id, open)}
+                        onLocked={load}
+                        onOpen={(login) =>
+                          onNavigate({ name: "detail", vault, login })
+                        }
+                        onOpenNote={(note) =>
+                          onNavigate({ name: "note", vault, note })
+                        }
+                      />
+                    ))
+                  ) : (
+                    <p className="px-3 py-1.5 text-xs text-muted-foreground">
+                      {t("popup.main.noLoginsHere")}
+                    </p>
+                  )
+                }
+                density={density}
+                scrollElement={listRef}
+                onOpenLogin={(vault, login) =>
+                  onNavigate({ name: "detail", vault, login })
+                }
+                onOpenNote={(vault, note) =>
+                  onNavigate({ name: "note", vault, note })
+                }
+              />
+            </GroupFilterContext>
           </div>
         ) : !listed.length ? (
           <EmptyState
@@ -550,6 +512,7 @@ export function MainView({
               <VaultGroup
                 key={vault.id}
                 vault={vault}
+                headed={filter !== "apple"}
                 density={density}
                 scrollElement={listRef}
                 open={!foldedSiteVaults.has(vault.id)}
@@ -606,6 +569,7 @@ function EmptyState({
 
 function VaultGroup({
   vault,
+  headed,
   density,
   scrollElement,
   open,
@@ -615,6 +579,8 @@ function VaultGroup({
   onOpenNote,
 }: {
   vault: VaultView
+  /** Left out where the tab already names the vault, as the Passwords tab does. */
+  headed: boolean
   density: Settings["density"]
   /** The list area, which scrolls the group's rows. */
   scrollElement: RefObject<HTMLDivElement | null>
@@ -650,6 +616,18 @@ function VaultGroup({
       </section>
     )
   }
+
+  const rowList = (
+    <VirtualRows
+      rows={rows}
+      density={density}
+      scrollElement={scrollElement}
+      onOpenLogin={(_, login) => onOpen(login)}
+      onOpenNote={(_, note) => onOpenNote(note)}
+    />
+  )
+  // Without its heading the group cannot be folded, so it shows its rows whatever was folded before.
+  if (!headed) return <section className="pt-1">{rowList}</section>
 
   return (
     <Collapsible open={open} onOpenChange={onOpenChange} render={<section />}>
@@ -708,15 +686,7 @@ function VaultGroup({
         </CollapsibleTrigger>
       </h2>
       <CollapsibleContent>
-        <div className="pt-1">
-          <VirtualRows
-            rows={rows}
-            density={density}
-            scrollElement={scrollElement}
-            onOpenLogin={(_, login) => onOpen(login)}
-            onOpenNote={(_, note) => onOpenNote(note)}
-          />
-        </div>
+        <div className="pt-1">{rowList}</div>
       </CollapsibleContent>
     </Collapsible>
   )

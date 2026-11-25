@@ -1,11 +1,12 @@
+import { ListFilterIcon } from "lucide-react"
+import { createContext, useContext } from "react"
 import type { VaultView } from "@/background/api"
-import { vaultLabel } from "@/components/keyward/brand-icon"
+import { Button } from "@/components/ui/button"
 import {
   Select,
   SelectContent,
   SelectGroup,
   SelectItem,
-  SelectLabel,
   SelectSeparator,
   SelectTrigger,
   SelectValue,
@@ -17,14 +18,13 @@ import type { ItemGrouping } from "@/lib/providers/types"
 const MY_VAULT = "mine"
 /** Items in no folder, as a folder. */
 const NO_FOLDER = "none"
+const ALL = "all"
 
 /**
- * A narrowing of the list to one account's owner, folder and collection, as Bitwarden's own
- * filters do. Choices belong to one account at a time, as an account's folders and organizations
- * are its own.
+ * A narrowing of one account's items to an owner, a folder and a collection, as Bitwarden's own
+ * filters do; organizations, folders and collections are each account's own.
  */
 export interface GroupFilter {
-  vaultId: string | null
   /** MY_VAULT or an organization ID. */
   owner: string | null
   /** A folder ID or NO_FOLDER. */
@@ -33,16 +33,25 @@ export interface GroupFilter {
 }
 
 export const NO_GROUP_FILTER: GroupFilter = {
-  vaultId: null,
   owner: null,
   folder: null,
   collection: null,
 }
 
-type Part = "owner" | "folder" | "collection"
+/** The group filters of the accounts in the list. */
+export interface AccountFilters {
+  /** Each account's choices, by vault ID; an account without any is not narrowed. */
+  choices: Readonly<Record<string, GroupFilter>>
+  /** The accounts whose pickers are shown. */
+  shown: readonly string[]
+}
 
-export function isFiltering(filter: GroupFilter): boolean {
-  return Boolean(filter.owner || filter.folder || filter.collection)
+export const NO_ACCOUNT_FILTERS: AccountFilters = { choices: {}, shown: [] }
+
+type Part = keyof GroupFilter
+
+function isFiltering(filter: GroupFilter | undefined): boolean {
+  return Boolean(filter?.owner || filter?.folder || filter?.collection)
 }
 
 function fits(grouping: ItemGrouping | undefined, filter: GroupFilter) {
@@ -67,11 +76,12 @@ function fits(grouping: ItemGrouping | undefined, filter: GroupFilter) {
   )
 }
 
-/** A vault with only the items the filter lets through; other accounts keep none while it is on. */
-export function narrowed(vault: VaultView, filter: GroupFilter): VaultView {
-  if (!isFiltering(filter)) return vault
-  if (vault.id !== filter.vaultId)
-    return { ...vault, logins: [], notes: [], trashed: [] }
+/** A vault with only the items its account's filter lets through. */
+export function narrowed(
+  vault: VaultView,
+  filter: GroupFilter | undefined,
+): VaultView {
+  if (!filter || !isFiltering(filter)) return vault
   return {
     ...vault,
     logins: vault.logins.filter((login) => fits(login.grouping, filter)),
@@ -80,95 +90,81 @@ export function narrowed(vault: VaultView, filter: GroupFilter): VaultView {
   }
 }
 
-/** Whether the vaults have anything to filter by. */
-export function canFilter(vaults: readonly VaultView[]): boolean {
-  return vaults.some(
-    (vault) =>
-      vault.groups &&
-      (vault.groups.organizations.length > 0 ||
-        vault.groups.folders.length > 0 ||
-        vault.groups.collections.length > 0),
+/** Whether an account has anything to filter by. */
+function canFilter(vault: VaultView | undefined): boolean {
+  const groups = vault?.groups
+  return Boolean(
+    groups &&
+      (groups.organizations.length > 0 ||
+        groups.folders.length > 0 ||
+        groups.collections.length > 0),
   )
 }
+
+interface GroupFilters {
+  filters: AccountFilters
+  /** The accounts as listed whole, before any filter: what the pickers choose from. */
+  vaults: readonly VaultView[]
+  onChange: (filters: AccountFilters) => void
+}
+
+/** The list's account filters, for the buttons and pickers placed with each account. */
+export const GroupFilterContext = createContext<GroupFilters | null>(null)
 
 interface Choice {
   value: string
   label: string
 }
 
-const ALL = "all"
-
-function encode(vaultId: string, id: string): string {
-  return JSON.stringify([vaultId, id])
-}
-
-function decode(value: string): [string, string] | null {
-  if (value === ALL) return null
-  const parsed: unknown = JSON.parse(value)
-  return Array.isArray(parsed) &&
-    typeof parsed[0] === "string" &&
-    typeof parsed[1] === "string"
-    ? [parsed[0], parsed[1]]
-    : null
-}
-
-/** Each vault's choices for one part of the filter, under the vault's name when there are several. */
-function choicesOf(
-  vaults: readonly VaultView[],
-  part: Part,
-): { vault: VaultView; choices: Choice[] }[] {
+/** An account's choices for one part of the filter; none when the account has nothing there. */
+function choicesOf(vault: VaultView, part: Part): Choice[] {
+  const groups = vault.groups
+  if (!groups) return []
   const collator = new Intl.Collator(currentLanguage(), {
     numeric: true,
     sensitivity: "base",
   })
   const byName = (first: Choice, second: Choice) =>
     collator.compare(first.label, second.label)
-  return vaults.flatMap((vault) => {
-    const groups = vault.groups
-    if (!groups) return []
-    const choice = (id: string, label: string) => ({
-      value: encode(vault.id, id),
-      label,
-    })
-    let choices: Choice[] = []
-    if (part === "owner" && groups.organizations.length) {
-      choices = [
-        choice(MY_VAULT, t("popup.main.filter.myVault")),
-        ...groups.organizations
-          .map((organization) => choice(organization.id, organization.name))
-          .sort(byName),
-      ]
-    } else if (part === "folder" && groups.folders.length) {
-      choices = [
-        ...groups.folders
-          .map((folder) => choice(folder.id, folder.name))
-          .sort(byName),
-        choice(NO_FOLDER, t("popup.main.filter.noFolder")),
-      ]
-    } else if (part === "collection") {
-      const organizations = new Map(
-        groups.organizations.map((organization) => [
-          organization.id,
-          organization.name,
-        ]),
-      )
-      // Collections of different organizations may share a name; each says whose it is.
-      const shared =
-        new Set(groups.collections.map((collection) => collection.name)).size <
-        groups.collections.length
-      choices = groups.collections
-        .map((collection) =>
-          choice(
-            collection.id,
-            shared
-              ? `${collection.name} · ${organizations.get(collection.organizationId) ?? ""}`
-              : collection.name,
-          ),
-        )
-        .sort(byName)
-    }
-    return choices.length ? [{ vault, choices }] : []
-  })
+  if (part === "owner") {
+    if (!groups.organizations.length) return []
+    return [
+      { value: MY_VAULT, label: t("popup.main.filter.myVault") },
+      ...groups.organizations
+        .map((organization) => ({
+          value: organization.id,
+          label: organization.name,
+        }))
+        .sort(byName),
+    ]
+  }
+  if (part === "folder") {
+    if (!groups.folders.length) return []
+    return [
+      ...groups.folders
+        .map((folder) => ({ value: folder.id, label: folder.name }))
+        .sort(byName),
+      { value: NO_FOLDER, label: t("popup.main.filter.noFolder") },
+    ]
+  }
+  const organizations = new Map(
+    groups.organizations.map((organization) => [
+      organization.id,
+      organization.name,
+    ]),
+  )
+  // Collections of different organizations may share a name; each says whose it is.
+  const shared =
+    new Set(groups.collections.map((collection) => collection.name)).size <
+    groups.collections.length
+  return groups.collections
+    .map((collection) => ({
+      value: collection.id,
+      label: shared
+        ? `${collection.name} · ${organizations.get(collection.organizationId) ?? ""}`
+        : collection.name,
+    }))
+    .sort(byName)
 }
 
 const PART_TEXT: Record<Part, { name: MessageKey; all: MessageKey }> = {
@@ -186,73 +182,99 @@ const PART_TEXT: Record<Part, { name: MessageKey; all: MessageKey }> = {
   },
 }
 
-/** A row of pickers for the vault, folder and collection; a part with nothing to pick is left out. */
-export function GroupFilterBar({
-  vaults,
-  filter,
-  onChange,
+/** Shows or hides an account's pickers; none for an account with nothing to filter by. */
+export function GroupFilterButton({
+  vaultId,
+  size = "icon-xs",
 }: {
-  vaults: readonly VaultView[]
-  filter: GroupFilter
-  onChange: (filter: GroupFilter) => void
+  vaultId: string
+  /** As tall as the controls beside it: a heading's, or the list header's. */
+  size?: "icon-xs" | "icon-sm"
 }) {
-  const parts = (["owner", "folder", "collection"] as const)
-    .map((part) => ({ part, sections: choicesOf(vaults, part) }))
-    .filter(({ sections }) => sections.length > 0)
-
-  const choose = (part: Part, value: string) => {
-    const chosen = decode(value)
-    // A choice from another account starts the filter over, as the other choices do not apply there.
-    const base =
-      chosen && chosen[0] !== filter.vaultId
-        ? { ...NO_GROUP_FILTER, vaultId: chosen[0] }
-        : filter
-    const next = { ...base, [part]: chosen ? chosen[1] : null }
-    onChange(isFiltering(next) ? next : NO_GROUP_FILTER)
+  const context = useContext(GroupFilterContext)
+  if (!context) return null
+  const { filters, vaults, onChange } = context
+  if (!canFilter(vaults.find((vault) => vault.id === vaultId))) return null
+  const shown = filters.shown.includes(vaultId)
+  const toggle = () => {
+    if (!shown) {
+      onChange({ ...filters, shown: [...filters.shown, vaultId] })
+      return
+    }
+    // Hiding the pickers drops what they chose, so nothing narrows the account unseen.
+    const { [vaultId]: _dropped, ...choices } = filters.choices
+    onChange({
+      choices,
+      shown: filters.shown.filter((id) => id !== vaultId),
+    })
   }
+  return (
+    <Button
+      variant={shown ? "secondary" : "ghost"}
+      size={size}
+      className="text-muted-foreground"
+      aria-label={t("popup.main.filter.toggle")}
+      title={t("popup.main.filter.toggle")}
+      aria-pressed={shown}
+      onClick={toggle}
+    >
+      <ListFilterIcon />
+    </Button>
+  )
+}
+
+/** Pickers for an account's vault, folder and collection; a part it has nothing in is left out. */
+export function GroupFilterBar({ vaultId }: { vaultId: string }) {
+  const context = useContext(GroupFilterContext)
+  const vault = context?.vaults.find((candidate) => candidate.id === vaultId)
+  if (!context || !vault || !context.filters.shown.includes(vaultId))
+    return null
+  const { filters, onChange } = context
+  const filter = filters.choices[vaultId] ?? NO_GROUP_FILTER
+  const parts = (["owner", "folder", "collection"] as const)
+    .map((part) => ({ part, choices: choicesOf(vault, part) }))
+    .filter(({ choices }) => choices.length > 0)
+
+  const choose = (part: Part, value: string) =>
+    onChange({
+      ...filters,
+      choices: {
+        ...filters.choices,
+        [vaultId]: { ...filter, [part]: value === ALL ? null : value },
+      },
+    })
 
   return (
-    <div className="flex gap-1.5 pt-2 pr-3 pb-2 pl-2">
-      {parts.map(({ part, sections }) => {
-        const id = filter[part]
-        const value = id && filter.vaultId ? encode(filter.vaultId, id) : ALL
-        const several = sections.length > 1
-        return (
-          <Select
-            key={part}
-            value={value}
-            onValueChange={(next) => choose(part, next as string)}
-            items={[
-              { value: ALL, label: t(PART_TEXT[part].name) },
-              ...sections.flatMap(({ choices }) => choices),
-            ]}
+    <div className="flex gap-1.5 pr-3 pb-2 pl-2">
+      {parts.map(({ part, choices }) => (
+        <Select
+          key={part}
+          value={filter[part] ?? ALL}
+          onValueChange={(next) => choose(part, next as string)}
+          items={[{ value: ALL, label: t(PART_TEXT[part].name) }, ...choices]}
+        >
+          <SelectTrigger
+            size="sm"
+            className="min-w-0 flex-1 text-xs"
+            aria-label={t(PART_TEXT[part].name)}
           >
-            <SelectTrigger
-              size="sm"
-              className="min-w-0 flex-1 text-xs"
-              aria-label={t(PART_TEXT[part].name)}
-            >
-              <SelectValue className="truncate" />
-            </SelectTrigger>
-            <SelectContent className="w-auto max-w-(--available-width) min-w-(--anchor-width)">
-              <SelectGroup>
-                <SelectItem value={ALL}>{t(PART_TEXT[part].all)}</SelectItem>
-              </SelectGroup>
-              {sections.map(({ vault, choices }) => (
-                <SelectGroup key={vault.id}>
-                  <SelectSeparator />
-                  {several && <SelectLabel>{vaultLabel(vault)}</SelectLabel>}
-                  {choices.map((choice) => (
-                    <SelectItem key={choice.value} value={choice.value}>
-                      <span className="max-w-64 truncate">{choice.label}</span>
-                    </SelectItem>
-                  ))}
-                </SelectGroup>
+            <SelectValue className="truncate" />
+          </SelectTrigger>
+          <SelectContent className="w-auto max-w-(--available-width) min-w-(--anchor-width)">
+            <SelectGroup>
+              <SelectItem value={ALL}>{t(PART_TEXT[part].all)}</SelectItem>
+            </SelectGroup>
+            <SelectGroup>
+              <SelectSeparator />
+              {choices.map((choice) => (
+                <SelectItem key={choice.value} value={choice.value}>
+                  <span className="max-w-64 truncate">{choice.label}</span>
+                </SelectItem>
               ))}
-            </SelectContent>
-          </Select>
-        )
-      })}
+            </SelectGroup>
+          </SelectContent>
+        </Select>
+      ))}
     </div>
   )
 }

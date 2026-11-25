@@ -4,6 +4,7 @@ import {
   type ReactNode,
   type RefObject,
   useCallback,
+  useContext,
   useLayoutEffect,
   useMemo,
   useRef,
@@ -27,6 +28,11 @@ import type {
 } from "@/lib/providers/types"
 import type { Settings } from "@/lib/settings"
 import { cn } from "@/lib/utils"
+import {
+  GroupFilterBar,
+  GroupFilterButton,
+  GroupFilterContext,
+} from "./group-filter"
 import { LoginRow, NoteRow, TrashedRow } from "./item-rows"
 
 type ItemKind = "all" | "favorites" | "logins" | "notes" | "trash"
@@ -50,6 +56,8 @@ export type Row =
   | ItemRow
   /** An account's heading when several are listed; its items follow it while it is open. */
   | { type: "vault"; vault: VaultView; count: number; open: boolean }
+  /** The pickers of an account's group filter, under its heading while they are shown. */
+  | { type: "groupFilter"; vault: VaultView }
 
 /**
  * The vaults whose part of the list of every item was last left folded, as a JSON list of vault
@@ -72,6 +80,7 @@ function savedFoldedVaults(): ReadonlySet<string> {
 
 /** Estimated heights in pixels; each row is measured once it is drawn. */
 const VAULT_ROW_HEIGHT = 28
+const GROUP_FILTER_ROW_HEIGHT = 36
 const ITEM_ROW_HEIGHT = { standard: 50, compact: 38 }
 
 /**
@@ -82,6 +91,8 @@ function rowsOf(
   vaults: readonly VaultView[],
   kind: ItemKind,
   foldedVaults: ReadonlySet<string>,
+  /** Accounts whose group filter pickers are shown. */
+  filtersShown: readonly string[],
 ): { rows: Row[]; itemCount: number } {
   const collator = new Intl.Collator(currentLanguage(), {
     numeric: true,
@@ -128,8 +139,11 @@ function rowsOf(
             .sort((first, second) => collator.compare(first.name, second.name))
     itemCount += items.length
     const open = vaults.length === 1 || !foldedVaults.has(vault.id)
-    if (vaults.length > 1)
+    if (vaults.length > 1) {
       rows.push({ type: "vault", vault, count: items.length, open })
+      if (open && filtersShown.includes(vault.id))
+        rows.push({ type: "groupFilter", vault })
+    }
     if (open) rows.push(...items)
   }
   return { rows, itemCount }
@@ -156,6 +170,8 @@ function keyOf(row: Row): string {
   switch (row.type) {
     case "vault":
       return `vault:${row.vault.id}`
+    case "groupFilter":
+      return `groupFilter:${row.vault.id}`
     case "login":
       return `login:${row.vault.id}:${row.login.id}`
     case "note":
@@ -226,8 +242,11 @@ export function VirtualRows({
   const virtualizer = useVirtualizer({
     count: rows.length,
     getScrollElement: () => scrollElement.current,
-    estimateSize: (index) =>
-      rows[index]?.type === "vault" ? VAULT_ROW_HEIGHT : itemHeight,
+    estimateSize: (index) => {
+      const type = rows[index]?.type
+      if (type === "vault") return VAULT_ROW_HEIGHT
+      return type === "groupFilter" ? GROUP_FILTER_ROW_HEIGHT : itemHeight
+    },
     getItemKey: (index) => {
       const row = rows[index]
       return row ? keyOf(row) : index
@@ -254,24 +273,42 @@ export function VirtualRows({
             style={{ transform: `translateY(${item.start - scrollMargin}px)` }}
           >
             {row.type === "vault" && (
-              <button
-                type="button"
-                aria-expanded={row.open}
-                onClick={() => onToggleVault?.(row.vault.id)}
-                className="flex h-7 w-full items-center gap-1.5 rounded-md px-2 text-left text-xs font-medium text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
-              >
-                <BrandIcon kind={row.vault.kind} className="size-3.5" />
-                <span className="min-w-0 flex-1 truncate">
-                  {vaultLabel(row.vault)}
+              <div className="flex h-7 items-center gap-0.5">
+                <button
+                  type="button"
+                  aria-expanded={row.open}
+                  onClick={() => onToggleVault?.(row.vault.id)}
+                  className="flex min-w-0 flex-1 items-center gap-1.5 self-stretch rounded-md px-2 text-left text-xs font-medium text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
+                >
+                  <BrandIcon kind={row.vault.kind} className="size-3.5" />
+                  <span className="min-w-0 truncate">
+                    {vaultLabel(row.vault)}
+                  </span>
+                </button>
+                <GroupFilterButton vaultId={row.vault.id} />
+                <span className="px-1 text-xs text-muted-foreground tabular-nums">
+                  {row.count}
                 </span>
-                <span className="tabular-nums">{row.count}</span>
-                <ChevronDownIcon
-                  className={cn(
-                    "size-3 transition-transform",
-                    !row.open && "-rotate-90",
-                  )}
-                />
-              </button>
+                {/* The name is the keyboard's way to fold; this is a second target for the pointer. */}
+                <button
+                  type="button"
+                  tabIndex={-1}
+                  aria-label={t("popup.main.toggleGroup")}
+                  title={t("popup.main.toggleGroup")}
+                  onClick={() => onToggleVault?.(row.vault.id)}
+                  className="flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground outline-none hover:bg-muted hover:text-foreground [&_svg]:size-3"
+                >
+                  <ChevronDownIcon
+                    className={cn(
+                      "transition-transform",
+                      !row.open && "-rotate-90",
+                    )}
+                  />
+                </button>
+              </div>
+            )}
+            {row.type === "groupFilter" && (
+              <GroupFilterBar vaultId={row.vault.id} />
             )}
             {row.type === "login" && (
               <LoginRow
@@ -316,8 +353,6 @@ export function ItemBrowser({
   chosen,
   onChoose,
   site,
-  filterButton,
-  filterBar,
   density,
   scrollElement,
   onOpenLogin,
@@ -333,10 +368,6 @@ export function ItemBrowser({
   onChoose: (filter: ItemFilter) => void
   /** The site's items, shown while the filter is on them. */
   site: ReactNode
-  /** Shows or hides `filterBar`; none when there is nothing to filter by. */
-  filterButton?: ReactNode
-  /** More ways to narrow the list, under its header. */
-  filterBar?: ReactNode
   density: Settings["density"]
   scrollElement: RefObject<HTMLDivElement | null>
   onOpenLogin: (vault: VaultView, login: LoginSummary) => void
@@ -365,13 +396,18 @@ export function ItemBrowser({
         ? "site"
         : "all"
   const [foldedVaults, setFoldedVaults] = useState(savedFoldedVaults)
+  const filtersShown = useContext(GroupFilterContext)?.filters.shown
   const { rows, itemCount } = useMemo(
     () =>
       filter === "site"
         ? { rows: [], itemCount: siteItemCount }
-        : rowsOf(vaults, filter, foldedVaults),
-    [vaults, filter, foldedVaults, siteItemCount],
+        : rowsOf(vaults, filter, foldedVaults, filtersShown ?? []),
+    [vaults, filter, foldedVaults, siteItemCount, filtersShown],
   )
+  // One account's list has no heading of its own, so its group filter sits in the list's header.
+  // The site's few logins need none.
+  const onlyVault =
+    filter !== "site" && vaults.length === 1 ? vaults[0] : undefined
   const toggleVault = (vaultId: string) => {
     const next = new Set(foldedVaults)
     if (next.has(vaultId)) next.delete(vaultId)
@@ -386,7 +422,7 @@ export function ItemBrowser({
 
   return (
     <section>
-      <div className="flex min-h-9 items-center gap-2 pt-2 pr-3 pl-2">
+      <div className="flex min-h-9 items-center gap-2 pt-2 pr-3 pb-2 pl-2">
         {filters.length > 1 ? (
           <Select
             value={filter}
@@ -420,12 +456,14 @@ export function ItemBrowser({
             {t("popup.main.allItems")}
           </h2>
         )}
-        {filterButton}
+        {onlyVault && (
+          <GroupFilterButton vaultId={onlyVault.id} size="icon-sm" />
+        )}
         <span className="ml-auto shrink-0 text-xs text-muted-foreground tabular-nums">
           {itemCount}
         </span>
       </div>
-      {filterBar}
+      {onlyVault && <GroupFilterBar vaultId={onlyVault.id} />}
       {filter === "site" ? (
         site
       ) : itemCount === 0 ? (
