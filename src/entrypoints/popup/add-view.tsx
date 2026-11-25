@@ -2,6 +2,7 @@ import { ExternalLinkIcon, RefreshCcwDotIcon } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
 import { callBackground } from "@/background/api"
 import { errorMessage, isUnsupportedRequest } from "@/components/keyward/errors"
+import { notifyError } from "@/components/keyward/notify"
 import { VaultSelect } from "@/components/keyward/vault-select"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -169,14 +170,16 @@ function AddLoginForm({ onDone }: { onDone: () => void }) {
   useEffect(() => {
     setDetails((current) => ({ ...current, folderId: null }))
   }, [target])
+  /** Why no place could be found for the site; the site's places are unknown meanwhile. */
+  const [targetsError, setTargetsError] = useState<string | null>(null)
   const request = useRef(0)
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
 
   useEffect(() => {
-    void callBackground("popup.state", null).then((state) => {
+    callBackground("popup.state", null).then((state) => {
       if (state.page) setSite((current) => current || state.page?.host || "")
-    })
+    }, notifyError)
   }, [])
 
   // Which places can store the login depends on the site, so the choice follows it as it is typed.
@@ -184,16 +187,27 @@ function AddLoginForm({ onDone }: { onDone: () => void }) {
     const id = ++request.current
     const timer = setTimeout(
       () =>
-        void callBackground("popup.saveTargets", { site }).then((result) => {
-          if (id !== request.current) return
-          setTargets(result.targets)
-          setUnsupported(result.unsupported)
-          setTarget((current) =>
-            result.targets.some((t) => t.id === current)
-              ? current
-              : result.defaultTarget,
-          )
-        }),
+        callBackground("popup.saveTargets", { site }).then(
+          (result) => {
+            if (id !== request.current) return
+            setTargets(result.targets)
+            setUnsupported(result.unsupported)
+            setTargetsError(null)
+            setTarget((current) =>
+              result.targets.some((t) => t.id === current)
+                ? current
+                : result.defaultTarget,
+            )
+          },
+          (error) => {
+            if (id !== request.current) return
+            // The places found for the previous site may not take this one.
+            setTargets([])
+            setUnsupported([])
+            setTarget(null)
+            setTargetsError(errorMessage(error))
+          },
+        ),
       // The first request runs at once; later ones wait for typing to pause.
       id === 1 ? 0 : 200,
     )
@@ -323,7 +337,9 @@ function AddLoginForm({ onDone }: { onDone: () => void }) {
               {t("popup.add.openNewPasswordSheet")}
             </Button>
           )}
-          {unsupported.some((vault) => vault.kind === "apple") ? (
+          {targetsError ? (
+            <p className="text-xs text-destructive">{targetsError}</p>
+          ) : unsupported.some((vault) => vault.kind === "apple") ? (
             <p className="text-xs text-muted-foreground">
               {t("error.apple.unsupportedSite")}
             </p>
