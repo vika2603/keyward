@@ -1,5 +1,24 @@
 import { describe, expect, it } from "vitest"
-import { isLoginEntry, isNeverSavedEntry } from "./protocol"
+import { entriesOf, isLoginEntry, isNeverSavedEntry } from "./protocol"
+
+describe("entriesOf", () => {
+  it("lists only the entries that are objects", () => {
+    expect(
+      entriesOf({ Entries: [null, "someone", { USR: "someone" }] }),
+    ).toEqual([{ USR: "someone" }])
+  })
+
+  it("reads the numbered entries of older helpers in order", () => {
+    expect(
+      entriesOf({
+        STATUS: 0,
+        Entry_1: { USR: "second" },
+        Entry_0: { USR: "first" },
+        Entry_2: null,
+      }),
+    ).toEqual([{ USR: "first" }, { USR: "second" }])
+  })
+})
 
 describe("isLoginEntry", () => {
   it("keeps listed logins, with or without a username", () => {

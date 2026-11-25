@@ -54,7 +54,6 @@ export interface HelperCapabilities {
     majorVersion?: number
     minorVersion?: number
   }
-  [key: string]: unknown
 }
 
 export function encodePake(message: object): string {
@@ -140,13 +139,19 @@ export function isLoginEntry(entry: Record<string, unknown>): boolean {
   return typeof entry.USR === "string" && !isNeverSavedEntry(entry)
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+}
+
 /** Login entries of a query reply; older helpers list them as `Entry_<n>` keys instead of `Entries`. */
 export function entriesOf(
   reply: Record<string, unknown>,
 ): Record<string, unknown>[] {
-  if (Array.isArray(reply.Entries)) return reply.Entries
-  return Object.entries(reply)
-    .filter(([key]) => key.startsWith("Entry_"))
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([, value]) => value as Record<string, unknown>)
+  const listed = Array.isArray(reply.Entries)
+    ? reply.Entries
+    : Object.entries(reply)
+        .filter(([key]) => key.startsWith("Entry_"))
+        .sort(([first], [second]) => first.localeCompare(second))
+        .map(([, value]) => value)
+  return listed.filter(isRecord)
 }
