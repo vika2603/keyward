@@ -19,6 +19,14 @@ const NOT_AUTHENTICATOR_HINT =
   /captcha|image|图形|图片|圖形|短信|簡訊|sms|text message|mail|邮箱|郵箱|邮件|郵件|card|cvv|cvc|csc|credit|coupon|promo|gift|invite|referral|邀请|邀請/i
 /** Longer fields take something other than a one-time code. */
 const CODE_MAX_LENGTH = 12
+/**
+ * Autocomplete values for data other than a login: names, addresses, payment cards, birthdays and
+ * parts of a phone number. A whole phone number (`tel`) is left out, as many sites sign in with one.
+ */
+const OTHER_DATA_AUTOCOMPLETE =
+  /^(name|honorific-\w+|given-name|additional-name|family-name|nickname|organization(-title)?|street-address|address-\w+|country(-name)?|postal-code|cc-\w+|transaction-\w+|language|bday(-\w+)?|sex|url|photo|impp|tel-(country-code|area-code|local(-\w+)?|extension))$/
+/** Autocomplete sections for checkout forms, whose email and phone are not a login. */
+const CHECKOUT_AUTOCOMPLETE = new Set(["billing", "shipping"])
 /** Matched against `hintWords`, so English words stand apart. */
 const NEW_PASSWORD_HINT =
   /\b(new|register|registration|sign ?up|create)\b|新密码|新密碼|设置密码|設定密碼/i
@@ -49,8 +57,26 @@ export function isPasswordField(
   return element instanceof HTMLInputElement && element.type === "password"
 }
 
+/** The field's autocomplete values in lower case, such as `billing` and `email`; the HTML standard ignores case. */
+function autocompleteValues(input: HTMLInputElement): string[] {
+  const attribute = input.getAttribute("autocomplete") ?? ""
+  return attribute.toLowerCase().split(/\s+/).filter(Boolean)
+}
+
+function hasAutocomplete(input: HTMLInputElement, value: string): boolean {
+  return autocompleteValues(input).includes(value)
+}
+
+/** Whether the page marks the field for something other than a login, such as an address or a card. */
+function marksOtherData(input: HTMLInputElement): boolean {
+  return autocompleteValues(input).some(
+    (value) =>
+      CHECKOUT_AUTOCOMPLETE.has(value) || OTHER_DATA_AUTOCOMPLETE.test(value),
+  )
+}
+
 function isNewPassword(input: HTMLInputElement): boolean {
-  return /new-password/.test(input.autocomplete)
+  return hasAutocomplete(input, "new-password")
 }
 
 function hints(input: HTMLInputElement): string {
@@ -70,27 +96,30 @@ function hintWords(input: HTMLInputElement): string {
 }
 
 function hasCodeAutocomplete(input: HTMLInputElement): boolean {
-  return /\bone-time-code\b/.test(input.autocomplete.toLowerCase())
+  return hasAutocomplete(input, "one-time-code")
 }
 
 function isTextField(input: HTMLInputElement): boolean {
   return (
     TEXT_TYPES.has(input.type) &&
     !hasCodeAutocomplete(input) &&
+    !marksOtherData(input) &&
     !EXCLUDED_HINT.test(hints(input))
   )
 }
 
-/** A text field that looks like it takes a username or email, judged without a password field. */
+/**
+ * A text field that looks like it takes a username or email, judged without a password field.
+ * `webauthn` marks the field a page offers passkeys on, which is where a username goes.
+ */
 function looksLikeUsername(input: HTMLInputElement): boolean {
   if (!isTextField(input)) return false
-  const autocomplete = input.autocomplete.toLowerCase()
-  if (/\b(username|email)\b/.test(autocomplete)) return true
-  if (
-    autocomplete.includes("new-password") ||
-    autocomplete.includes("one-time-code")
+  const values = autocompleteValues(input)
+  const marksUsername = ["username", "email", "webauthn"].some((value) =>
+    values.includes(value),
   )
-    return false
+  if (marksUsername) return true
+  if (values.includes("new-password")) return false
   return input.type === "email" || USERNAME_HINT.test(hints(input))
 }
 
@@ -99,6 +128,7 @@ function isCodeField(input: HTMLInputElement): boolean {
   if (!CODE_TYPES.has(input.type)) return false
   if (input.maxLength > CODE_MAX_LENGTH) return false
   if (hasCodeAutocomplete(input)) return true
+  if (marksOtherData(input)) return false
   const text = hints(input)
   return CODE_HINT.test(text) && !NOT_AUTHENTICATOR_HINT.test(text)
 }
@@ -193,8 +223,7 @@ class Scopes {
    * password overwrite it, so the unclear case keeps the first field as the current one.
    */
   isNewPassword(input: HTMLInputElement): boolean {
-    const autocomplete = input.autocomplete.toLowerCase()
-    if (autocomplete.includes("current-password")) return false
+    if (hasAutocomplete(input, "current-password")) return false
     if (isNewPassword(input)) return true
     const text = hintWords(input)
     if (CURRENT_PASSWORD_HINT.test(text)) return false
