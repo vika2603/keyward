@@ -1,4 +1,13 @@
-import type { ReactNode } from "react"
+import { type ReactNode, useState } from "react"
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { cn } from "@/lib/utils"
 
 export function PageHeader({
@@ -86,7 +95,10 @@ export function Option({
   )
 }
 
-/** A choice among a few values, drawn as a row of toggle buttons. */
+/**
+ * A choice among a few values, drawn as a row of toggle buttons on a track, like a tab list. The
+ * pressed button stays pressed when clicked again, as one value is always chosen.
+ */
 export function Segmented<T extends string>({
   value,
   options,
@@ -99,21 +111,99 @@ export function Segmented<T extends string>({
   label: string
 }) {
   return (
-    <fieldset
+    <ToggleGroup
       aria-label={label}
-      className="inline-flex h-8 max-w-full min-w-0 items-center rounded-lg bg-muted p-[3px]"
+      value={[value]}
+      onValueChange={([chosen]) => {
+        const option = options.find(([optionValue]) => optionValue === chosen)
+        if (option) onChange(option[0])
+      }}
+      className="inline-flex h-8 max-w-full min-w-0 gap-0 bg-muted p-[3px]"
     >
-      {options.map(([v, text]) => (
-        <button
-          key={v}
-          type="button"
-          aria-pressed={v === value}
-          onClick={() => onChange(v)}
-          className="inline-flex h-full items-center justify-center rounded-md border border-transparent px-2.5 text-sm font-medium whitespace-nowrap text-foreground/60 outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 aria-pressed:bg-background aria-pressed:text-foreground aria-pressed:shadow-sm dark:text-muted-foreground dark:aria-pressed:border-input dark:aria-pressed:bg-input/30 dark:aria-pressed:text-foreground"
+      {options.map(([optionValue, text]) => (
+        <ToggleGroupItem
+          key={optionValue}
+          value={optionValue}
+          className="h-full shrink rounded-md border border-transparent text-foreground/60 hover:bg-transparent aria-pressed:bg-background aria-pressed:text-foreground aria-pressed:shadow-sm dark:text-muted-foreground dark:aria-pressed:border-input dark:aria-pressed:bg-input/30 dark:aria-pressed:text-foreground"
         >
           {text}
-        </button>
+        </ToggleGroupItem>
       ))}
-    </fieldset>
+    </ToggleGroup>
   )
+}
+
+/** The label of a value in a list of values and their labels. */
+export function nameOf<T>(
+  names: readonly (readonly [T, string])[],
+  value: T,
+): string {
+  return names.find(([candidate]) => candidate === value)?.[1] ?? ""
+}
+
+/** A choice among values of any kind, drawn as a select; the values become strings only on the way through. */
+export function ChoiceSelect<T extends string | number>({
+  names,
+  value,
+  onChange,
+  label,
+  id,
+  className,
+}: {
+  names: readonly (readonly [T, string])[]
+  value: T
+  onChange: (value: T) => void
+  label: string
+  /** The trigger's id, for a visible label. */
+  id?: string
+  className?: string
+}) {
+  return (
+    <Select
+      value={String(value)}
+      onValueChange={(next) => {
+        const found = names.find(([candidate]) => String(candidate) === next)
+        if (found) onChange(found[0])
+      }}
+      items={names.map(([candidate, text]) => ({
+        value: String(candidate),
+        label: text,
+      }))}
+    >
+      <SelectTrigger id={id} aria-label={label} className={className}>
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectGroup>
+          {names.map(([candidate, text]) => (
+            <SelectItem key={String(candidate)} value={String(candidate)}>
+              {text}
+            </SelectItem>
+          ))}
+        </SelectGroup>
+      </SelectContent>
+    </Select>
+  )
+}
+
+/**
+ * Starts a dialog's fields afresh at each opening. `opening` is what the dialog shows, null while
+ * it is closed; `reset` sets the fields from a new one, during render, so the first frame of the
+ * dialog already shows them. Returns the last opening, which stays while the dialog fades out
+ * after closing.
+ */
+export function useDialogOpening<T>(
+  opening: T | null,
+  reset?: (opening: T) => void,
+): T | null {
+  const [current, setCurrent] = useState<T | null>(null)
+  const [last, setLast] = useState<T | null>(null)
+  if (opening !== current) {
+    setCurrent(opening)
+    if (opening !== null) {
+      setLast(opening)
+      reset?.(opening)
+    }
+  }
+  return opening ?? last
 }

@@ -9,6 +9,16 @@ import { callBackground } from "@/background/api"
 import { BrandIcon, providerName } from "@/components/keyward/brand-icon"
 import { errorMessage } from "@/components/keyward/errors"
 import { VaultSelect } from "@/components/keyward/vault-select"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -19,13 +29,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import { currentLanguage, t } from "@/lib/i18n"
 import { APPLE_VAULT_ID } from "@/lib/providers/apple/vault-id"
@@ -34,17 +37,24 @@ import { isCloudServer, serverHost } from "@/lib/providers/bitwarden/server"
 import type { VaultInfo } from "@/lib/providers/types"
 import { cn } from "@/lib/utils"
 import { navigate } from "./App"
-import { Card, Option, PageHeader, Section } from "./parts"
+import {
+  Card,
+  ChoiceSelect,
+  Option,
+  PageHeader,
+  Section,
+  useDialogOpening,
+} from "./parts"
 import { useSettings } from "./use-settings"
 
-function lockTimes(): [string, string][] {
+function lockTimes(): [number | "never", string][] {
   return [
-    ["1", t("options.duration.oneMinute")],
-    ["5", t("options.duration.minutes", { count: 5 })],
-    ["15", t("options.duration.minutes", { count: 15 })],
-    ["30", t("options.duration.minutes", { count: 30 })],
-    ["60", t("options.duration.oneHour")],
-    ["240", t("options.duration.hours", { count: 4 })],
+    [1, t("options.duration.oneMinute")],
+    [5, t("options.duration.minutes", { count: 5 })],
+    [15, t("options.duration.minutes", { count: 15 })],
+    [30, t("options.duration.minutes", { count: 30 })],
+    [60, t("options.duration.oneHour")],
+    [240, t("options.duration.hours", { count: 4 })],
     ["never", t("options.vaults.autoLock.onQuit")],
   ]
 }
@@ -54,6 +64,8 @@ export function VaultsPage() {
   const [accounts, setAccounts] = useState<AccountSummary[]>([])
   const [message, setMessage] = useState<string | null>(null)
   const [renaming, setRenaming] = useState<AccountSummary | null>(null)
+  /** The account whose sign-out waits for confirmation. */
+  const [signingOut, setSigningOut] = useState<AccountSummary | null>(null)
   /** The account being synced now. */
   const [syncing, setSyncing] = useState<string | null>(null)
   /** Why loading, syncing or signing out the Bitwarden accounts failed. */
@@ -69,14 +81,6 @@ export function VaultsPage() {
   if (!settings) return null
 
   const signOut = async (account: AccountSummary) => {
-    if (
-      !confirm(
-        t("options.vaults.bitwarden.signOutConfirm", {
-          email: account.label,
-        }),
-      )
-    )
-      return
     setAccountsMessage(null)
     try {
       await callBackground("bitwarden.signOut", { accountId: account.id })
@@ -229,7 +233,7 @@ export function VaultsPage() {
               >
                 <PencilIcon />
               </Button>
-              <Button variant="outline" onClick={() => void signOut(account)}>
+              <Button variant="outline" onClick={() => setSigningOut(account)}>
                 {t("options.vaults.bitwarden.signOut")}
               </Button>
             </div>
@@ -245,30 +249,16 @@ export function VaultsPage() {
             name={t("options.vaults.autoLock.name")}
             description={t("options.vaults.autoLock.description")}
           >
-            <Select
-              value={
-                settings.autoLockMinutes === null
-                  ? "never"
-                  : String(settings.autoLockMinutes)
-              }
-              onValueChange={(value) =>
+            <ChoiceSelect
+              names={lockTimes()}
+              value={settings.autoLockMinutes ?? "never"}
+              onChange={(minutes) =>
                 update({
-                  autoLockMinutes: value === "never" ? null : Number(value),
+                  autoLockMinutes: minutes === "never" ? null : minutes,
                 })
               }
-              items={lockTimes().map(([value, label]) => ({ value, label }))}
-            >
-              <SelectTrigger aria-label={t("options.vaults.autoLock.label")}>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {lockTimes().map(([value, label]) => (
-                  <SelectItem key={value} value={value}>
-                    {label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              label={t("options.vaults.autoLock.label")}
+            />
           </Option>
         )}
         {accounts.length > 0 && (
@@ -310,6 +300,11 @@ export function VaultsPage() {
         onClose={() => setRenaming(null)}
         onRenamed={load}
       />
+      <SignOutDialog
+        account={signingOut}
+        onClose={() => setSigningOut(null)}
+        onConfirm={(account) => void signOut(account)}
+      />
     </>
   )
 }
@@ -346,11 +341,10 @@ function RenameDialog({
 }) {
   const [name, setName] = useState("")
   const [message, setMessage] = useState<string | null>(null)
-
-  useEffect(() => {
-    setName(account?.name ?? "")
+  const opened = useDialogOpening(account, (opening) => {
+    setName(opening.name ?? "")
     setMessage(null)
-  }, [account])
+  })
 
   const save = async () => {
     if (!account) return
@@ -387,7 +381,7 @@ function RenameDialog({
           <Input
             value={name}
             onChange={(event) => setName(event.target.value)}
-            placeholder={account?.email}
+            placeholder={opened?.email}
             aria-label={t("options.vaults.bitwarden.nameLabel")}
             maxLength={100}
             autoFocus
@@ -402,5 +396,50 @@ function RenameDialog({
         </form>
       </DialogContent>
     </Dialog>
+  )
+}
+
+/** Asks before an account signs out, as signing in again needs the master password and second step. */
+function SignOutDialog({
+  account,
+  onClose,
+  onConfirm,
+}: {
+  account: AccountSummary | null
+  onClose: () => void
+  onConfirm: (account: AccountSummary) => void
+}) {
+  const opened = useDialogOpening(account)
+  return (
+    <AlertDialog
+      open={account !== null}
+      onOpenChange={(open) => !open && onClose()}
+    >
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>
+            {t("options.vaults.bitwarden.signOut")}
+          </AlertDialogTitle>
+          <AlertDialogDescription>
+            {t("options.vaults.bitwarden.signOutConfirm", {
+              email: opened?.label ?? "",
+            })}
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>
+            {t("options.vaults.bitwarden.cancel")}
+          </AlertDialogCancel>
+          <AlertDialogAction
+            onClick={() => {
+              if (account) onConfirm(account)
+              onClose()
+            }}
+          >
+            {t("options.vaults.bitwarden.signOut")}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   )
 }

@@ -1,18 +1,18 @@
 import { useEffect, useState } from "react"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import {
   type BrowserSavingControl,
   browserSavingControl,
 } from "@/lib/browser-saving"
 import { t } from "@/lib/i18n"
-import { Card, Option, PageHeader, Section, Segmented } from "./parts"
+import {
+  Card,
+  ChoiceSelect,
+  Option,
+  PageHeader,
+  Section,
+  Segmented,
+} from "./parts"
 import { useSettings } from "./use-settings"
 
 /** Who controls the browser's offer to save, read again when it may have changed. */
@@ -37,12 +37,12 @@ function useBrowserSavingControl(
   return control
 }
 
-export function clearTimes(): [string, string][] {
+export function clearTimes(): [number | "never", string][] {
   return [
-    ["30", t("options.duration.seconds", { count: 30 })],
-    ["60", t("options.duration.oneMinute")],
-    ["120", t("options.duration.minutes", { count: 2 })],
-    ["300", t("options.duration.minutes", { count: 5 })],
+    [30, t("options.duration.seconds", { count: 30 })],
+    [60, t("options.duration.oneMinute")],
+    [120, t("options.duration.minutes", { count: 2 })],
+    [300, t("options.duration.minutes", { count: 5 })],
     ["never", t("options.fill.clipboardClear.never")],
   ]
 }
@@ -176,33 +176,16 @@ export function FillPage() {
             name={t("options.fill.clipboardClear.name")}
             description={t("options.fill.clipboardClear.description")}
           >
-            <Select
-              value={
-                settings.clipboardClearSeconds === null
-                  ? "never"
-                  : String(settings.clipboardClearSeconds)
-              }
-              onValueChange={(value) =>
+            <ChoiceSelect
+              names={clearTimes()}
+              value={settings.clipboardClearSeconds ?? "never"}
+              onChange={(seconds) =>
                 update({
-                  clipboardClearSeconds:
-                    value === "never" ? null : Number(value),
+                  clipboardClearSeconds: seconds === "never" ? null : seconds,
                 })
               }
-              items={clearTimes().map(([value, label]) => ({ value, label }))}
-            >
-              <SelectTrigger
-                aria-label={t("options.fill.clipboardClear.label")}
-              >
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {clearTimes().map(([value, label]) => (
-                  <SelectItem key={value} value={value}>
-                    {label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              label={t("options.fill.clipboardClear.label")}
+            />
           </Option>
         </Card>
       </Section>

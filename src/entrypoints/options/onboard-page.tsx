@@ -1,17 +1,12 @@
 import { ChevronLeftIcon } from "lucide-react"
-import { useEffect, useState } from "react"
+import { useEffect, useId, useState } from "react"
 import { callBackground } from "@/background/api"
 import { BrandIcon } from "@/components/keyward/brand-icon"
 import { errorMessage } from "@/components/keyward/errors"
 import { Button } from "@/components/ui/button"
+import { Field } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
+import { Label } from "@/components/ui/label"
 import { t } from "@/lib/i18n"
 import type { SecondStepMethod } from "@/lib/providers/bitwarden/auth"
 import type { PendingSignInView } from "@/lib/providers/bitwarden/bitwarden-provider"
@@ -20,6 +15,7 @@ import {
   normalizeServerAddress,
 } from "@/lib/providers/bitwarden/server"
 import { navigate } from "./App"
+import { ChoiceSelect } from "./parts"
 import {
   lastServerItem,
   selfHostedEndpointsItem,
@@ -118,6 +114,7 @@ function SignIn({ onSignedIn }: { onSignedIn: () => void }) {
   const [code, setCode] = useState("")
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
+  const ids = useId()
 
   const choose = (next: SecondStepMethod) => {
     setMethod(next)
@@ -204,38 +201,28 @@ function SignIn({ onSignedIn }: { onSignedIn: () => void }) {
           })
         }}
       >
-        <div className="flex flex-col gap-2">
-          <span className="text-sm leading-none font-medium">
+        <Field>
+          <Label htmlFor={`${ids}-method`}>
             {t("options.onboard.secondStep.method")}
-          </span>
-          <Select
+          </Label>
+          <ChoiceSelect
+            id={`${ids}-method`}
+            names={pending.methods.map((candidate) => [
+              candidate,
+              methods[candidate].name,
+            ])}
             value={method}
-            onValueChange={(value) => choose(value as SecondStepMethod)}
-            items={pending.methods.map((m) => ({
-              value: m,
-              label: methods[m].name,
-            }))}
-          >
-            <SelectTrigger
-              className="w-full"
-              aria-label={t("options.onboard.secondStep.method")}
-            >
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {pending.methods.map((m) => (
-                <SelectItem key={m} value={m}>
-                  {methods[m].name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <label className="flex flex-col gap-2">
-          <span className="text-sm leading-none font-medium">
+            onChange={choose}
+            label={t("options.onboard.secondStep.method")}
+            className="w-full"
+          />
+        </Field>
+        <Field>
+          <Label htmlFor={`${ids}-code`}>
             {t("options.onboard.secondStep.code")}
-          </span>
+          </Label>
           <Input
+            id={`${ids}-code`}
             value={code}
             onChange={(event) => setCode(event.target.value)}
             autoComplete="one-time-code"
@@ -245,7 +232,7 @@ function SignIn({ onSignedIn }: { onSignedIn: () => void }) {
           <span className="text-xs text-muted-foreground">
             {methods[method].hint}
           </span>
-        </label>
+        </Field>
         {message && <p className="text-xs text-destructive">{message}</p>}
         <div className="flex flex-col gap-2">
           <Button
@@ -296,30 +283,32 @@ function SignIn({ onSignedIn }: { onSignedIn: () => void }) {
         })
       }}
     >
-      <label className="flex flex-col gap-2">
-        <span className="text-sm leading-none font-medium">
+      <Field>
+        <Label htmlFor={`${ids}-email`}>
           {t("options.onboard.signIn.email")}
-        </span>
+        </Label>
         <Input
+          id={`${ids}-email`}
           type="email"
           value={email}
           onChange={(event) => setEmail(event.target.value)}
           autoComplete="username"
           required
         />
-      </label>
-      <label className="flex flex-col gap-2">
-        <span className="text-sm leading-none font-medium">
+      </Field>
+      <Field>
+        <Label htmlFor={`${ids}-password`}>
           {t("options.onboard.signIn.masterPassword")}
-        </span>
+        </Label>
         <Input
+          id={`${ids}-password`}
           type="password"
           value={password}
           onChange={(event) => setPassword(event.target.value)}
           autoComplete="current-password"
           required
         />
-      </label>
+      </Field>
       {message && <p className="text-xs text-destructive">{message}</p>}
       <Button
         type="submit"

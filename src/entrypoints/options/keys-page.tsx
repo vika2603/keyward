@@ -97,7 +97,7 @@ export function importedSettings(
   if (
     clearAfter === null ||
     (typeof clearAfter === "number" &&
-      clearTimes().some(([value]) => value === String(clearAfter)))
+      clearTimes().some(([value]) => value === clearAfter))
   ) {
     result.clipboardClearSeconds = clearAfter
   }

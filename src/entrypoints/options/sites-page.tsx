@@ -1,5 +1,5 @@
 import { PencilIcon, PlusIcon, Trash2Icon } from "lucide-react"
-import { useState } from "react"
+import { useId, useState } from "react"
 import { providerName } from "@/components/keyward/brand-icon"
 import { matchNames } from "@/components/keyward/match-names"
 import { Button } from "@/components/ui/button"
@@ -11,14 +11,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { Field } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
+import { Label } from "@/components/ui/label"
 import {
   Table,
   TableBody,
@@ -35,7 +30,15 @@ import type {
   SiteRule,
 } from "@/lib/settings"
 import { hostOfSavedUri, siteDomainOf } from "@/lib/site"
-import { Card, Option, PageHeader, Section } from "./parts"
+import {
+  Card,
+  ChoiceSelect,
+  nameOf,
+  Option,
+  PageHeader,
+  Section,
+  useDialogOpening,
+} from "./parts"
 import { useSettings } from "./use-settings"
 
 function providerNames(): [RuleProvider, string][] {
@@ -53,46 +56,6 @@ function behaviorNames(): [SiteBehavior, string][] {
     ["noSave", t("options.sites.behavior.noSave")],
     ["disabled", t("options.sites.behavior.disabled")],
   ]
-}
-
-function nameOf<T>(names: [T, string][], value: T): string {
-  return names.find(([v]) => v === value)?.[1] ?? ""
-}
-
-function ChoiceSelect<T extends string | number>({
-  names,
-  value,
-  onChange,
-  label,
-  className,
-}: {
-  names: [T, string][]
-  value: T
-  onChange: (value: T) => void
-  label: string
-  className?: string
-}) {
-  return (
-    <Select
-      value={String(value)}
-      onValueChange={(next) => {
-        const found = names.find(([v]) => String(v) === next)
-        if (found) onChange(found[0])
-      }}
-      items={names.map(([v, text]) => ({ value: String(v), label: text }))}
-    >
-      <SelectTrigger aria-label={label} className={className}>
-        <SelectValue />
-      </SelectTrigger>
-      <SelectContent>
-        {names.map(([v, text]) => (
-          <SelectItem key={String(v)} value={String(v)}>
-            {text}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
-  )
 }
 
 export function SitesPage() {
@@ -344,17 +307,15 @@ function RuleDialog({
   const [match, setMatch] = useState<MatchType | "default">("default")
   const [provider, setProvider] = useState<RuleProvider>("all")
   const [behavior, setBehavior] = useState<SiteBehavior>("default")
-  // What the dialog was last opened with; it stays while the dialog fades out after closing.
-  const [opened, setOpened] = useState<RuleEditing | null>(null)
-  if (editing && editing !== opened) {
-    setOpened(editing)
-    setSite(editing.rule?.host ?? "")
-    setMatch(editing.rule?.match ?? "default")
-    setProvider(editing.rule?.provider ?? "all")
-    setBehavior(editing.rule?.behavior ?? "default")
-  }
+  const opened = useDialogOpening(editing, ({ rule }) => {
+    setSite(rule?.host ?? "")
+    setMatch(rule?.match ?? "default")
+    setProvider(rule?.provider ?? "all")
+    setBehavior(rule?.behavior ?? "default")
+  })
   const host = hostOfSavedUri(site)
   const saved = opened?.rule ?? null
+  const ids = useId()
 
   return (
     <Dialog open={editing !== null} onOpenChange={(next) => !next && onClose()}>
@@ -384,35 +345,38 @@ function RuleDialog({
               {t("options.sites.ruleDialog.description")}
             </DialogDescription>
           </DialogHeader>
-          <label className="flex flex-col gap-2">
-            <span className="text-sm leading-none font-medium">
+          <Field>
+            <Label htmlFor={`${ids}-site`}>
               {t("options.sites.rules.site")}
-            </span>
+            </Label>
             <Input
+              id={`${ids}-site`}
               value={site}
               onChange={(event) => setSite(event.target.value)}
               placeholder="example.com"
               autoFocus
             />
-          </label>
+          </Field>
           <div className="grid grid-cols-2 gap-3">
-            <div className="flex flex-col gap-2">
-              <span className="text-sm leading-none font-medium">
+            <Field>
+              <Label htmlFor={`${ids}-provider`}>
                 {t("options.sites.rules.provider")}
-              </span>
+              </Label>
               <ChoiceSelect
+                id={`${ids}-provider`}
                 names={providerNames()}
                 value={provider}
                 onChange={setProvider}
                 label={t("options.sites.rules.provider")}
                 className="w-full"
               />
-            </div>
-            <div className="flex flex-col gap-2">
-              <span className="text-sm leading-none font-medium">
+            </Field>
+            <Field>
+              <Label htmlFor={`${ids}-match`}>
                 {t("options.sites.rules.match")}
-              </span>
+              </Label>
               <ChoiceSelect<MatchType | "default">
+                id={`${ids}-match`}
                 names={[
                   ["default", t("options.sites.match.default")],
                   ...matchNames(),
@@ -422,20 +386,21 @@ function RuleDialog({
                 label={t("options.sites.rules.match")}
                 className="w-full"
               />
-            </div>
+            </Field>
           </div>
-          <div className="flex flex-col gap-2">
-            <span className="text-sm leading-none font-medium">
+          <Field>
+            <Label htmlFor={`${ids}-behavior`}>
               {t("options.sites.rules.behavior")}
-            </span>
+            </Label>
             <ChoiceSelect
+              id={`${ids}-behavior`}
               names={behaviorNames()}
               value={behavior}
               onChange={setBehavior}
               label={t("options.sites.rules.behavior")}
               className="w-full"
             />
-          </div>
+          </Field>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={onClose}>
               {t("options.sites.dialog.cancel")}
@@ -463,12 +428,9 @@ function DomainGroupDialog({
   onSave: (group: string[]) => void
 }) {
   const [text, setText] = useState("")
-  // What the dialog was last opened with; it stays while the dialog fades out after closing.
-  const [opened, setOpened] = useState<GroupEditing | null>(null)
-  if (editing && editing !== opened) {
-    setOpened(editing)
-    setText(editing.domains.join(", "))
-  }
+  const opened = useDialogOpening(editing, ({ domains }) =>
+    setText(domains.join(", ")),
+  )
   const isNew = opened?.index === null
   const domains = [
     ...new Set(

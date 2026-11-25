@@ -1,5 +1,5 @@
 import { ChevronDownIcon } from "lucide-react"
-import { useState } from "react"
+import { useId, useState } from "react"
 import { Button } from "@/components/ui/button"
 import {
   Collapsible,
@@ -24,7 +24,9 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { Field } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import { t } from "@/lib/i18n"
 import {
   type CustomEndpoints,
@@ -33,6 +35,7 @@ import {
   serverHost,
 } from "@/lib/providers/bitwarden/server"
 import { cn } from "@/lib/utils"
+import { useDialogOpening } from "./parts"
 
 export type ServerChoice = "us" | "eu" | "selfHosted"
 
@@ -184,17 +187,13 @@ function SelfHostedDialog({
   const [api, setApi] = useState("")
   const [identity, setIdentity] = useState("")
   const [customOpen, setCustomOpen] = useState(false)
-  /** Whether the fields were cleared for this opening; each opening sets up a new server. */
-  const [cleared, setCleared] = useState(false)
-  if (open !== cleared) {
-    setCleared(open)
-    if (open) {
-      setAddress("")
-      setApi("")
-      setIdentity("")
-      setCustomOpen(false)
-    }
-  }
+  // Each opening sets up a new server.
+  useDialogOpening(open || null, () => {
+    setAddress("")
+    setApi("")
+    setIdentity("")
+    setCustomOpen(false)
+  })
 
   const checked = {
     address: addressIn(address),
@@ -298,10 +297,12 @@ function AddressField({
   placeholder: string
   autoFocus?: boolean
 }) {
+  const id = useId()
   return (
-    <label className="flex flex-col gap-2">
-      <span className="text-sm leading-none font-medium">{label}</span>
+    <Field>
+      <Label htmlFor={id}>{label}</Label>
       <Input
+        id={id}
         inputMode="url"
         spellCheck={false}
         autoComplete="off"
@@ -316,6 +317,6 @@ function AddressField({
           {t("options.onboard.server.invalid")}
         </span>
       )}
-    </label>
+    </Field>
   )
 }
