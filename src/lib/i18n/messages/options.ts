@@ -117,6 +117,8 @@ export const en = {
   "options.sites.rules.behavior": "Behavior",
   "options.sites.rules.actions": "Actions",
   "options.sites.rules.delete": "Delete rule for {host}",
+  "options.sites.rules.edit": "Edit rule for {host}",
+  "options.sites.ruleDialog.editTitle": "Edit rule",
   "options.sites.rules.empty": "No rules yet.",
   "options.sites.ruleDialog.description":
     "The rule applies to this host and its subdomains.",
@@ -126,14 +128,17 @@ export const en = {
   "options.sites.domains.description":
     "Domains in the same group share items. Saving a new login still uses the page's own domain.",
   "options.sites.domains.delete": "Delete this group of equivalent domains",
+  "options.sites.domains.edit": "Edit this group of equivalent domains",
   "options.sites.domains.empty":
     "No equivalent domains yet. Domains in the same group share items in every vault.",
   "options.sites.domainDialog.title": "Add equivalent domains",
+  "options.sites.domainDialog.editTitle": "Edit equivalent domains",
   "options.sites.domainDialog.description":
     "Enter two or more domains, separated by commas or spaces.",
   "options.sites.domainDialog.input": "Domains",
   "options.sites.dialog.cancel": "Cancel",
   "options.sites.dialog.add": "Add",
+  "options.sites.dialog.save": "Save",
 
   "options.keys.title": "Shortcuts and appearance",
   "options.keys.shortcuts.title": "Keyboard shortcuts",
@@ -317,6 +322,8 @@ export const zhCN: Record<keyof typeof en, string> = {
   "options.sites.rules.behavior": "行为",
   "options.sites.rules.actions": "操作",
   "options.sites.rules.delete": "删除 {host} 的规则",
+  "options.sites.rules.edit": "编辑 {host} 的规则",
+  "options.sites.ruleDialog.editTitle": "编辑规则",
   "options.sites.rules.empty": "还没有规则。",
   "options.sites.ruleDialog.description": "规则对这个主机名和它的子域名生效。",
   "options.sites.domains.title": "等价域名",
@@ -325,14 +332,17 @@ export const zhCN: Record<keyof typeof en, string> = {
   "options.sites.domains.description":
     "同一组里的域名共用条目。保存新登录时仍记在当前网页的域名下。",
   "options.sites.domains.delete": "删除这一组等价域名",
+  "options.sites.domains.edit": "编辑这一组等价域名",
   "options.sites.domains.empty":
     "还没有等价域名。同一组里的域名在所有密码库里共用条目。",
   "options.sites.domainDialog.title": "添加等价域名",
+  "options.sites.domainDialog.editTitle": "编辑等价域名",
   "options.sites.domainDialog.description":
     "输入两个或更多域名，用逗号或空格分隔。",
   "options.sites.domainDialog.input": "域名",
   "options.sites.dialog.cancel": "取消",
   "options.sites.dialog.add": "添加",
+  "options.sites.dialog.save": "保存",
 
   "options.keys.title": "快捷键与外观",
   "options.keys.shortcuts.title": "快捷键",

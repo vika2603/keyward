@@ -1,4 +1,4 @@
-import { PlusIcon, Trash2Icon } from "lucide-react"
+import { PencilIcon, PlusIcon, Trash2Icon } from "lucide-react"
 import { useState } from "react"
 import { providerName } from "@/components/keyward/brand-icon"
 import { Button } from "@/components/ui/button"
@@ -106,9 +106,34 @@ function ChoiceSelect<T extends string | number>({
 
 export function SitesPage() {
   const [settings, update] = useSettings()
-  const [addingRule, setAddingRule] = useState(false)
-  const [addingGroup, setAddingGroup] = useState(false)
+  /** The rule the dialog shows, `rule: null` for a new one; null while the dialog is closed. */
+  const [ruleDialog, setRuleDialog] = useState<RuleEditing | null>(null)
+  /** The domain group the dialog shows, `index: null` for a new one; null while it is closed. */
+  const [groupDialog, setGroupDialog] = useState<GroupEditing | null>(null)
   if (!settings) return null
+
+  /** Saves a rule in place of the one with its ID; a site keeps one rule, so another for its host goes. */
+  const saveRule = (rule: SiteRule) => {
+    const kept = settings.siteRules.filter(
+      (saved) => saved.id === rule.id || saved.host !== rule.host,
+    )
+    const isSaved = kept.some((saved) => saved.id === rule.id)
+    update({
+      siteRules: isSaved
+        ? kept.map((saved) => (saved.id === rule.id ? rule : saved))
+        : [...kept, rule],
+    })
+  }
+
+  const saveGroup = (index: number | null, group: string[]) =>
+    update({
+      equivalentDomains:
+        index === null
+          ? [...settings.equivalentDomains, group]
+          : settings.equivalentDomains.map((saved, position) =>
+              position === index ? group : saved,
+            ),
+    })
 
   const ruleMatch = (rule: SiteRule) => {
     if (rule.provider === "apple")
@@ -149,7 +174,7 @@ export function SitesPage() {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => setAddingRule(true)}
+            onClick={() => setRuleDialog({ rule: null })}
           >
             <PlusIcon />
             {t("options.sites.rules.add")}
@@ -191,7 +216,20 @@ export function SitesPage() {
                     <TableCell className="px-4">
                       {nameOf(behaviorNames(), rule.behavior)}
                     </TableCell>
-                    <TableCell className="px-4 text-right">
+                    <TableCell className="px-4 text-right whitespace-nowrap">
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        aria-label={t("options.sites.rules.edit", {
+                          host: rule.host,
+                        })}
+                        title={t("options.sites.rules.edit", {
+                          host: rule.host,
+                        })}
+                        onClick={() => setRuleDialog({ rule })}
+                      >
+                        <PencilIcon />
+                      </Button>
                       <Button
                         variant="ghost"
                         size="icon-sm"
@@ -226,7 +264,7 @@ export function SitesPage() {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => setAddingGroup(true)}
+            onClick={() => setGroupDialog({ index: null, domains: [] })}
           >
             <PlusIcon />
             {t("options.sites.domains.add")}
@@ -241,20 +279,31 @@ export function SitesPage() {
                 name={group.join(t("options.sites.domains.separator"))}
                 description={t("options.sites.domains.description")}
               >
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  aria-label={t("options.sites.domains.delete")}
-                  onClick={() =>
-                    update({
-                      equivalentDomains: settings.equivalentDomains.filter(
-                        (_, i) => i !== index,
-                      ),
-                    })
-                  }
-                >
-                  <Trash2Icon />
-                </Button>
+                <div className="flex gap-0.5">
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label={t("options.sites.domains.edit")}
+                    title={t("options.sites.domains.edit")}
+                    onClick={() => setGroupDialog({ index, domains: group })}
+                  >
+                    <PencilIcon />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label={t("options.sites.domains.delete")}
+                    onClick={() =>
+                      update({
+                        equivalentDomains: settings.equivalentDomains.filter(
+                          (_, i) => i !== index,
+                        ),
+                      })
+                    }
+                  >
+                    <Trash2Icon />
+                  </Button>
+                </div>
               </Option>
             ))
           ) : (
@@ -265,64 +314,78 @@ export function SitesPage() {
         </Card>
       </Section>
       <RuleDialog
-        open={addingRule}
-        onClose={() => setAddingRule(false)}
-        onAdd={(rule) =>
-          update({
-            siteRules: [
-              ...settings.siteRules.filter((r) => r.host !== rule.host),
-              rule,
-            ],
-          })
-        }
+        editing={ruleDialog}
+        onClose={() => setRuleDialog(null)}
+        onSave={saveRule}
       />
       <DomainGroupDialog
-        open={addingGroup}
-        onClose={() => setAddingGroup(false)}
-        onAdd={(group) =>
-          update({ equivalentDomains: [...settings.equivalentDomains, group] })
-        }
+        editing={groupDialog}
+        onClose={() => setGroupDialog(null)}
+        onSave={(group) => saveGroup(groupDialog?.index ?? null, group)}
       />
     </>
   )
 }
 
+interface RuleEditing {
+  rule: SiteRule | null
+}
+
+interface GroupEditing {
+  index: number | null
+  domains: string[]
+}
+
+/** Adds a site rule, or changes the one in `editing`. */
 function RuleDialog({
-  open,
+  editing,
   onClose,
-  onAdd,
+  onSave,
 }: {
-  open: boolean
+  editing: RuleEditing | null
   onClose: () => void
-  onAdd: (rule: SiteRule) => void
+  onSave: (rule: SiteRule) => void
 }) {
   const [site, setSite] = useState("")
   const [match, setMatch] = useState<MatchType | "default">("default")
   const [provider, setProvider] = useState<RuleProvider>("all")
   const [behavior, setBehavior] = useState<SiteBehavior>("default")
+  // What the dialog was last opened with; it stays while the dialog fades out after closing.
+  const [opened, setOpened] = useState<RuleEditing | null>(null)
+  if (editing && editing !== opened) {
+    setOpened(editing)
+    setSite(editing.rule?.host ?? "")
+    setMatch(editing.rule?.match ?? "default")
+    setProvider(editing.rule?.provider ?? "all")
+    setBehavior(editing.rule?.behavior ?? "default")
+  }
   const host = hostOfSavedUri(site)
+  const saved = opened?.rule ?? null
 
   return (
-    <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
+    <Dialog open={editing !== null} onOpenChange={(next) => !next && onClose()}>
       <DialogContent>
         <form
           className="flex flex-col gap-4"
           onSubmit={(event) => {
             event.preventDefault()
             if (!host) return
-            onAdd({
-              id: crypto.randomUUID(),
+            onSave({
+              id: saved?.id ?? crypto.randomUUID(),
               host,
               match: match === "default" ? null : match,
               provider,
               behavior,
             })
-            setSite("")
             onClose()
           }}
         >
           <DialogHeader>
-            <DialogTitle>{t("options.sites.rules.add")}</DialogTitle>
+            <DialogTitle>
+              {saved
+                ? t("options.sites.ruleDialog.editTitle")
+                : t("options.sites.rules.add")}
+            </DialogTitle>
             <DialogDescription>
               {t("options.sites.ruleDialog.description")}
             </DialogDescription>
@@ -384,7 +447,9 @@ function RuleDialog({
               {t("options.sites.dialog.cancel")}
             </Button>
             <Button type="submit" disabled={!host}>
-              {t("options.sites.dialog.add")}
+              {saved
+                ? t("options.sites.dialog.save")
+                : t("options.sites.dialog.add")}
             </Button>
           </DialogFooter>
         </form>
@@ -393,16 +458,24 @@ function RuleDialog({
   )
 }
 
+/** Adds a group of equivalent domains, or changes the one in `editing`. */
 function DomainGroupDialog({
-  open,
+  editing,
   onClose,
-  onAdd,
+  onSave,
 }: {
-  open: boolean
+  editing: GroupEditing | null
   onClose: () => void
-  onAdd: (group: string[]) => void
+  onSave: (group: string[]) => void
 }) {
   const [text, setText] = useState("")
+  // What the dialog was last opened with; it stays while the dialog fades out after closing.
+  const [opened, setOpened] = useState<GroupEditing | null>(null)
+  if (editing && editing !== opened) {
+    setOpened(editing)
+    setText(editing.domains.join(", "))
+  }
+  const isNew = opened?.index === null
   const domains = [
     ...new Set(
       text
@@ -414,20 +487,23 @@ function DomainGroupDialog({
   ]
 
   return (
-    <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
+    <Dialog open={editing !== null} onOpenChange={(next) => !next && onClose()}>
       <DialogContent>
         <form
           className="flex flex-col gap-4"
           onSubmit={(event) => {
             event.preventDefault()
             if (domains.length < 2) return
-            onAdd(domains)
-            setText("")
+            onSave(domains)
             onClose()
           }}
         >
           <DialogHeader>
-            <DialogTitle>{t("options.sites.domainDialog.title")}</DialogTitle>
+            <DialogTitle>
+              {isNew
+                ? t("options.sites.domainDialog.title")
+                : t("options.sites.domainDialog.editTitle")}
+            </DialogTitle>
             <DialogDescription>
               {t("options.sites.domainDialog.description")}
             </DialogDescription>
@@ -444,7 +520,9 @@ function DomainGroupDialog({
               {t("options.sites.dialog.cancel")}
             </Button>
             <Button type="submit" disabled={domains.length < 2}>
-              {t("options.sites.dialog.add")}
+              {isNew
+                ? t("options.sites.dialog.add")
+                : t("options.sites.dialog.save")}
             </Button>
           </DialogFooter>
         </form>
