@@ -1,6 +1,5 @@
 import type { Handlers } from "@/lib/messaging"
 import { VaultError } from "@/lib/providers/types"
-import { normalizeSiteInput } from "@/lib/site"
 import type { BackgroundApi } from "../api"
 import { copyText } from "../clipboard"
 import {
@@ -12,7 +11,7 @@ import {
   settleNow,
 } from "../history"
 import { activeHost, popupOnly } from "./request-context"
-import { generatorKind, requireText } from "./validation"
+import { generatorKind, requireText, siteInput } from "./validation"
 
 export function generatorHandlers() {
   return {
@@ -29,7 +28,7 @@ export function generatorHandlers() {
       allow: popupOnly,
       handle: async ({ password, site }) => {
         const checkedPassword = requireText(password, "password")
-        const host = normalizeSiteInput(requireText(site, "site"))?.hostname
+        const host = siteInput(site)?.hostname
         await addHistory(checkedPassword, host ?? null)
         return null
       },

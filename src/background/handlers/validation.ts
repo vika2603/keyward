@@ -13,6 +13,7 @@ import {
   type Website,
 } from "@/lib/providers/types"
 import { MatchType } from "@/lib/settings"
+import { normalizeSiteInput } from "@/lib/site"
 import type { FieldKind } from "../api"
 import {
   MAX_CUSTOM_FIELD_VALUE_LENGTH,
@@ -51,6 +52,11 @@ export function requireFiniteNumber(value: unknown, name: string): number {
 function requireRecord(value: unknown, name: string): Record<string, unknown> {
   if (typeof value !== "object" || value === null) throw invalid(name)
   return value as Record<string, unknown>
+}
+
+/** A site the user typed, as a web address; null for text that is not one. */
+export function siteInput(value: unknown): URL | null {
+  return normalizeSiteInput(requireText(value, "site", MAX_URL_LENGTH))
 }
 
 /** A text a request may leave out; none given, or null, reads as null. */

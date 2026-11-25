@@ -101,6 +101,10 @@ export function fakeProviders(vaults: FakeVault[]) {
         logins: vault.info.status === "ready" ? (vault.codeLogins ?? []) : [],
       })),
     vaults: async () => vaults.map((vault) => vault.info),
+    savable: async () =>
+      vaults
+        .map((vault) => vault.info)
+        .filter((info) => info.status === "ready"),
     vault: async (id: string) => {
       const found = vaults.find((vault) => vault.info.id === id)
       if (!found) throw new Error("unknown vault")

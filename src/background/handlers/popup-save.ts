@@ -1,15 +1,13 @@
 import type { Handlers } from "@/lib/messaging"
 import { VaultError } from "@/lib/providers/types"
-import { normalizeSiteInput } from "@/lib/site"
 import { keyLabel } from "@/lib/totp"
 import type { BackgroundApi } from "../api"
 import { finishSetup, pendingSetup } from "../code-setup"
-import { MAX_URL_LENGTH } from "../limits"
 import type { Providers } from "../providers"
 import { defaultTarget, saveTargets } from "../save-flow"
 import { namedVault } from "./capabilities"
 import { popupOnly, popupTab } from "./request-context"
-import { newLoginDetailsInput, requireText } from "./validation"
+import { newLoginDetailsInput, requireText, siteInput } from "./validation"
 
 export function popupSaveHandlers(providers: Providers) {
   const { apple, bitwarden } = providers
@@ -18,9 +16,7 @@ export function popupSaveHandlers(providers: Providers) {
       allow: popupOnly,
       handle: async ({ site }) => {
         const ready = await providers.savable()
-        const url = normalizeSiteInput(
-          requireText(site, "site", MAX_URL_LENGTH),
-        )
+        const url = siteInput(site)
         const targets = url ? await saveTargets(providers, url) : ready
         return {
           targets,
@@ -36,7 +32,7 @@ export function popupSaveHandlers(providers: Providers) {
     "popup.saveLogin": {
       allow: popupOnly,
       handle: async ({ vaultId, site, username, password, details }) => {
-        const url = normalizeSiteInput(requireText(site, "site"))
+        const url = siteInput(site)
         if (!url) throw new VaultError("Not a web address", "invalidSite")
         const checkedPassword = requireText(password, "password")
         if (!checkedPassword)

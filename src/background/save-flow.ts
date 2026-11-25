@@ -8,6 +8,7 @@ import {
 import { getSettings, type SiteRule, updateSettings } from "@/lib/settings"
 import { siteDomainOf } from "@/lib/site"
 import type { PromptState, VaultView } from "./api"
+import { MAX_TEXT_LENGTH } from "./limits"
 import { prompts } from "./overlays"
 import { frameUrl, sendToFrame } from "./page"
 import type { Providers } from "./providers"
@@ -17,7 +18,6 @@ const USERNAMES_KEY = "save.usernames"
 const USERNAME_TTL_MS = 5 * 60_000
 /** A save prompt shows again on pages loaded within this time after the login, until it is answered. */
 const PROMPT_TTL_MS = 3 * 60_000
-const MAX_FIELD_LENGTH = 1024
 
 type RememberedUsernames = Record<
   string,
@@ -112,8 +112,8 @@ export async function onSubmitted(
   submitted: { username: string; password: string; newPassword?: boolean },
 ): Promise<void> {
   if (
-    submitted.username.length > MAX_FIELD_LENGTH ||
-    submitted.password.length > MAX_FIELD_LENGTH
+    submitted.username.length > MAX_TEXT_LENGTH ||
+    submitted.password.length > MAX_TEXT_LENGTH
   )
     return
   const page = await frameUrl(tabId, frameId)

@@ -1,11 +1,11 @@
 import type { Handlers } from "@/lib/messaging"
 import { VaultError } from "@/lib/providers/types"
 import { getSettings, updateSettings } from "@/lib/settings"
-import { normalizeSiteInput } from "@/lib/site"
 import type { BackgroundApi } from "../api"
+import { MAX_HOST_LENGTH } from "../limits"
 import type { Providers } from "../providers"
 import { connectPages, popupOnly } from "./request-context"
-import { requireText } from "./validation"
+import { requireText, siteInput } from "./validation"
 
 export function appleHandlers(providers: Providers) {
   const { apple } = providers
@@ -35,7 +35,9 @@ export function appleHandlers(providers: Providers) {
       allow: connectPages,
       handle: async ({ site }) => {
         await apple.openPasswordsApp(
-          site === undefined ? undefined : requireText(site, "site", 253),
+          site === undefined
+            ? undefined
+            : requireText(site, "site", MAX_HOST_LENGTH),
         )
         return null
       },
@@ -43,7 +45,7 @@ export function appleHandlers(providers: Providers) {
     "apple.openNewPasswordSheet": {
       allow: popupOnly,
       handle: async ({ site }) => {
-        const url = normalizeSiteInput(requireText(site, "site", 2048))
+        const url = siteInput(site)
         if (!url) throw new VaultError("Not a web address", "invalidSite")
         await apple.openNewPasswordSheet(url.hostname)
         return null
