@@ -67,7 +67,9 @@ function isSiteRule(value: unknown): value is SiteRule {
 }
 
 /** Keeps the known settings whose values have the expected type. */
-function importedSettings(data: unknown): Partial<ExportedSettings> | null {
+export function importedSettings(
+  data: unknown,
+): Partial<ExportedSettings> | null {
   if (
     !data ||
     typeof data !== "object" ||
@@ -85,6 +87,9 @@ function importedSettings(data: unknown): Partial<ExportedSettings> | null {
     "autoSubmit",
     "askSave",
     "askUpdate",
+    "takeOverSaving",
+    "takeOverPasskeys",
+    "contextMenu",
   ] as const) {
     if (typeof input[key] === "boolean") result[key] = input[key]
   }
