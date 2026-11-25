@@ -90,6 +90,31 @@ export class Providers {
     }
   }
 
+  /** Every item of each ready vault whose provider can list a whole vault. */
+  async allItems(): Promise<VaultView[]> {
+    const vaults = await this.vaults()
+    const listable = vaults.filter(
+      (vault) => vault.status === "ready" && this.providerOf(vault.id).allItems,
+    )
+    return Promise.all(
+      listable.map(async (vault): Promise<VaultView> => {
+        try {
+          const provider = this.providerOf(vault.id)
+          const items = await provider.allItems?.(vault.id)
+          return { ...vault, logins: items?.logins ?? [], notes: items?.notes }
+        } catch (error) {
+          if (error instanceof VaultError && error.code === "locked")
+            return { ...vault, status: "locked", logins: [] }
+          return {
+            ...vault,
+            logins: [],
+            error: error instanceof Error ? error.message : String(error),
+          }
+        }
+      }),
+    )
+  }
+
   /** Ready vaults that can store a new secure note. */
   async noteTargets(): Promise<VaultInfo[]> {
     const ready = await this.savable()

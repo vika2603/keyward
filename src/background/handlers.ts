@@ -305,6 +305,10 @@ export function createHandlers(providers: Providers): Handlers<BackgroundApi> {
         return null
       },
     },
+    "popup.allItems": {
+      allow: popup,
+      handle: () => providers.allItems(),
+    },
     "popup.note": {
       allow: popup,
       handle: ({ vaultId, noteId }) => {

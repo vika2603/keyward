@@ -87,6 +87,8 @@ export type BackgroundApi = {
     result: { page: PageInfo | null; vaults: VaultView[] }
   }
   "popup.takeView": { payload: null; result: PopupView }
+  /** Every login and note of each vault that can list itself whole, for browsing in the popup. */
+  "popup.allItems": { payload: null; result: VaultView[] }
   /** Logins of the whole vault matching the query, per vault. */
   "popup.search": { payload: { query: string }; result: VaultView[] }
   /**

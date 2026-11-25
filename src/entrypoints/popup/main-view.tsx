@@ -1,18 +1,21 @@
 import {
-  CheckIcon,
   ChevronDownIcon,
-  CopyIcon,
   ExternalLinkIcon,
-  KeyRoundIcon,
   LockIcon,
   PlusIcon,
   RefreshCcwDotIcon,
   SearchIcon,
-  TimerIcon,
-  UserIcon,
   XIcon,
 } from "lucide-react"
-import { type ReactNode, useCallback, useEffect, useRef, useState } from "react"
+import {
+  type ReactNode,
+  type RefObject,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react"
 import keywardIcon from "@/assets/icon.svg"
 import { callBackground, type PageInfo, type VaultView } from "@/background/api"
 import {
@@ -22,9 +25,6 @@ import {
 } from "@/components/keyward/brand-icon"
 import { errorMessage } from "@/components/keyward/errors"
 import { FADE_IN, LoginListSkeleton } from "@/components/keyward/loading"
-import { LoginLabel } from "@/components/keyward/login-label"
-import { NoteIcon } from "@/components/keyward/note-icon"
-import { SiteIcon } from "@/components/keyward/site-icon"
 import { Button } from "@/components/ui/button"
 import {
   Collapsible,
@@ -39,11 +39,11 @@ import type {
   LoginSummary,
   NoteSummary,
   ProviderKind,
-  VaultInfo,
 } from "@/lib/providers/types"
 import type { Settings } from "@/lib/settings"
 import { cn } from "@/lib/utils"
 import type { View } from "./App"
+import { AllItems, rowsOfVault, SectionHeading, VirtualRows } from "./all-items"
 import { ConnectCard, LockedVaultCard } from "./connect-card"
 import { openOptions, SettingsButton } from "./header"
 
@@ -69,6 +69,8 @@ export function MainView({
     vaults: VaultView[]
   } | null>(null)
   const [results, setResults] = useState<VaultView[] | null>(null)
+  /** Every item of the vaults that can list themselves whole, for browsing below the site's logins. */
+  const [everything, setEverything] = useState<VaultView[] | null>(null)
   /** Changes after a lock, so the search runs again. */
   const [version, setVersion] = useState(0)
   const [filter, setFilter] = useState<Filter>("all")
@@ -85,6 +87,10 @@ export function MainView({
     callBackground("popup.state", null).then(setState, (error) =>
       setMessage(errorMessage(error)),
     )
+    callBackground("popup.allItems", null).then(setEverything, (error) => {
+      setEverything([])
+      setMessage(errorMessage(error))
+    })
     setVersion((v) => v + 1)
   }, [])
   useEffect(load, [load])
@@ -152,6 +158,18 @@ export function MainView({
       }
     />
   ))
+  // With one provider in view and nothing searched, a provider that can list a whole vault shows
+  // it below the site's logins. Passwords cannot, so its view stays as it is.
+  const oneProvider = filter !== "all" || kinds.size === 1
+  const browsing = connected && !search && oneProvider
+  const browsed = (everything ?? []).filter(
+    (vault) =>
+      (filter === "all" || vault.kind === filter) &&
+      vault.status === "ready" &&
+      !vault.error,
+  )
+  const waitingForItems = browsing && everything === null
+  const browsable = browsing && browsed.length > 0
   // Apple's helper looks logins up by site only, so a search for other text cannot reach it.
   const appleSearchHint =
     search !== "" &&
@@ -278,7 +296,7 @@ export function MainView({
         {message && (
           <p className="px-3 pt-2 text-xs text-destructive">{message}</p>
         )}
-        {loading || (search && results === null) ? (
+        {loading || (search && results === null) || waitingForItems ? (
           !message && <LoginListSkeleton compact={density === "compact"} />
         ) : !vaults.length ? (
           <EmptyState icon text={t("popup.main.noVault")}>
@@ -294,6 +312,53 @@ export function MainView({
               onClick={() => openOptions("onboard")}
             />
           </EmptyState>
+        ) : browsable ? (
+          <div className={FADE_IN}>
+            {page && (
+              <section>
+                <SectionHeading>
+                  {t("popup.main.currentSite", { host: page.host })}
+                </SectionHeading>
+                {listed.length ? (
+                  listed.map((vault) => (
+                    <VaultGroup
+                      key={vault.id}
+                      vault={vault}
+                      density={density}
+                      scrollElement={listRef}
+                      onLocked={load}
+                      onOpen={(login) =>
+                        onNavigate({ name: "detail", vault, login })
+                      }
+                      onOpenNote={(note) =>
+                        onNavigate({ name: "note", vault, note })
+                      }
+                      onError={setMessage}
+                    />
+                  ))
+                ) : (
+                  <p className="px-3 py-1.5 text-xs text-muted-foreground">
+                    {t("popup.main.noLoginsHere")}
+                  </p>
+                )}
+              </section>
+            )}
+            {lockedCards.length > 0 && (
+              <div className="flex flex-col gap-2 px-3 pt-3">{lockedCards}</div>
+            )}
+            <AllItems
+              vaults={browsed}
+              density={density}
+              scrollElement={listRef}
+              onOpenLogin={(vault, login) =>
+                onNavigate({ name: "detail", vault, login })
+              }
+              onOpenNote={(vault, note) =>
+                onNavigate({ name: "note", vault, note })
+              }
+              onError={setMessage}
+            />
+          </div>
         ) : !listed.length ? (
           <EmptyState
             icon={!anyReady}
@@ -331,6 +396,7 @@ export function MainView({
                 key={vault.id}
                 vault={vault}
                 density={density}
+                scrollElement={listRef}
                 onLocked={load}
                 onOpen={(login) => onNavigate({ name: "detail", vault, login })}
                 onOpenNote={(note) => onNavigate({ name: "note", vault, note })}
@@ -385,6 +451,7 @@ function EmptyState({
 function VaultGroup({
   vault,
   density,
+  scrollElement,
   onLocked,
   onOpen,
   onOpenNote,
@@ -392,12 +459,15 @@ function VaultGroup({
 }: {
   vault: VaultView
   density: Settings["density"]
+  /** The list area, which scrolls the group's rows. */
+  scrollElement: RefObject<HTMLDivElement | null>
   onLocked: () => void
   onOpen: (login: LoginSummary) => void
   onOpenNote: (note: NoteSummary) => void
   onError: (message: string | null) => void
 }) {
   const [open, setOpen] = useState(true)
+  const rows = useMemo(() => rowsOfVault(vault), [vault])
 
   const lock = async () => {
     onError(null)
@@ -482,225 +552,17 @@ function VaultGroup({
         </CollapsibleTrigger>
       </h2>
       <CollapsibleContent>
-        <div className="flex flex-col gap-0.5 p-1">
-          {vault.logins.map((login) => (
-            <LoginRow
-              key={login.id}
-              vault={vault}
-              login={login}
-              density={density}
-              onOpen={() => onOpen(login)}
-              onError={onError}
-            />
-          ))}
-          {vault.notes?.map((note) => (
-            <NoteRow
-              key={note.id}
-              vault={vault}
-              note={note}
-              density={density}
-              onOpen={() => onOpenNote(note)}
-              onError={onError}
-            />
-          ))}
+        <div className="pt-1">
+          <VirtualRows
+            rows={rows}
+            density={density}
+            scrollElement={scrollElement}
+            onOpenLogin={(_, login) => onOpen(login)}
+            onOpenNote={(_, note) => onOpenNote(note)}
+            onError={onError}
+          />
         </div>
       </CollapsibleContent>
     </Collapsible>
-  )
-}
-
-/** A secure note in search results: opens on click, and copies its text from a button. */
-function NoteRow({
-  vault,
-  note,
-  density,
-  onOpen,
-  onError,
-}: {
-  vault: VaultInfo
-  note: NoteSummary
-  density: Settings["density"]
-  onOpen: () => void
-  onError: (message: string | null) => void
-}) {
-  const [copied, setCopied] = useState(false)
-  const compact = density === "compact"
-
-  const copy = async () => {
-    onError(null)
-    try {
-      const details = await callBackground("popup.note", {
-        vaultId: vault.id,
-        noteId: note.id,
-      })
-      if (details.withheld) {
-        onError(t("popup.note.withheld"))
-        return
-      }
-      // An empty note has nothing to copy.
-      if (!details.text) return
-      await callBackground("popup.copyText", {
-        text: details.text,
-        secret: true,
-      })
-      setCopied(true)
-      setTimeout(() => setCopied(false), 1500)
-    } catch (error) {
-      onError(errorMessage(error))
-    }
-  }
-
-  return (
-    <div
-      className={cn(
-        "group/row flex items-center gap-2.5 rounded-lg px-2 py-1.5 hover:bg-muted focus-within:bg-muted",
-        compact ? "min-h-9" : "min-h-12",
-      )}
-    >
-      <button
-        type="button"
-        title={t("popup.main.viewDetails")}
-        data-row
-        onClick={onOpen}
-        className="flex min-w-0 flex-1 items-center gap-2.5 self-stretch text-left outline-none"
-      >
-        <NoteIcon
-          className={cn(
-            "group-hover/row:bg-background group-focus-within/row:bg-background",
-            compact && "size-6",
-          )}
-        />
-        <LoginLabel
-          username={note.name}
-          detail={t("popup.note.title")}
-          compact={compact}
-        />
-      </button>
-      <div className="flex shrink-0 gap-0.5 opacity-0 group-hover/row:opacity-100 group-focus-within/row:opacity-100">
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          className="hover:bg-background"
-          aria-label={t("popup.note.copy")}
-          title={t("popup.note.copy")}
-          onClick={() => void copy()}
-        >
-          {copied ? <CheckIcon /> : <CopyIcon />}
-        </Button>
-      </div>
-    </div>
-  )
-}
-
-type Copyable = "username" | "password" | "code"
-
-function LoginRow({
-  vault,
-  login,
-  density,
-  onOpen,
-  onError,
-}: {
-  vault: VaultInfo
-  login: LoginSummary
-  density: Settings["density"]
-  onOpen: () => void
-  onError: (message: string | null) => void
-}) {
-  const [copied, setCopied] = useState<Copyable | null>(null)
-  // Apple asks for Touch ID before it hands out a password; the row says so meanwhile.
-  const [confirming, setConfirming] = useState(false)
-  const compact = density === "compact"
-  const ids = { vaultId: vault.id, loginId: login.id }
-
-  const copy = async (what: Copyable) => {
-    onError(null)
-    if (what === "password" && vault.kind === "apple") setConfirming(true)
-    try {
-      if (what === "username")
-        await callBackground("popup.copyText", { text: login.username })
-      else if (what === "password")
-        await callBackground("popup.copyPassword", ids)
-      else {
-        const { code } = await callBackground("popup.oneTimeCode", ids)
-        await callBackground("popup.copyText", { text: code, secret: true })
-      }
-      setCopied(what)
-      setTimeout(() => setCopied(null), 1500)
-    } catch (error) {
-      onError(errorMessage(error))
-    } finally {
-      setConfirming(false)
-    }
-  }
-
-  return (
-    <div
-      className={cn(
-        "group/row flex items-center gap-2.5 rounded-lg px-2 py-1.5 hover:bg-muted focus-within:bg-muted",
-        compact ? "min-h-9" : "min-h-12",
-      )}
-    >
-      <button
-        type="button"
-        title={t("popup.main.viewDetails")}
-        data-row
-        onClick={onOpen}
-        className="flex min-w-0 flex-1 items-center gap-2.5 self-stretch text-left outline-none"
-      >
-        <SiteIcon
-          host={login.host}
-          text={login.title}
-          className={cn(
-            "group-hover/row:bg-background group-focus-within/row:bg-background",
-            compact && "size-6",
-          )}
-        />
-        <LoginLabel
-          username={login.username}
-          detail={confirming ? t("popup.main.confirmTouchId") : login.title}
-          compact={compact}
-        />
-      </button>
-      <div
-        className={cn(
-          "flex shrink-0 gap-0.5 opacity-0 group-hover/row:opacity-100 group-focus-within/row:opacity-100",
-          confirming && "opacity-100",
-        )}
-      >
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          className="hover:bg-background"
-          aria-label={t("popup.copyUsername")}
-          title={t("popup.copyUsername")}
-          onClick={() => void copy("username")}
-        >
-          {copied === "username" ? <CheckIcon /> : <UserIcon />}
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          className="hover:bg-background"
-          aria-label={t("popup.copyPassword")}
-          title={t("popup.copyPassword")}
-          onClick={() => void copy("password")}
-        >
-          {copied === "password" ? <CheckIcon /> : <KeyRoundIcon />}
-        </Button>
-        {login.hasCode && (
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            className="hover:bg-background"
-            aria-label={t("popup.copyCode")}
-            title={t("popup.copyCode")}
-            onClick={() => void copy("code")}
-          >
-            {copied === "code" ? <CheckIcon /> : <TimerIcon />}
-          </Button>
-        )}
-      </div>
-    </div>
   )
 }

@@ -12,7 +12,7 @@ A Chrome extension that fills, generates and saves passwords from two kinds of v
 - Takes over the page's conditional passkey requests on sites where you signed in with a passkey; can be turned off in settings.
 - Offers to save or update a login after you sign in.
 - Generator for passwords, passphrases and usernames, with a history of generated passwords that ends with the browser session.
-- Popup with search across all vaults, login details, and for Bitwarden: editing, deleting, custom fields and password history.
+- Popup with search across all vaults, login details, and for Bitwarden: a list of every item on its tab, secure notes, editing, deleting, custom fields and password history.
 - Keyboard shortcuts: open the popup (Ctrl+Shift+L), fill the first login (Ctrl+Shift+U), open the generator (Ctrl+Shift+G).
 - English and Chinese interface.
 

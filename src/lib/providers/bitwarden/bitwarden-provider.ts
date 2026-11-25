@@ -78,8 +78,6 @@ const ACTIVITY_KEY = "bitwarden.lastActivity"
 const TOKEN_MARGIN_MS = 60_000
 /** Synced data older than this is refreshed in the background when it is used. */
 const SYNC_MAX_AGE_MS = 5 * 60_000
-/** A search lists at most this many logins per account; a longer query narrows it. */
-const SEARCH_LIMIT = 50
 
 export interface AccountSummary {
   id: string
@@ -537,9 +535,19 @@ export class BitwardenProvider implements VaultProvider {
     const { items } = await this.vault(accountIdOfVault(vaultId))
     return items
       .filter((item) => matchesQuery(item, query))
-      .sort((a, b) => a.name.localeCompare(b.name))
-      .slice(0, SEARCH_LIMIT)
+      .sort((first, second) => first.name.localeCompare(second.name))
       .map(summaryOf)
+  }
+
+  /** Every login and note of the account, as the popup lists them when browsing the vault. */
+  async allItems(
+    vaultId: string,
+  ): Promise<{ logins: LoginSummary[]; notes: NoteSummary[] }> {
+    const { items, notes } = await this.vault(accountIdOfVault(vaultId))
+    return {
+      logins: items.map(summaryOf),
+      notes: notes.map((note) => ({ id: note.id, name: note.name })),
+    }
   }
 
   async searchNotes(vaultId: string, query: string): Promise<NoteSummary[]> {
@@ -547,7 +555,6 @@ export class BitwardenProvider implements VaultProvider {
     return notes
       .filter((note) => textMatchesQuery(note.name, query))
       .sort((first, second) => first.name.localeCompare(second.name))
-      .slice(0, SEARCH_LIMIT)
       .map((note) => ({ id: note.id, name: note.name }))
   }
 

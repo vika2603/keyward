@@ -204,6 +204,10 @@ export interface VaultProvider {
   ): Promise<OneTimeCode>
   /** Earlier passwords of a login, newest first; only providers whose details count them have it. */
   passwordHistory?(vaultId: string, loginId: string): Promise<PastPassword[]>
+  /** Every login and note of a vault; only providers that can list a whole vault have it. */
+  allItems?(
+    vaultId: string,
+  ): Promise<{ logins: LoginSummary[]; notes: NoteSummary[] }>
   /** Secure notes whose name contains every word of the query; only providers with notes have these. */
   searchNotes?(vaultId: string, query: string): Promise<NoteSummary[]>
   note?(vaultId: string, noteId: string): Promise<NoteDetails>
