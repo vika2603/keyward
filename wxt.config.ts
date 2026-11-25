@@ -55,7 +55,7 @@ export default defineConfig({
         description: "Open the generator",
       },
       "lock-all": {
-        description: "Lock all backends",
+        description: "Lock all vaults",
       },
     },
     // Apple's native messaging host only accepts its own extension IDs. With the public key of Apple's

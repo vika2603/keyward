@@ -8,9 +8,9 @@ export const en = {
   "options.duration.oneHour": "1 hour",
   "options.duration.hours": "{count} hours",
 
-  "options.backends.title": "Backends",
+  "options.backends.title": "Vaults",
   "options.backends.description":
-    "Items in the popup and the in-page menu come from the backends connected here.",
+    "Items in the popup and the in-page menu come from the vaults connected here.",
   "options.backends.apple.description":
     "The connection isn't kept for long. When needed, enter the six-digit code shown on your Mac in the popup.",
   "options.backends.apple.toggle": "Use Passwords",
@@ -106,7 +106,7 @@ export const en = {
   "options.sites.rules.add": "Add rule",
   "options.sites.rules.site": "Website",
   "options.sites.rules.match": "Match detection",
-  "options.sites.rules.backend": "Backend",
+  "options.sites.rules.backend": "Vault",
   "options.sites.rules.behavior": "Behavior",
   "options.sites.rules.actions": "Actions",
   "options.sites.rules.delete": "Delete rule for {host}",
@@ -137,7 +137,7 @@ export const en = {
   "options.keys.command.openPopup": "Open popup",
   "options.keys.command.fillFirst": "Fill the first match for the current site",
   "options.keys.command.openGenerator": "Open generator",
-  "options.keys.command.lockAll": "Lock all backends",
+  "options.keys.command.lockAll": "Lock all vaults",
   "options.keys.appearance.title": "Appearance",
   "options.keys.theme.name": "Theme",
   "options.keys.theme.system": "Follow system",
@@ -205,9 +205,9 @@ export const zhCN: Record<keyof typeof en, string> = {
   "options.duration.oneHour": "1 小时",
   "options.duration.hours": "{count} 小时",
 
-  "options.backends.title": "后端",
+  "options.backends.title": "密码库",
   "options.backends.description":
-    "弹窗和页面内菜单里的条目来自这里连接的后端。",
+    "弹窗和页面内菜单里的条目来自这里连接的密码库。",
   "options.backends.apple.description":
     "连接不会长期保留，需要时在弹窗里输入 Mac 上显示的六位验证码。",
   "options.backends.apple.toggle": "使用 Passwords",
@@ -299,7 +299,7 @@ export const zhCN: Record<keyof typeof en, string> = {
   "options.sites.rules.add": "添加规则",
   "options.sites.rules.site": "网址",
   "options.sites.rules.match": "匹配方式",
-  "options.sites.rules.backend": "后端",
+  "options.sites.rules.backend": "密码库",
   "options.sites.rules.behavior": "行为",
   "options.sites.rules.actions": "操作",
   "options.sites.rules.delete": "删除 {host} 的规则",
@@ -329,7 +329,7 @@ export const zhCN: Record<keyof typeof en, string> = {
   "options.keys.command.openPopup": "打开弹窗",
   "options.keys.command.fillFirst": "填充当前站点的第一个匹配",
   "options.keys.command.openGenerator": "打开生成器",
-  "options.keys.command.lockAll": "锁定全部后端",
+  "options.keys.command.lockAll": "锁定全部密码库",
   "options.keys.appearance.title": "外观",
   "options.keys.theme.name": "主题",
   "options.keys.theme.system": "跟随系统",
