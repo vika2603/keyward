@@ -50,7 +50,7 @@ import {
   wrappedUserKeyOf,
 } from "./auth"
 import { masterKeySalt, type VaultCrypto, WrongPasswordError } from "./crypto"
-import { serverHost, serverUrls } from "./server"
+import { type CustomEndpoints, serverHost, serverUrls } from "./server"
 import {
   decryptDetails,
   decryptLogin,
@@ -93,6 +93,7 @@ export interface AccountSummary {
 
 export interface PendingSignInView {
   server: string
+  endpoints?: CustomEndpoints
   email: string
   methods: SecondStepMethod[]
 }
@@ -103,6 +104,7 @@ export type SignInOutcome =
 
 interface PendingSignIn {
   server: string
+  endpoints?: CustomEndpoints
   login: PendingLogin
 }
 
@@ -174,9 +176,10 @@ export class BitwardenProvider implements VaultProvider {
   async signIn(
     server: string,
     credentials: { email: string; password: string },
+    endpoints?: CustomEndpoints,
   ): Promise<SignInOutcome> {
     await browser.storage.session.remove(PENDING_LOGIN_KEY)
-    const api = new BitwardenApi(serverUrls(server))
+    const api = new BitwardenApi(serverUrls(server, endpoints))
     const step = await signIn(
       api,
       await this.loadCrypto(),
@@ -184,13 +187,13 @@ export class BitwardenProvider implements VaultProvider {
       credentials,
     )
     if (step.kind === "secondStep") {
-      const pending: PendingSignIn = { server, login: step.pending }
+      const pending: PendingSignIn = { server, endpoints, login: step.pending }
       await browser.storage.session.set({ [PENDING_LOGIN_KEY]: pending })
       return { kind: "secondStep", pending: pendingView(pending) }
     }
     return {
       kind: "signedIn",
-      accountId: await this.finishSignIn(server, step.result),
+      accountId: await this.finishSignIn(server, endpoints, step.result),
     }
   }
 
@@ -221,8 +224,8 @@ export class BitwardenProvider implements VaultProvider {
   }
 
   async sendEmailCode(): Promise<void> {
-    const { server, login } = await this.requirePending()
-    await new BitwardenApi(serverUrls(server)).sendEmailCode(
+    const { server, endpoints, login } = await this.requirePending()
+    await new BitwardenApi(serverUrls(server, endpoints)).sendEmailCode(
       { email: login.email, passwordHash: login.passwordHash },
       await this.device(),
     )
@@ -235,7 +238,7 @@ export class BitwardenProvider implements VaultProvider {
     const pending = await this.requirePending()
     if (!pending.login.methods.includes(method))
       throw new VaultError("Unsupported method", "bitwarden.method")
-    const api = new BitwardenApi(serverUrls(pending.server))
+    const api = new BitwardenApi(serverUrls(pending.server, pending.endpoints))
     const result = await completeSecondStep(
       api,
       await this.device(),
@@ -244,11 +247,12 @@ export class BitwardenProvider implements VaultProvider {
       code,
     )
     await browser.storage.session.remove(PENDING_LOGIN_KEY)
-    return this.finishSignIn(pending.server, result)
+    return this.finishSignIn(pending.server, pending.endpoints, result)
   }
 
   private async finishSignIn(
     server: string,
+    endpoints: CustomEndpoints | undefined,
     signedIn: SignedIn,
   ): Promise<string> {
     const crypto = await this.loadCrypto()
@@ -270,6 +274,7 @@ export class BitwardenProvider implements VaultProvider {
       userId,
       email: signedIn.email,
       server,
+      endpoints,
       name: previous?.name,
       kdf: signedIn.kdf,
       salt: signedIn.salt,
@@ -405,7 +410,7 @@ export class BitwardenProvider implements VaultProvider {
     ) {
       return session.accessToken
     }
-    const api = new BitwardenApi(serverUrls(account.server))
+    const api = new BitwardenApi(serverUrls(account.server, account.endpoints))
     let token: Record<string, unknown>
     try {
       token = await api.refreshToken(session.refreshToken)
@@ -449,7 +454,9 @@ export class BitwardenProvider implements VaultProvider {
     if (!running) {
       running = (async () => {
         const account = await this.account(accountId)
-        const api = new BitwardenApi(serverUrls(account.server))
+        const api = new BitwardenApi(
+          serverUrls(account.server, account.endpoints),
+        )
         const data = await api.sync(await this.accessToken(account))
         await saveSync(accountId, { syncedAt: Date.now(), data })
         this.cache.delete(accountId)
@@ -613,7 +620,9 @@ export class BitwardenProvider implements VaultProvider {
     const accountId = accountIdOfVault(vaultId)
     const account = await this.account(accountId)
     const { keys } = await this.vault(accountId)
-    await new BitwardenApi(serverUrls(account.server)).createCipher(
+    await new BitwardenApi(
+      serverUrls(account.server, account.endpoints),
+    ).createCipher(
       await this.accessToken(account),
       newNoteRequest(note, keys, account.userId),
     )
@@ -799,10 +808,9 @@ export class BitwardenProvider implements VaultProvider {
     const account = await this.account(accountId)
     const { item, cipher } = await this.anyItem(vaultId, itemId)
     refuseEdit(item, cipher)
-    await new BitwardenApi(serverUrls(account.server)).trashCipher(
-      await this.accessToken(account),
-      itemId,
-    )
+    await new BitwardenApi(
+      serverUrls(account.server, account.endpoints),
+    ).trashCipher(await this.accessToken(account), itemId)
     await this.sync(accountId)
   }
 
@@ -814,7 +822,9 @@ export class BitwardenProvider implements VaultProvider {
     const accountId = accountIdOfVault(vaultId)
     const account = await this.account(accountId)
     const { keys } = await this.vault(accountId)
-    await new BitwardenApi(serverUrls(account.server)).updateCipher(
+    await new BitwardenApi(
+      serverUrls(account.server, account.endpoints),
+    ).updateCipher(
       await this.accessToken(account),
       String(prop(cipher, "Id")),
       await itemUpdateRequest(cipher, change, keys, account.userId),
@@ -850,7 +860,7 @@ export class BitwardenProvider implements VaultProvider {
     const accountId = accountIdOfVault(vaultId)
     const account = await this.account(accountId)
     const { keys } = await this.vault(accountId)
-    const api = new BitwardenApi(serverUrls(account.server))
+    const api = new BitwardenApi(serverUrls(account.server, account.endpoints))
     await api.createCipher(
       await this.accessToken(account),
       newLoginRequest(
@@ -996,6 +1006,7 @@ function refuseReprompt(item: RepromptItem): void {
 function pendingView(pending: PendingSignIn): PendingSignInView {
   return {
     server: pending.server,
+    endpoints: pending.endpoints,
     email: pending.login.email,
     methods: pending.login.methods,
   }

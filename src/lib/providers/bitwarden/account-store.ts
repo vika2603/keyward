@@ -1,4 +1,5 @@
 import type { KdfConfig } from "./crypto"
+import type { CustomEndpoints } from "./server"
 
 /**
  * A signed-in account. Persisted in storage.local, which is not encrypted, so it holds nothing
@@ -8,8 +9,10 @@ export interface StoredAccount {
   id: string
   userId: string
   email: string
-  /** Server address as entered; empty for the official service. */
+  /** Server address as entered; empty for bitwarden.com. */
   server: string
+  /** Endpoints of a self-hosted server that do not follow from its address. */
+  endpoints?: CustomEndpoints
   /** A name the user gave the account; empty or missing to show the email address. */
   name?: string
   kdf: KdfConfig

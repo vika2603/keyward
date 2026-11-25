@@ -27,7 +27,7 @@ async function deliver(message: unknown): Promise<unknown[]> {
     },
   )
   // A listener that returns true answers later.
-  if (results.includes(true)) await reply
+  if ((results as unknown[]).includes(true)) await reply
   return replies
 }
 

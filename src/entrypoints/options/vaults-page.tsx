@@ -25,6 +25,7 @@ import { Switch } from "@/components/ui/switch"
 import { t } from "@/lib/i18n"
 import { APPLE_VAULT_ID } from "@/lib/providers/apple/vault-id"
 import type { AccountSummary } from "@/lib/providers/bitwarden/bitwarden-provider"
+import { isCloudServer, serverHost } from "@/lib/providers/bitwarden/server"
 import type { VaultInfo } from "@/lib/providers/types"
 import { navigate } from "./App"
 import { Card, Option, PageHeader, Section } from "./parts"
@@ -264,7 +265,9 @@ export function VaultsPage() {
 
 /** Under an account's name: its server, and its email address once the account has a name. */
 function accountDetail(account: AccountSummary): string {
-  const server = account.server || t("options.vaults.bitwarden.officialServer")
+  const server = isCloudServer(account.server)
+    ? serverHost(account.server)
+    : account.server
   return account.name ? `${account.email} · ${server}` : server
 }
 

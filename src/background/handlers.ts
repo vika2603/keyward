@@ -1,6 +1,9 @@
 import { generatePassword, generatorOptionsItem } from "@/lib/generator"
 import type { Handlers, Sender } from "@/lib/messaging"
-import { normalizeServerAddress } from "@/lib/providers/bitwarden/server"
+import {
+  type CustomEndpoints,
+  normalizeServerAddress,
+} from "@/lib/providers/bitwarden/server"
 import { isBitwardenVault } from "@/lib/providers/bitwarden/vault-id"
 import {
   type CustomField,
@@ -55,6 +58,22 @@ function requireText(value: unknown, name: string, maxLength = 1024): string {
     throw new VaultError(`Invalid ${name}`, "invalidInput")
   }
   return value
+}
+
+/** Checks a self-hosted server's separate endpoints; none given leaves them to follow its address. */
+function customEndpointsOf(value: unknown): CustomEndpoints | undefined {
+  if (value === undefined || value === null) return undefined
+  if (typeof value !== "object")
+    throw new VaultError("Invalid endpoints", "invalidInput")
+  const { api, identity } = value as Record<string, unknown>
+  const endpoints: CustomEndpoints = {}
+  const checkedApi = normalizeServerAddress(requireText(api ?? "", "api"))
+  const checkedIdentity = normalizeServerAddress(
+    requireText(identity ?? "", "identity"),
+  )
+  if (checkedApi) endpoints.api = checkedApi
+  if (checkedIdentity) endpoints.identity = checkedIdentity
+  return checkedApi || checkedIdentity ? endpoints : undefined
 }
 
 /** Opens the toolbar popup on a given view, in a popup window when the browser refuses. */
@@ -543,13 +562,14 @@ export function createHandlers(providers: Providers): Handlers<BackgroundApi> {
     },
     "bitwarden.signIn": {
       allow: connectPages,
-      handle: ({ server, email, password }) =>
+      handle: ({ server, endpoints, email, password }) =>
         bitwarden.signIn(
           normalizeServerAddress(requireText(server, "server")),
           {
             email: requireText(email, "email").trim(),
             password: requireText(password, "password"),
           },
+          customEndpointsOf(endpoints),
         ),
     },
     "bitwarden.pendingSignIn": {

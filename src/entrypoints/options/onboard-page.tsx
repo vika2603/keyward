@@ -15,8 +15,20 @@ import {
 import { t } from "@/lib/i18n"
 import type { SecondStepMethod } from "@/lib/providers/bitwarden/auth"
 import type { PendingSignInView } from "@/lib/providers/bitwarden/bitwarden-provider"
+import { normalizeServerAddress } from "@/lib/providers/bitwarden/server"
 import { navigate } from "./App"
-import { lastServerItem, selfHostedServerItem } from "./remembered-server"
+import {
+  lastServerItem,
+  selfHostedEndpointsItem,
+  selfHostedServerItem,
+} from "./remembered-server"
+import {
+  type SelfHostedServer,
+  type ServerChoice,
+  ServerPicker,
+  serverAddressOf,
+  serverChoiceOf,
+} from "./server-picker"
 
 function methodTexts(): Record<
   SecondStepMethod,
@@ -79,9 +91,21 @@ export function OnboardPage() {
   )
 }
 
+/** An address as saved by an earlier version, normalized; empty when it is not an address. */
+function savedAddress(address: string): string {
+  try {
+    return normalizeServerAddress(address)
+  } catch {
+    return ""
+  }
+}
+
 function SignIn({ onSignedIn }: { onSignedIn: () => void }) {
-  const [selfHosted, setSelfHosted] = useState(false)
-  const [serverUrl, setServerUrl] = useState("")
+  const [serverChoice, setServerChoice] = useState<ServerChoice>("us")
+  const [selfHosted, setSelfHosted] = useState<SelfHostedServer>({
+    address: "",
+    endpoints: {},
+  })
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [pending, setPending] = useState<PendingSignInView | null>(null)
@@ -112,10 +136,19 @@ function SignIn({ onSignedIn }: { onSignedIn: () => void }) {
       callBackground("bitwarden.pendingSignIn", null),
       lastServerItem.getValue(),
       selfHostedServerItem.getValue(),
-    ]).then(([view, lastServer, savedUrl]) => {
-      const server = view ? view.server : lastServer
-      setSelfHosted(server !== "")
-      setServerUrl(server || savedUrl || lastServer)
+      selfHostedEndpointsItem.getValue(),
+    ]).then(([view, lastServer, savedUrl, savedEndpoints]) => {
+      const server = view ? view.server : savedAddress(lastServer)
+      const choice = serverChoiceOf(server)
+      setServerChoice(choice)
+      setSelfHosted(
+        choice === "selfHosted"
+          ? {
+              address: server,
+              endpoints: view ? (view.endpoints ?? {}) : savedEndpoints,
+            }
+          : { address: savedAddress(savedUrl), endpoints: savedEndpoints },
+      )
       if (view) {
         setEmail(view.email)
         setPending(view)
@@ -218,21 +251,22 @@ function SignIn({ onSignedIn }: { onSignedIn: () => void }) {
     )
   }
 
+  const server = serverAddressOf(serverChoice, selfHosted)
   return (
     <form
       className="flex flex-col gap-4"
       onSubmit={(event) => {
         event.preventDefault()
         void run(async () => {
-          const server = selfHosted ? serverUrl.trim() : ""
           const outcome = await callBackground("bitwarden.signIn", {
             server,
+            endpoints:
+              serverChoice === "selfHosted" ? selfHosted.endpoints : undefined,
             email,
             password,
           })
           setPassword("")
           await lastServerItem.setValue(server)
-          if (server) await selfHostedServerItem.setValue(server)
           if (outcome.kind === "signedIn") onSignedIn()
           else showSecondStep(outcome.pending)
         })
@@ -262,65 +296,32 @@ function SignIn({ onSignedIn }: { onSignedIn: () => void }) {
           required
         />
       </label>
-      <div className="flex flex-col gap-2">
-        <div className="flex items-center justify-between gap-3">
-          <span className="text-sm text-muted-foreground">
-            {t("options.onboard.signIn.server")}
-          </span>
-          <Select
-            value={selfHosted ? "selfHosted" : "official"}
-            onValueChange={(value) => setSelfHosted(value === "selfHosted")}
-            items={[
-              {
-                value: "official",
-                label: t("options.onboard.signIn.official"),
-              },
-              {
-                value: "selfHosted",
-                label: t("options.onboard.signIn.selfHosted"),
-              },
-            ]}
-          >
-            <SelectTrigger
-              size="sm"
-              aria-label={t("options.onboard.signIn.server")}
-            >
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent align="end">
-              <SelectItem value="official">
-                {t("options.onboard.signIn.official")}
-              </SelectItem>
-              <SelectItem value="selfHosted">
-                {t("options.onboard.signIn.selfHosted")}
-              </SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        {selfHosted && (
-          <Input
-            inputMode="url"
-            spellCheck={false}
-            value={serverUrl}
-            onChange={(event) => setServerUrl(event.target.value)}
-            placeholder="https://vault.example.com"
-            aria-label={t("options.onboard.signIn.serverUrl")}
-            required
-          />
-        )}
-      </div>
       {message && <p className="text-xs text-destructive">{message}</p>}
       <Button
         type="submit"
         className="w-full"
         disabled={
-          busy || !email || !password || (selfHosted && !serverUrl.trim())
+          busy ||
+          !email ||
+          !password ||
+          (serverChoice === "selfHosted" && !server)
         }
       >
         {busy
           ? t("options.onboard.signIn.busy")
           : t("options.onboard.signIn.submit")}
       </Button>
+      <ServerPicker
+        choice={serverChoice}
+        selfHosted={selfHosted}
+        onChoose={setServerChoice}
+        onSelfHosted={(next) => {
+          setSelfHosted(next)
+          setServerChoice("selfHosted")
+          void selfHostedServerItem.setValue(next.address)
+          void selfHostedEndpointsItem.setValue(next.endpoints)
+        }}
+      />
     </form>
   )
 }

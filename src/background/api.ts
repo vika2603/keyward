@@ -7,6 +7,7 @@ import type {
   PendingSignInView,
   SignInOutcome,
 } from "@/lib/providers/bitwarden/bitwarden-provider"
+import type { CustomEndpoints } from "@/lib/providers/bitwarden/server"
 import type {
   EditableLogin,
   EditableNote,
@@ -220,7 +221,13 @@ export type BackgroundApi = {
     result: null
   }
   "bitwarden.signIn": {
-    payload: { server: string; email: string; password: string }
+    payload: {
+      server: string
+      /** API and identity addresses of a self-hosted server, when they do not follow from `server`. */
+      endpoints?: CustomEndpoints
+      email: string
+      password: string
+    }
     result: SignInOutcome
   }
   "bitwarden.pendingSignIn": { payload: null; result: PendingSignInView | null }
