@@ -9,6 +9,7 @@ import {
   type EditableNote,
   type ExistingLogin,
   type FillField,
+  type Folder,
   type ListOptions,
   type LoginDetails,
   type LoginEdit,
@@ -894,19 +895,34 @@ export class BitwardenProvider implements VaultProvider {
     }
   }
 
+  async folders(vaultId: string): Promise<Folder[]> {
+    const { groups } = await this.vault(accountIdOfVault(vaultId))
+    return groups.folders
+  }
+
   async save(vaultId: string, login: NewLogin, _tab: TabRef): Promise<void> {
     const accountId = accountIdOfVault(vaultId)
     const account = await this.account(accountId)
-    const { keys } = await this.vault(accountId)
+    const { keys, groups } = await this.vault(accountId)
+    const details = login.details
+    const totp = details?.totp.trim() ?? ""
+    if (totp) requireCodeKey(totp)
+    const folderId = details?.folderId ?? null
+    if (folderId && !groups.folders.some((folder) => folder.id === folderId))
+      throw new VaultError("Unknown folder", "notFound")
     const api = new BitwardenApi(serverUrls(account.server, account.endpoints))
     await api.createCipher(
       await this.accessToken(account),
       newLoginRequest(
         {
-          name: login.url.hostname,
+          name: details?.name.trim() || login.url.hostname,
           username: login.username,
           password: login.password,
           uri: login.url.origin,
+          notes: details?.notes,
+          totp,
+          customFields: details?.customFields,
+          folderId,
         },
         keys,
         account.userId,

@@ -156,15 +156,33 @@ export interface NewLogin {
   url: URL
   username: string
   password: string
+  /** The rest of a new login, for providers that keep it; others store the fields above only. */
+  details?: NewLoginDetails
 }
 
-/** A login's fields as an edit form shows them, secrets included. */
+export interface NewLoginDetails {
+  /** Empty to name the login after its site. */
+  name: string
+  notes: string
+  /** An authenticator key, as an edit form takes it; empty for none. */
+  totp: string
+  customFields: CustomField[]
+  folderId: string | null
+}
+
+/** A folder an item can be filed in. */
+export interface Folder {
+  id: string
+  name: string
+}
+
 /** A login's web address and how pages are compared with it; null follows the site rules. */
 export interface Website {
   uri: string
   match: MatchType | null
 }
 
+/** A login's fields as an edit form shows them, secrets included. */
 export interface EditableLogin {
   name: string
   username: string
@@ -252,6 +270,8 @@ export interface VaultProvider {
   edit?(vaultId: string, loginId: string, change: LoginEdit): Promise<void>
   /** Moves a login or note to the trash, where the provider's own apps can restore it. */
   remove?(vaultId: string, loginId: string): Promise<void>
+  /** The folders new items can be filed in; only providers with folders have these. */
+  folders?(vaultId: string): Promise<Folder[]>
   /** Stars a login or note, or takes its star away. */
   setFavorite?(
     vaultId: string,

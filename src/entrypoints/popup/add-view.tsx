@@ -5,13 +5,144 @@ import { errorMessage } from "@/components/keyward/errors"
 import { VaultSelect } from "@/components/keyward/vault-select"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { Separator } from "@/components/ui/separator"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { generatePassword, getGeneratorOptions } from "@/lib/generator"
 import { t } from "@/lib/i18n"
-import type { VaultInfo } from "@/lib/providers/types"
+import type {
+  CustomField,
+  Folder,
+  NewLoginDetails,
+  VaultInfo,
+} from "@/lib/providers/types"
+import { CustomFieldsEditor } from "./custom-fields-editor"
 import { BackHeader } from "./header"
 import { NoteForm } from "./note-form"
+
+const NO_FOLDER = "none"
+
+/**
+ * The fields of a new login beyond its site, username and password, for a vault that keeps them:
+ * a Bitwarden account. Apple's helper stores those three only.
+ */
+function LoginDetailsFields({
+  vaultId,
+  site,
+  details,
+  onChange,
+}: {
+  vaultId: string
+  site: string
+  details: NewLoginDetails
+  onChange: (change: Partial<NewLoginDetails>) => void
+}) {
+  const [folders, setFolders] = useState<Folder[]>([])
+  useEffect(() => {
+    setFolders([])
+    callBackground("popup.folders", { vaultId }).then(setFolders, () => {
+      // Without its folders the login is saved outside every folder.
+    })
+  }, [vaultId])
+  const folderChoices = [
+    { value: NO_FOLDER, label: t("popup.main.filter.noFolder") },
+    ...folders.map((folder) => ({ value: folder.id, label: folder.name })),
+  ]
+
+  return (
+    <>
+      <label className="flex flex-col gap-2">
+        <span className="text-sm leading-none font-medium">
+          {t("popup.edit.name")}
+        </span>
+        <Input
+          value={details.name}
+          placeholder={site}
+          onChange={(event) => onChange({ name: event.target.value })}
+          autoComplete="off"
+        />
+      </label>
+      {folders.length > 0 && (
+        <div className="flex flex-col gap-2">
+          <span className="text-sm leading-none font-medium">
+            {t("popup.add.folder")}
+          </span>
+          <Select
+            value={details.folderId ?? NO_FOLDER}
+            onValueChange={(value) =>
+              onChange({ folderId: value === NO_FOLDER ? null : value })
+            }
+            items={folderChoices}
+          >
+            <SelectTrigger
+              className="w-full"
+              aria-label={t("popup.add.folder")}
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectGroup>
+                {folderChoices.map((choice) => (
+                  <SelectItem key={choice.value} value={choice.value}>
+                    {choice.label}
+                  </SelectItem>
+                ))}
+              </SelectGroup>
+            </SelectContent>
+          </Select>
+        </div>
+      )}
+      <label className="flex flex-col gap-2">
+        <span className="text-sm leading-none font-medium">
+          {t("popup.edit.codeKey")}
+        </span>
+        <Input
+          className="font-mono"
+          value={details.totp}
+          placeholder={t("popup.edit.codeKeyHint")}
+          onChange={(event) => onChange({ totp: event.target.value })}
+          autoComplete="off"
+          spellCheck={false}
+        />
+      </label>
+      <label className="flex flex-col gap-2">
+        <span className="text-sm leading-none font-medium">
+          {t("popup.detail.notes")}
+        </span>
+        <textarea
+          rows={3}
+          value={details.notes}
+          onChange={(event) => onChange({ notes: event.target.value })}
+          className="w-full min-w-0 resize-y rounded-lg border border-input bg-transparent px-2.5 py-1.5 text-sm outline-none placeholder:text-muted-foreground focus-visible:border-foreground/35 focus-visible:ring-3 focus-visible:ring-foreground/6 dark:bg-input/30"
+        />
+      </label>
+      <div className="flex flex-col gap-2">
+        <span className="text-sm leading-none font-medium">
+          {t("popup.detail.customFields")}
+        </span>
+        <CustomFieldsEditor
+          fields={details.customFields}
+          onChange={(customFields: CustomField[]) => onChange({ customFields })}
+        />
+      </div>
+    </>
+  )
+}
+
+const EMPTY_DETAILS: NewLoginDetails = {
+  name: "",
+  notes: "",
+  totp: "",
+  customFields: [],
+  folderId: null,
+}
 
 /** A new login: its site, username, password and the vault it goes to. */
 function AddLoginForm({ onDone }: { onDone: () => void }) {
@@ -21,6 +152,12 @@ function AddLoginForm({ onDone }: { onDone: () => void }) {
   const [targets, setTargets] = useState<VaultInfo[] | null>(null)
   const [unsupported, setUnsupported] = useState<VaultInfo[]>([])
   const [target, setTarget] = useState<string | null>(null)
+  const [details, setDetails] = useState(EMPTY_DETAILS)
+  // A folder belongs to one account, so another account starts outside every folder.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the folder resets whenever the target changes.
+  useEffect(() => {
+    setDetails((current) => ({ ...current, folderId: null }))
+  }, [target])
   const request = useRef(0)
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
@@ -71,6 +208,7 @@ function AddLoginForm({ onDone }: { onDone: () => void }) {
         site,
         username,
         password,
+        details: bitwarden ? details : undefined,
       })
       onDone()
     } catch (error) {
@@ -80,7 +218,9 @@ function AddLoginForm({ onDone }: { onDone: () => void }) {
     }
   }
 
-  const apple = targets?.find((t) => t.id === target)?.kind === "apple"
+  const targetKind = targets?.find((t) => t.id === target)?.kind
+  const apple = targetKind === "apple"
+  const bitwarden = targetKind === "bitwarden"
 
   // The Passwords app's own form also takes a title and notes, which Keyward cannot save there.
   const openNewPasswordSheet = async () => {
@@ -184,6 +324,16 @@ function AddLoginForm({ onDone }: { onDone: () => void }) {
             )
           )}
         </div>
+        {bitwarden && target && (
+          <LoginDetailsFields
+            vaultId={target}
+            site={site}
+            details={details}
+            onChange={(change) =>
+              setDetails((current) => ({ ...current, ...change }))
+            }
+          />
+        )}
         {busy && apple && (
           <p className="text-xs text-muted-foreground">
             {t("popup.add.confirmOnMac")}

@@ -459,6 +459,11 @@ export interface NewLoginFields {
   username: string
   password: string
   uri: string
+  notes?: string
+  /** An authenticator key, already checked. */
+  totp?: string
+  customFields?: CustomField[]
+  folderId?: string | null
 }
 
 /** The request body for a new personal login item, encrypted with the account key. */
@@ -471,20 +476,23 @@ export function newLoginRequest(
   return {
     type: CIPHER_TYPE_LOGIN,
     encryptedFor: userId,
-    folderId: null,
+    folderId: login.folderId ?? null,
     organizationId: null,
     name: keys.encrypt(login.name, key),
-    notes: null,
+    notes: keys.encrypt(login.notes ?? "", key),
     favorite: false,
     reprompt: 0,
     key: null,
+    fields: (login.customFields ?? []).map((field) =>
+      encryptCustomField(field, keys, key),
+    ),
     login: {
       username: keys.encrypt(login.username, key),
       password: keys.encrypt(login.password, key),
       uris: login.uri
         ? [{ uri: keys.encrypt(login.uri, key), match: null }]
         : [],
-      totp: null,
+      totp: keys.encrypt(login.totp ?? "", key),
     },
   }
 }

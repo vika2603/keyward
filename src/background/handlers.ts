@@ -13,6 +13,7 @@ import {
   type CustomField,
   type EditableNote,
   type LoginEdit,
+  type NewLoginDetails,
   type TabRef,
   VaultError,
   type Website,
@@ -198,6 +199,22 @@ function noteInput(value: unknown): EditableNote {
 
 const MAX_CUSTOM_FIELDS = 100
 
+/** The rest of a new login, checked; none given leaves the login to its site, username and password. */
+function newLoginDetailsInput(value: unknown): NewLoginDetails | undefined {
+  if (value === undefined || value === null) return undefined
+  if (typeof value !== "object")
+    throw new VaultError("Invalid login", "invalidInput")
+  const input = value as Record<string, unknown>
+  const folderId = input.folderId ?? null
+  return {
+    name: requireText(input.name ?? "", "name"),
+    notes: requireText(input.notes ?? "", "notes", MAX_NOTE_LENGTH),
+    totp: requireText(input.totp ?? "", "totp", 4096),
+    customFields: customFieldsInput(input.customFields ?? []),
+    folderId: folderId === null ? null : requireText(folderId, "folderId", 64),
+  }
+}
+
 function customFieldsInput(value: unknown): CustomField[] {
   if (!Array.isArray(value) || value.length > MAX_CUSTOM_FIELDS)
     throw new VaultError("Invalid custom fields", "invalidInput")
@@ -346,6 +363,13 @@ export function createHandlers(providers: Providers): Handlers<BackgroundApi> {
           loginEdit(change),
         )
         return null
+      },
+    },
+    "popup.folders": {
+      allow: popup,
+      handle: async ({ vaultId }) => {
+        const provider = providers.providerOf(requireText(vaultId, "vaultId"))
+        return provider.folders ? provider.folders(vaultId) : []
       },
     },
     "popup.setFavorite": {
@@ -509,7 +533,7 @@ export function createHandlers(providers: Providers): Handlers<BackgroundApi> {
     },
     "popup.saveLogin": {
       allow: popup,
-      handle: async ({ vaultId, site, username, password }) => {
+      handle: async ({ vaultId, site, username, password, details }) => {
         const url = normalizeSiteInput(requireText(site, "site"))
         if (!url) throw new VaultError("Not a web address", "invalidSite")
         if (!requireText(password, "password"))
@@ -527,7 +551,12 @@ export function createHandlers(providers: Providers): Handlers<BackgroundApi> {
         const { tabId } = await activePage()
         await providers.providerOf(vaultId).save(
           vaultId,
-          { url, username: requireText(username, "username").trim(), password },
+          {
+            url,
+            username: requireText(username, "username").trim(),
+            password,
+            details: newLoginDetailsInput(details),
+          },
           {
             tabId: tabId ?? 0,
             frameId: 0,

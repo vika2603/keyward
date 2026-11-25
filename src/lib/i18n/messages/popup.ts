@@ -143,6 +143,7 @@ export const en = {
   "popup.add.password": "Password",
   "popup.add.generate": "Generate password",
   "popup.add.saveTo": "Save to",
+  "popup.add.folder": "Folder",
   "popup.add.noTarget":
     "Connect Passwords or unlock a Bitwarden account from the main view first.",
   "popup.add.confirmOnMac": "Confirm saving in the window on your Mac.",
@@ -339,6 +340,7 @@ export const zhCN: Record<keyof typeof en, string> = {
   "popup.add.password": "密码",
   "popup.add.generate": "生成密码",
   "popup.add.saveTo": "保存到",
+  "popup.add.folder": "文件夹",
   "popup.add.noTarget": "需要先在主界面连接 Passwords 或解锁 Bitwarden 账户。",
   "popup.add.confirmOnMac": "在 Mac 弹出的窗口中确认保存。",
   "popup.add.save": "保存",

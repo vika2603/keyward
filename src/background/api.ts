@@ -13,9 +13,11 @@ import type {
   EditableLogin,
   EditableNote,
   FillField,
+  Folder,
   LoginDetails,
   LoginEdit,
   LoginSummary,
+  NewLoginDetails,
   NoteDetails,
   NoteSummary,
   OneTimeCode,
@@ -209,9 +211,13 @@ export type BackgroundApi = {
       site: string
       username: string
       password: string
+      /** The rest of the login, for a vault that keeps it. */
+      details?: NewLoginDetails
     }
     result: null
   }
+  /** The folders a new item can be filed in, for a vault that has folders. */
+  "popup.folders": { payload: { vaultId: string }; result: Folder[] }
   "apple.state": { payload: null; result: AppleState }
   "apple.startPairing": { payload: { restart: boolean }; result: AppleState }
   "apple.submitCode": { payload: { code: string }; result: AppleState }

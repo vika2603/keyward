@@ -203,6 +203,76 @@ describe("edit", () => {
   })
 })
 
+describe("save", () => {
+  const tab = { tabId: 1, frameId: 0 }
+  const login = {
+    url: new URL("https://new.example.com/signup"),
+    username: "newcomer",
+    password: "{{SECRET_5dcfwpk5}}",
+  }
+
+  it("names a login after its site when nothing else is given", async () => {
+    await provider().save(VAULT, login, tab)
+    const body = writes()[0]?.body as Record<string, unknown> & {
+      login: Record<string, unknown>
+    }
+    expect(dec(body.name)).toBe("new.example.com")
+    expect(body.notes).toBeNull()
+    expect(body.login.totp).toBeNull()
+    expect(body.folderId).toBeNull()
+  })
+
+  it("keeps the name, notes, authenticator key, fields and folder given", async () => {
+    await provider().save(
+      VAULT,
+      {
+        ...login,
+        details: {
+          name: "New Example",
+          notes: "made for a test",
+          totp: "JBSWY3DPEHPK3PXP",
+          customFields: [{ kind: "text", name: "Member", value: "42" }],
+          folderId: null,
+        },
+      },
+      tab,
+    )
+    const body = writes()[0]?.body as Record<string, unknown> & {
+      login: Record<string, unknown>
+      fields: Record<string, unknown>[]
+    }
+    expect(dec(body.name)).toBe("New Example")
+    expect(dec(body.notes)).toBe("made for a test")
+    expect(dec(body.login.totp)).toBe("JBSWY3DPEHPK3PXP")
+    expect(dec(body.fields[0]?.name)).toBe("Member")
+  })
+
+  it("refuses an authenticator key it cannot read, and a folder it does not have", async () => {
+    const details = {
+      name: "",
+      notes: "",
+      totp: "",
+      customFields: [],
+      folderId: null,
+    }
+    await expect(
+      provider().save(
+        VAULT,
+        { ...login, details: { ...details, totp: "not a key!" } },
+        tab,
+      ),
+    ).rejects.toMatchObject({ code: "invalidCodeKey" })
+    await expect(
+      provider().save(
+        VAULT,
+        { ...login, details: { ...details, folderId: "folder-9" } },
+        tab,
+      ),
+    ).rejects.toMatchObject({ code: "notFound" })
+    expect(writes()).toEqual([])
+  })
+})
+
 describe("setFavorite", () => {
   it("stars a read-only item of an organization and keeps its folder", async () => {
     const bw = provider()
