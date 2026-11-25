@@ -1,6 +1,7 @@
 import { CheckIcon, CopyIcon, HistoryIcon, RefreshCwIcon } from "lucide-react"
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { callBackground } from "@/background/api"
+import { useCopyThrough } from "@/components/keyward/copy-through"
 import { errorMessage } from "@/components/keyward/errors"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -10,6 +11,7 @@ import { Slider } from "@/components/ui/slider"
 import {
   defaultGeneratorOptions,
   type GeneratorOptions,
+  generatedPasswordItem,
   generatePassword,
   generatorOptionsItem,
   LENGTH_MAX,
@@ -42,20 +44,46 @@ export function GeneratorView({
   const [copied, setCopied] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
 
+  const shown = useRef<HTMLDivElement>(null)
+
   useEffect(() => {
-    void generatorOptionsItem.getValue().then((saved) => {
+    void Promise.all([
+      generatorOptionsItem.getValue(),
+      generatedPasswordItem.getValue(),
+    ]).then(([saved, current]) => {
       const value = { ...defaultGeneratorOptions, ...saved }
       setOptions(value)
-      setPassword(generatePassword(value))
+      const next = current ?? generatePassword(value)
+      setPassword(next)
+      if (!current) void generatedPasswordItem.setValue(next)
     })
   }, [])
+
+  const show = (next: string) => {
+    setPassword(next)
+    void generatedPasswordItem.setValue(next)
+  }
+
+  const copy = useCallback(async () => {
+    setMessage(null)
+    try {
+      await callBackground("generator.copy", { password })
+      setCopied(true)
+    } catch (error) {
+      setMessage(errorMessage(error))
+    }
+  }, [password])
+  useCopyThrough(
+    shown,
+    useCallback(() => void copy(), [copy]),
+  )
 
   if (!options) return <div className="h-[276px]" />
 
   const update = (patch: Partial<GeneratorOptions>) => {
     const next = { ...options, ...patch }
     setOptions(next)
-    setPassword(generatePassword(next))
+    show(generatePassword(next))
     setCopied(false)
     void generatorOptionsItem.setValue(next)
   }
@@ -65,16 +93,6 @@ export function GeneratorView({
     // At least one character class stays on.
     if (options[key] && enabled === 1) return
     update({ [key]: !options[key] })
-  }
-
-  const copy = async () => {
-    setMessage(null)
-    try {
-      await callBackground("generator.copy", { password })
-      setCopied(true)
-    } catch (error) {
-      setMessage(errorMessage(error))
-    }
   }
 
   return (
@@ -92,7 +110,10 @@ export function GeneratorView({
       </BackHeader>
       <div className="px-3 pb-3">
         <div className="flex min-h-14 items-center gap-1 rounded-xl bg-card py-2 pr-2 pl-3 ring-1 ring-foreground/10">
-          <div className="min-w-0 flex-1 font-mono text-base leading-normal break-all">
+          <div
+            ref={shown}
+            className="min-w-0 flex-1 font-mono text-base leading-normal break-all select-all"
+          >
             {[...password].map((char, index) => (
               // biome-ignore lint/suspicious/noArrayIndexKey: characters repeat; their position is their identity.
               <span key={index} className={charClass(char)}>

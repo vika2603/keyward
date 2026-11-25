@@ -1,6 +1,7 @@
 import { CheckIcon, CopyIcon, EyeIcon, Trash2Icon } from "lucide-react"
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { callBackground, type HistoryEntry } from "@/background/api"
+import { useCopyThrough } from "@/components/keyward/copy-through"
 import { errorMessage } from "@/components/keyward/errors"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
@@ -34,7 +35,7 @@ export function HistoryView({ onBack }: { onBack: () => void }) {
     void callBackground("history.list", null).then(setEntries)
   }, [])
 
-  const copy = async (id: string) => {
+  const copy = useCallback(async (id: string) => {
     setMessage(null)
     try {
       await callBackground("history.copy", { id })
@@ -43,7 +44,18 @@ export function HistoryView({ onBack }: { onBack: () => void }) {
     } catch (error) {
       setMessage(errorMessage(error))
     }
-  }
+  }, [])
+  const list = useRef<HTMLDivElement>(null)
+  useCopyThrough(
+    list,
+    useCallback(
+      (from: Element) => {
+        const id = from.closest("[data-entry]")?.getAttribute("data-entry")
+        if (id) void copy(id)
+      },
+      [copy],
+    ),
+  )
 
   const clear = async () => {
     await callBackground("history.clear", null)
@@ -108,14 +120,17 @@ export function HistoryView({ onBack }: { onBack: () => void }) {
             没有记录
           </p>
         )}
-        <div className="flex flex-col gap-0.5 p-1">
+        <div ref={list} className="flex flex-col gap-0.5 p-1">
           {entries?.map((entry) => (
             <div
               key={entry.id}
               className="group/row flex min-h-12 items-center gap-2.5 rounded-lg px-2 py-1.5 hover:bg-muted focus-within:bg-muted"
             >
               <div className="flex min-w-0 flex-1 flex-col">
-                <span className="truncate font-mono text-sm font-medium">
+                <span
+                  data-entry={shown ? entry.id : undefined}
+                  className="truncate font-mono text-sm font-medium select-all"
+                >
                   {shown ? entry.password : MASK}
                 </span>
                 <span className="truncate text-xs text-muted-foreground">

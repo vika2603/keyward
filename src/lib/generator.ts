@@ -27,6 +27,12 @@ export const generatorOptionsItem = storage.defineItem<GeneratorOptions>(
   { fallback: defaultGeneratorOptions },
 )
 
+/** The password the generator shows, kept for the browser session so that reopening it shows the same one. */
+export const generatedPasswordItem = storage.defineItem<string | null>(
+  "session:generator.current",
+  { fallback: null },
+)
+
 // Characters that are easy to confuse (l, I, O, 0, 1) are left out of the built-in sets.
 const UPPER = "ABCDEFGHJKLMNPQRSTUVWXYZ"
 const LOWER = "abcdefghijkmnopqrstuvwxyz"

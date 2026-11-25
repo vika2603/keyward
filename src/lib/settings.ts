@@ -52,7 +52,7 @@ export interface Settings {
 
 export const defaultSettings: Settings = {
   appleEnabled: false,
-  menuTrigger: "click",
+  menuTrigger: "focus",
   crossOriginFrames: false,
   autoSubmit: false,
   askSave: true,
