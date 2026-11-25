@@ -12,13 +12,9 @@ import {
 import type { VaultView } from "@/background/api"
 import { BrandIcon, vaultLabel } from "@/components/keyward/brand-icon"
 import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible"
-import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
   SelectTrigger,
   SelectValue,
@@ -30,13 +26,14 @@ import { cn } from "@/lib/utils"
 import { LoginRow, NoteRow } from "./item-rows"
 
 type ItemKind = "all" | "logins" | "notes"
+/** What the list shows: the site's items, or every item of a kind. */
+type ItemFilter = "site" | ItemKind
 
 const KIND_LABELS: Record<ItemKind, MessageKey> = {
   all: "popup.main.itemKind.all",
   logins: "popup.main.itemKind.logins",
   notes: "popup.main.itemKind.notes",
 }
-const KINDS = Object.keys(KIND_LABELS) as ItemKind[]
 
 type ItemRow =
   | { type: "login"; vault: VaultView; login: LoginSummary; name: string }
@@ -48,11 +45,10 @@ export type Row =
   | { type: "vault"; vault: VaultView; count: number; open: boolean }
 
 /**
- * Whether the list of all items was last left folded. A view preference of the popup, kept in its
- * own page storage so it is known before the first draw.
+ * The vaults whose part of the list of every item was last left folded, as a JSON list of vault
+ * IDs. A view preference of the popup, kept in its own page storage so it is known before the
+ * first draw.
  */
-const ALL_ITEMS_FOLDED_KEY = "keyward.allItemsFolded"
-/** The vaults whose part of the list was last left folded, as a JSON list of vault IDs. */
 const FOLDED_VAULTS_KEY = "keyward.allItemsFoldedVaults"
 
 function savedFoldedVaults(): ReadonlySet<string> {
@@ -143,24 +139,6 @@ function keyOf(row: Row): string {
     case "note":
       return `note:${row.vault.id}:${row.note.id}`
   }
-}
-
-/** A heading of the main list's sections, with room for a control on its right. */
-export function SectionHeading({
-  children,
-  action,
-}: {
-  children: ReactNode
-  action?: ReactNode
-}) {
-  return (
-    <div className="flex min-h-9 items-center gap-2 px-3 pt-2">
-      <h2 className="min-w-0 flex-1 truncate text-xs font-semibold">
-        {children}
-      </h2>
-      {action}
-    </div>
-  )
 }
 
 /**
@@ -292,25 +270,52 @@ export function VirtualRows({
   )
 }
 
-/** Every item of the vaults, sorted by name, with a choice of logins, notes or both. */
-export function AllItems({
+/**
+ * The list under one provider that can list its vaults whole, while nothing is searched: the site's
+ * items, or every item, every login or every note sorted by name, as the filter on top says.
+ */
+export function ItemBrowser({
   vaults,
+  host,
+  siteItemCount,
+  site,
   density,
   scrollElement,
   onOpenLogin,
   onOpenNote,
 }: {
   vaults: readonly VaultView[]
+  /** The page's host; the filter offers the site's items only when there is one. */
+  host: string | null
+  siteItemCount: number
+  /** The site's items, shown while the filter is on them. */
+  site: ReactNode
   density: Settings["density"]
   scrollElement: RefObject<HTMLDivElement | null>
   onOpenLogin: (vault: VaultView, login: LoginSummary) => void
   onOpenNote: (vault: VaultView, note: NoteSummary) => void
 }) {
-  const [kind, setKind] = useState<ItemKind>("all")
+  const hasNotes = vaults.some((vault) => vault.notes?.length)
+  const filters: ItemFilter[] = [
+    ...(host ? (["site"] as const) : []),
+    "all",
+    ...(hasNotes ? (["logins", "notes"] as const) : []),
+  ]
+  /** The user's choice; until there is one, the site's items if it has any, every item otherwise. */
+  const [chosen, setChosen] = useState<ItemFilter | null>(null)
+  const filter =
+    chosen && filters.includes(chosen)
+      ? chosen
+      : host && siteItemCount > 0
+        ? "site"
+        : "all"
   const [foldedVaults, setFoldedVaults] = useState(savedFoldedVaults)
   const { rows, itemCount } = useMemo(
-    () => rowsOf(vaults, kind, foldedVaults),
-    [vaults, kind, foldedVaults],
+    () =>
+      filter === "site"
+        ? { rows: [], itemCount: siteItemCount }
+        : rowsOf(vaults, filter, foldedVaults),
+    [vaults, filter, foldedVaults, siteItemCount],
   )
   const toggleVault = (vaultId: string) => {
     const next = new Set(foldedVaults)
@@ -319,69 +324,58 @@ export function AllItems({
     setFoldedVaults(next)
     localStorage.setItem(FOLDED_VAULTS_KEY, JSON.stringify([...next]))
   }
-  const hasNotes = vaults.some((vault) => vault.notes?.length)
-  const [open, setOpen] = useState(
-    () => localStorage.getItem(ALL_ITEMS_FOLDED_KEY) !== "true",
-  )
-  const changeOpen = (next: boolean) => {
-    setOpen(next)
-    localStorage.setItem(ALL_ITEMS_FOLDED_KEY, String(!next))
-  }
+  const labelOf = (value: ItemFilter) =>
+    value === "site"
+      ? t("popup.main.currentSite", { host: host ?? "" })
+      : t(KIND_LABELS[value])
 
   return (
-    <Collapsible open={open} onOpenChange={changeOpen} render={<section />}>
-      <div className="flex min-h-9 items-center gap-1 pt-2 pr-1.5">
-        <CollapsibleTrigger className="flex min-w-0 flex-1 items-center self-stretch px-3 text-left text-xs font-semibold outline-none hover:text-muted-foreground focus-visible:ring-3 focus-visible:ring-ring/50">
-          <span className="truncate">
-            {t("popup.main.allItems")}
-            <span className="font-normal text-muted-foreground">
-              {` · ${itemCount}`}
-            </span>
-          </span>
-        </CollapsibleTrigger>
-        {open && hasNotes && (
+    <section>
+      <div className="flex min-h-9 items-center gap-2 pt-2 pr-3 pl-2">
+        {filters.length > 1 ? (
           <Select
-            value={kind}
-            onValueChange={(value) => setKind(value as ItemKind)}
-            items={KINDS.map((value) => ({
-              value,
-              label: t(KIND_LABELS[value]),
-            }))}
+            value={filter}
+            onValueChange={(value) => setChosen(value as ItemFilter)}
+            items={filters.map((value) => ({ value, label: labelOf(value) }))}
           >
             <SelectTrigger
               size="sm"
-              className="text-xs"
-              aria-label={t("popup.main.itemKind")}
+              className="min-w-0 text-xs"
+              aria-label={t("popup.main.itemFilter")}
             >
               <SelectValue />
             </SelectTrigger>
-            <SelectContent align="end">
-              {KINDS.map((value) => (
-                <SelectItem key={value} value={value}>
-                  {t(KIND_LABELS[value])}
-                </SelectItem>
-              ))}
+            {/* As wide as the longest choice, which can be wider than the chosen one on the trigger. */}
+            <SelectContent
+              align="start"
+              className="w-auto max-w-(--available-width)"
+            >
+              <SelectGroup>
+                {filters.map((value) => (
+                  <SelectItem key={value} value={value}>
+                    {/* A long host would run past the popup's edge, as the item's text never shrinks. */}
+                    <span className="max-w-64 truncate">{labelOf(value)}</span>
+                  </SelectItem>
+                ))}
+              </SelectGroup>
             </SelectContent>
           </Select>
+        ) : (
+          <h2 className="truncate px-1 text-xs font-semibold">
+            {t("popup.main.allItems")}
+          </h2>
         )}
-        {/* The title above is the keyboard's way to fold; this is a second target for the pointer. */}
-        <CollapsibleTrigger
-          tabIndex={-1}
-          aria-label={t("popup.main.toggleGroup")}
-          title={t("popup.main.toggleGroup")}
-          className="flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground outline-none hover:bg-muted hover:text-foreground [&_svg]:size-3"
-        >
-          <ChevronDownIcon
-            className={cn("transition-transform", !open && "-rotate-90")}
-          />
-        </CollapsibleTrigger>
+        <span className="ml-auto shrink-0 text-xs text-muted-foreground tabular-nums">
+          {itemCount}
+        </span>
       </div>
-      <CollapsibleContent>
-        {itemCount === 0 && (
-          <p className="px-3 py-2 text-xs text-muted-foreground">
-            {t("popup.main.noItems")}
-          </p>
-        )}
+      {filter === "site" ? (
+        site
+      ) : itemCount === 0 ? (
+        <p className="px-3 py-2 text-xs text-muted-foreground">
+          {t("popup.main.noItems")}
+        </p>
+      ) : (
         <VirtualRows
           rows={rows}
           density={density}
@@ -391,7 +385,7 @@ export function AllItems({
           onOpenLogin={onOpenLogin}
           onOpenNote={onOpenNote}
         />
-      </CollapsibleContent>
-    </Collapsible>
+      )}
+    </section>
   )
 }

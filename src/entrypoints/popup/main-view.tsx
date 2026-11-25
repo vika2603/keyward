@@ -43,7 +43,7 @@ import type {
 import type { Settings } from "@/lib/settings"
 import { cn } from "@/lib/utils"
 import type { View } from "./App"
-import { AllItems, rowsOfVault, SectionHeading, VirtualRows } from "./all-items"
+import { ItemBrowser, rowsOfVault, VirtualRows } from "./all-items"
 import { ConnectCard, LockedVaultCard } from "./connect-card"
 import { openOptions, SettingsButton } from "./header"
 
@@ -69,7 +69,7 @@ export function MainView({
     vaults: VaultView[]
   } | null>(null)
   const [results, setResults] = useState<VaultView[] | null>(null)
-  /** Every item of the vaults that can list themselves whole, for browsing below the site's logins. */
+  /** Every item of the vaults that can list themselves whole, to browse instead of the site's logins. */
   const [everything, setEverything] = useState<VaultView[] | null>(null)
   /** Why the vaults could not be listed whole; shown only where the list would be. */
   const [everythingError, setEverythingError] = useState<unknown>(null)
@@ -173,8 +173,8 @@ export function MainView({
       }
     />
   ))
-  // With one provider in view and nothing searched, a provider that can list a whole vault shows
-  // it below the site's logins. Passwords cannot, so its view stays as it is.
+  // With one provider in view and nothing searched, a provider that can list a whole vault offers
+  // it beside the site's logins. Passwords cannot, so its view stays as it is.
   const oneProvider = filter !== "all" || kinds.size === 1
   const browsing = connected && !search && oneProvider
   const browsed = (everything ?? []).filter(
@@ -185,6 +185,13 @@ export function MainView({
   )
   const waitingForItems = browsing && everything === null
   const browsable = browsing && browsed.length > 0
+  const siteItemCount = listed.reduce(
+    (count, vault) =>
+      vault.status === "ready" && !vault.error
+        ? count + vault.logins.length + (vault.notes?.length ?? 0)
+        : count,
+    0,
+  )
   // The whole vault is asked for on every opening; its failure matters only where it would show.
   useEffect(() => {
     if (browsing && everythingError) notifyError(everythingError)
@@ -330,12 +337,15 @@ export function MainView({
           </EmptyState>
         ) : browsable ? (
           <div className={FADE_IN}>
-            {page && (
-              <section>
-                <SectionHeading>
-                  {t("popup.main.currentSite", { host: page.host })}
-                </SectionHeading>
-                {listed.length ? (
+            {lockedCards.length > 0 && (
+              <div className="flex flex-col gap-2 px-3 pt-3">{lockedCards}</div>
+            )}
+            <ItemBrowser
+              vaults={browsed}
+              host={page?.host ?? null}
+              siteItemCount={siteItemCount}
+              site={
+                listed.length ? (
                   listed.map((vault) => (
                     <VaultGroup
                       key={vault.id}
@@ -355,14 +365,8 @@ export function MainView({
                   <p className="px-3 py-1.5 text-xs text-muted-foreground">
                     {t("popup.main.noLoginsHere")}
                   </p>
-                )}
-              </section>
-            )}
-            {lockedCards.length > 0 && (
-              <div className="flex flex-col gap-2 px-3 pt-3">{lockedCards}</div>
-            )}
-            <AllItems
-              vaults={browsed}
+                )
+              }
               density={density}
               scrollElement={listRef}
               onOpenLogin={(vault, login) =>
