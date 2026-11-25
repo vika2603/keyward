@@ -1,3 +1,4 @@
+import { VaultError } from "../types"
 import {
   type BitwardenApi,
   type Device,
@@ -29,7 +30,7 @@ const PROVIDER_OF: Record<Exclude<SecondStepMethod, "newDevice">, number> = {
   recoveryCode: 8,
 }
 
-export function methodsFromProviders(providers: number[]): SecondStepMethod[] {
+function methodsFromProviders(providers: number[]): SecondStepMethod[] {
   const methods: SecondStepMethod[] = []
   if (providers.includes(PROVIDER_OF.authenticator))
     methods.push("authenticator")
@@ -39,10 +40,7 @@ export function methodsFromProviders(providers: number[]): SecondStepMethod[] {
   return methods
 }
 
-export function secondFactor(
-  method: SecondStepMethod,
-  code: string,
-): SecondFactor {
+function secondFactor(method: SecondStepMethod, code: string): SecondFactor {
   const token = code.replace(/\s/g, "")
   if (method === "newDevice") return { kind: "deviceVerification", code: token }
   return { kind: "twoFactor", provider: PROVIDER_OF[method], token }
@@ -72,14 +70,14 @@ export type LoginStep =
 
 export async function signIn(
   api: BitwardenApi,
-  vault: VaultCrypto,
+  vaultCrypto: VaultCrypto,
   device: Device,
   credentials: { email: string; password: string },
 ): Promise<LoginStep> {
   const email = credentials.email.trim()
   const prelogin = await api.prelogin(email)
   const salt = masterKeySalt(email, prelogin.salt)
-  const masterKey = vault.deriveMasterKey(
+  const masterKey = vaultCrypto.deriveMasterKey(
     credentials.password,
     salt,
     prelogin.kdf,
@@ -97,8 +95,9 @@ export async function signIn(
       ? methodsFromProviders(result.providers)
       : ["newDevice"]
   if (!methods.length)
-    throw new Error(
+    throw new VaultError(
       "The account needs a two-step method this extension does not support",
+      "bitwarden.method",
     )
   return {
     kind: "secondStep",
@@ -125,7 +124,8 @@ export async function completeSecondStep(
     device,
     secondFactor(method, code),
   )
-  if (result.kind !== "token") throw new Error("The code was not accepted")
+  if (result.kind !== "token")
+    throw new VaultError("The code was not accepted", "bitwarden.auth")
   return {
     email: pending.email,
     masterKey: Uint8Array.fromBase64(pending.masterKey),
@@ -147,11 +147,14 @@ export function wrappedUserKeyOf(token: Record<string, unknown>): string {
 }
 
 export async function unwrapUserKey(
-  vault: VaultCrypto,
+  vaultCrypto: VaultCrypto,
   wrappedUserKey: string,
   masterKey: Uint8Array<ArrayBuffer>,
 ): Promise<Uint8Array> {
-  return vault.unwrapUserKey(wrappedUserKey, await stretchMasterKey(masterKey))
+  return vaultCrypto.unwrapUserKey(
+    wrappedUserKey,
+    await stretchMasterKey(masterKey),
+  )
 }
 
 /** The user ID is the `sub` claim of the access token. */
