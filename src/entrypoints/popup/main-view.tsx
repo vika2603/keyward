@@ -445,7 +445,7 @@ export function MainView({
                       <VaultGroup
                         key={vault.id}
                         vault={vault}
-                        headed={filter !== "apple"}
+                        heading="vault"
                         density={density}
                         scrollElement={listRef}
                         open={!foldedSiteVaults.has(vault.id)}
@@ -512,7 +512,12 @@ export function MainView({
               <VaultGroup
                 key={vault.id}
                 vault={vault}
-                headed={filter !== "apple"}
+                heading={filter === "apple" ? "tab" : "vault"}
+                title={
+                  !search && page
+                    ? t("popup.main.currentSite", { host: page.host })
+                    : undefined
+                }
                 density={density}
                 scrollElement={listRef}
                 open={!foldedSiteVaults.has(vault.id)}
@@ -569,7 +574,8 @@ function EmptyState({
 
 function VaultGroup({
   vault,
-  headed,
+  heading,
+  title,
   density,
   scrollElement,
   open,
@@ -579,8 +585,13 @@ function VaultGroup({
   onOpenNote,
 }: {
   vault: VaultView
-  /** Left out where the tab already names the vault, as the Passwords tab does. */
-  headed: boolean
+  /**
+   * "vault" names the vault over its rows and folds them. "tab" is for a tab that names the vault
+   * already, as the Passwords tab does: it says what the rows are instead, and keeps the buttons.
+   */
+  heading: "vault" | "tab"
+  /** For the "tab" heading, what the rows are, such as the site's logins; none for search results. */
+  title?: string
   density: Settings["density"]
   /** The list area, which scrolls the group's rows. */
   scrollElement: RefObject<HTMLDivElement | null>
@@ -626,8 +637,59 @@ function VaultGroup({
       onOpenNote={(_, note) => onOpenNote(note)}
     />
   )
-  // Without its heading the group cannot be folded, so it shows its rows whatever was folded before.
-  if (!headed) return <section className="pt-1">{rowList}</section>
+  const lockLabel =
+    vault.kind === "apple" ? t("popup.main.lockApple") : t("popup.main.lock")
+  const actions = (
+    <>
+      {vault.kind === "apple" && (
+        <Button
+          variant="ghost"
+          size="icon-xs"
+          className="text-muted-foreground"
+          aria-label={t("popup.main.openPasswordsApp")}
+          title={t("popup.main.openPasswordsApp")}
+          onClick={() =>
+            void callBackground("apple.openPasswordsApp", {}).catch(notifyError)
+          }
+        >
+          <ExternalLinkIcon />
+        </Button>
+      )}
+      <Button
+        variant="ghost"
+        size="icon-xs"
+        className="text-muted-foreground"
+        aria-label={lockLabel}
+        title={lockLabel}
+        onClick={() => void lock()}
+      >
+        <LockIcon />
+      </Button>
+    </>
+  )
+
+  // Laid out as the list header of a tab that lists whole vaults. With nothing to fold, the rows show
+  // whatever was folded before.
+  if (heading === "tab") {
+    return (
+      <section>
+        <div className="flex min-h-9 items-center gap-0.5 pt-2 pr-3 pb-2 pl-2">
+          {title && (
+            <h2 className="min-w-0 truncate px-1 text-xs font-semibold">
+              {title}
+            </h2>
+          )}
+          <span className="ml-auto flex shrink-0 items-center gap-0.5">
+            {actions}
+          </span>
+          <span className="shrink-0 pl-1.5 text-xs text-muted-foreground tabular-nums">
+            {rows.length}
+          </span>
+        </div>
+        {rowList}
+      </section>
+    )
+  }
 
   return (
     <Collapsible open={open} onOpenChange={onOpenChange} render={<section />}>
@@ -638,40 +700,7 @@ function VaultGroup({
           <BrandIcon kind={vault.kind} className="size-3.5" />
           <span className="min-w-0 truncate">{vaultLabel(vault)}</span>
         </CollapsibleTrigger>
-        {vault.kind === "apple" && (
-          <Button
-            variant="ghost"
-            size="icon-xs"
-            className="text-muted-foreground"
-            aria-label={t("popup.main.openPasswordsApp")}
-            title={t("popup.main.openPasswordsApp")}
-            onClick={() =>
-              void callBackground("apple.openPasswordsApp", {}).catch(
-                notifyError,
-              )
-            }
-          >
-            <ExternalLinkIcon />
-          </Button>
-        )}
-        <Button
-          variant="ghost"
-          size="icon-xs"
-          className="text-muted-foreground"
-          aria-label={
-            vault.kind === "apple"
-              ? t("popup.main.lockApple")
-              : t("popup.main.lock")
-          }
-          title={
-            vault.kind === "apple"
-              ? t("popup.main.lockApple")
-              : t("popup.main.lock")
-          }
-          onClick={() => void lock()}
-        >
-          <LockIcon />
-        </Button>
+        {actions}
         {/* The label above is the keyboard's way to toggle; this is a second target for the pointer. */}
         {/* Not a ghost Button: that one keeps a grey fill while it is expanded. */}
         <CollapsibleTrigger
