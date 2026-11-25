@@ -206,6 +206,7 @@ export const en = {
   "options.onboard.signIn.selfHosted": "Self-hosted",
   "options.onboard.signIn.serverUrl": "Server URL",
   "options.onboard.server.accessing": "Accessing:",
+  "options.onboard.server.addSelfHosted": "Add self-hosted server…",
   "options.onboard.server.label": "Server: {host}",
   "options.onboard.server.dialogTitle": "Self-hosted environment",
   "options.onboard.server.dialogDescription":
@@ -421,6 +422,7 @@ export const zhCN: Record<keyof typeof en, string> = {
   "options.onboard.signIn.selfHosted": "自建服务器",
   "options.onboard.signIn.serverUrl": "服务器地址",
   "options.onboard.server.accessing": "正在访问：",
+  "options.onboard.server.addSelfHosted": "添加自建服务器…",
   "options.onboard.server.label": "服务器：{host}",
   "options.onboard.server.dialogTitle": "自建服务器环境",
   "options.onboard.server.dialogDescription":

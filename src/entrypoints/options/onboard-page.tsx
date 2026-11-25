@@ -15,7 +15,10 @@ import {
 import { t } from "@/lib/i18n"
 import type { SecondStepMethod } from "@/lib/providers/bitwarden/auth"
 import type { PendingSignInView } from "@/lib/providers/bitwarden/bitwarden-provider"
-import { normalizeServerAddress } from "@/lib/providers/bitwarden/server"
+import {
+  isCloudServer,
+  normalizeServerAddress,
+} from "@/lib/providers/bitwarden/server"
 import { navigate } from "./App"
 import {
   lastServerItem,
@@ -106,6 +109,8 @@ function SignIn({ onSignedIn }: { onSignedIn: () => void }) {
     address: "",
     endpoints: {},
   })
+  /** The self-hosted servers of the signed-in accounts, offered as choices. */
+  const [knownServers, setKnownServers] = useState<SelfHostedServer[]>([])
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [pending, setPending] = useState<PendingSignInView | null>(null)
@@ -132,6 +137,21 @@ function SignIn({ onSignedIn }: { onSignedIn: () => void }) {
   }
 
   useEffect(() => {
+    callBackground("bitwarden.accounts", null).then(
+      (accounts) => {
+        const servers = new Map<string, SelfHostedServer>()
+        for (const account of accounts)
+          if (!isCloudServer(account.server) && !servers.has(account.server))
+            servers.set(account.server, {
+              address: account.server,
+              endpoints: account.endpoints ?? {},
+            })
+        setKnownServers([...servers.values()])
+      },
+      () => {
+        // Without the accounts, only the last server set up is offered.
+      },
+    )
     void Promise.all([
       callBackground("bitwarden.pendingSignIn", null),
       lastServerItem.getValue(),
@@ -314,6 +334,7 @@ function SignIn({ onSignedIn }: { onSignedIn: () => void }) {
       <ServerPicker
         choice={serverChoice}
         selfHosted={selfHosted}
+        known={knownServers}
         onChoose={setServerChoice}
         onSelfHosted={(next) => {
           setSelfHosted(next)

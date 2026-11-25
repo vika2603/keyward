@@ -17,8 +17,11 @@ import {
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
@@ -55,23 +58,35 @@ export function serverChoiceOf(address: string): ServerChoice {
   return address === EU_SERVER ? "eu" : "selfHosted"
 }
 
+function selfHostedValue(server: SelfHostedServer): string {
+  return `selfHosted:${server.address}`
+}
+
 /**
- * "Accessing: bitwarden.com", with a menu of Bitwarden's two cloud regions and a self-hosted
- * server. Choosing the self-hosted server, even when it is already chosen, opens its settings.
+ * "Accessing: bitwarden.com", with a menu of Bitwarden's two cloud regions, the self-hosted servers
+ * known so far, and an entry that sets up another one.
  */
 export function ServerPicker({
   choice,
   selfHosted,
+  known,
   onChoose,
   onSelfHosted,
 }: {
   choice: ServerChoice
   selfHosted: SelfHostedServer
+  /** Self-hosted servers to offer, such as those of the signed-in accounts. */
+  known: readonly SelfHostedServer[]
   onChoose: (choice: ServerChoice) => void
-  /** The self-hosted server was set up; it becomes the choice. */
+  /** A self-hosted server was chosen or set up; it becomes the choice. */
   onSelfHosted: (server: SelfHostedServer) => void
 }) {
   const [editing, setEditing] = useState(false)
+  const servers =
+    selfHosted.address &&
+    !known.some((server) => server.address === selfHosted.address)
+      ? [...known, selfHosted]
+      : known
   const host =
     choice === "selfHosted" && !selfHosted.address
       ? t("options.onboard.signIn.selfHosted")
@@ -96,9 +111,15 @@ export function ServerPicker({
         </DropdownMenuTrigger>
         <DropdownMenuContent align="center" className="w-auto min-w-40">
           <DropdownMenuRadioGroup
-            value={choice}
+            value={
+              choice === "selfHosted" ? selfHostedValue(selfHosted) : choice
+            }
             onValueChange={(value) => {
-              if (value !== "selfHosted") onChoose(value as ServerChoice)
+              if (value === "us" || value === "eu") onChoose(value)
+              const server = servers.find(
+                (candidate) => selfHostedValue(candidate) === value,
+              )
+              if (server) onSelfHosted(server)
             }}
           >
             <DropdownMenuRadioItem value="us" closeOnClick>
@@ -107,19 +128,30 @@ export function ServerPicker({
             <DropdownMenuRadioItem value="eu" closeOnClick>
               bitwarden.eu
             </DropdownMenuRadioItem>
-            <DropdownMenuRadioItem
-              value="selfHosted"
-              closeOnClick
-              onClick={() => setEditing(true)}
-            >
-              {t("options.onboard.signIn.selfHosted")}
-            </DropdownMenuRadioItem>
+            {servers.map((server) => (
+              <DropdownMenuRadioItem
+                key={server.address}
+                value={selfHostedValue(server)}
+                closeOnClick
+              >
+                <span className="max-w-64 truncate">
+                  {serverHost(server.address)}
+                </span>
+              </DropdownMenuRadioItem>
+            ))}
           </DropdownMenuRadioGroup>
+          <DropdownMenuSeparator />
+          <DropdownMenuGroup>
+            <DropdownMenuItem onClick={() => setEditing(true)}>
+              {servers.length
+                ? t("options.onboard.server.addSelfHosted")
+                : t("options.onboard.signIn.selfHosted")}
+            </DropdownMenuItem>
+          </DropdownMenuGroup>
         </DropdownMenuContent>
       </DropdownMenu>
       <SelfHostedDialog
         open={editing}
-        saved={selfHosted}
         onClose={() => setEditing(false)}
         onSave={(server) => {
           setEditing(false)
@@ -141,12 +173,10 @@ function addressIn(text: string): string | null {
 
 function SelfHostedDialog({
   open,
-  saved,
   onClose,
   onSave,
 }: {
   open: boolean
-  saved: SelfHostedServer
   onClose: () => void
   onSave: (server: SelfHostedServer) => void
 }) {
@@ -154,15 +184,15 @@ function SelfHostedDialog({
   const [api, setApi] = useState("")
   const [identity, setIdentity] = useState("")
   const [customOpen, setCustomOpen] = useState(false)
-  /** Whether the fields hold this opening's values; each opening starts from the saved server. */
-  const [filled, setFilled] = useState(false)
-  if (open !== filled) {
-    setFilled(open)
+  /** Whether the fields were cleared for this opening; each opening sets up a new server. */
+  const [cleared, setCleared] = useState(false)
+  if (open !== cleared) {
+    setCleared(open)
     if (open) {
-      setAddress(saved.address)
-      setApi(saved.endpoints.api ?? "")
-      setIdentity(saved.endpoints.identity ?? "")
-      setCustomOpen(Boolean(saved.endpoints.api || saved.endpoints.identity))
+      setAddress("")
+      setApi("")
+      setIdentity("")
+      setCustomOpen(false)
     }
   }
 

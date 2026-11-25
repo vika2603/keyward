@@ -97,6 +97,8 @@ export interface AccountSummary {
   vaultId: string
   email: string
   server: string
+  /** The separate API and identity addresses of a self-hosted server, when it has them. */
+  endpoints?: CustomEndpoints
   /** The name the user gave the account; empty when there is none. */
   name: string
   /** What the interface calls the account: its name, else its email address. */
@@ -164,6 +166,7 @@ export class BitwardenProvider implements VaultProvider {
         vaultId: vaultIdOf(account.id),
         email: account.email,
         server: account.server,
+        endpoints: account.endpoints,
         name: account.name ?? "",
         label: accountLabel(account, accounts),
         unlocked: (await loadSession(account.id)) !== null,
