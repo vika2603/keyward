@@ -22,6 +22,8 @@ export default defineConfig({
       "offscreen",
       "clipboardWrite",
       "scripting",
+      // Turns off the browser's own offer to save passwords while Keyward offers instead.
+      "privacy",
     ],
     // The field icons work on every site, and a self-hosted vault can live at any address.
     host_permissions: ["http://*/*", "https://*/*"],

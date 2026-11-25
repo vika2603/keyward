@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react"
 import {
   Select,
   SelectContent,
@@ -6,9 +7,35 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
+import {
+  type BrowserSavingControl,
+  browserSavingControl,
+} from "@/lib/browser-saving"
 import { t } from "@/lib/i18n"
 import { Card, Option, PageHeader, Section, Segmented } from "./parts"
 import { useSettings } from "./use-settings"
+
+/** Who controls the browser's offer to save, read again when it may have changed. */
+function useBrowserSavingControl(
+  takeOver: boolean | undefined,
+): BrowserSavingControl | null {
+  const [control, setControl] = useState<BrowserSavingControl | null>(null)
+  useEffect(() => {
+    if (takeOver === undefined) return
+    const read = () =>
+      void browserSavingControl().then(setControl, () => setControl(null))
+    read()
+    browser.privacy?.services.passwordSavingEnabled.onChange.addListener(read)
+    addEventListener("focus", read)
+    return () => {
+      browser.privacy?.services.passwordSavingEnabled.onChange.removeListener(
+        read,
+      )
+      removeEventListener("focus", read)
+    }
+  }, [takeOver])
+  return control
+}
 
 export function clearTimes(): [string, string][] {
   return [
@@ -22,6 +49,7 @@ export function clearTimes(): [string, string][] {
 
 export function FillPage() {
   const [settings, update] = useSettings()
+  const control = useBrowserSavingControl(settings?.takeOverSaving)
   if (!settings) return null
 
   return (
@@ -94,6 +122,28 @@ export function FillPage() {
               aria-label={t("options.fill.askUpdate.name")}
               checked={settings.askUpdate}
               onCheckedChange={(checked) => update({ askUpdate: checked })}
+            />
+          </Option>
+          <Option
+            name={t("options.fill.takeOverSaving.name")}
+            description={
+              <>
+                {t("options.fill.takeOverSaving.description")}
+                {settings.takeOverSaving &&
+                  (control === "otherExtension" || control === "policy") && (
+                    <span className="mt-1 block text-destructive">
+                      {control === "otherExtension"
+                        ? t("options.fill.takeOverSaving.otherExtension")
+                        : t("options.fill.takeOverSaving.policy")}
+                    </span>
+                  )}
+              </>
+            }
+          >
+            <Switch
+              aria-label={t("options.fill.takeOverSaving.name")}
+              checked={settings.takeOverSaving}
+              onCheckedChange={(checked) => update({ takeOverSaving: checked })}
             />
           </Option>
         </Card>

@@ -25,10 +25,10 @@
     "diceware-wordlist-en-eff": "1.0.1",
     "input-otp": "^1.5.0",
     "lucide-react": "^1.78.0",
+    "otpauth": "9.6.0",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
     "shadcn": "^4.23.0",
-    "simple-icons": "16.38.1",
     "tailwindcss": "^4.3.5",
     "tldts": "7.5.5",
     "tw-animate-css": "^1.4.0"

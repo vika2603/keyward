@@ -4,8 +4,8 @@ import { BackendError } from "@/lib/backends/types"
 import type { Handlers, Sender } from "@/lib/messaging"
 import { getSettings, updateSettings } from "@/lib/settings"
 import { normalizeSiteInput } from "@/lib/site"
-import type { BackgroundApi, PopupView } from "./api"
-import { contentConfig, fillLogin } from "./autofill"
+import type { BackgroundApi, FieldKind, PopupView } from "./api"
+import { contentConfig, fillCode, fillLogin, hasCodes } from "./autofill"
 import type { Backends } from "./backends"
 import { copyText } from "./clipboard"
 import { addHistory, clearHistory, listHistory } from "./history"
@@ -70,6 +70,20 @@ async function activePage(): Promise<{
   return { tabId: tab?.id, page: webPage(tab?.url) }
 }
 
+/** The web page of the active tab, which the popup's logins belong to. */
+async function requireActivePage(): Promise<{ tabId: number; page: URL }> {
+  const { tabId, page } = await activePage()
+  if (!page || tabId === undefined)
+    throw new BackendError("No web page is open", "notWebPage")
+  return { tabId, page }
+}
+
+function fieldKind(value: unknown): FieldKind {
+  if (value !== "login" && value !== "code")
+    throw new BackendError("Invalid field kind", "invalidInput")
+  return value
+}
+
 export function createHandlers(backends: Backends): Handlers<BackgroundApi> {
   const { apple, bitwarden } = backends
   const popup = ["popup"] as const
@@ -102,9 +116,7 @@ export function createHandlers(backends: Backends): Handlers<BackgroundApi> {
     "popup.copyPassword": {
       allow: popup,
       handle: async ({ sourceId, loginId }) => {
-        const { tabId, page } = await activePage()
-        if (!page || tabId === undefined)
-          throw new BackendError("No web page is open", "notWebPage")
+        const { tabId, page } = await requireActivePage()
         const credential = await backends
           .backendOf(sourceId)
           .credential(sourceId, loginId, page, { tabId, frameId: 0 })
@@ -114,8 +126,41 @@ export function createHandlers(backends: Backends): Handlers<BackgroundApi> {
     },
     "popup.copyText": {
       allow: popup,
-      handle: async ({ text }) => {
-        await copyText(requireText(text, "text"), false)
+      handle: async ({ text, secret }) => {
+        await copyText(requireText(text, "text", 8192), secret === true)
+        return null
+      },
+    },
+    "popup.details": {
+      allow: popup,
+      handle: async ({ sourceId, loginId }) => {
+        const { page } = await requireActivePage()
+        return backends.backendOf(sourceId).details(sourceId, loginId, page)
+      },
+    },
+    "popup.revealPassword": {
+      allow: popup,
+      handle: async ({ sourceId, loginId }) => {
+        const { tabId, page } = await requireActivePage()
+        const { password } = await backends
+          .backendOf(sourceId)
+          .credential(sourceId, loginId, page, { tabId, frameId: 0 })
+        return { password }
+      },
+    },
+    "popup.oneTimeCode": {
+      allow: popup,
+      handle: async ({ sourceId, loginId }) => {
+        const { tabId, page } = await requireActivePage()
+        return backends
+          .backendOf(sourceId)
+          .oneTimeCode(sourceId, loginId, page, { tabId, frameId: 0 })
+      },
+    },
+    "popup.lockAll": {
+      allow: popup,
+      handle: async () => {
+        await backends.lockAll()
         return null
       },
     },
@@ -282,9 +327,17 @@ export function createHandlers(backends: Backends): Handlers<BackgroundApi> {
         const page = await frameUrl(session.tabId, session.frameId)
         if (!page)
           throw new BackendError("The frame is not a web page", "notWebPage")
+        const kind = session.kind ?? "login"
         return {
           host: page.hostname,
-          sources: await backends.loginsForPage(page),
+          kind,
+          sources:
+            kind === "code"
+              ? await backends.codeLoginsForPage(page, {
+                  tabId: session.tabId,
+                  frameId: session.frameId,
+                })
+              : await backends.loginsForPage(page),
         }
       },
     },
@@ -292,13 +345,8 @@ export function createHandlers(backends: Backends): Handlers<BackgroundApi> {
       allow: ["menu"],
       handle: async ({ token, sourceId, loginId }, sender) => {
         const session = await menus.claim(sender, token)
-        await fillLogin(
-          backends,
-          session.tabId,
-          session.frameId,
-          sourceId,
-          loginId,
-        )
+        const fill = session.kind === "code" ? fillCode : fillLogin
+        await fill(backends, session.tabId, session.frameId, sourceId, loginId)
         await closeMenu(session.tabId)
         return null
       },
@@ -383,13 +431,26 @@ export function createHandlers(backends: Backends): Handlers<BackgroundApi> {
     },
     "content.openMenu": {
       allow: ["contentScript"],
-      handle: async (_, sender) => {
+      handle: async ({ kind }, sender) => {
         const { tabId, frameId } = tabFrame(sender)
         const open = await menus.get(tabId)
         if (open && open.frameId !== frameId) await closeMenu(tabId)
         const token = crypto.randomUUID()
-        await menus.set({ tabId, frameId, token, overlayFrameId: null })
+        await menus.set({
+          tabId,
+          frameId,
+          token,
+          overlayFrameId: null,
+          kind: fieldKind(kind),
+        })
         return { token }
+      },
+    },
+    "content.hasCodes": {
+      allow: ["contentScript"],
+      handle: (_, sender) => {
+        const { tabId, frameId } = tabFrame(sender)
+        return hasCodes(backends, tabId, frameId)
       },
     },
     "content.closeMenu": {

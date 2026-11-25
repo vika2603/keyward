@@ -1,9 +1,11 @@
+import { TimerIcon } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
-import type { SourceView } from "@/background/api"
+import type { FieldKind, SourceView } from "@/background/api"
 import { useAppearance } from "@/components/keyward/appearance"
 import { BrandIcon, sourceLabel } from "@/components/keyward/brand-icon"
 import { errorMessage } from "@/components/keyward/errors"
 import { useLanguage } from "@/components/keyward/language"
+import { FADE_IN, LoginListSkeleton } from "@/components/keyward/loading"
 import { LoginLabel } from "@/components/keyward/login-label"
 import {
   callOverlay,
@@ -25,14 +27,16 @@ export function App() {
   const card = useRef<HTMLDivElement>(null)
   const [state, setState] = useState<{
     host: string
+    kind: FieldKind
     sources: SourceView[]
   } | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
 
+  // The frame shows placeholder rows while the logins load, so it opens at once.
   useReportHeight(
     card,
-    state !== null && language !== null,
+    language !== null,
     (height) => void callOverlay("menu.resize", { height }).catch(() => {}),
   )
 
@@ -40,7 +44,7 @@ export function App() {
 
   useEffect(() => {
     callOverlay("menu.state", {}).then(setState, (error) => {
-      setState({ host: "", sources: [] })
+      setState({ host: "", kind: "login", sources: [] })
       setMessage(errorMessage(error))
     })
     // Keys reach this window once the field's content script moves the focus here on ArrowDown,
@@ -87,8 +91,8 @@ export function App() {
     }
   }
 
-  if (!state || !language) return null
-  const sources = state.sources.filter(
+  if (!language) return null
+  const sources = (state?.sources ?? []).filter(
     (s) => s.status !== "ready" || s.error || s.logins.length,
   )
   const compact = density === "compact"
@@ -102,92 +106,108 @@ export function App() {
         role="menu"
         className="flex max-h-[440px] w-[340px] flex-col overflow-y-auto rounded-lg bg-popover pb-1 text-popover-foreground shadow-md ring-1 ring-foreground/10 outline-none [scrollbar-width:thin]"
       >
-        {!sources.length && !message && (
-          <p className="px-3 py-3 text-sm text-muted-foreground">
-            {t("overlay.menu.noLogins", { host: state.host })}
-          </p>
-        )}
-        {sources.map((source) =>
-          source.status !== "ready" || source.error ? (
-            <h2
-              key={source.id}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-muted-foreground first:pt-2"
-            >
-              <BrandIcon kind={source.kind} className="size-3.5" />
-              <span className="min-w-0 flex-1 truncate">
-                {sourceLabel(source)}
-              </span>
-              {source.status === "locked" ? (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() =>
-                    void callOverlay("menu.connect", {
-                      sourceId: source.id,
-                    }).catch(() => {})
-                  }
+        {state === null ? (
+          <LoginListSkeleton compact={compact} heading={false} />
+        ) : (
+          <div className={cn("flex flex-col", FADE_IN)}>
+            {!sources.length && !message && (
+              <p className="px-3 py-3 text-sm text-muted-foreground">
+                {state.kind === "code"
+                  ? t("overlay.menu.noCodes", { host: state.host })
+                  : t("overlay.menu.noLogins", { host: state.host })}
+              </p>
+            )}
+            {sources.map((source) =>
+              source.status !== "ready" || source.error ? (
+                <h2
+                  key={source.id}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-muted-foreground first:pt-2"
                 >
-                  {source.kind === "apple"
-                    ? t("source.pair")
-                    : t("source.unlock")}
-                </Button>
-              ) : (
-                <span className="py-1.5" title={source.error}>
-                  {source.status === "ready"
-                    ? t("source.failed")
-                    : t("source.unavailable")}
-                </span>
-              )}
-            </h2>
-          ) : (
-            <section key={source.id}>
-              {headed && (
-                <h2 className="flex items-center gap-1.5 px-3 pt-2.5 pb-0.5 text-xs font-medium text-muted-foreground">
                   <BrandIcon kind={source.kind} className="size-3.5" />
-                  <span className="truncate">{source.label}</span>
+                  <span className="min-w-0 flex-1 truncate">
+                    {sourceLabel(source)}
+                  </span>
+                  {source.status === "locked" ? (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() =>
+                        void callOverlay("menu.connect", {
+                          sourceId: source.id,
+                        }).catch(() => {})
+                      }
+                    >
+                      {source.kind === "apple"
+                        ? t("source.pair")
+                        : t("source.unlock")}
+                    </Button>
+                  ) : (
+                    <span className="py-1.5" title={source.error}>
+                      {source.status === "ready"
+                        ? t("source.failed")
+                        : t("source.unavailable")}
+                    </span>
+                  )}
                 </h2>
-              )}
-              <div className="flex flex-col gap-0.5 p-1">
-                {source.logins.map((login) => (
-                  <button
-                    key={login.id}
-                    type="button"
-                    role="menuitem"
-                    data-login
-                    disabled={busy !== null}
-                    onClick={() => void fill(source.id, login.id)}
-                    className={cn(
-                      "group/row flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left outline-none hover:bg-muted focus-visible:bg-muted disabled:cursor-wait",
-                      compact ? "min-h-9" : "min-h-12",
-                      busy === login.id && "bg-muted",
-                    )}
-                  >
-                    <SiteIcon
-                      host={login.host}
-                      text={login.title}
-                      className={cn(
-                        "group-hover/row:bg-background group-focus-visible/row:bg-background",
-                        compact && "size-6",
-                      )}
-                    />
-                    <LoginLabel
-                      username={login.username}
-                      detail={login.title}
-                      compact={compact}
-                    />
-                  </button>
-                ))}
-              </div>
-            </section>
-          ),
-        )}
-        {busy && source(sources, busy)?.kind === "apple" && (
-          <p className="px-3 pb-2 text-xs text-muted-foreground">
-            {t("overlay.menu.confirmTouchId")}
-          </p>
-        )}
-        {message && (
-          <p className="px-3 pt-2 pb-2 text-xs text-destructive">{message}</p>
+              ) : (
+                <section key={source.id}>
+                  {headed && (
+                    <h2 className="flex items-center gap-1.5 px-3 pt-2.5 pb-0.5 text-xs font-medium text-muted-foreground">
+                      <BrandIcon kind={source.kind} className="size-3.5" />
+                      <span className="truncate">{source.label}</span>
+                    </h2>
+                  )}
+                  <div className="flex flex-col gap-0.5 p-1">
+                    {source.logins.map((login) => (
+                      <button
+                        key={login.id}
+                        type="button"
+                        role="menuitem"
+                        data-login
+                        disabled={busy !== null}
+                        onClick={() => void fill(source.id, login.id)}
+                        className={cn(
+                          "group/row flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left outline-none hover:bg-muted focus-visible:bg-muted disabled:cursor-wait",
+                          compact ? "min-h-9" : "min-h-12",
+                          busy === login.id && "bg-muted",
+                        )}
+                      >
+                        <SiteIcon
+                          host={login.host}
+                          text={login.title}
+                          className={cn(
+                            "group-hover/row:bg-background group-focus-visible/row:bg-background",
+                            compact && "size-6",
+                          )}
+                        />
+                        <LoginLabel
+                          username={login.username}
+                          detail={login.title}
+                          compact={compact}
+                        />
+                        {state.kind === "code" && (
+                          <TimerIcon
+                            aria-label={t("overlay.menu.code")}
+                            className="size-4 shrink-0 text-muted-foreground"
+                          />
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                </section>
+              ),
+            )}
+            {busy && source(sources, busy)?.kind === "apple" && (
+              <p className="px-3 pb-2 text-xs text-muted-foreground">
+                {t("overlay.menu.confirmTouchId")}
+              </p>
+            )}
+            {message && (
+              <p className="px-3 pt-2 pb-2 text-xs text-destructive">
+                {message}
+              </p>
+            )}
+          </div>
         )}
       </div>
     </div>

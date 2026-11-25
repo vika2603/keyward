@@ -7,7 +7,9 @@ import type {
 } from "@/lib/backends/bitwarden/bitwarden-backend"
 import type {
   BackendKind,
+  LoginDetails,
   LoginSummary,
+  OneTimeCode,
   SourceInfo,
 } from "@/lib/backends/types"
 import type { Language } from "@/lib/i18n/language"
@@ -21,6 +23,9 @@ export type PopupView =
   | { name: "main" }
   | { name: "generator" }
   | { name: "connect"; kind: BackendKind; sourceId?: string }
+
+/** What a field takes: a login, or a one-time code from an authenticator. */
+export type FieldKind = "login" | "code"
 
 export interface PageInfo {
   url: string
@@ -62,11 +67,29 @@ export type BackgroundApi = {
     payload: { sourceId: string; loginId: string }
     result: null
   }
-  "popup.copyText": { payload: { text: string }; result: null }
+  /** Copies text the popup shows; a secret is cleared from the clipboard after a while. */
+  "popup.copyText": {
+    payload: { text: string; secret?: boolean }
+    result: null
+  }
+  "popup.details": {
+    payload: { sourceId: string; loginId: string }
+    result: LoginDetails
+  }
+  "popup.revealPassword": {
+    payload: { sourceId: string; loginId: string }
+    result: { password: string }
+  }
+  "popup.oneTimeCode": {
+    payload: { sourceId: string; loginId: string }
+    result: OneTimeCode
+  }
   "popup.saveTargets": {
     payload: null
     result: { targets: SourceInfo[]; defaultTarget: string | null }
   }
+  /** Locks every account and ends the Apple pairing, as the lock-all shortcut does. */
+  "popup.lockAll": { payload: null; result: null }
   "popup.saveLogin": {
     payload: {
       sourceId: string
@@ -108,7 +131,7 @@ export type BackgroundApi = {
   "history.clear": { payload: null; result: null }
   "menu.state": {
     payload: { token: string }
-    result: { host: string; sources: SourceView[] }
+    result: { host: string; kind: FieldKind; sources: SourceView[] }
   }
   "menu.fill": {
     payload: { token: string; sourceId: string; loginId: string }
@@ -126,7 +149,12 @@ export type BackgroundApi = {
   "prompt.close": { payload: { token: string }; result: null }
   "prompt.resize": { payload: { token: string; height: number }; result: null }
   "content.init": { payload: null; result: ContentConfig }
-  "content.openMenu": { payload: null; result: { token: string } }
+  "content.openMenu": {
+    payload: { kind: FieldKind }
+    result: { token: string }
+  }
+  /** Whether a ready source has one-time codes for the frame, asked once the frame has a code field. */
+  "content.hasCodes": { payload: null; result: boolean }
   "content.closeMenu": { payload: null; result: null }
   "content.submitted": {
     payload: { username: string; password: string }
@@ -151,6 +179,7 @@ export type ContentMessage =
       password: string
       autoSubmit: boolean
     }
+  | { type: "fillCode"; origin: string; code: string }
   | { type: "menu.resize"; height: number }
   | { type: "menu.close" }
   | { type: "prompt.show"; token: string }
@@ -164,6 +193,13 @@ export interface FieldInfo {
 }
 
 export const CONTENT_MESSAGE = "keywardContent"
+
+/**
+ * A storage.local key whose value changes when sources become ready or locked or their items
+ * change. Content scripts cannot read storage.session or the Apple session, so they reconfigure
+ * on this instead. It holds only a time stamp.
+ */
+export const SOURCES_CHANGED_KEY = "sources.changedAt"
 
 export function isContentMessage(
   message: unknown,

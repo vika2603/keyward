@@ -61,6 +61,13 @@ export const en = {
   "options.fill.askUpdate.name": "Ask to update changed passwords",
   "options.fill.askUpdate.description":
     "Show an update prompt when the submitted password differs from the saved one.",
+  "options.fill.takeOverSaving.name": "Take over the browser's password saving",
+  "options.fill.takeOverSaving.description":
+    "Turn off the browser's own offer to save passwords, so only Keyward asks. The browser's settings show that Keyward controls this.",
+  "options.fill.takeOverSaving.otherExtension":
+    "Another extension, such as iCloud Passwords, controls this setting, so it has no effect. Turn that extension off for Keyward to take over.",
+  "options.fill.takeOverSaving.policy":
+    "This browser does not let extensions change this setting.",
   "options.fill.clipboard.title": "Clipboard",
   "options.fill.clipboardClear.name": "Clear clipboard automatically",
   "options.fill.clipboardClear.description":
@@ -243,6 +250,12 @@ export const zhCN: Record<keyof typeof en, string> = {
   "options.fill.askUpdate.name": "询问更新已变更的密码",
   "options.fill.askUpdate.description":
     "提交的密码与已保存的不一致时显示更新提示。",
+  "options.fill.takeOverSaving.name": "接管浏览器的密码保存",
+  "options.fill.takeOverSaving.description":
+    "关闭浏览器自带的「提示保存密码」，只由 Keyward 询问。浏览器设置里会显示这项由 Keyward 控制。",
+  "options.fill.takeOverSaving.otherExtension":
+    "另一个插件（例如 iCloud 密码）正在控制这项设置，所以这里暂时不生效。停用那个插件后 Keyward 才能接管。",
+  "options.fill.takeOverSaving.policy": "这个浏览器不允许插件修改这项设置。",
   "options.fill.clipboard.title": "剪贴板",
   "options.fill.clipboardClear.name": "自动覆盖剪贴板",
   "options.fill.clipboardClear.description":

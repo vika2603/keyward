@@ -2,6 +2,8 @@ export const en = {
   "overlay.menu.guard":
     "The menu had just appeared, moved or was covered by the page, so nothing was filled. Choose again.",
   "overlay.menu.noLogins": "No passwords for {host}",
+  "overlay.menu.noCodes": "No verification codes for {host}",
+  "overlay.menu.code": "Verification code",
   "overlay.menu.confirmTouchId": "Confirm with Touch ID or your Mac password.",
   "overlay.prompt.guard":
     "The prompt had just appeared, moved or was covered by the page. Click again.",
@@ -20,6 +22,8 @@ export const zhCN: Record<keyof typeof en, string> = {
   "overlay.menu.guard":
     "菜单刚出现、移动过或被页面遮挡，没有填入。请再选一次。",
   "overlay.menu.noLogins": "没有 {host} 的密码",
+  "overlay.menu.noCodes": "没有 {host} 的验证码",
+  "overlay.menu.code": "验证码",
   "overlay.menu.confirmTouchId": "用触控 ID 或 Mac 密码确认。",
   "overlay.prompt.guard": "提示刚出现、移动过或被页面遮挡，请再点一次。",
   "overlay.prompt.updateTitle": "更新已保存的密码？",

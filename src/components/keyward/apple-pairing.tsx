@@ -1,4 +1,5 @@
 import { REGEXP_ONLY_DIGITS } from "input-otp"
+import { LaptopMinimalCheckIcon, LaptopMinimalIcon } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
 import { callBackground } from "@/background/api"
 import { Button } from "@/components/ui/button"
@@ -28,6 +29,7 @@ export function ApplePairing({
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
   const started = useRef(false)
+  const input = useRef<HTMLInputElement>(null)
 
   const start = async (restart: boolean) => {
     setBusy(true)
@@ -75,50 +77,60 @@ export function ApplePairing({
 
   const phase = state?.phase
   const waiting = phase === "awaitingCode"
+  const ready = waiting && !busy
   const hint =
     waiting || autoStart ? t("pairing.enterCode") : t("pairing.startThenEnter")
 
+  // The field is disabled until the Mac shows a code, so focusing it on mount would do nothing.
+  useEffect(() => {
+    if (ready) input.current?.focus()
+  }, [ready])
+
+  const paired = phase === "paired"
+  const MacIcon = paired ? LaptopMinimalCheckIcon : LaptopMinimalIcon
+
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex flex-col gap-2">
-        <span className="text-sm leading-none font-medium">
-          {t("pairing.code")}
-        </span>
-        <InputOTP
-          maxLength={6}
-          pattern={REGEXP_ONLY_DIGITS}
-          value={code}
-          onChange={setCode}
-          onComplete={(value: string) => void submit(value)}
-          disabled={!waiting || busy}
-          autoFocus
-          aria-label={t("pairing.codeLabel")}
-        >
-          <InputOTPGroup>
-            {[0, 1, 2, 3, 4, 5].map((index) => (
-              <InputOTPSlot
-                key={index}
-                index={index}
-                className="size-9 font-medium"
-              />
-            ))}
-          </InputOTPGroup>
-        </InputOTP>
-        <span className="text-xs text-muted-foreground">
+    <div className="flex flex-col items-center gap-4 text-center">
+      <div className="flex flex-col items-center gap-2">
+        <div className="mb-1 flex size-11 items-center justify-center rounded-xl bg-muted text-foreground">
+          <MacIcon className="size-6" aria-hidden="true" />
+        </div>
+        <h2 className="text-base font-medium">{t("pairing.title")}</h2>
+        <p className="text-sm text-muted-foreground">
           {phase === "connecting"
             ? t("pairing.connecting")
-            : phase === "paired"
+            : paired
               ? t("pairing.paired")
               : hint}
-        </span>
-        {message && <span className="text-xs text-destructive">{message}</span>}
-        {phase === "unavailable" && !message && (
-          <span className="text-xs text-destructive">
-            {t("error.apple.unavailable")}
-          </span>
-        )}
+        </p>
       </div>
-      {!autoStart && phase !== "paired" && (
+      <InputOTP
+        ref={input}
+        maxLength={6}
+        pattern={REGEXP_ONLY_DIGITS}
+        value={code}
+        onChange={setCode}
+        onComplete={(value: string) => void submit(value)}
+        disabled={!ready}
+        containerClassName="justify-center"
+        aria-label={t("pairing.codeLabel")}
+      >
+        <InputOTPGroup>
+          {[0, 1, 2, 3, 4, 5].map((index) => (
+            <InputOTPSlot
+              key={index}
+              index={index}
+              className="size-10 text-base font-medium"
+            />
+          ))}
+        </InputOTPGroup>
+      </InputOTP>
+      {(message || phase === "unavailable") && (
+        <p className="text-xs text-destructive">
+          {message ?? t("error.apple.unavailable")}
+        </p>
+      )}
+      {!autoStart && !paired && (
         <Button
           className="w-full"
           disabled={busy}

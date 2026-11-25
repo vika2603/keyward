@@ -6,6 +6,7 @@ import type { AccountSummary } from "@/lib/backends/bitwarden/bitwarden-backend"
 import { t } from "@/lib/i18n"
 import { cn } from "@/lib/utils"
 import { errorMessage } from "./errors"
+import { FADE_IN, FieldsSkeleton } from "./loading"
 
 /**
  * Unlocks signed-in accounts one at a time with their master passwords. An unlocked account stays
@@ -37,7 +38,7 @@ export function BitwardenUnlock({
     })
   }, [])
 
-  if (!accounts) return null
+  if (!accounts) return <FieldsSkeleton rows={2} />
   if (!accounts.length) {
     return (
       <div className="flex flex-col items-start gap-3">
@@ -67,7 +68,7 @@ export function BitwardenUnlock({
   }
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className={cn("flex flex-col gap-3", FADE_IN)}>
       <div className="flex flex-col gap-2">
         <span className="text-sm leading-none font-medium">
           {t("unlock.account")}

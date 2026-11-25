@@ -33,6 +33,33 @@ export interface LoginSummary {
   title: string
   /** The host of the login's site, for its icon. */
   host?: string
+  /** Whether the login is known to give one-time codes; Apple tells only when asked for codes. */
+  hasCode?: boolean
+}
+
+/** What the detail view shows of a login. The password and one-time code are read on request. */
+export interface LoginDetails {
+  username: string
+  /** The item name, when the backend keeps one apart from the site. */
+  name?: string
+  /** Addresses the login is saved for. */
+  uris: string[]
+  notes?: string
+  hasCode: boolean
+  /** Whether the login's password and code are left to the backend's own apps, as Bitwarden does for items that ask for the master password again. */
+  secretsWithheld: boolean
+  /** Milliseconds since the epoch. */
+  created?: number
+  modified?: number
+  passwordModified?: number
+}
+
+export interface OneTimeCode {
+  code: string
+  /** Seconds each code lasts, when the backend says. */
+  period?: number
+  /** When the code stops being valid, in milliseconds since the epoch, when the backend says. */
+  expiresAt?: number
 }
 
 export interface Credential {
@@ -59,10 +86,22 @@ export interface ExistingLogin {
   samePassword: boolean | undefined
 }
 
+export interface ListOptions {
+  /**
+   * A lookup the user did not ask for, such as the toolbar's count of logins; it does not count as
+   * use, so accounts still lock when idle.
+   */
+  passive?: boolean
+}
+
 export interface PasswordBackend {
   readonly kind: BackendKind
   sources(): Promise<SourceInfo[]>
-  logins(sourceId: string, page: URL): Promise<LoginSummary[]>
+  logins(
+    sourceId: string,
+    page: URL,
+    options?: ListOptions,
+  ): Promise<LoginSummary[]>
   /** Reads one login's password; may ask the user to authenticate. */
   credential(
     sourceId: string,
@@ -70,6 +109,17 @@ export interface PasswordBackend {
     page: URL,
     tab: TabRef,
   ): Promise<Credential>
+  /** Describes one login of the page; the login must match the page as for `credential`. */
+  details(sourceId: string, loginId: string, page: URL): Promise<LoginDetails>
+  /** Logins of the page that give one-time codes. */
+  codeLogins(sourceId: string, page: URL, tab: TabRef): Promise<LoginSummary[]>
+  /** The current one-time code of a login; may ask the user to authenticate. */
+  oneTimeCode(
+    sourceId: string,
+    loginId: string,
+    page: URL,
+    tab: TabRef,
+  ): Promise<OneTimeCode>
   /** Whether the backend can store a login for this address; a save prompt offers only those that can. */
   canSave(url: URL): boolean
   save(sourceId: string, login: NewLogin, tab: TabRef): Promise<void>

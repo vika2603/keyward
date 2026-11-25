@@ -37,6 +37,8 @@ export interface Settings {
   autoSubmit: boolean
   askSave: boolean
   askUpdate: boolean
+  /** Whether the browser's own offer to save passwords is turned off while Keyward asks instead. */
+  takeOverSaving: boolean
   /** Seconds after copying a password before the clipboard is overwritten; null never. */
   clipboardClearSeconds: number | null
   defaultMatch: MatchType
@@ -59,6 +61,7 @@ export const defaultSettings: Settings = {
   autoSubmit: false,
   askSave: true,
   askUpdate: true,
+  takeOverSaving: false,
   clipboardClearSeconds: 30,
   defaultMatch: MatchType.Domain,
   defaultSaveTarget: null,
@@ -93,6 +96,7 @@ export const exportableKeys = [
   "autoSubmit",
   "askSave",
   "askUpdate",
+  "takeOverSaving",
   "clipboardClearSeconds",
   "defaultMatch",
   "siteRules",

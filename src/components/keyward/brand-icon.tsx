@@ -1,14 +1,15 @@
-import { siApple, siBitwarden } from "simple-icons"
+import applePasswordsIcon from "@/assets/brands/apple-passwords.svg"
+import bitwardenIcon from "@/assets/brands/bitwarden.svg"
 import type { BackendKind, SourceInfo } from "@/lib/backends/types"
 import { t } from "@/lib/i18n"
 import { cn } from "@/lib/utils"
 
-const PATHS: Record<BackendKind, string> = {
-  apple: siApple.path,
-  bitwarden: siBitwarden.path,
+const ICONS: Record<BackendKind, string> = {
+  apple: applePasswordsIcon,
+  bitwarden: bitwardenIcon,
 }
 
-/** The backend's brand mark, from Simple Icons. */
+/** The backend's app icon. */
 export function BrandIcon({
   kind,
   className,
@@ -17,13 +18,13 @@ export function BrandIcon({
   className?: string
 }) {
   return (
-    <svg
-      viewBox="0 0 24 24"
+    <img
+      src={ICONS[kind]}
+      alt=""
       aria-hidden="true"
-      className={cn("size-4 shrink-0 fill-current", className)}
-    >
-      <path d={PATHS[kind]} />
-    </svg>
+      draggable={false}
+      className={cn("size-4 shrink-0", className)}
+    />
   )
 }
 

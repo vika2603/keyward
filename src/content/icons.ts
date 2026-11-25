@@ -1,6 +1,7 @@
 import type { ContentScriptContext } from "wxt/utils/content-script-context"
+import LOGO_SVG from "@/assets/field-icon.svg?raw"
 import type { Language } from "@/lib/i18n/language"
-import { isVisible } from "./fields"
+import { codeBoxes, isVisible } from "./fields"
 
 /** The icon's only text; kept here so the content script does not carry the whole catalog. */
 const ICON_LABELS: Record<Language, string> = {
@@ -10,9 +11,9 @@ const ICON_LABELS: Record<Language, string> = {
 
 const SIZE = 24
 const INSET = 6
-/** The Keyward logo (src/assets/icon.svg) without the gradient and shadow, which vanish at 18 px. */
-const LOGO_SVG =
-  '<svg viewBox="0 0 128 128" width="18" height="18" aria-hidden="true"><rect width="128" height="128" rx="29" fill="#171717"/><rect x="2" y="2" width="124" height="124" rx="27" fill="none" stroke="#fff" stroke-opacity=".18" stroke-width="4"/><path fill="#fafafa" stroke="#fafafa" stroke-width="6" stroke-linejoin="round" fill-rule="evenodd" d="M64 27 94 38V62C94 82 81 96 64 104 47 96 34 82 34 62V38ZM57 64.5A11 11 0 1 1 71 64.5L75 86H53Z"/></svg>'
+/** Narrower fields leave no room for both their text and the icon. */
+const NARROW_WIDTH = SIZE * 3
+const OUTSIDE_GAP = 6
 
 /*
  * Plain px values: the icons sit in the page, where rem units and the page's own styles would
@@ -186,7 +187,12 @@ export class FieldIcons {
 
   private position(): void {
     for (const [field, icon] of this.icons) {
-      const rect = field.getBoundingClientRect()
+      // A code split over one-character boxes, or a field too narrow to share with the icon, gets
+      // the icon just after it, so the icon never covers what is typed.
+      const boxes = codeBoxes(field)
+      const last = boxes[boxes.length - 1] ?? field
+      const rect = last.getBoundingClientRect()
+      const outside = boxes.length > 1 || rect.width < NARROW_WIDTH
       const shown =
         isVisible(field) &&
         rect.height >= SIZE - 4 &&
@@ -198,7 +204,11 @@ export class FieldIcons {
       if (!shown) continue
       // The field's own text color keeps the icon readable on light and dark pages.
       icon.style.color = getComputedStyle(field).color
-      icon.style.left = `${Math.round(this.freeRight(field, rect) - SIZE)}px`
+      icon.style.left = `${Math.round(
+        outside
+          ? Math.min(rect.right + OUTSIDE_GAP, innerWidth - SIZE)
+          : this.freeRight(field, rect) - SIZE,
+      )}px`
       icon.style.top = `${Math.round(rect.top + (rect.height - SIZE) / 2)}px`
     }
   }

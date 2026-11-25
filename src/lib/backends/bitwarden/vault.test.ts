@@ -9,8 +9,10 @@ import {
   WrongPasswordError,
 } from "./crypto"
 import {
+  decryptDetails,
   decryptLogin,
   decryptPassword,
+  decryptTotp,
   passwordUpdateRequest,
   VaultKeys,
 } from "./vault"
@@ -104,6 +106,8 @@ describe("organization items", () => {
       name: "Example",
       username: "someone",
       uris: [{ uri: "https://example.com", match: 1 }],
+      hasTotp: false,
+      reprompt: false,
     })
     expect(decryptPassword(cipher, keys)).toBe("previous-password")
   })
@@ -132,5 +136,58 @@ describe("organization items", () => {
       "old-2",
       "old-3",
     ])
+  })
+})
+
+describe("item details", () => {
+  const userKey = sdk.make_user_key_aes256_cbc_hmac()
+  const keys = VaultKeys.fromProfile(crypto, userKey, {})
+  const totpKey = "otpauth://totp/Example:someone?secret=TESTKEY&issuer=Example"
+  const cipher = {
+    Id: "item-2",
+    Type: 1,
+    Reprompt: 1,
+    Name: sdk.symmetric_encrypt_string("Example", userKey),
+    Notes: sdk.symmetric_encrypt_string("first line\nsecond line", userKey),
+    CreationDate: "2026-03-01T08:00:00.000Z",
+    RevisionDate: "2026-04-02T09:30:00.000Z",
+    Login: {
+      Username: sdk.symmetric_encrypt_string("someone", userKey),
+      Totp: sdk.symmetric_encrypt_string(totpKey, userKey),
+      PasswordRevisionDate: "2026-04-01T12:00:00.000Z",
+      Uris: [],
+    },
+  }
+
+  it("tells that an item has an authenticator key and asks for re-prompt without decrypting the key", () => {
+    expect(decryptLogin(cipher, keys)).toMatchObject({
+      hasTotp: true,
+      reprompt: true,
+    })
+  })
+
+  it("decrypts the notes and reads the dates", () => {
+    expect(decryptDetails(cipher, keys)).toEqual({
+      notes: "first line\nsecond line",
+      created: Date.parse("2026-03-01T08:00:00.000Z"),
+      modified: Date.parse("2026-04-02T09:30:00.000Z"),
+      passwordModified: Date.parse("2026-04-01T12:00:00.000Z"),
+    })
+  })
+
+  it("decrypts the authenticator key", () => {
+    expect(decryptTotp(cipher, keys)).toBe(totpKey)
+  })
+
+  it("reports no key and no dates for an item without them", () => {
+    const bare = { Id: "item-3", Type: 1, Login: {} }
+    expect(decryptLogin(bare, keys).hasTotp).toBe(false)
+    expect(decryptTotp(bare, keys)).toBe("")
+    expect(decryptDetails(bare, keys)).toEqual({
+      notes: "",
+      created: undefined,
+      modified: undefined,
+      passwordModified: undefined,
+    })
   })
 })

@@ -5,8 +5,10 @@ import {
   BackendError,
   type Credential,
   type ExistingLogin,
+  type LoginDetails,
   type LoginSummary,
   type NewLogin,
+  type OneTimeCode,
   type PasswordBackend,
   type SourceInfo,
   type TabRef,
@@ -19,7 +21,7 @@ import {
   encodePake,
   entriesOf,
   type HelperCapabilities,
-  isPasswordEntry,
+  isLoginEntry,
   QueryStatus,
   SecureSession,
 } from "./protocol"
@@ -75,6 +77,49 @@ function parseLoginId(id: string): { username: string; site: string } {
 
 function isHostName(host: string): boolean {
   return /^[a-z0-9-]+(\.[a-z0-9-]+)*$/i.test(host)
+}
+
+/** A listed login. */
+interface Entry {
+  username: string
+  /** The site the login is listed under. */
+  site: string
+  /** Every site the login is saved for. */
+  sites: string[]
+  customTitle?: string
+}
+
+/** An authenticator entry the helper offers codes for. */
+interface CodeEntry {
+  username: string
+  domain: string
+}
+
+const TOTP_SOURCE = "totp"
+
+/**
+ * What a reply to a password read says about one login: its password, `null` when the helper has
+ * none for it, as for a login with only a passkey, or `undefined` when the reply is about other
+ * logins, as a late answer to a replaced read is.
+ */
+export function passwordIn(
+  reply: Record<string, unknown>,
+  username: string,
+  site: string,
+): string | null | undefined {
+  const entries = entriesOf(reply)
+  const match = entries.find(
+    (entry) =>
+      (entry.USR ?? "") === username &&
+      Array.isArray(entry.sites) &&
+      entry.sites.some((s) => isSameSite(String(s), site)),
+  )
+  if (typeof match?.PWD === "string" && match.PWD) return match.PWD
+  return match || !entries.length ? null : undefined
+}
+
+function textOf(value: unknown): string {
+  return typeof value === "string" ? value : ""
 }
 
 /**
@@ -355,10 +400,7 @@ export class AppleBackend implements PasswordBackend {
     }))
   }
 
-  private async listEntries(
-    host: string,
-    tab: TabRef,
-  ): Promise<{ username: string; site: string; customTitle?: string }[]> {
+  private async listEntries(host: string, tab: TabRef): Promise<Entry[]> {
     // The helper has crashed on a request with an empty URL, which also ends the session.
     if (!isHostName(host)) return []
     const reply = await this.serialized("list", () =>
@@ -376,16 +418,14 @@ export class AppleBackend implements PasswordBackend {
     )
     if (reply.STATUS === QueryStatus.NoResults) return []
     return entriesOf(reply)
-      .filter(isPasswordEntry)
+      .filter(isLoginEntry)
       .map((entry) => {
         const sites = Array.isArray(entry.sites) ? entry.sites.map(String) : []
         return {
-          username: typeof entry.USR === "string" ? entry.USR : "",
+          username: textOf(entry.USR),
           site: sites[0] ?? host,
-          customTitle:
-            typeof entry.customTitle === "string"
-              ? entry.customTitle
-              : undefined,
+          sites: sites.length ? sites : [host],
+          customTitle: textOf(entry.customTitle) || undefined,
         }
       })
   }
@@ -433,16 +473,122 @@ export class AppleBackend implements PasswordBackend {
         throw new BackendError("Replaced by a newer request", "cancelled")
       throw error
     }
-    // A late answer to a replaced read may arrive here; only the login asked for is used.
-    const match = entriesOf(reply).find(
-      (entry) =>
-        (entry.USR ?? "") === username &&
-        Array.isArray(entry.sites) &&
-        entry.sites.some((s) => isSameSite(String(s), site)),
+    const password = passwordIn(reply, username, site)
+    if (password) return { username, password }
+    if (password === null)
+      throw new BackendError(
+        "Apple Passwords has no password for this login",
+        "apple.noPassword",
+      )
+    throw new BackendError("Apple Passwords returned no password", "notFound")
+  }
+
+  async details(
+    _sourceId: string,
+    id: string,
+    page: URL,
+  ): Promise<LoginDetails> {
+    const { username, site } = parseLoginId(id)
+    const tab = { tabId: 0, frameId: 0 }
+    const entry = (await this.listEntries(page.hostname, tab)).find(
+      (e) => e.username === username && e.site === site,
     )
-    if (typeof match?.PWD !== "string")
-      throw new BackendError("Apple Passwords returned no password", "notFound")
-    return { username, password: match.PWD }
+    if (!entry)
+      throw new BackendError("The login does not match this page", "notFound")
+    const codes = await this.codeEntries(page, tab).catch(() => [])
+    return {
+      username,
+      name: entry.customTitle,
+      uris: entry.sites,
+      hasCode: codes.some((c) => isCodeFor(c, username, site)),
+      secretsWithheld: false,
+    }
+  }
+
+  /** Authenticator entries for a page, when the helper can give codes. */
+  private async codeEntries(page: URL, tab: TabRef): Promise<CodeEntry[]> {
+    await this.ensureConnected()
+    if (!this.capabilities?.canFillOneTimeCodes || !isHostName(page.hostname))
+      return []
+    const frameURLs = await frameChain(page, tab)
+    const reply = await this.serialized("codes", () =>
+      this.query(
+        { cmd: Cmd.GetOneTimeCodes, tabId: tab.tabId, frameId: tab.frameId },
+        "CmdGetOneTimeCodes",
+        { ACT: Action.GhostSearch, TYPE: "oneTimeCodes", frameURLs },
+        { timeoutMs: LIST_TIMEOUT_MS },
+      ),
+    )
+    if (reply.STATUS === QueryStatus.NoResults) return []
+    return entriesOf(reply)
+      .filter((entry) => entry.source === TOTP_SOURCE)
+      .map((entry) => ({
+        username: textOf(entry.username),
+        domain: textOf(entry.domain) || page.hostname,
+      }))
+  }
+
+  async codeLogins(
+    _sourceId: string,
+    page: URL,
+    tab: TabRef,
+  ): Promise<LoginSummary[]> {
+    return (await this.codeEntries(page, tab)).map((entry) => ({
+      id: loginId(entry.username, entry.domain),
+      username: entry.username,
+      title: entry.domain,
+      host: entry.domain,
+      hasCode: true,
+    }))
+  }
+
+  /**
+   * Reads the current code of an authenticator entry the helper offers for the page. macOS may ask
+   * for Touch ID first, so this waits without a timeout and a newer read replaces it.
+   */
+  async oneTimeCode(
+    _sourceId: string,
+    id: string,
+    page: URL,
+    tab: TabRef,
+  ): Promise<OneTimeCode> {
+    const { username, site } = parseLoginId(id)
+    const entries = await this.codeEntries(page, tab)
+    // The menu's IDs name the entry's own domain; the popup's name the login's site, which an
+    // entry for a subdomain or parent domain may serve.
+    const entry =
+      entries.find((c) => c.username === username && c.domain === site) ??
+      entries.find((c) => isCodeFor(c, username, site))
+    if (!entry)
+      throw new BackendError("The login has no one-time code", "noCode")
+    let reply: Record<string, unknown>
+    try {
+      reply = await this.query(
+        { cmd: Cmd.DidFillOneTimeCode, tabId: tab.tabId, frameId: tab.frameId },
+        "CmdDidFillOneTimeCode",
+        {
+          ACT: Action.Search,
+          TYPE: "oneTimeCodes",
+          frameURLs: await frameChain(page, tab),
+          ...(entry.username ? { username: entry.username } : {}),
+        },
+        { timeoutMs: null },
+      )
+    } catch (error) {
+      if (error instanceof SupersededError)
+        throw new BackendError("Replaced by a newer request", "cancelled")
+      throw error
+    }
+    const match = entriesOf(reply).find(
+      (e) =>
+        e.source === TOTP_SOURCE &&
+        textOf(e.username) === entry.username &&
+        (textOf(e.domain) || page.hostname) === entry.domain,
+    )
+    const code = match?.code
+    if (typeof code !== "string" && typeof code !== "number")
+      throw new BackendError("Apple Passwords returned no code", "noCode")
+    return { code: String(code) }
   }
 
   /**
@@ -631,6 +777,32 @@ export class AppleBackend implements PasswordBackend {
     this.state = state
     for (const listener of this.listeners) listener(state)
   }
+}
+
+/**
+ * The URL of the frame a request is for, followed by those of the frames that contain it, as the
+ * helper expects for one-time codes. Without the frame tree only the frame's own URL is sent.
+ */
+async function frameChain(page: URL, tab: TabRef): Promise<string[]> {
+  const urls = [page.href]
+  if (tab.frameId === 0) return urls
+  const frames = await browser.webNavigation
+    .getAllFrames({ tabId: tab.tabId })
+    .catch(() => null)
+  const byId = new Map((frames ?? []).map((f) => [f.frameId, f]))
+  let parent = byId.get(tab.frameId)?.parentFrameId ?? -1
+  while (parent >= 0 && urls.length <= byId.size) {
+    const frame = byId.get(parent)
+    if (!frame) break
+    urls.push(frame.url)
+    parent = frame.parentFrameId
+  }
+  return urls
+}
+
+/** Whether an authenticator entry belongs to the login with this username and site. */
+function isCodeFor(entry: CodeEntry, username: string, site: string): boolean {
+  return entry.username === username && isSameSite(entry.domain, site)
 }
 
 function payloadOf(message: HelperMessage): Record<string, unknown> {

@@ -10,6 +10,10 @@ export interface LoginItem {
   name: string
   username: string
   uris: { uri: string; match: MatchType | null }[]
+  /** Whether the item keeps an authenticator key; the key itself stays encrypted. */
+  hasTotp: boolean
+  /** Whether the item asks for the master password before its secrets are shown. */
+  reprompt: boolean
 }
 
 /** The keys an account needs to read its items: its own key and the keys of its organizations. */
@@ -111,7 +115,51 @@ export function decryptLogin(
           }
         })
       : [],
+    hasTotp: isNonEmptyString(prop(login, "Totp")),
+    reprompt: prop(cipher, "Reprompt") === 1,
   }
+}
+
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === "string" && value !== ""
+}
+
+function timeOf(value: unknown): number | undefined {
+  const time = typeof value === "string" ? Date.parse(value) : Number.NaN
+  return Number.isNaN(time) ? undefined : time
+}
+
+export interface ItemDetails {
+  notes: string
+  created?: number
+  modified?: number
+  passwordModified?: number
+}
+
+/** The parts of an item that only its detail view shows. */
+export function decryptDetails(
+  cipher: Record<string, unknown>,
+  keys: VaultKeys,
+): ItemDetails {
+  return {
+    notes: keys.decrypt(prop(cipher, "Notes"), keys.forCipher(cipher)),
+    created: timeOf(prop(cipher, "CreationDate")),
+    modified: timeOf(prop(cipher, "RevisionDate")),
+    passwordModified: timeOf(
+      prop(pick(cipher, "Login"), "PasswordRevisionDate"),
+    ),
+  }
+}
+
+/** The item's authenticator key: an `otpauth://` URI, a `steam://` key or a base32 secret. */
+export function decryptTotp(
+  cipher: Record<string, unknown>,
+  keys: VaultKeys,
+): string {
+  return keys.decrypt(
+    prop(pick(cipher, "Login"), "Totp"),
+    keys.forCipher(cipher),
+  )
 }
 
 export function decryptPassword(

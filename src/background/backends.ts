@@ -4,8 +4,11 @@ import type { BitwardenBackend } from "@/lib/backends/bitwarden/bitwarden-backen
 import { isBitwardenSource } from "@/lib/backends/bitwarden/source-id"
 import {
   BackendError,
+  type ListOptions,
+  type LoginSummary,
   type PasswordBackend,
   type SourceInfo,
+  type TabRef,
 } from "@/lib/backends/types"
 import { ruleForHost } from "@/lib/matching"
 import { getSettings } from "@/lib/settings"
@@ -48,7 +51,30 @@ export class Backends {
   }
 
   /** Every source with the logins it has for the page; a source that fails is shown without logins. */
-  async loginsForPage(page: URL | null): Promise<SourceView[]> {
+  loginsForPage(
+    page: URL | null,
+    options?: ListOptions,
+  ): Promise<SourceView[]> {
+    return this.listForPage(page, (backend, sourceId, url) =>
+      backend.logins(sourceId, url, options),
+    )
+  }
+
+  /** Every source with the logins that give one-time codes for the page. */
+  codeLoginsForPage(page: URL, tab: TabRef): Promise<SourceView[]> {
+    return this.listForPage(page, (backend, sourceId, url) =>
+      backend.codeLogins(sourceId, url, tab),
+    )
+  }
+
+  private async listForPage(
+    page: URL | null,
+    list: (
+      backend: PasswordBackend,
+      sourceId: string,
+      page: URL,
+    ) => Promise<LoginSummary[]>,
+  ): Promise<SourceView[]> {
     const sources = page
       ? await this.sourcesForPage(page)
       : await this.sources()
@@ -58,7 +84,7 @@ export class Backends {
         try {
           return {
             ...source,
-            logins: await this.backendOf(source.id).logins(source.id, page),
+            logins: await list(this.backendOf(source.id), source.id, page),
           }
         } catch (error) {
           if (error instanceof BackendError && error.code === "locked") {

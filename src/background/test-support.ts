@@ -3,6 +3,7 @@ import type {
   Credential,
   ExistingLogin,
   LoginSummary,
+  OneTimeCode,
   PasswordBackend,
   SourceInfo,
 } from "@/lib/backends/types"
@@ -37,6 +38,9 @@ export interface FakeSource {
   logins?: LoginSummary[]
   /** Whether the source stores logins for any address; true when left out. */
   canSave?: boolean
+  /** Logins with one-time codes listed for any page. */
+  codeLogins?: LoginSummary[]
+  code?: OneTimeCode
 }
 
 /** Backends with fixed sources; each source answers from its fake and records saves. */
@@ -45,6 +49,7 @@ export function fakeBackends(sources: FakeSource[]) {
     save: vi.fn(),
     update: vi.fn(),
     credential: vi.fn(),
+    oneTimeCode: vi.fn(),
   }
   const backendFor = (source: FakeSource): PasswordBackend => ({
     kind: source.info.kind,
@@ -54,6 +59,15 @@ export function fakeBackends(sources: FakeSource[]) {
       calls.credential(...args)
       if (!source.credential) throw new Error("no credential")
       return source.credential
+    },
+    details: async () => {
+      throw new Error("no details")
+    },
+    codeLogins: async () => source.codeLogins ?? [],
+    oneTimeCode: async (...args) => {
+      calls.oneTimeCode(...args)
+      if (!source.code) throw new Error("no code")
+      return source.code
     },
     canSave: () => source.canSave ?? true,
     save: async (...args) => {
@@ -72,6 +86,11 @@ export function fakeBackends(sources: FakeSource[]) {
       sources.map((s) => ({
         ...s.info,
         logins: s.info.status === "ready" ? (s.logins ?? []) : [],
+      })),
+    codeLoginsForPage: async () =>
+      sources.map((s) => ({
+        ...s.info,
+        logins: s.info.status === "ready" ? (s.codeLogins ?? []) : [],
       })),
     sources: async () => sources.map((s) => s.info),
     source: async (id: string) => {

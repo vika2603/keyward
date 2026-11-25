@@ -13,6 +13,9 @@ export const Cmd = {
   ReloginNeeded: 10,
   LaunchPasswordsApp: 13,
   Hello: 14,
+  GetOneTimeCodes: 16,
+  /** Despite its name, asks for the current code of an authenticator entry; the reply carries it. */
+  DidFillOneTimeCode: 17,
 } as const
 
 export const Action = {
@@ -39,6 +42,7 @@ export interface HelperCapabilities {
   secretSessionVersion?: number
   canSaveAccountWithEmptyUserName?: boolean
   canOpenPasswordsAppToNewPasswordSheet?: boolean
+  canFillOneTimeCodes?: boolean
   operatingSystem?: {
     name?: string
     majorVersion?: number
@@ -111,18 +115,15 @@ export class SecureSession {
   }
 }
 
-/** The `PWD` value of a listed login that has a password; listings leave the password itself out. */
-const PASSWORD_LEFT_OUT = "Not Included"
 /** The entry listed for a site whose passwords are never saved; its words are joined by no-break spaces. */
 const NEVER_SAVED = "Passwords not saved"
 
 /**
- * Whether a listed entry is a login with a password, which can be filled. Logins without one, such
- * as those with only a passkey, lack the `PWD` marker.
+ * Whether a listed entry is a login. Listings mark every login alike, including one with only a
+ * passkey, so logins without a password cannot be told apart here.
  */
-export function isPasswordEntry(entry: Record<string, unknown>): boolean {
+export function isLoginEntry(entry: Record<string, unknown>): boolean {
   return (
-    entry.PWD === PASSWORD_LEFT_OUT &&
     typeof entry.USR === "string" &&
     entry.USR.replace(/\s/g, " ") !== NEVER_SAVED
   )

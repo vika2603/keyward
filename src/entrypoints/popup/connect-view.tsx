@@ -9,6 +9,7 @@ import {
 } from "@/lib/backends/bitwarden/source-id"
 import type { BackendKind } from "@/lib/backends/types"
 import { t } from "@/lib/i18n"
+import { cn } from "@/lib/utils"
 import { openOptions, SettingsButton } from "./header"
 
 /** Pairs Apple Passwords or unlocks an account; one backend at a time, chosen by the user. */
@@ -49,7 +50,12 @@ export function ConnectView({
         </Tabs>
         <SettingsButton />
       </div>
-      <div className="min-h-0 flex-1 px-3 pt-1 pb-3">
+      <div
+        className={cn(
+          "flex min-h-0 flex-1 flex-col px-3 pb-3",
+          selected === "apple" ? "justify-center" : "pt-1",
+        )}
+      >
         {selected === "apple" ? (
           <ApplePairing autoStart onPaired={onDone} />
         ) : (

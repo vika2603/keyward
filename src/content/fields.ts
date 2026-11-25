@@ -8,6 +8,17 @@ const USERNAME_HINT =
   /user|email|e-mail|login|account|identifier|phone|mobile|账号|帳號|用户|手机|邮箱/i
 const EXCLUDED_HINT =
   /search|captcha|otp|one-time|verification|code|coupon|promo|card|cvv|zip|postal|address/i
+const CODE_TYPES = new Set(["text", "tel", "number", "password", ""])
+const CODE_HINT =
+  /one-?time|otp|2fa|mfa|two-?factor|totp|authenticator|verif\w*[\s_-]*code|auth\w*[\s_-]*code|passcode|验证码|驗證碼|动态码|動態碼|校验码/i
+/**
+ * Codes that come from somewhere other than an authenticator, such as a picture, a text message,
+ * an email or a payment card.
+ */
+const NOT_AUTHENTICATOR_HINT =
+  /captcha|image|图形|图片|圖形|短信|簡訊|sms|text message|mail|邮箱|郵箱|邮件|郵件|card|cvv|cvc|csc|credit|coupon|promo|gift|invite|referral|邀请|邀請/i
+/** Longer fields take something other than a one-time code. */
+const CODE_MAX_LENGTH = 12
 
 export function isVisible(element: HTMLElement): boolean {
   if (!element.isConnected) return false
@@ -44,8 +55,16 @@ function hints(input: HTMLInputElement): string {
   ].join(" ")
 }
 
+function hasCodeAutocomplete(input: HTMLInputElement): boolean {
+  return /\bone-time-code\b/.test(input.autocomplete.toLowerCase())
+}
+
 function isTextField(input: HTMLInputElement): boolean {
-  return TEXT_TYPES.has(input.type) && !EXCLUDED_HINT.test(hints(input))
+  return (
+    TEXT_TYPES.has(input.type) &&
+    !hasCodeAutocomplete(input) &&
+    !EXCLUDED_HINT.test(hints(input))
+  )
 }
 
 /** A text field that looks like it takes a username or email, judged without a password field. */
@@ -59,6 +78,15 @@ function looksLikeUsername(input: HTMLInputElement): boolean {
   )
     return false
   return input.type === "email" || USERNAME_HINT.test(hints(input))
+}
+
+/** A field for a one-time code from an authenticator. */
+function isCodeField(input: HTMLInputElement): boolean {
+  if (!CODE_TYPES.has(input.type)) return false
+  if (input.maxLength > CODE_MAX_LENGTH) return false
+  if (hasCodeAutocomplete(input)) return true
+  const text = hints(input)
+  return CODE_HINT.test(text) && !NOT_AUTHENTICATOR_HINT.test(text)
 }
 
 /** The element an event started at, inside any shadow root, rather than the retargeted host. */
@@ -152,7 +180,7 @@ export function loginFields(root: Document): HTMLInputElement[] {
   const inputs = scopes.inputs(root)
   const fields = new Set<HTMLInputElement>()
   for (const password of inputs.filter(isPasswordField)) {
-    if (isNewPassword(password)) continue
+    if (isNewPassword(password) || hasCodeAutocomplete(password)) continue
     fields.add(password)
     const username = scopes.usernameFor(password)
     if (username) fields.add(username)
@@ -167,6 +195,53 @@ export function loginFields(root: Document): HTMLInputElement[] {
     }
   }
   return [...fields]
+}
+
+/**
+ * The one-character boxes a code is split over, in order, when `field` is one of them; otherwise
+ * just `field`.
+ */
+export function codeBoxes(field: HTMLInputElement): HTMLInputElement[] {
+  if (field.maxLength !== 1) return [field]
+  const inputs = new Scopes().inputs(scopeOf(field))
+  const index = inputs.indexOf(field)
+  if (index < 0) return [field]
+  let start = index
+  while (start > 0 && inputs[start - 1]?.maxLength === 1) start--
+  let end = index
+  while (end + 1 < inputs.length && inputs[end + 1]?.maxLength === 1) end++
+  return inputs.slice(start, end + 1)
+}
+
+/**
+ * Fields that take a one-time code. A field found as a login field stays one, unless the page marks
+ * it as a one-time code field, which login fields leave out. A code split over one-character boxes
+ * counts once, as its first box, so moving from box to box while typing does not reopen the menu.
+ */
+export function codeFields(
+  root: Document,
+  loginFields: readonly HTMLInputElement[],
+): HTMLInputElement[] {
+  const found = new Set<HTMLInputElement>()
+  for (const input of new Scopes().inputs(root)) {
+    if (isCodeField(input) && !loginFields.includes(input))
+      found.add(codeBoxes(input)[0] ?? input)
+  }
+  return [...found]
+}
+
+/**
+ * Fills a one-time code. A code split over one-character boxes goes one character per box, from
+ * the first box of the run that holds `anchor`.
+ */
+export function fillCodeField(anchor: HTMLInputElement, code: string): void {
+  const boxes = codeBoxes(anchor)
+  if (boxes.length > 1 && boxes.length >= code.length) {
+    for (const [index, box] of boxes.slice(0, code.length).entries())
+      setFieldValue(box, code[index] ?? "")
+    return
+  }
+  setFieldValue(anchor, code)
 }
 
 /** The username and password fields a login for `anchor` goes into. */

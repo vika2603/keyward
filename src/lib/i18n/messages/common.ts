@@ -2,6 +2,7 @@ export const en = {
   "common.applePasswords": "Apple Passwords",
   "common.bitwarden": "Bitwarden",
   "common.noUsername": "(no username)",
+  "common.loading": "Loading…",
   "common.noSaveTarget": "Nowhere to save",
   "source.pair": "Pair",
   "source.unlock": "Unlock",
@@ -19,6 +20,8 @@ export const en = {
   "error.fillDisabled": "Filling is not allowed on this page.",
   "error.pageChanged": "The page changed, so nothing was filled.",
   "error.noResponse": "The extension did not respond. Try again.",
+  "error.noCode": "This login has no verification code.",
+  "error.invalidCodeKey": "The saved authenticator key can't be read.",
   "error.apple.unavailable":
     "Can't connect to Apple Passwords. It needs Chrome on macOS and the system's password helper.",
   "error.apple.disabled": "Apple Passwords is turned off in settings.",
@@ -34,6 +37,8 @@ export const en = {
   "error.apple.unsupportedSite":
     "Apple Passwords doesn't save logins for local or reserved addresses such as localhost, .local or .test.",
   "error.apple.query": "The Apple Passwords request failed.",
+  "error.apple.noPassword":
+    "This Apple login has no password. It may have only a passkey.",
   "error.bitwarden.wrongPassword": "The master password is not correct.",
   "error.bitwarden.auth": "The email, master password or code is not correct.",
   "error.bitwarden.signedOut":
@@ -50,7 +55,7 @@ export const en = {
   "pairing.enterCode": "Enter the six-digit code shown on the Mac.",
   "pairing.startThenEnter":
     "Start pairing, then enter the six-digit code shown on the Mac.",
-  "pairing.code": "Code",
+  "pairing.title": "Pair with this Mac",
   "pairing.codeLabel": "Six-digit code",
   "pairing.connecting": "Connecting to Apple Passwords…",
   "pairing.paired": "Paired.",
@@ -72,6 +77,7 @@ export const zhCN: Record<keyof typeof en, string> = {
   "common.applePasswords": "Apple 密码",
   "common.bitwarden": "Bitwarden",
   "common.noUsername": "（无用户名）",
+  "common.loading": "正在加载…",
   "common.noSaveTarget": "没有可保存的位置",
   "source.pair": "配对",
   "source.unlock": "解锁",
@@ -89,6 +95,8 @@ export const zhCN: Record<keyof typeof en, string> = {
   "error.fillDisabled": "这个页面不允许填充。",
   "error.pageChanged": "页面已经变化，没有填入。",
   "error.noResponse": "插件后台没有响应，请重试。",
+  "error.noCode": "这个登录没有验证码。",
+  "error.invalidCodeKey": "无法读取保存的验证器密钥。",
   "error.apple.unavailable":
     "无法连接 Apple 密码。需要 macOS 上的 Chrome 和系统自带的密码组件。",
   "error.apple.disabled": "Apple 密码已在设置中关闭。",
@@ -103,6 +111,7 @@ export const zhCN: Record<keyof typeof en, string> = {
   "error.apple.unsupportedSite":
     "Apple 密码不保存 localhost、.local、.test 这类本地或保留地址的登录。",
   "error.apple.query": "Apple 密码请求失败。",
+  "error.apple.noPassword": "这个 Apple 条目没有密码，可能只有通行密钥。",
   "error.bitwarden.wrongPassword": "主密码不正确。",
   "error.bitwarden.auth": "邮箱、主密码或验证码不正确。",
   "error.bitwarden.signedOut": "服务器已让这个账号退出，请重新登录。",
@@ -117,7 +126,7 @@ export const zhCN: Record<keyof typeof en, string> = {
     "验证码不正确。Mac 上已显示新的验证码，请重新输入。",
   "pairing.enterCode": "输入 Mac 上显示的六位验证码。",
   "pairing.startThenEnter": "点击开始配对后，输入 Mac 上显示的六位验证码。",
-  "pairing.code": "验证码",
+  "pairing.title": "与这台 Mac 配对",
   "pairing.codeLabel": "六位验证码",
   "pairing.connecting": "正在连接 Apple 密码…",
   "pairing.paired": "已配对。",

@@ -1,5 +1,6 @@
 import { BackendError } from "@/lib/backends/types"
 import type { Sender } from "@/lib/messaging"
+import type { FieldKind } from "./api"
 
 interface OverlayBase {
   tabId: number
@@ -63,7 +64,9 @@ function forbidden(): BackendError {
   )
 }
 
-export type MenuSession = OverlayBase
+export interface MenuSession extends OverlayBase {
+  kind: FieldKind
+}
 
 export interface PromptSession extends OverlayBase {
   mode: "save" | "update"

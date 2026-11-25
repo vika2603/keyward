@@ -45,18 +45,13 @@ export async function contentConfig(
   return { ...off, active: true, menuTrigger }
 }
 
-/**
- * Sends a login to one frame. The source must serve the frame's site and the backend checks that
- * the login matches the frame's URL; the content script fills only if its origin is still the one
- * checked here.
- */
-export async function fillLogin(
+/** The frame's page, once it is known that the frame may be filled from the source. */
+async function fillablePage(
   backends: Backends,
   tabId: number,
   frameId: number,
   sourceId: string,
-  loginId: string,
-): Promise<void> {
+): Promise<{ page: URL; settings: Settings }> {
   const settings = await getSettings()
   const page = await frameUrl(tabId, frameId)
   if (!page) throw new BackendError("The frame is not a web page", "notWebPage")
@@ -72,13 +67,42 @@ export async function fillLogin(
       "unknownSource",
     )
   }
-  const credential = await backends
-    .backendOf(sourceId)
-    .credential(sourceId, loginId, page, { tabId, frameId })
-  // Reading a password can wait for Touch ID, during which the frame may have navigated.
+  return { page, settings }
+}
+
+/** Reading a secret can wait for Touch ID, during which the frame may have navigated. */
+async function requireSameOrigin(
+  tabId: number,
+  frameId: number,
+  page: URL,
+): Promise<void> {
   const current = await frameUrl(tabId, frameId)
   if (current?.origin !== page.origin)
     throw new BackendError("The page changed", "pageChanged")
+}
+
+/**
+ * Sends a login to one frame. The source must serve the frame's site and the backend checks that
+ * the login matches the frame's URL; the content script fills only if its origin is still the one
+ * checked here.
+ */
+export async function fillLogin(
+  backends: Backends,
+  tabId: number,
+  frameId: number,
+  sourceId: string,
+  loginId: string,
+): Promise<void> {
+  const { page, settings } = await fillablePage(
+    backends,
+    tabId,
+    frameId,
+    sourceId,
+  )
+  const credential = await backends
+    .backendOf(sourceId)
+    .credential(sourceId, loginId, page, { tabId, frameId })
+  await requireSameOrigin(tabId, frameId, page)
   await sendToFrame(tabId, frameId, {
     type: "fill",
     origin: page.origin,
@@ -86,6 +110,40 @@ export async function fillLogin(
     password: credential.password,
     autoSubmit: settings.autoSubmit,
   })
+}
+
+/** Sends a login's current one-time code to one frame, with the same checks as `fillLogin`. */
+export async function fillCode(
+  backends: Backends,
+  tabId: number,
+  frameId: number,
+  sourceId: string,
+  loginId: string,
+): Promise<void> {
+  const { page } = await fillablePage(backends, tabId, frameId, sourceId)
+  const { code } = await backends
+    .backendOf(sourceId)
+    .oneTimeCode(sourceId, loginId, page, { tabId, frameId })
+  await requireSameOrigin(tabId, frameId, page)
+  await sendToFrame(tabId, frameId, {
+    type: "fillCode",
+    origin: page.origin,
+    code,
+  })
+}
+
+/** Whether a ready source offers one-time codes for the frame's page. */
+export async function hasCodes(
+  backends: Backends,
+  tabId: number,
+  frameId: number,
+): Promise<boolean> {
+  const settings = await getSettings()
+  const page = await frameUrl(tabId, frameId)
+  if (!page || !(await frameAllowed(tabId, frameId, page, settings)))
+    return false
+  const views = await backends.codeLoginsForPage(page, { tabId, frameId })
+  return views.some((view) => view.logins.length > 0)
 }
 
 /**

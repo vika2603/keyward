@@ -16,6 +16,7 @@ describe("overlay sessions", () => {
       frameId: 0,
       token: "secret",
       overlayFrameId: null,
+      kind: "login",
     })
     await expect(menus.claim(senderIn(5), "secret")).resolves.toMatchObject({
       overlayFrameId: 5,
@@ -34,6 +35,7 @@ describe("overlay sessions", () => {
       frameId: 0,
       token: "secret",
       overlayFrameId: null,
+      kind: "login",
     })
     await expect(menus.claim(senderIn(5), "guess")).rejects.toMatchObject({
       code: "forbidden",
@@ -48,7 +50,13 @@ describe("overlay sessions", () => {
   })
 
   it("refuses an empty token even when the session has none", async () => {
-    await menus.set({ tabId: TAB, frameId: 0, token: "", overlayFrameId: null })
+    await menus.set({
+      tabId: TAB,
+      frameId: 0,
+      token: "",
+      overlayFrameId: null,
+      kind: "login",
+    })
     await expect(menus.claim(senderIn(5), "")).rejects.toMatchObject({
       code: "forbidden",
     })

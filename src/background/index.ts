@@ -4,16 +4,21 @@ import { BitwardenBackend } from "@/lib/backends/bitwarden/bitwarden-backend"
 import { WrongPasswordError } from "@/lib/backends/bitwarden/crypto"
 import { loadVaultCrypto } from "@/lib/backends/bitwarden/sdk-loader"
 import { BackendError } from "@/lib/backends/types"
+import { controlBrowserSaving } from "@/lib/browser-saving"
 import { serveRequests } from "@/lib/messaging"
 import { getSettings, settingsItem } from "@/lib/settings"
+import { SOURCES_CHANGED_KEY } from "./api"
 import { fillFirst } from "./autofill"
 import { Backends } from "./backends"
 import { CLEAR_CLIPBOARD_ALARM, clearClipboard } from "./clipboard"
 import { createHandlers, openPopup } from "./handlers"
 import { menus } from "./overlays"
 import { forgetTab } from "./save-flow"
+import { watchToolbar } from "./toolbar"
 
 const AUTO_LOCK_ALARM = "autoLock"
+/** Changes that come in a burst, such as an unlock and the sync after it, are announced once. */
+const ANNOUNCE_DELAY_MS = 300
 
 /**
  * Chrome runs content scripts only in pages loaded after the extension was installed or updated;
@@ -51,11 +56,35 @@ export function startBackground(): void {
   const backends = new Backends(apple, bitwarden)
 
   serveRequests(createHandlers(backends), errorCode)
+  const refreshToolbar = watchToolbar(backends)
 
-  void getSettings().then((settings) => apple.setEnabled(settings.appleEnabled))
+  let announcing: ReturnType<typeof setTimeout> | undefined
+  const announce = () => {
+    clearTimeout(announcing)
+    announcing = setTimeout(() => {
+      void browser.storage.local.set({ [SOURCES_CHANGED_KEY]: Date.now() })
+      refreshToolbar()
+    }, ANNOUNCE_DELAY_MS)
+  }
+  let appleReady = false
+  apple.onChange((state) => {
+    if ((state.phase === "paired") === appleReady) return
+    appleReady = state.phase === "paired"
+    announce()
+  })
+  bitwarden.onChange(announce)
+
+  void getSettings().then((settings) => {
+    void apple.setEnabled(settings.appleEnabled)
+    void controlBrowserSaving(settings.takeOverSaving).catch(() => {})
+  })
   settingsItem.watch((next, previous) => {
     if (next?.appleEnabled !== previous?.appleEnabled)
       void apple.setEnabled(Boolean(next?.appleEnabled))
+    if (next?.takeOverSaving !== previous?.takeOverSaving)
+      void controlBrowserSaving(next?.takeOverSaving ?? false).catch(() => {})
+    // Turning a backend on or off and site rules change what the badge counts.
+    refreshToolbar()
   })
 
   void browser.alarms.create(AUTO_LOCK_ALARM, { periodInMinutes: 1 })

@@ -4,10 +4,13 @@ import {
   callBackground,
   type FieldInfo,
   isContentMessage,
+  SOURCES_CHANGED_KEY,
 } from "@/background/api"
 import {
+  codeFields,
   deepActiveElement,
   eventOrigin,
+  fillCodeField,
   fillTargets,
   isPasswordField,
   loginFields,
@@ -30,7 +33,13 @@ export default defineContentScript({
     const scheme = () => (isDarkTheme(theme) ? "dark" : "light")
     const prompt = isTop ? new SavePrompt(ctx, scheme) : null
     let fields: HTMLInputElement[] = []
+    /** One-time code fields; they get the icon only while a ready source has codes for the page. */
+    let codes: HTMLInputElement[] = []
+    let codesAvailable: boolean | null = null
+    let askingCodes = false
     let lastField: HTMLInputElement | null = null
+    const isOurs = (field: HTMLInputElement) =>
+      fields.includes(field) || codes.includes(field)
     /** Set while a fill moves the focus between fields, which must not reopen the menu. */
     let filling = false
     /**
@@ -58,9 +67,11 @@ export default defineContentScript({
       }
       menu.close()
       lastField = field
-      const { token } = await callBackground("content.openMenu", null)
+      const { token } = await callBackground("content.openMenu", {
+        kind: codes.includes(field) ? "code" : "login",
+      })
       // The page may have stopped offering logins while the session was requested.
-      if (!active || !fields.includes(field)) return
+      if (!active || !isOurs(field)) return
       icons.setExpanded(field)
       menu.show(field, token)
       // Keeps the keyboard path open: ArrowDown in the field moves into the menu.
@@ -89,6 +100,9 @@ export default defineContentScript({
       switch (message.type) {
         case "fill":
           fill(message)
+          return
+        case "fillCode":
+          fillCode(message)
           return
         case "menu.resize":
           menu.resize(message.height)
@@ -143,6 +157,27 @@ export default defineContentScript({
         submitFor((password ?? username) as HTMLInputElement)
     }
 
+    function fillCode(
+      message: Extract<ContentMessage, { type: "fillCode" }>,
+    ): void {
+      if (location.origin !== message.origin) return
+      const focused = deepActiveElement()
+      const anchor = [
+        menu.openFor,
+        focused instanceof HTMLInputElement ? focused : null,
+        lastField?.isConnected ? lastField : null,
+        codes[0],
+      ].find((field) => field && codes.includes(field))
+      menu.close()
+      if (!anchor) return
+      filling = true
+      try {
+        fillCodeField(anchor, message.code)
+      } finally {
+        filling = false
+      }
+    }
+
     let active = false
     let menuTrigger: ContentConfig["menuTrigger"] = "click"
     let observer: MutationObserver | null = null
@@ -151,7 +186,26 @@ export default defineContentScript({
 
     const scan = () => {
       fields = loginFields(document)
-      icons.update(fields)
+      const found = codeFields(document, fields)
+      if (found.length && codesAvailable === null) void checkCodes()
+      codes = codesAvailable ? found : []
+      icons.update([...fields, ...codes])
+    }
+    /**
+     * Asks once per configuration whether code fields should get the icon. A configuration follows
+     * every change of the sources, so an unlock after the page loaded shows the icon too.
+     */
+    const checkCodes = async () => {
+      if (askingCodes) return
+      askingCodes = true
+      const request = requested
+      const available = await callBackground("content.hasCodes", null).catch(
+        () => false,
+      )
+      askingCodes = false
+      if (request !== requested || ctx.isInvalid || !active) return
+      codesAvailable = available
+      if (available) scan()
     }
     const start = () => {
       observer = new MutationObserver(() => {
@@ -179,6 +233,7 @@ export default defineContentScript({
       pending = 0
       menu.close()
       fields = []
+      codes = []
       icons.update([])
     }
     ctx.onInvalidated(() => {
@@ -197,7 +252,11 @@ export default defineContentScript({
       theme = config.theme
       icons.setLanguage(config.language)
       menuTrigger = config.menuTrigger
-      if (config.active === active) return
+      codesAvailable = null
+      if (config.active === active) {
+        if (active) scan()
+        return
+      }
       active = config.active
       if (active) start()
       else stop()
@@ -205,7 +264,12 @@ export default defineContentScript({
     const onStorage = (
       changes: Record<string, Browser.storage.StorageChange>,
     ) => {
-      if (changes.settings || changes[ACCOUNTS_KEY]) void configure()
+      if (
+        changes.settings ||
+        changes[ACCOUNTS_KEY] ||
+        changes[SOURCES_CHANGED_KEY]
+      )
+        void configure()
     }
     browser.storage.local.onChanged.addListener(onStorage)
     onInvalidatedRemove(() =>
@@ -222,7 +286,7 @@ export default defineContentScript({
         event.isTrusted &&
         !filling &&
         target instanceof HTMLInputElement &&
-        fields.includes(target) &&
+        isOurs(target) &&
         menu.openFor !== target
       ) {
         void openMenu(target).catch(() => {})
