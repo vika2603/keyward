@@ -19,6 +19,7 @@ import {
   encodePake,
   entriesOf,
   type HelperCapabilities,
+  isPasswordEntry,
   QueryStatus,
   SecureSession,
 } from "./protocol"
@@ -374,7 +375,7 @@ export class AppleBackend implements PasswordBackend {
     )
     if (reply.STATUS === QueryStatus.NoResults) return []
     return entriesOf(reply)
-      .filter((entry) => entry.USR !== "Passwords not saved")
+      .filter(isPasswordEntry)
       .map((entry) => {
         const sites = Array.isArray(entry.sites) ? entry.sites.map(String) : []
         return {
