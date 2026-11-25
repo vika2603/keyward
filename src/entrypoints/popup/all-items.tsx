@@ -42,25 +42,50 @@ type ItemRow =
   | { type: "login"; vault: VaultView; login: LoginSummary; name: string }
   | { type: "note"; vault: VaultView; note: NoteSummary; name: string }
 
-export type Row = ItemRow | { type: "vault"; vault: VaultView; count: number }
+export type Row =
+  | ItemRow
+  /** An account's heading when several are listed; its items follow it while it is open. */
+  | { type: "vault"; vault: VaultView; count: number; open: boolean }
 
 /**
  * Whether the list of all items was last left folded. A view preference of the popup, kept in its
  * own page storage so it is known before the first draw.
  */
 const ALL_ITEMS_FOLDED_KEY = "keyward.allItemsFolded"
+/** The vaults whose part of the list was last left folded, as a JSON list of vault IDs. */
+const FOLDED_VAULTS_KEY = "keyward.allItemsFoldedVaults"
+
+function savedFoldedVaults(): ReadonlySet<string> {
+  try {
+    const saved: unknown = JSON.parse(
+      localStorage.getItem(FOLDED_VAULTS_KEY) ?? "[]",
+    )
+    const ids = Array.isArray(saved) ? saved : []
+    return new Set(ids.filter((id) => typeof id === "string"))
+  } catch {
+    return new Set()
+  }
+}
 
 /** Estimated heights in pixels; each row is measured once it is drawn. */
 const VAULT_ROW_HEIGHT = 28
 const ITEM_ROW_HEIGHT = { standard: 50, compact: 38 }
 
-/** Each vault's items of the chosen kind, sorted by name, under the vault's name when there are several. */
-function rowsOf(vaults: readonly VaultView[], kind: ItemKind): Row[] {
+/**
+ * Each vault's items of the chosen kind, sorted by name, under the vault's name when there are
+ * several; a folded vault shows only its name. The count is of every item, folded or not.
+ */
+function rowsOf(
+  vaults: readonly VaultView[],
+  kind: ItemKind,
+  foldedVaults: ReadonlySet<string>,
+): { rows: Row[]; itemCount: number } {
   const collator = new Intl.Collator(currentLanguage(), {
     numeric: true,
     sensitivity: "base",
   })
   const rows: Row[] = []
+  let itemCount = 0
   for (const vault of vaults) {
     const logins: ItemRow[] =
       kind === "notes"
@@ -83,11 +108,13 @@ function rowsOf(vaults: readonly VaultView[], kind: ItemKind): Row[] {
     const items = [...logins, ...notes].sort((first, second) =>
       collator.compare(first.name, second.name),
     )
+    itemCount += items.length
+    const open = vaults.length === 1 || !foldedVaults.has(vault.id)
     if (vaults.length > 1)
-      rows.push({ type: "vault", vault, count: items.length })
-    rows.push(...items)
+      rows.push({ type: "vault", vault, count: items.length, open })
+    if (open) rows.push(...items)
   }
-  return rows
+  return { rows, itemCount }
 }
 
 /** A vault's logins, then its notes, in the order the background listed them. */
@@ -146,6 +173,7 @@ export function VirtualRows({
   density,
   scrollElement,
   nameFirst = false,
+  onToggleVault,
   onOpenLogin,
   onOpenNote,
 }: {
@@ -155,6 +183,8 @@ export function VirtualRows({
   scrollElement: RefObject<HTMLDivElement | null>
   /** Shows each login's name above its username, as in a list sorted by name. */
   nameFirst?: boolean
+  /** Folds or unfolds an account's part of the rows, from its heading. */
+  onToggleVault?: (vaultId: string) => void
   onOpenLogin: (vault: VaultView, login: LoginSummary) => void
   onOpenNote: (vault: VaultView, note: NoteSummary) => void
 }) {
@@ -219,13 +249,24 @@ export function VirtualRows({
             style={{ transform: `translateY(${item.start - scrollMargin}px)` }}
           >
             {row.type === "vault" && (
-              <div className="flex h-7 items-center gap-1.5 px-2 text-xs font-medium text-muted-foreground">
+              <button
+                type="button"
+                aria-expanded={row.open}
+                onClick={() => onToggleVault?.(row.vault.id)}
+                className="flex h-7 w-full items-center gap-1.5 rounded-md px-2 text-left text-xs font-medium text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
+              >
                 <BrandIcon kind={row.vault.kind} className="size-3.5" />
                 <span className="min-w-0 flex-1 truncate">
                   {vaultLabel(row.vault)}
                 </span>
                 <span className="tabular-nums">{row.count}</span>
-              </div>
+                <ChevronDownIcon
+                  className={cn(
+                    "size-3 transition-transform",
+                    !row.open && "-rotate-90",
+                  )}
+                />
+              </button>
             )}
             {row.type === "login" && (
               <LoginRow
@@ -266,8 +307,18 @@ export function AllItems({
   onOpenNote: (vault: VaultView, note: NoteSummary) => void
 }) {
   const [kind, setKind] = useState<ItemKind>("all")
-  const rows = useMemo(() => rowsOf(vaults, kind), [vaults, kind])
-  const itemCount = rows.filter((row) => row.type !== "vault").length
+  const [foldedVaults, setFoldedVaults] = useState(savedFoldedVaults)
+  const { rows, itemCount } = useMemo(
+    () => rowsOf(vaults, kind, foldedVaults),
+    [vaults, kind, foldedVaults],
+  )
+  const toggleVault = (vaultId: string) => {
+    const next = new Set(foldedVaults)
+    if (next.has(vaultId)) next.delete(vaultId)
+    else next.add(vaultId)
+    setFoldedVaults(next)
+    localStorage.setItem(FOLDED_VAULTS_KEY, JSON.stringify([...next]))
+  }
   const hasNotes = vaults.some((vault) => vault.notes?.length)
   const [open, setOpen] = useState(
     () => localStorage.getItem(ALL_ITEMS_FOLDED_KEY) !== "true",
@@ -336,6 +387,7 @@ export function AllItems({
           density={density}
           scrollElement={scrollElement}
           nameFirst
+          onToggleVault={toggleVault}
           onOpenLogin={onOpenLogin}
           onOpenNote={onOpenNote}
         />
