@@ -22,7 +22,7 @@ export class ApiError extends Error {
   get isAuthError(): boolean {
     return (
       this.status === 401 ||
-      (this.status === 400 && prop(this.body, "error") === "invalid_grant")
+      (this.status === 400 && valueAt(this.body, "error") === "invalid_grant")
     )
   }
 }
@@ -35,17 +35,17 @@ function apiErrorMessage(
   body: Record<string, unknown> | null,
 ): string {
   const text =
-    prop(pick(body, "ErrorModel"), "Message") ??
-    prop(body, "error_description") ??
-    prop(body, "message") ??
-    prop(body, "error")
+    valueAt(objectAt(body, "ErrorModel"), "Message") ??
+    valueAt(body, "error_description") ??
+    valueAt(body, "message") ??
+    valueAt(body, "error")
   return typeof text === "string" && text
     ? text
     : `Server responded with status ${status}`
 }
 
 /** Reads a property of a server response, which uses PascalCase or camelCase depending on the endpoint. */
-export function prop(object: unknown, name: string): unknown {
+export function valueAt(object: unknown, name: string): unknown {
   if (!object || typeof object !== "object") return undefined
   const record = object as Record<string, unknown>
   if (name in record) return record[name]
@@ -59,11 +59,12 @@ export function listOf(value: unknown): unknown[] {
   return Array.isArray(value) ? value : []
 }
 
-export function pick(
+/** A nested object of a server response, or undefined when there is none at that name. */
+export function objectAt(
   object: unknown,
   name: string,
 ): Record<string, unknown> | undefined {
-  const value = prop(object, name)
+  const value = valueAt(object, name)
   return value && typeof value === "object"
     ? (value as Record<string, unknown>)
     : undefined
@@ -148,14 +149,14 @@ export class BitwardenApi {
     )
     if (current.ok) {
       const json = await this.expectJson(current)
-      const settings = pick(json, "KdfSettings")
-      const salt = prop(json, "Salt")
+      const settings = objectAt(json, "KdfSettings")
+      const salt = valueAt(json, "Salt")
       return {
         kdf: {
-          type: Number(prop(settings, "KdfType")),
-          iterations: Number(prop(settings, "Iterations")),
-          memory: optionalNumber(prop(settings, "Memory")),
-          parallelism: optionalNumber(prop(settings, "Parallelism")),
+          type: Number(valueAt(settings, "KdfType")),
+          iterations: Number(valueAt(settings, "Iterations")),
+          memory: optionalNumber(valueAt(settings, "Memory")),
+          parallelism: optionalNumber(valueAt(settings, "Parallelism")),
         },
         salt: typeof salt === "string" ? salt : null,
       }
@@ -166,10 +167,10 @@ export class BitwardenApi {
     )
     return {
       kdf: {
-        type: Number(prop(legacy, "Kdf")),
-        iterations: Number(prop(legacy, "KdfIterations")),
-        memory: optionalNumber(prop(legacy, "KdfMemory")),
-        parallelism: optionalNumber(prop(legacy, "KdfParallelism")),
+        type: Number(valueAt(legacy, "Kdf")),
+        iterations: Number(valueAt(legacy, "KdfIterations")),
+        memory: optionalNumber(valueAt(legacy, "KdfMemory")),
+        parallelism: optionalNumber(valueAt(legacy, "KdfParallelism")),
       },
       salt: null,
     }
@@ -208,14 +209,14 @@ export class BitwardenApi {
     const body = await this.json(response)
     if (response.ok && body) return { kind: "token", body }
     if (response.status === 400) {
-      const providers = pick(body, "TwoFactorProviders2")
+      const providers = objectAt(body, "TwoFactorProviders2")
       if (providers && Object.keys(providers).length) {
         return {
           kind: "twoFactor",
           providers: Object.keys(providers).map(Number),
         }
       }
-      const message = prop(pick(body, "ErrorModel"), "Message")
+      const message = valueAt(objectAt(body, "ErrorModel"), "Message")
       if (
         typeof message === "string" &&
         message.toLowerCase() === NEW_DEVICE_VERIFICATION_REQUIRED

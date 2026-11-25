@@ -7,7 +7,7 @@ import type {
 } from "@/lib/providers/types"
 import { MatchType } from "@/lib/settings"
 import { hostOfSavedUri } from "@/lib/site"
-import { listOf, pick, prop } from "./api"
+import { listOf, objectAt, valueAt } from "./api"
 import {
   CIPHER_TYPE_LOGIN,
   CIPHER_TYPE_SECURE_NOTE,
@@ -70,7 +70,7 @@ function timeOf(value: unknown): number | undefined {
 
 /** Items in the trash or the archive stay out of lists, search and filling, as in Bitwarden's apps. */
 function isListed(cipher: Record<string, unknown>): boolean {
-  return !prop(cipher, "DeletedDate") && !prop(cipher, "ArchivedDate")
+  return !valueAt(cipher, "DeletedDate") && !valueAt(cipher, "ArchivedDate")
 }
 
 /** The items of a sync that `keep` accepts. */
@@ -80,7 +80,7 @@ function ciphersOf(
 ): Record<string, unknown>[] {
   const isRecord = (value: unknown): value is Record<string, unknown> =>
     typeof value === "object" && value !== null
-  return listOf(prop(sync, "Ciphers")).filter(
+  return listOf(valueAt(sync, "Ciphers")).filter(
     (cipher): cipher is Record<string, unknown> =>
       isRecord(cipher) && keep(cipher),
   )
@@ -89,7 +89,8 @@ function ciphersOf(
 export function loginCiphers(sync: unknown): Record<string, unknown>[] {
   return ciphersOf(
     sync,
-    (cipher) => prop(cipher, "Type") === CIPHER_TYPE_LOGIN && isListed(cipher),
+    (cipher) =>
+      valueAt(cipher, "Type") === CIPHER_TYPE_LOGIN && isListed(cipher),
   )
 }
 
@@ -97,28 +98,28 @@ export function noteCiphers(sync: unknown): Record<string, unknown>[] {
   return ciphersOf(
     sync,
     (cipher) =>
-      prop(cipher, "Type") === CIPHER_TYPE_SECURE_NOTE && isListed(cipher),
+      valueAt(cipher, "Type") === CIPHER_TYPE_SECURE_NOTE && isListed(cipher),
   )
 }
 
 /** Logins and notes in the trash, archived or not. */
 export function trashedCiphers(sync: unknown): Record<string, unknown>[] {
   return ciphersOf(sync, (cipher) => {
-    const type = prop(cipher, "Type")
+    const type = valueAt(cipher, "Type")
     return (
       (type === CIPHER_TYPE_LOGIN || type === CIPHER_TYPE_SECURE_NOTE) &&
-      Boolean(prop(cipher, "DeletedDate"))
+      Boolean(valueAt(cipher, "DeletedDate"))
     )
   })
 }
 
 function groupingOf(cipher: Record<string, unknown>): ItemGrouping {
-  const organizationId = prop(cipher, "OrganizationId")
-  const folderId = prop(cipher, "FolderId")
+  const organizationId = valueAt(cipher, "OrganizationId")
+  const folderId = valueAt(cipher, "FolderId")
   return {
     organizationId: isNonEmptyString(organizationId) ? organizationId : null,
     folderId: isNonEmptyString(folderId) ? folderId : null,
-    collectionIds: listOf(prop(cipher, "CollectionIds")).filter(
+    collectionIds: listOf(valueAt(cipher, "CollectionIds")).filter(
       isNonEmptyString,
     ),
   }
@@ -130,22 +131,22 @@ export function decryptLogin(
   keys: VaultKeys,
 ): LoginItem {
   const key = keys.forCipher(cipher)
-  const login = pick(cipher, "Login")
+  const login = objectAt(cipher, "Login")
   return {
-    id: String(prop(cipher, "Id")),
+    id: String(valueAt(cipher, "Id")),
     grouping: groupingOf(cipher),
-    favorite: prop(cipher, "Favorite") === true,
-    name: keys.decrypt(prop(cipher, "Name"), key),
-    username: keys.decrypt(prop(login, "Username"), key),
-    uris: listOf(prop(login, "Uris")).map((savedUri) => {
-      const match = prop(savedUri, "Match")
+    favorite: valueAt(cipher, "Favorite") === true,
+    name: keys.decrypt(valueAt(cipher, "Name"), key),
+    username: keys.decrypt(valueAt(login, "Username"), key),
+    uris: listOf(valueAt(login, "Uris")).map((savedUri) => {
+      const match = valueAt(savedUri, "Match")
       return {
-        uri: keys.decrypt(prop(savedUri, "Uri"), key),
+        uri: keys.decrypt(valueAt(savedUri, "Uri"), key),
         match: isMatchType(match) ? match : null,
       }
     }),
-    hasTotp: isNonEmptyString(prop(login, "Totp")),
-    reprompt: prop(cipher, "Reprompt") === REPROMPT_PASSWORD,
+    hasTotp: isNonEmptyString(valueAt(login, "Totp")),
+    reprompt: valueAt(cipher, "Reprompt") === REPROMPT_PASSWORD,
   }
 }
 
@@ -154,11 +155,11 @@ export function decryptNote(
   keys: VaultKeys,
 ): NoteItem {
   return {
-    id: String(prop(cipher, "Id")),
-    name: keys.decrypt(prop(cipher, "Name"), keys.forCipher(cipher)),
-    reprompt: prop(cipher, "Reprompt") === REPROMPT_PASSWORD,
+    id: String(valueAt(cipher, "Id")),
+    name: keys.decrypt(valueAt(cipher, "Name"), keys.forCipher(cipher)),
+    reprompt: valueAt(cipher, "Reprompt") === REPROMPT_PASSWORD,
     grouping: groupingOf(cipher),
-    favorite: prop(cipher, "Favorite") === true,
+    favorite: valueAt(cipher, "Favorite") === true,
   }
 }
 
@@ -177,12 +178,12 @@ export function decryptTrashed(
   keys: VaultKeys,
 ): TrashedItem {
   const common = {
-    id: String(prop(cipher, "Id")),
-    deletedAt: timeOf(prop(cipher, "DeletedDate")),
-    editable: prop(cipher, "Edit") !== false,
+    id: String(valueAt(cipher, "Id")),
+    deletedAt: timeOf(valueAt(cipher, "DeletedDate")),
+    editable: valueAt(cipher, "Edit") !== false,
     grouping: groupingOf(cipher),
   }
-  if (prop(cipher, "Type") === CIPHER_TYPE_SECURE_NOTE)
+  if (valueAt(cipher, "Type") === CIPHER_TYPE_SECURE_NOTE)
     return { ...common, kind: "note", name: decryptNote(cipher, keys).name }
   const login = decryptLogin(cipher, keys)
   return {
@@ -200,34 +201,34 @@ export function decryptTrashed(
  */
 export function decryptGroups(sync: unknown, keys: VaultKeys): VaultGroups {
   const organizations = listOf(
-    prop(prop(sync, "Profile"), "Organizations"),
+    valueAt(valueAt(sync, "Profile"), "Organizations"),
   ).flatMap((organization) => {
-    const id = prop(organization, "Id")
-    const name = prop(organization, "Name")
+    const id = valueAt(organization, "Id")
+    const name = valueAt(organization, "Name")
     return isNonEmptyString(id) &&
       typeof name === "string" &&
       keys.forOrganization(id)
       ? [{ id, name }]
       : []
   })
-  const folders = listOf(prop(sync, "Folders")).flatMap((folder) => {
-    const id = prop(folder, "Id")
+  const folders = listOf(valueAt(sync, "Folders")).flatMap((folder) => {
+    const id = valueAt(folder, "Id")
     if (!isNonEmptyString(id)) return []
     try {
-      return [{ id, name: keys.decrypt(prop(folder, "Name"), keys.userKey) }]
+      return [{ id, name: keys.decrypt(valueAt(folder, "Name"), keys.userKey) }]
     } catch {
       return []
     }
   })
-  const collections = listOf(prop(sync, "Collections")).flatMap(
+  const collections = listOf(valueAt(sync, "Collections")).flatMap(
     (collection) => {
-      const id = prop(collection, "Id")
-      const organizationId = prop(collection, "OrganizationId")
+      const id = valueAt(collection, "Id")
+      const organizationId = valueAt(collection, "OrganizationId")
       if (!isNonEmptyString(id) || !isNonEmptyString(organizationId)) return []
       const key = keys.forOrganization(organizationId)
       if (!key) return []
       try {
-        const name = keys.decrypt(prop(collection, "Name"), key)
+        const name = keys.decrypt(valueAt(collection, "Name"), key)
         return [{ id, organizationId, name }]
       } catch {
         return []
@@ -256,9 +257,9 @@ export function decryptCustomField(
   keys: VaultKeys,
   key: Uint8Array,
 ): CustomField | null {
-  const name = keys.decrypt(prop(field, "Name"), key)
-  const value = () => keys.decrypt(prop(field, "Value"), key)
-  switch (prop(field, "Type")) {
+  const name = keys.decrypt(valueAt(field, "Name"), key)
+  const value = () => keys.decrypt(valueAt(field, "Value"), key)
+  switch (valueAt(field, "Type")) {
     case FIELD_TEXT:
       return { kind: "text", name, value: value() }
     case FIELD_HIDDEN:
@@ -266,7 +267,7 @@ export function decryptCustomField(
     case FIELD_BOOLEAN:
       return { kind: "checkbox", name, checked: value() === "true" }
     case FIELD_LINKED: {
-      const linkedId = prop(field, "LinkedId")
+      const linkedId = valueAt(field, "LinkedId")
       if (linkedId === LINKED_USERNAME)
         return { kind: "linked", name, linkedTo: "username" }
       if (linkedId === LINKED_PASSWORD)
@@ -284,18 +285,18 @@ export function decryptDetails(
   keys: VaultKeys,
 ): ItemDetails {
   const key = keys.forCipher(cipher)
-  const login = pick(cipher, "Login")
-  const customFields = listOf(prop(cipher, "Fields"))
+  const login = objectAt(cipher, "Login")
+  const customFields = listOf(valueAt(cipher, "Fields"))
     .map((field) => decryptCustomField(field, keys, key))
     .filter((field) => field !== null)
   return {
-    notes: keys.decrypt(prop(cipher, "Notes"), key),
+    notes: keys.decrypt(valueAt(cipher, "Notes"), key),
     customFields,
-    pastPasswordCount: listOf(prop(cipher, "PasswordHistory")).length,
-    created: timeOf(prop(cipher, "CreationDate")),
-    modified: timeOf(prop(cipher, "RevisionDate")),
-    passwordModified: timeOf(prop(login, "PasswordRevisionDate")),
-    hasPasskey: listOf(prop(login, "Fido2Credentials")).length > 0,
+    pastPasswordCount: listOf(valueAt(cipher, "PasswordHistory")).length,
+    created: timeOf(valueAt(cipher, "CreationDate")),
+    modified: timeOf(valueAt(cipher, "RevisionDate")),
+    passwordModified: timeOf(valueAt(login, "PasswordRevisionDate")),
+    hasPasskey: listOf(valueAt(login, "Fido2Credentials")).length > 0,
   }
 }
 
@@ -305,9 +306,9 @@ export function decryptPasswordHistory(
   keys: VaultKeys,
 ): PastPassword[] {
   const key = keys.forCipher(cipher)
-  const history = listOf(prop(cipher, "PasswordHistory")).map((entry) => ({
-    password: keys.decrypt(prop(entry, "Password"), key),
-    replaced: timeOf(prop(entry, "LastUsedDate")),
+  const history = listOf(valueAt(cipher, "PasswordHistory")).map((entry) => ({
+    password: keys.decrypt(valueAt(entry, "Password"), key),
+    replaced: timeOf(valueAt(entry, "LastUsedDate")),
   }))
   const newestFirst = (first: PastPassword, second: PastPassword) =>
     (second.replaced ?? 0) - (first.replaced ?? 0)
@@ -320,7 +321,7 @@ export function decryptTotp(
   keys: VaultKeys,
 ): string {
   return keys.decrypt(
-    prop(pick(cipher, "Login"), "Totp"),
+    valueAt(objectAt(cipher, "Login"), "Totp"),
     keys.forCipher(cipher),
   )
 }
@@ -330,7 +331,7 @@ export function decryptPassword(
   keys: VaultKeys,
 ): string {
   return keys.decrypt(
-    prop(pick(cipher, "Login"), "Password"),
+    valueAt(objectAt(cipher, "Login"), "Password"),
     keys.forCipher(cipher),
   )
 }

@@ -13,7 +13,7 @@ import {
   touchAccount,
   updateAccount,
 } from "./account-store"
-import { ApiError, BitwardenApi, prop } from "./api"
+import { ApiError, BitwardenApi, valueAt } from "./api"
 import {
   type SignedIn,
   unwrapUserKey,
@@ -35,7 +35,7 @@ export function apiOf(account: StoredAccount): BitwardenApi {
 }
 
 function expiryOf(token: Record<string, unknown>): number {
-  const seconds = prop(token, "expires_in")
+  const seconds = valueAt(token, "expires_in")
   const lifetime =
     typeof seconds === "number" ? seconds : DEFAULT_TOKEN_LIFETIME_SECONDS
   return Date.now() + lifetime * 1000
@@ -115,8 +115,8 @@ export class AccountSessions {
   ): Promise<string> {
     const vaultCrypto = await this.loadCrypto()
     const { token } = signedIn
-    const accessToken = String(prop(token, "access_token"))
-    const refreshToken = String(prop(token, "refresh_token"))
+    const accessToken = String(valueAt(token, "access_token"))
+    const refreshToken = String(valueAt(token, "refresh_token"))
     const wrappedUserKey = wrappedUserKeyOf(token)
     const userKey = await unwrapUserKey(
       vaultCrypto,
@@ -230,8 +230,8 @@ export class AccountSessions {
       }
       throw error
     }
-    const accessToken = String(prop(token, "access_token"))
-    const refreshed = prop(token, "refresh_token")
+    const accessToken = String(valueAt(token, "access_token"))
+    const refreshed = valueAt(token, "refresh_token")
     const refreshToken =
       typeof refreshed === "string" ? refreshed : session.refreshToken
     // The account may have been locked or signed out while the request was under way; writing

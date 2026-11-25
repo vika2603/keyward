@@ -1,5 +1,5 @@
 import type { CustomField, EditableNote, Website } from "@/lib/providers/types"
-import { listOf, pick, prop } from "./api"
+import { listOf, objectAt, valueAt } from "./api"
 import {
   CIPHER_TYPE_LOGIN,
   CIPHER_TYPE_SECURE_NOTE,
@@ -138,10 +138,10 @@ interface SavedField {
 
 function savedFieldRequest(field: unknown): Record<string, unknown> {
   return {
-    type: prop(field, "Type"),
-    name: prop(field, "Name"),
-    value: prop(field, "Value"),
-    linkedId: prop(field, "LinkedId") ?? null,
+    type: valueAt(field, "Type"),
+    name: valueAt(field, "Name"),
+    value: valueAt(field, "Value"),
+    linkedId: valueAt(field, "LinkedId") ?? null,
   }
 }
 
@@ -195,9 +195,9 @@ function passwordHistoryRequest(
   replacedValues: string[],
   now: string,
 ): Record<string, unknown>[] | null {
-  const kept = listOf(prop(cipher, "PasswordHistory")).map((entry) => ({
-    password: prop(entry, "Password"),
-    lastUsedDate: prop(entry, "LastUsedDate"),
+  const kept = listOf(valueAt(cipher, "PasswordHistory")).map((entry) => ({
+    password: valueAt(entry, "Password"),
+    lastUsedDate: valueAt(entry, "LastUsedDate"),
   }))
   const replaced = replacedValues.map((password) => ({
     password,
@@ -232,9 +232,9 @@ async function urisRequest(
   key: Uint8Array,
 ): Promise<Record<string, unknown>[]> {
   const current = listOf(saved).map((savedUri) => ({
-    uri: prop(savedUri, "Uri") ?? null,
-    match: prop(savedUri, "Match") ?? null,
-    uriChecksum: prop(savedUri, "UriChecksum") ?? null,
+    uri: valueAt(savedUri, "Uri") ?? null,
+    match: valueAt(savedUri, "Match") ?? null,
+    uriChecksum: valueAt(savedUri, "UriChecksum") ?? null,
   }))
   if (next === undefined) return current
   const byText = new Map(
@@ -267,16 +267,16 @@ export async function itemUpdateRequest(
   userId: string,
 ): Promise<Record<string, unknown>> {
   const key = keys.forCipher(cipher)
-  const login = pick(cipher, "Login")
+  const login = objectAt(cipher, "Login")
   /** The field's new value encrypted, or the saved one when the change leaves it out. */
   const changed = (value: string | undefined, saved: unknown) =>
     value === undefined ? (saved ?? null) : keys.encrypt(value, key)
   const now = new Date().toISOString()
-  const savedFields = listOf(prop(cipher, "Fields")).map((stored) => ({
+  const savedFields = listOf(valueAt(cipher, "Fields")).map((stored) => ({
     stored,
     read: decryptCustomField(stored, keys, key),
   }))
-  const oldPassword = prop(login, "Password")
+  const oldPassword = valueAt(login, "Password")
   const replacedPassword =
     change.password !== undefined &&
     typeof oldPassword === "string" &&
@@ -289,14 +289,14 @@ export async function itemUpdateRequest(
   ).flatMap((text) => keys.encrypt(text, key) ?? [])
   const common = {
     encryptedFor: userId,
-    folderId: prop(cipher, "FolderId") ?? null,
-    organizationId: prop(cipher, "OrganizationId") ?? null,
-    name: changed(change.name, prop(cipher, "Name")),
-    notes: changed(change.notes, prop(cipher, "Notes")),
-    favorite: prop(cipher, "Favorite") ?? false,
-    reprompt: prop(cipher, "Reprompt") ?? REPROMPT_NONE,
-    key: prop(cipher, "Key") ?? null,
-    lastKnownRevisionDate: prop(cipher, "RevisionDate") ?? null,
+    folderId: valueAt(cipher, "FolderId") ?? null,
+    organizationId: valueAt(cipher, "OrganizationId") ?? null,
+    name: changed(change.name, valueAt(cipher, "Name")),
+    notes: changed(change.notes, valueAt(cipher, "Notes")),
+    favorite: valueAt(cipher, "Favorite") ?? false,
+    reprompt: valueAt(cipher, "Reprompt") ?? REPROMPT_NONE,
+    key: valueAt(cipher, "Key") ?? null,
+    lastKnownRevisionDate: valueAt(cipher, "RevisionDate") ?? null,
     fields: customFieldsRequest(savedFields, change.customFields, keys, key),
     passwordHistory: passwordHistoryRequest(
       cipher,
@@ -304,13 +304,14 @@ export async function itemUpdateRequest(
       now,
     ),
   }
-  if (prop(cipher, "Type") === CIPHER_TYPE_SECURE_NOTE) {
+  if (valueAt(cipher, "Type") === CIPHER_TYPE_SECURE_NOTE) {
     return {
       type: CIPHER_TYPE_SECURE_NOTE,
       ...common,
       secureNote: {
         type:
-          prop(pick(cipher, "SecureNote"), "Type") ?? SECURE_NOTE_TYPE_GENERIC,
+          valueAt(objectAt(cipher, "SecureNote"), "Type") ??
+          SECURE_NOTE_TYPE_GENERIC,
       },
     }
   }
@@ -318,16 +319,16 @@ export async function itemUpdateRequest(
     type: CIPHER_TYPE_LOGIN,
     ...common,
     login: {
-      username: changed(change.username, prop(login, "Username")),
+      username: changed(change.username, valueAt(login, "Username")),
       password: changed(change.password, oldPassword),
       passwordRevisionDate:
         change.password === undefined
-          ? (prop(login, "PasswordRevisionDate") ?? null)
+          ? (valueAt(login, "PasswordRevisionDate") ?? null)
           : now,
-      totp: changed(change.totp, prop(login, "Totp")),
-      autofillOnPageLoad: prop(login, "AutofillOnPageLoad") ?? null,
-      fido2Credentials: prop(login, "Fido2Credentials") ?? null,
-      uris: await urisRequest(prop(login, "Uris"), change.uris, keys, key),
+      totp: changed(change.totp, valueAt(login, "Totp")),
+      autofillOnPageLoad: valueAt(login, "AutofillOnPageLoad") ?? null,
+      fido2Credentials: valueAt(login, "Fido2Credentials") ?? null,
+      uris: await urisRequest(valueAt(login, "Uris"), change.uris, keys, key),
     },
   }
 }

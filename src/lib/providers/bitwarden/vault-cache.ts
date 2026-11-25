@@ -1,7 +1,7 @@
 import { type TrashedItem, VaultError, type VaultGroups } from "../types"
 import { type AccountSessions, apiOf } from "./account-session"
 import { loadSync, loadSyncedAt, saveSync, touchAccount } from "./account-store"
-import { prop } from "./api"
+import { valueAt } from "./api"
 import type { VaultCrypto } from "./crypto"
 import {
   decryptGroups,
@@ -122,7 +122,7 @@ export class VaultCache {
     const keys = VaultKeys.fromProfile(
       await this.loadCrypto(),
       Uint8Array.fromBase64(session.userKey),
-      prop(stored.data, "Profile"),
+      valueAt(stored.data, "Profile"),
     )
     const ciphers = loginCiphers(stored.data)
     const noteCiphersOfVault = noteCiphers(stored.data)

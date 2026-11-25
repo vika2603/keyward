@@ -1,4 +1,4 @@
-import { pick, prop } from "./api"
+import { objectAt, valueAt } from "./api"
 import type { VaultCrypto } from "./crypto"
 
 /** The keys an account needs to read its items: its own key and the keys of its organizations. */
@@ -15,12 +15,15 @@ export class VaultKeys {
     profile: unknown,
   ): VaultKeys {
     const organizationKeys = new Map<string, Uint8Array>()
-    const organizations = prop(profile, "Organizations")
+    const organizations = valueAt(profile, "Organizations")
     const wrappedPrivateKey =
-      prop(
-        pick(pick(profile, "AccountKeys"), "PublicKeyEncryptionKeyPair"),
+      valueAt(
+        objectAt(
+          objectAt(profile, "AccountKeys"),
+          "PublicKeyEncryptionKeyPair",
+        ),
         "WrappedPrivateKey",
-      ) ?? prop(profile, "PrivateKey")
+      ) ?? valueAt(profile, "PrivateKey")
     if (
       typeof wrappedPrivateKey === "string" &&
       Array.isArray(organizations) &&
@@ -31,8 +34,8 @@ export class VaultKeys {
         userKey,
       )
       for (const organization of organizations) {
-        const id = prop(organization, "Id")
-        const key = prop(organization, "Key")
+        const id = valueAt(organization, "Id")
+        const key = valueAt(organization, "Key")
         if (typeof id !== "string" || typeof key !== "string") continue
         try {
           organizationKeys.set(id, vaultCrypto.decapsulateKey(key, privateKey))
@@ -51,13 +54,13 @@ export class VaultKeys {
 
   /** The key of an item: its own key when it has one, else the key of its owner. */
   forCipher(cipher: unknown): Uint8Array {
-    const organizationId = prop(cipher, "OrganizationId")
+    const organizationId = valueAt(cipher, "OrganizationId")
     const ownerKey =
       typeof organizationId === "string"
         ? this.organizationKeys.get(organizationId)
         : this.userKey
     if (!ownerKey) throw new Error("Missing organization key")
-    const itemKey = prop(cipher, "Key")
+    const itemKey = valueAt(cipher, "Key")
     if (typeof itemKey !== "string" || !itemKey) return ownerKey
     return this.vaultCrypto.unwrapKey(itemKey, ownerKey)
   }

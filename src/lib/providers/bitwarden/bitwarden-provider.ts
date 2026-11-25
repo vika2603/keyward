@@ -33,7 +33,7 @@ import {
   type StoredAccount,
   updateAccount,
 } from "./account-store"
-import { type BitwardenApi, prop } from "./api"
+import { type BitwardenApi, valueAt } from "./api"
 import type { VaultCrypto } from "./crypto"
 import {
   decryptDetails,
@@ -338,7 +338,7 @@ export class BitwardenProvider implements VaultProvider {
     const vault = await this.vaultOf(vaultId)
     const note = vault.notes.find((candidate) => candidate.id === noteId)
     const cipher = vault.noteCiphers.find(
-      (candidate) => prop(candidate, "Id") === noteId,
+      (candidate) => valueAt(candidate, "Id") === noteId,
     )
     if (!note || !cipher) throw new VaultError("Unknown note", "notFound")
     return { vault, note: await withPass(vaultId, note), cipher }
@@ -423,7 +423,7 @@ export class BitwardenProvider implements VaultProvider {
         }))
     const item = items.find((candidate) => candidate.id === loginId)
     const cipher = vault.ciphers.find(
-      (candidate) => prop(candidate, "Id") === loginId,
+      (candidate) => valueAt(candidate, "Id") === loginId,
     )
     if (!item || !cipher)
       throw new VaultError("The login does not match this page", "notFound")
@@ -545,7 +545,7 @@ export class BitwardenProvider implements VaultProvider {
   ): Promise<void> {
     const { cipher } = await this.anyItem(vaultId, itemId)
     // The request sets the folder as well, so the item's own goes with it.
-    const folderId = prop(cipher, "FolderId")
+    const folderId = valueAt(cipher, "FolderId")
     await this.write(vaultId, ({ api, accessToken }) =>
       api.updateCipherPartial(accessToken, itemId, {
         folderId: typeof folderId === "string" && folderId ? folderId : null,
@@ -599,7 +599,7 @@ export class BitwardenProvider implements VaultProvider {
     await this.write(vaultId, async ({ api, accessToken, account }) =>
       api.updateCipher(
         accessToken,
-        String(prop(cipher, "Id")),
+        String(valueAt(cipher, "Id")),
         await itemUpdateRequest(cipher, change, keys, account.userId),
       ),
     )
@@ -619,7 +619,9 @@ export class BitwardenProvider implements VaultProvider {
     const found = items.find((item) => item.username === username)
     if (!found) return null
     const item = await withPass(vaultId, found)
-    const cipher = vault.ciphers.find((saved) => prop(saved, "Id") === item.id)
+    const cipher = vault.ciphers.find(
+      (saved) => valueAt(saved, "Id") === item.id,
+    )
     const savedPassword = cipher
       ? decryptPassword(cipher, vault.keys)
       : undefined
@@ -799,7 +801,7 @@ function isEditable(
   item: Pick<RepromptItem, "reprompt">,
   cipher: Record<string, unknown>,
 ): boolean {
-  return !item.reprompt && prop(cipher, "Edit") !== false
+  return !item.reprompt && valueAt(cipher, "Edit") !== false
 }
 
 function refuseEdit(

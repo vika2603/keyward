@@ -2,9 +2,9 @@ import { VaultError } from "../types"
 import {
   type BitwardenApi,
   type Device,
-  pick,
-  prop,
+  objectAt,
   type SecondFactor,
+  valueAt,
 } from "./api"
 import {
   type KdfConfig,
@@ -137,11 +137,12 @@ export async function completeSecondStep(
 
 /** The master-key-wrapped user key of a token response. */
 export function wrappedUserKeyOf(token: Record<string, unknown>): string {
-  const unlock = pick(
-    pick(token, "UserDecryptionOptions"),
+  const unlock = objectAt(
+    objectAt(token, "UserDecryptionOptions"),
     "MasterPasswordUnlock",
   )
-  const key = prop(unlock, "MasterKeyEncryptedUserKey") ?? prop(token, "Key")
+  const key =
+    valueAt(unlock, "MasterKeyEncryptedUserKey") ?? valueAt(token, "Key")
   if (typeof key !== "string") throw new Error("The server sent no account key")
   return key
 }
