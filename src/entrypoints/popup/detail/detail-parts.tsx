@@ -17,7 +17,7 @@ import {
   COPIED_FEEDBACK_MS,
   useTransientValue,
 } from "@/hooks/use-transient-value"
-import { currentLanguage, t } from "@/lib/i18n"
+import { t } from "@/lib/i18n"
 import type { CustomField } from "@/lib/providers/types"
 import { cn } from "@/lib/utils"
 
@@ -75,13 +75,6 @@ export async function copyText(
     notifyError(error)
     return false
   }
-}
-
-export function formatDate(time: number): string {
-  return new Intl.DateTimeFormat(currentLanguage(), {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(time)
 }
 
 export function Section({

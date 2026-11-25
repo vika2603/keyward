@@ -1,6 +1,7 @@
 import { ChevronRightIcon, ExternalLinkIcon } from "lucide-react"
 import { useMemo, useState } from "react"
 import { callBackground } from "@/background/api"
+import { formatDate } from "@/components/keyward/format"
 import { FADE_IN } from "@/components/keyward/loading"
 import { notifyError } from "@/components/keyward/notify"
 import { SiteIcon } from "@/components/keyward/site-icon"
@@ -15,7 +16,6 @@ import {
   copyText,
   DeleteButton,
   DetailRow,
-  formatDate,
   IconButton,
   InfoRow,
   RepromptForm,

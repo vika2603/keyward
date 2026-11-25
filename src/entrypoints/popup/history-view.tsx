@@ -2,6 +2,7 @@ import { CheckIcon, CopyIcon, EyeIcon, Trash2Icon } from "lucide-react"
 import { useCallback, useMemo, useRef, useState } from "react"
 import { callBackground, historyEntryOf } from "@/background/api"
 import { useCopyThrough } from "@/components/keyward/copy-through"
+import { formatMonthDay, formatTimeAgo } from "@/components/keyward/format"
 import { notifyError } from "@/components/keyward/notify"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
@@ -12,7 +13,7 @@ import {
   useTransientValue,
 } from "@/hooks/use-transient-value"
 import type { GeneratorKind } from "@/lib/generator"
-import { currentLanguage, type MessageKey, t } from "@/lib/i18n"
+import { type MessageKey, t } from "@/lib/i18n"
 import { BackHeader } from "./header"
 
 /** Fixed length, so the mask does not reveal how long a password is. */
@@ -26,19 +27,13 @@ const COPY_LABELS: Record<GeneratorKind, MessageKey> = {
 
 function whenText(at: number): string {
   const minutes = Math.round((Date.now() - at) / 60_000)
-  const relative = new Intl.RelativeTimeFormat(currentLanguage(), {
-    numeric: "auto",
-  })
   if (minutes < 1) return t("popup.history.justNow")
-  if (minutes < 60) return relative.format(-minutes, "minute")
+  if (minutes < 60) return formatTimeAgo(minutes, "minute")
   const hours = Math.round(minutes / 60)
-  if (hours < 24) return relative.format(-hours, "hour")
+  if (hours < 24) return formatTimeAgo(hours, "hour")
   const days = Math.round(hours / 24)
-  if (days < 2) return relative.format(-days, "day")
-  return new Intl.DateTimeFormat(currentLanguage(), {
-    month: "long",
-    day: "numeric",
-  }).format(at)
+  if (days < 2) return formatTimeAgo(days, "day")
+  return formatMonthDay(at)
 }
 
 export function HistoryView({ onBack }: { onBack: () => void }) {

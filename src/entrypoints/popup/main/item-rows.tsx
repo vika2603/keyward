@@ -10,6 +10,7 @@ import {
 import { useState } from "react"
 import { callBackground } from "@/background/api"
 import { errorCodeOf } from "@/components/keyward/errors"
+import { formatDay } from "@/components/keyward/format"
 import { LoginLabel } from "@/components/keyward/login-label"
 import { NoteIcon } from "@/components/keyward/note-icon"
 import { notify, notifyError } from "@/components/keyward/notify"
@@ -19,7 +20,7 @@ import {
   COPIED_FEEDBACK_MS,
   useTransientValue,
 } from "@/hooks/use-transient-value"
-import { currentLanguage, t } from "@/lib/i18n"
+import { t } from "@/lib/i18n"
 import type {
   LoginSummary,
   NoteSummary,
@@ -54,11 +55,7 @@ export function TrashedRow({
     ? t("popup.trash.readOnly")
     : item.deletedAt === undefined
       ? (item.username ?? "")
-      : t("popup.trash.deletedOn", {
-          date: new Intl.DateTimeFormat(currentLanguage(), {
-            dateStyle: "medium",
-          }).format(item.deletedAt),
-        })
+      : t("popup.trash.deletedOn", { date: formatDay(item.deletedAt) })
 
   const run = async (action: "restore" | "purge") => {
     setBusy(true)

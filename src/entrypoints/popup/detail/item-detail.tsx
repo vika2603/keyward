@@ -1,13 +1,13 @@
 import { PencilIcon } from "lucide-react"
 import { type ReactNode, useState } from "react"
 import { BrandIcon, vaultLabel } from "@/components/keyward/brand-icon"
+import { formatDate } from "@/components/keyward/format"
 import { t } from "@/lib/i18n"
 import type { CustomField, VaultInfo } from "@/lib/providers/types"
 import { BackHeader } from "../header"
 import {
   CustomFieldRow,
   FavoriteButton,
-  formatDate,
   IconButton,
   InfoRow,
   Section,

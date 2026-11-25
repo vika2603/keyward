@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react"
+import { formatDate } from "@/components/keyward/format"
 import { FADE_IN } from "@/components/keyward/loading"
 import { notifyError } from "@/components/keyward/notify"
 import { useBackgroundQuery } from "@/hooks/use-background-query"
@@ -9,7 +10,6 @@ import {
   CopyButton,
   copyText,
   DetailRow,
-  formatDate,
   MaskText,
   RevealButton,
   SecretText,

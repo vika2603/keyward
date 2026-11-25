@@ -1,6 +1,7 @@
 import { ListFilterIcon } from "lucide-react"
 import { createContext, useContext } from "react"
 import type { VaultView } from "@/background/api"
+import { compareNames } from "@/components/keyward/format"
 import {
   Select,
   SelectContent,
@@ -11,7 +12,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Toggle } from "@/components/ui/toggle"
-import { currentLanguage, type MessageKey, t } from "@/lib/i18n"
+import { type MessageKey, t } from "@/lib/i18n"
 import type { ItemGrouping } from "@/lib/providers/types"
 
 /** The account's own vault, as an owner beside its organizations. */
@@ -120,12 +121,8 @@ interface Choice {
 function choicesOf(vault: VaultView, part: Part): Choice[] {
   const groups = vault.groups
   if (!groups) return []
-  const collator = new Intl.Collator(currentLanguage(), {
-    numeric: true,
-    sensitivity: "base",
-  })
   const byName = (first: Choice, second: Choice) =>
-    collator.compare(first.label, second.label)
+    compareNames(first.label, second.label)
   if (part === "owner") {
     if (!groups.organizations.length) return []
     return [

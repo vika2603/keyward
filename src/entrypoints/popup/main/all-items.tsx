@@ -11,6 +11,7 @@ import {
 } from "react"
 import type { VaultView } from "@/background/api"
 import { BrandIcon, vaultLabel } from "@/components/keyward/brand-icon"
+import { compareNames } from "@/components/keyward/format"
 import {
   Select,
   SelectContent,
@@ -19,7 +20,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { currentLanguage, type MessageKey, t } from "@/lib/i18n"
+import { type MessageKey, t } from "@/lib/i18n"
 import type {
   LoginSummary,
   NoteSummary,
@@ -93,10 +94,6 @@ function rowsOf(
   /** Accounts whose group filter pickers are shown. */
   filtersShown: readonly string[],
 ): { rows: Row[]; itemCount: number } {
-  const collator = new Intl.Collator(currentLanguage(), {
-    numeric: true,
-    sensitivity: "base",
-  })
   const rows: Row[] = []
   let itemCount = 0
   for (const vault of vaults) {
@@ -135,7 +132,7 @@ function rowsOf(
                   ? item.login.favorite
                   : item.type === "note" && item.note.favorite),
             )
-            .sort((first, second) => collator.compare(first.name, second.name))
+            .sort((first, second) => compareNames(first.name, second.name))
     itemCount += items.length
     // An account with nothing of a narrower kind is left out, unless its pickers are shown and may
     // be what narrowed it.
