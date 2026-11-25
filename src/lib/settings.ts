@@ -61,7 +61,7 @@ export const defaultSettings: Settings = {
   autoSubmit: false,
   askSave: true,
   askUpdate: true,
-  takeOverSaving: false,
+  takeOverSaving: true,
   clipboardClearSeconds: 30,
   defaultMatch: MatchType.Domain,
   defaultSaveTarget: null,

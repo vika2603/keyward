@@ -82,7 +82,7 @@ export function startBackground(): void {
     if (next?.appleEnabled !== previous?.appleEnabled)
       void apple.setEnabled(Boolean(next?.appleEnabled))
     if (next?.takeOverSaving !== previous?.takeOverSaving)
-      void controlBrowserSaving(next?.takeOverSaving ?? false).catch(() => {})
+      void controlBrowserSaving(next?.takeOverSaving ?? true).catch(() => {})
     // Turning a backend on or off and site rules change what the badge counts.
     refreshToolbar()
   })
