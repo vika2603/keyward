@@ -1,3 +1,5 @@
+import { isClipboardWrite } from "@/lib/clipboard-message"
+
 /**
  * Writes the clipboard for the background, which has no document of its own. A copy event lets
  * the text be set exactly, including the empty text that clears a copied password.
@@ -17,14 +19,9 @@ function copy(text: string): boolean {
 
 browser.runtime.onMessage.addListener(
   (message: unknown, sender, sendResponse) => {
-    if (sender.id !== browser.runtime.id) return false
-    const request = message as {
-      keywardOffscreen?: unknown
-      text?: unknown
-    } | null
-    if (request?.keywardOffscreen !== 1 || typeof request.text !== "string")
+    if (sender.id !== browser.runtime.id || !isClipboardWrite(message))
       return false
-    sendResponse({ ok: copy(request.text) })
+    sendResponse({ ok: copy(message.text) })
     return false
   },
 )

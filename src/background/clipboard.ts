@@ -1,3 +1,4 @@
+import { clipboardWrite } from "@/lib/clipboard-message"
 import { getSettings } from "@/lib/settings"
 
 const OFFSCREEN_PATH = "/offscreen.html"
@@ -28,17 +29,16 @@ async function ensureOffscreen(): Promise<void> {
 
 async function write(text: string): Promise<void> {
   await ensureOffscreen()
-  const reply = (await browser.runtime.sendMessage({
-    keywardOffscreen: 1,
-    text,
-  })) as { ok: boolean } | undefined
+  const reply = (await browser.runtime.sendMessage(clipboardWrite(text))) as
+    | { ok: boolean }
+    | undefined
   if (!reply?.ok) throw new Error("Could not write to the clipboard")
 }
 
 /** Copies text; a secret is overwritten after the time set in the settings. */
 export async function copyText(text: string, secret: boolean): Promise<void> {
   await write(text)
-  // The copied password is no longer on the clipboard, so there is nothing left to clear.
+  // Text that is not secret replaced whatever secret the clipboard held, so its clear is dropped.
   if (!secret) {
     await browser.alarms.clear(CLEAR_CLIPBOARD_ALARM)
     return

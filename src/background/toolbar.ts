@@ -3,23 +3,25 @@ import { activeTab, webPage } from "./page"
 import type { Providers } from "./providers"
 
 const ICON_SIZES = [16, 32] as const
+const iconPath = (size: number) => `/icon/${size}.png`
 const READY_ICON = Object.fromEntries(
-  ICON_SIZES.map((size) => [size, `/icon/${size}.png`]),
+  ICON_SIZES.map((size) => [size, iconPath(size)]),
 )
 /** How much of the icon shows while no vault is paired or unlocked. */
 const LOCKED_OPACITY = 0.4
 const BADGE_COLOR = "#404040"
+const BADGE_TEXT_COLOR = "#ffffff"
 /** Tab events come in bursts, such as an activation followed by a load. */
 const REFRESH_DELAY_MS = 150
 
-let lockedIcon: Promise<Record<number, ImageData>> | null = null
+let fadedIconDrawing: Promise<Record<number, ImageData>> | null = null
 
 /** The toolbar icon faded, drawn once from the packaged icon files. */
 function fadedIcon(): Promise<Record<number, ImageData>> {
-  lockedIcon ??= Promise.all(
+  fadedIconDrawing ??= Promise.all(
     ICON_SIZES.map(async (size) => {
       const bitmap = await createImageBitmap(
-        await (await fetch(`/icon/${size}.png`)).blob(),
+        await (await fetch(iconPath(size))).blob(),
       )
       const canvas = new OffscreenCanvas(size, size)
       const context = canvas.getContext("2d")
@@ -29,10 +31,11 @@ function fadedIcon(): Promise<Record<number, ImageData>> {
       return [size, context.getImageData(0, 0, size, size)] as const
     }),
   ).then(Object.fromEntries)
-  lockedIcon.catch(() => {
-    lockedIcon = null
+  // A drawing that failed is tried again next time.
+  fadedIconDrawing.catch(() => {
+    fadedIconDrawing = null
   })
-  return lockedIcon
+  return fadedIconDrawing
 }
 
 /**
@@ -49,7 +52,7 @@ export function watchToolbar(
   ) => unknown,
 ): () => void {
   void browser.action.setBadgeBackgroundColor({ color: BADGE_COLOR })
-  void browser.action.setBadgeTextColor?.({ color: "#ffffff" })
+  void browser.action.setBadgeTextColor?.({ color: BADGE_TEXT_COLOR })
 
   let timer: ReturnType<typeof setTimeout> | undefined
   let ready: boolean | null = null

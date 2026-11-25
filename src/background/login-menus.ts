@@ -1,6 +1,7 @@
 import { storage } from "wxt/utils/storage"
 import { generatePassword, getGeneratorOptions } from "@/lib/generator"
 import { type Language, resolveLanguage } from "@/lib/i18n/language"
+import type { TabRef } from "@/lib/providers/types"
 import { serialQueue } from "@/lib/serial-queue"
 import { getSettings } from "@/lib/settings"
 import type { VaultView } from "./api"
@@ -116,11 +117,24 @@ function itemId(action: Action, renderId: string, index: number): string {
   return `loginMenus.${action}.${renderId}.${index}`
 }
 
+function isAction(value: string | undefined): value is Action {
+  return (ACTIONS as readonly (string | undefined)[]).includes(value)
+}
+
+/** A generated password, copied as a secret and kept in the generator's history. */
+async function copyGenerated(
+  password: string,
+  tabUrl: string | undefined,
+): Promise<void> {
+  await copyText(password, true)
+  await addHistory(password, webPage(tabUrl)?.hostname ?? null)
+}
+
 /**
  * The browser's context menu for the active page: the page's logins under a heading for each vault,
  * each with a submenu that fills it or copies its username, password or verification code, and
- * entries that generate a password and fill it into the right-clicked field or copy it. The logins follow the active page, which the
- * toolbar recomputes as tabs change.
+ * entries that generate a password and fill it into the right-clicked field or copy it. The logins
+ * follow the active page, which the toolbar recomputes as tabs change.
  */
 export class LoginMenus {
   /** Changes of the menus run one after another, so no ID is made twice. */
@@ -149,47 +163,43 @@ export class LoginMenus {
     frameId: number,
     tabUrl: string | undefined,
   ): Promise<void> {
-    if (menuItemId === GENERATE_FILL_ID) {
+    if (menuItemId === GENERATE_FILL_ID || menuItemId === GENERATE_ID) {
       const password = generatePassword(await getGeneratorOptions())
-      const filled = await fillNewPassword(tabId, frameId, password).catch(
-        () => false,
-      )
+      const filled =
+        menuItemId === GENERATE_FILL_ID &&
+        (await fillNewPassword(tabId, frameId, password).catch(() => false))
       // Without a field to take it, or where filling is turned off, the password is copied instead,
       // so choosing the entry is never lost.
-      if (!filled) {
-        await copyText(password, true)
-        await addHistory(password, webPage(tabUrl)?.hostname ?? null)
-      }
+      if (!filled) await copyGenerated(password, tabUrl)
       return
     }
-    if (menuItemId === GENERATE_ID) {
-      const password = generatePassword(await getGeneratorOptions())
-      await copyText(password, true)
-      await addHistory(password, webPage(tabUrl)?.hostname ?? null)
-      return
-    }
-    const match = ITEM_ID.exec(menuItemId)
-    const action = match?.[1] as Action | undefined
-    if (!match || !action || !ACTIONS.includes(action)) return
-    const listing = await listingItem.getValue()
     const page = webPage(tabUrl)
-    // The menus are shared by every tab and window; they only act on the page they were listed for.
-    if (
-      !listing ||
-      listing.renderId !== match[2] ||
-      listing.tabId !== tabId ||
-      page?.origin !== listing.origin
-    )
-      return
-    const entry = listing.entries[Number(match[3])]
-    if (!entry) return
+    const chosen = await listedChoice(menuItemId, tabId, page)
+    if (chosen)
+      await this.runLoginAction(chosen.action, chosen.entry, page, {
+        tabId,
+        frameId,
+      })
+  }
+
+  private async runLoginAction(
+    action: Action,
+    entry: Entry,
+    page: URL | null,
+    tab: TabRef,
+  ): Promise<void> {
     const { vaultId, loginId } = entry
     const provider = this.providers.providerOf(vaultId)
-    const tab = { tabId, frameId }
     switch (action) {
       case "fill":
         // The fill checks that the right-clicked frame's page is one the login is for.
-        await fillLogin(this.providers, tabId, frameId, vaultId, loginId)
+        await fillLogin(
+          this.providers,
+          tab.tabId,
+          tab.frameId,
+          vaultId,
+          loginId,
+        )
         return
       case "copyUsername":
         await copyText(entry.username, false)
@@ -213,42 +223,87 @@ export class LoginMenus {
   }
 }
 
+/** The login and action of a clicked submenu item, when its listing is for the tab's page. */
+async function listedChoice(
+  menuItemId: string,
+  tabId: number,
+  page: URL | null,
+): Promise<{ action: Action; entry: Entry } | null> {
+  const match = ITEM_ID.exec(menuItemId)
+  const action = match?.[1]
+  if (!match || !isAction(action)) return null
+  const listing = await listingItem.getValue()
+  // The menus are shared by every tab and window; they only act on the page they were listed for.
+  if (
+    !listing ||
+    listing.renderId !== match[2] ||
+    listing.tabId !== tabId ||
+    page?.origin !== listing.origin
+  )
+    return null
+  const entry = listing.entries[Number(match[3])]
+  return entry ? { action, entry } : null
+}
+
+/** The first logins of the ready vaults, as the submenus list them. */
+function entriesOf(readyVaults: VaultView[]): Entry[] {
+  return readyVaults
+    .flatMap((vault) =>
+      vault.logins.map((login) => ({
+        vaultId: vault.id,
+        loginId: login.id,
+        username: login.username,
+        name: login.username || login.title,
+        hasCode: login.hasCode === true,
+      })),
+    )
+    .slice(0, MAX_LOGINS)
+}
+
 async function render(
   vaults: VaultView[],
   tab: ListedTab | undefined,
 ): Promise<void> {
   const settings = await getSettings()
-  const titles = TITLES[resolveLanguage(settings.language)]
   const page = webPage(tab?.url)
   const tabId = tab?.id
   const listing = settings.contextMenu && page !== null && tabId !== undefined
   const ready = vaults.filter(
     (vault) => vault.status === "ready" && !vault.error && vault.logins.length,
   )
-  const entries: Entry[] = listing
-    ? ready
-        .flatMap((vault) =>
-          vault.logins.map((login) => ({
-            vaultId: vault.id,
-            loginId: login.id,
-            username: login.username,
-            name: login.username || login.title,
-            hasCode: login.hasCode === true,
-          })),
-        )
-        .slice(0, MAX_LOGINS)
-    : []
+  const entries = listing ? entriesOf(ready) : []
   const renderId = crypto.randomUUID().slice(0, 8)
 
   await removeOwn()
   if (listing && entries.length) {
-    const stored: Listing = { renderId, tabId, origin: page.origin, entries }
-    await listingItem.setValue(stored)
+    await listingItem.setValue({
+      renderId,
+      tabId,
+      origin: page.origin,
+      entries,
+    })
   } else {
     await listingItem.removeValue()
   }
   if (!settings.contextMenu) return
+  const listed = ready.filter((vault) =>
+    entries.some((entry) => entry.vaultId === vault.id),
+  )
+  await createMenus(
+    listed,
+    entries,
+    renderId,
+    TITLES[resolveLanguage(settings.language)],
+  )
+}
 
+/** Makes the menus: each listed vault's heading and logins, then the generator's entries. */
+async function createMenus(
+  listed: VaultView[],
+  entries: Entry[],
+  renderId: string,
+  titles: (typeof TITLES)[Language],
+): Promise<void> {
   const made: string[] = []
   const add = async (
     properties: Browser.contextMenus.CreateProperties & { id: string },
@@ -256,9 +311,6 @@ async function render(
     await create({ contexts: CONTEXTS, ...properties })
     if (properties.parentId === undefined) made.push(properties.id)
   }
-  const listed = ready.filter((vault) =>
-    entries.some((entry) => entry.vaultId === vault.id),
-  )
   for (const [vaultIndex, vault] of listed.entries()) {
     if (vaultIndex > 0)
       await add({
