@@ -260,8 +260,8 @@ export function GroupFilterBar({ vaultId }: { vaultId: string }) {
             <SelectGroup>
               <SelectItem value={ALL}>{t(PART_TEXT[part].all)}</SelectItem>
             </SelectGroup>
+            <SelectSeparator />
             <SelectGroup>
-              <SelectSeparator />
               {choices.map((choice) => (
                 <SelectItem key={choice.value} value={choice.value}>
                   <span className="max-w-64 truncate">{choice.label}</span>

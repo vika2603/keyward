@@ -1,6 +1,7 @@
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
   SelectTrigger,
   SelectValue,
@@ -49,12 +50,14 @@ export function VaultSelect({
         </SelectValue>
       </SelectTrigger>
       <SelectContent>
-        {vaults.map((vault) => (
-          <SelectItem key={vault.id} value={vault.id}>
-            <BrandIcon kind={vault.kind} />
-            <span className="truncate">{vaultLabel(vault)}</span>
-          </SelectItem>
-        ))}
+        <SelectGroup>
+          {vaults.map((vault) => (
+            <SelectItem key={vault.id} value={vault.id}>
+              <BrandIcon kind={vault.kind} />
+              <span className="truncate">{vaultLabel(vault)}</span>
+            </SelectItem>
+          ))}
+        </SelectGroup>
       </SelectContent>
     </Select>
   )

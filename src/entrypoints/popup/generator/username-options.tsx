@@ -2,6 +2,7 @@ import { Input } from "@/components/ui/input"
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
   SelectTrigger,
   SelectValue,
@@ -43,11 +44,13 @@ export function UsernameOptionsForm({
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {USERNAME_TYPES.map(([type, label]) => (
-              <SelectItem key={type} value={type}>
-                {t(label)}
-              </SelectItem>
-            ))}
+            <SelectGroup>
+              {USERNAME_TYPES.map(([type, label]) => (
+                <SelectItem key={type} value={type}>
+                  {t(label)}
+                </SelectItem>
+              ))}
+            </SelectGroup>
           </SelectContent>
         </Select>
       </OptionRow>

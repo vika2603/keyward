@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input"
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
   SelectTrigger,
   SelectValue,
@@ -124,11 +125,13 @@ function CustomFieldEditor({
             <SelectValue />
           </SelectTrigger>
           <SelectContent align="end">
-            {KINDS.map((kind) => (
-              <SelectItem key={kind} value={kind}>
-                {t(KIND_LABELS[kind])}
-              </SelectItem>
-            ))}
+            <SelectGroup>
+              {KINDS.map((kind) => (
+                <SelectItem key={kind} value={kind}>
+                  {t(KIND_LABELS[kind])}
+                </SelectItem>
+              ))}
+            </SelectGroup>
           </SelectContent>
         </Select>
         <Button
@@ -214,11 +217,13 @@ function FieldValueEditor({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {LINK_TARGETS.map((target) => (
-                <SelectItem key={target} value={target}>
-                  {t(LINK_LABELS[target])}
-                </SelectItem>
-              ))}
+              <SelectGroup>
+                {LINK_TARGETS.map((target) => (
+                  <SelectItem key={target} value={target}>
+                    {t(LINK_LABELS[target])}
+                  </SelectItem>
+                ))}
+              </SelectGroup>
             </SelectContent>
           </Select>
         </div>
