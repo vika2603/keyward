@@ -175,7 +175,7 @@ export const en = {
   "options.onboard.title": "Sign in to Bitwarden",
   "options.onboard.description":
     "After signing in, the account is unlocked with its master password.",
-  "options.onboard.later": "Back",
+  "options.onboard.backToSettings": "Back to settings",
   "options.onboard.method.authenticator": "Authenticator app",
   "options.onboard.method.authenticatorHint":
     "Enter the code shown in your authenticator app.",
@@ -191,7 +191,7 @@ export const en = {
   "options.onboard.secondStep.method": "Verification method",
   "options.onboard.secondStep.code": "Code",
   "options.onboard.secondStep.submit": "Verify and sign in",
-  "options.onboard.secondStep.back": "Back",
+  "options.onboard.secondStep.startOver": "Start over",
   "options.onboard.signIn.server": "Server",
   "options.onboard.signIn.official": "Official (bitwarden.com)",
   "options.onboard.signIn.selfHosted": "Self-hosted",
@@ -371,7 +371,7 @@ export const zhCN: Record<keyof typeof en, string> = {
 
   "options.onboard.title": "登录 Bitwarden",
   "options.onboard.description": "登录后，这个账号用主密码就能解锁。",
-  "options.onboard.later": "返回",
+  "options.onboard.backToSettings": "返回设置",
   "options.onboard.method.authenticator": "验证器 App",
   "options.onboard.method.authenticatorHint": "输入验证器 App 里显示的验证码。",
   "options.onboard.method.email": "邮件",
@@ -385,7 +385,7 @@ export const zhCN: Record<keyof typeof en, string> = {
   "options.onboard.secondStep.method": "验证方式",
   "options.onboard.secondStep.code": "验证码",
   "options.onboard.secondStep.submit": "验证并登录",
-  "options.onboard.secondStep.back": "返回",
+  "options.onboard.secondStep.startOver": "重新登录",
   "options.onboard.signIn.server": "服务器",
   "options.onboard.signIn.official": "官方服务（bitwarden.com）",
   "options.onboard.signIn.selfHosted": "自建服务器",

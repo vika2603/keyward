@@ -1,3 +1,4 @@
+import { ChevronLeftIcon } from "lucide-react"
 import { useEffect, useState } from "react"
 import { callBackground } from "@/background/api"
 import { BrandIcon } from "@/components/keyward/brand-icon"
@@ -46,8 +47,19 @@ export function OnboardPage() {
   const done = () => navigate("vaults")
 
   return (
-    <div className="flex min-h-screen flex-col items-center bg-muted px-4 pt-12 pb-16">
+    <div className="flex min-h-screen flex-col items-center bg-muted px-4 pt-6 pb-16">
       <main className="flex w-full max-w-[440px] flex-col gap-4">
+        <div>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="-ml-2 text-muted-foreground"
+            onClick={done}
+          >
+            <ChevronLeftIcon />
+            {t("options.onboard.backToSettings")}
+          </Button>
+        </div>
         <header className="flex flex-col items-center gap-1.5 pb-2 text-center">
           <div className="mb-2 flex size-12 items-center justify-center rounded-xl bg-card ring-1 ring-foreground/10">
             <BrandIcon kind="bitwarden" className="size-6" />
@@ -62,11 +74,6 @@ export function OnboardPage() {
         <section className="rounded-xl bg-card p-4 ring-1 ring-foreground/10">
           <SignIn onSignedIn={done} />
         </section>
-        <div className="flex justify-end">
-          <Button variant="ghost" onClick={done}>
-            {t("options.onboard.later")}
-          </Button>
-        </div>
       </main>
     </div>
   )
@@ -204,7 +211,7 @@ function SignIn({ onSignedIn }: { onSignedIn: () => void }) {
               setMessage(null)
             }}
           >
-            {t("options.onboard.secondStep.back")}
+            {t("options.onboard.secondStep.startOver")}
           </Button>
         </div>
       </form>
