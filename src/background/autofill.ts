@@ -34,6 +34,7 @@ export async function contentConfig(
     active: false,
     scanCodes: false,
     menuTrigger: settings.menuTrigger,
+    takeOverPasskeys: settings.takeOverPasskeys,
     theme: settings.theme,
     language: resolveLanguage(settings.language),
   }
@@ -173,7 +174,10 @@ export async function fillNewPassword(
   })
 }
 
-/** Whether a ready source offers one-time codes for the frame's page. */
+/**
+ * Whether code fields of the frame get the icon: when a ready source offers codes for the page,
+ * or when no source is ready yet, so the menu can offer pairing and unlocking.
+ */
 export async function hasCodes(
   backends: Backends,
   tabId: number,
@@ -184,6 +188,7 @@ export async function hasCodes(
   if (!page || !(await frameAllowed(tabId, frameId, page, settings)))
     return false
   const views = await backends.codeLoginsForPage(page, { tabId, frameId })
+  if (!views.some((view) => view.status === "ready")) return views.length > 0
   return views.some((view) => view.logins.length > 0)
 }
 

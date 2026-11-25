@@ -261,13 +261,21 @@ describe("fillCode", () => {
       { info: accountSource, codeLogins: [codeLogin] },
     ])
     expect(await hasCodes(withCodes.backends, TAB, 0)).toBe(true)
-    const locked = fakeBackends([
-      {
-        info: { ...accountSource, status: "locked" },
-        codeLogins: [codeLogin],
-      },
+    const withoutCodes = fakeBackends([
+      { info: accountSource, codeLogins: [] },
+      { info: { ...appleSource, status: "locked" } },
     ])
-    expect(await hasCodes(locked.backends, TAB, 0)).toBe(false)
+    expect(await hasCodes(withoutCodes.backends, TAB, 0)).toBe(false)
+  })
+
+  it("gives code fields the icon while no source is ready, to offer unlocking", async () => {
+    const locked = fakeBackends([
+      { info: { ...accountSource, status: "locked" } },
+      { info: { ...appleSource, status: "locked" } },
+    ])
+    expect(await hasCodes(locked.backends, TAB, 0)).toBe(true)
+    const none = fakeBackends([])
+    expect(await hasCodes(none.backends, TAB, 0)).toBe(false)
   })
 })
 
