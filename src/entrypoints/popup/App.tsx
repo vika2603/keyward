@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react"
 import { callBackground, type PopupView } from "@/background/api"
 import { useAppearance } from "@/components/keyward/appearance"
 import { useLanguage } from "@/components/keyward/language"
+import { notifyError } from "@/components/keyward/notify"
 import { Toaster } from "@/components/ui/toast"
 import { t } from "@/lib/i18n"
 import type {
@@ -21,6 +22,13 @@ import { MainView, newListPlace } from "./main-view"
 import { NoteForm } from "./note-form"
 import { NoteView } from "./note-view"
 import { PasswordHistoryView } from "./password-history-view"
+import {
+  fitWindow,
+  isPoppedOut,
+  PopOutContext,
+  popOut,
+  takePoppedView,
+} from "./pop-out"
 
 export type View =
   | PopupView
@@ -32,10 +40,13 @@ export type View =
   | { name: "note"; vault: VaultInfo; note: NoteSummary }
   | { name: "editNote"; vault: VaultInfo; note: NoteSummary }
 
-// Requested once per popup: the background hands out a pending view only to the first request.
-const initialView = callBackground("popup.takeView", null).catch(
-  (): PopupView => ({ name: "main" }),
-)
+// Requested once per popup: the background hands out a pending view only to the first request. A
+// popped-out window opens on the view it was popped out from.
+const initialView: Promise<View> = isPoppedOut
+  ? takePoppedView().then((view) => (view as View | null) ?? { name: "main" })
+  : callBackground("popup.takeView", null).catch(
+      (): PopupView => ({ name: "main" }),
+    )
 
 export function App() {
   const density = useAppearance()
@@ -48,6 +59,7 @@ export function App() {
 
   useEffect(() => {
     void initialView.then(setView)
+    if (isPoppedOut) void fitWindow().catch(() => {})
   }, [])
 
   if (!language) return null
@@ -56,97 +68,105 @@ export function App() {
     // A fixed size, as Chrome keeps a popup's size while it is open; every view fills it and
     // scrolls its own content.
     <Toaster closeLabel={t("common.close")}>
-      <div className="flex h-[600px] w-[380px] flex-col">
-        {view?.name === "main" && (
-          <MainView
-            density={density}
-            query={query}
-            onQuery={setQuery}
-            place={listPlace.current}
-            onNavigate={setView}
-          />
-        )}
-        {view?.name === "add" && <AddView onBack={main} />}
-        {view?.name === "detail" && (
-          <DetailView
-            vault={view.vault}
-            login={view.login}
-            onBack={main}
-            onEdit={() => setView({ ...view, name: "edit" })}
-            onPasswordHistory={() =>
-              setView({ ...view, name: "passwordHistory" })
-            }
-          />
-        )}
-        {view?.name === "note" && (
-          <NoteView
-            vault={view.vault}
-            note={view.note}
-            onBack={main}
-            onEdit={() => setView({ ...view, name: "editNote" })}
-          />
-        )}
-        {view?.name === "editNote" && (
-          <div className="flex min-h-0 flex-1 flex-col">
-            <BackHeader
-              title={t("popup.note.editTitle")}
-              onBack={() => setView({ ...view, name: "note" })}
+      <PopOutContext
+        value={
+          isPoppedOut || !view
+            ? null
+            : () => void popOut(view).catch(notifyError)
+        }
+      >
+        <div className="flex h-[600px] w-[380px] flex-col">
+          {view?.name === "main" && (
+            <MainView
+              density={density}
+              query={query}
+              onQuery={setQuery}
+              place={listPlace.current}
+              onNavigate={setView}
             />
-            <NoteForm
-              target={{ mode: "edit", vault: view.vault, note: view.note }}
-              onDone={() => setView({ ...view, name: "note" })}
-              onCancel={() => setView({ ...view, name: "note" })}
+          )}
+          {view?.name === "add" && <AddView onBack={main} />}
+          {view?.name === "detail" && (
+            <DetailView
+              vault={view.vault}
+              login={view.login}
+              onBack={main}
+              onEdit={() => setView({ ...view, name: "edit" })}
+              onPasswordHistory={() =>
+                setView({ ...view, name: "passwordHistory" })
+              }
             />
-          </div>
-        )}
-        {view?.name === "passwordHistory" && (
-          <PasswordHistoryView
-            vault={view.vault}
-            login={view.login}
-            onBack={() => setView({ ...view, name: "detail" })}
-          />
-        )}
-        {view?.name === "edit" && (
-          <EditView
-            vault={view.vault}
-            login={view.login}
-            onDone={() => setView({ ...view, name: "detail" })}
-          />
-        )}
-        {view?.name === "generator" && (
-          <GeneratorView
-            onBack={main}
-            onHistory={() => setView({ name: "history" })}
-          />
-        )}
-        {view?.name === "history" && (
-          <HistoryView onBack={() => setView({ name: "generator" })} />
-        )}
-        {view?.name === "codeSetup" && (
-          <CodeSetupView
-            onBack={main}
-            onConnect={(vault) =>
-              setView({
-                name: "connect",
-                kind: vault.kind,
-                vaultId: vault.id,
-                back: "codeSetup",
-              })
-            }
-          />
-        )}
-        {view?.name === "connect" && (
-          <ConnectView
-            kind={view.kind}
-            vaultId={view.vaultId}
-            onDone={
-              view.back === "codeSetup"
-                ? () => setView({ name: "codeSetup" })
-                : main
-            }
-          />
-        )}
-      </div>
+          )}
+          {view?.name === "note" && (
+            <NoteView
+              vault={view.vault}
+              note={view.note}
+              onBack={main}
+              onEdit={() => setView({ ...view, name: "editNote" })}
+            />
+          )}
+          {view?.name === "editNote" && (
+            <div className="flex min-h-0 flex-1 flex-col">
+              <BackHeader
+                title={t("popup.note.editTitle")}
+                onBack={() => setView({ ...view, name: "note" })}
+              />
+              <NoteForm
+                target={{ mode: "edit", vault: view.vault, note: view.note }}
+                onDone={() => setView({ ...view, name: "note" })}
+                onCancel={() => setView({ ...view, name: "note" })}
+              />
+            </div>
+          )}
+          {view?.name === "passwordHistory" && (
+            <PasswordHistoryView
+              vault={view.vault}
+              login={view.login}
+              onBack={() => setView({ ...view, name: "detail" })}
+            />
+          )}
+          {view?.name === "edit" && (
+            <EditView
+              vault={view.vault}
+              login={view.login}
+              onDone={() => setView({ ...view, name: "detail" })}
+            />
+          )}
+          {view?.name === "generator" && (
+            <GeneratorView
+              onBack={main}
+              onHistory={() => setView({ name: "history" })}
+            />
+          )}
+          {view?.name === "history" && (
+            <HistoryView onBack={() => setView({ name: "generator" })} />
+          )}
+          {view?.name === "codeSetup" && (
+            <CodeSetupView
+              onBack={main}
+              onConnect={(vault) =>
+                setView({
+                  name: "connect",
+                  kind: vault.kind,
+                  vaultId: vault.id,
+                  back: "codeSetup",
+                })
+              }
+            />
+          )}
+          {view?.name === "connect" && (
+            <ConnectView
+              kind={view.kind}
+              vaultId={view.vaultId}
+              onDone={
+                view.back === "codeSetup"
+                  ? () => setView({ name: "codeSetup" })
+                  : main
+              }
+            />
+          )}
+        </div>
+      </PopOutContext>
     </Toaster>
   )
 }

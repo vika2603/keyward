@@ -1,7 +1,12 @@
-import { ChevronLeftIcon, SlidersHorizontalIcon } from "lucide-react"
+import {
+  ChevronLeftIcon,
+  SlidersHorizontalIcon,
+  SquareArrowOutUpRightIcon,
+} from "lucide-react"
 import type { ReactNode } from "react"
 import { Button } from "@/components/ui/button"
 import { t } from "@/lib/i18n"
+import { usePopOut } from "./pop-out"
 
 export function BackHeader({
   title,
@@ -13,6 +18,7 @@ export function BackHeader({
   onBack: () => void
   children?: ReactNode
 }) {
+  const popOut = usePopOut()
   return (
     <div className="flex items-center gap-2 p-2">
       <Button
@@ -25,6 +31,17 @@ export function BackHeader({
       </Button>
       {title && <h1 className="flex-1 text-sm font-medium">{title}</h1>}
       {children}
+      {popOut && (
+        <Button
+          variant="ghost"
+          size="icon"
+          aria-label={t("popup.popOut")}
+          title={t("popup.popOut")}
+          onClick={popOut}
+        >
+          <SquareArrowOutUpRightIcon />
+        </Button>
+      )}
     </div>
   )
 }
