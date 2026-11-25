@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
 import { Skeleton } from "@/components/ui/skeleton"
+import { useAsyncAction } from "@/hooks/use-async-action"
 import { t } from "@/lib/i18n"
 import type {
   EditableNote,
@@ -41,8 +42,7 @@ export function NoteForm({
   const [vaultId, setVaultId] = useState<string | null>(
     target.mode === "create" ? (target.targets[0]?.id ?? null) : null,
   )
-  const [busy, setBusy] = useState(false)
-  const [message, setMessage] = useState<string | null>(null)
+  const { busy, message, setMessage, run } = useAsyncAction()
 
   const editedVaultId = editing?.vault.id
   const editedNoteId = editing?.note.id
@@ -52,16 +52,14 @@ export function NoteForm({
       vaultId: editedVaultId,
       noteId: editedNoteId,
     }).then(setForm, (error) => setMessage(errorMessage(error)))
-  }, [editedVaultId, editedNoteId])
+  }, [editedVaultId, editedNoteId, setMessage])
 
   const update = (change: Partial<EditableNote>) =>
     setForm((current) => (current ? { ...current, ...change } : current))
 
   const save = async () => {
     if (!form) return
-    setBusy(true)
-    setMessage(null)
-    try {
+    await run(async () => {
       if (editing) {
         await callBackground("popup.editNote", {
           vaultId: editing.vault.id,
@@ -72,11 +70,7 @@ export function NoteForm({
         await callBackground("popup.saveNote", { vaultId, note: form })
       }
       onDone()
-    } catch (error) {
-      setMessage(errorMessage(error))
-    } finally {
-      setBusy(false)
-    }
+    })
   }
 
   const canSave = !busy && form !== null && (editing !== null || vaultId)

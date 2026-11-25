@@ -6,12 +6,16 @@ import {
   StarIcon,
   Trash2Icon,
 } from "lucide-react"
-import { type ReactNode, type RefObject, useEffect, useState } from "react"
+import { type ReactNode, type RefObject, useState } from "react"
 import { callBackground } from "@/background/api"
-import { errorMessage } from "@/components/keyward/errors"
 import { notifyError } from "@/components/keyward/notify"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { useAsyncAction } from "@/hooks/use-async-action"
+import {
+  COPIED_FEEDBACK_MS,
+  useTransientValue,
+} from "@/hooks/use-transient-value"
 import { currentLanguage, t } from "@/lib/i18n"
 import type { CustomField } from "@/lib/providers/types"
 import { cn } from "@/lib/utils"
@@ -188,20 +192,14 @@ export function RepromptForm({
   onPassed: () => void
 }) {
   const [password, setPassword] = useState("")
-  const [busy, setBusy] = useState(false)
-  const [message, setMessage] = useState<string | null>(null)
+  const { busy, message, run } = useAsyncAction()
   const submit = async () => {
-    setBusy(true)
-    setMessage(null)
-    try {
-      await callBackground("popup.passReprompt", { vaultId, itemId, password })
-      setPassword("")
-      onPassed()
-    } catch (error) {
-      setMessage(errorMessage(error))
-    } finally {
-      setBusy(false)
-    }
+    const passed = await run(() =>
+      callBackground("popup.passReprompt", { vaultId, itemId, password }),
+    )
+    if (!passed) return
+    setPassword("")
+    onPassed()
   }
   return (
     <form
@@ -266,17 +264,16 @@ export function CopyButton({
   copy: () => Promise<boolean>
   disabled?: boolean
 }) {
-  const [done, setDone] = useState(false)
-  useEffect(() => {
-    if (!done) return
-    const timer = setTimeout(() => setDone(false), 1500)
-    return () => clearTimeout(timer)
-  }, [done])
+  const [done, showDone] = useTransientValue<true>(COPIED_FEEDBACK_MS)
   return (
     <IconButton
       label={done ? t("popup.copied") : label}
       disabled={disabled}
-      onClick={() => void copy().then(setDone)}
+      onClick={() =>
+        void copy().then((copied) => {
+          if (copied) showDone(true)
+        })
+      }
     >
       {done ? <CheckIcon /> : <CopyIcon />}
     </IconButton>

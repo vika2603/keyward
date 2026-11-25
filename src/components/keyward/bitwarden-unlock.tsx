@@ -1,9 +1,10 @@
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import { callBackground } from "@/background/api"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { useAsyncAction } from "@/hooks/use-async-action"
+import { useBackgroundQuery } from "@/hooks/use-background-query"
 import { t } from "@/lib/i18n"
-import type { AccountSummary } from "@/lib/providers/bitwarden/bitwarden-provider"
 import { serverHost } from "@/lib/providers/bitwarden/server"
 import { cn } from "@/lib/utils"
 import { BrandIcon } from "./brand-icon"
@@ -24,30 +25,20 @@ export function BitwardenUnlock({
   onUnlocked: () => void
   onSignIn: () => void
 }) {
-  const [accounts, setAccounts] = useState<AccountSummary[] | null>(null)
-  const [selected, setSelected] = useState<string | undefined>(initialAccountId)
+  const { data: accounts, error: loadError } = useBackgroundQuery(
+    "bitwarden.accounts",
+    null,
+  )
+  const [chosenId, setChosenId] = useState(initialAccountId)
   const [password, setPassword] = useState("")
-  const [busy, setBusy] = useState(false)
-  const [message, setMessage] = useState<string | null>(null)
-
-  useEffect(() => {
-    callBackground("bitwarden.accounts", null).then(
-      (list) => {
-        setAccounts(list)
-        setSelected((current) =>
-          list.some((a) => a.id === current)
-            ? current
-            : (list.find((a) => !a.unlocked) ?? list[0])?.id,
-        )
-      },
-      (error) => setMessage(errorMessage(error)),
-    )
-  }, [])
+  const { busy, message, setMessage, run } = useAsyncAction()
 
   // Without its accounts the view has nothing else to show, so the error takes the form's place.
   if (!accounts) {
-    return message ? (
-      <p className="text-center text-xs text-destructive">{message}</p>
+    return loadError ? (
+      <p className="text-center text-xs text-destructive">
+        {errorMessage(loadError)}
+      </p>
     ) : (
       <FieldsSkeleton rows={2} />
     )
@@ -66,7 +57,11 @@ export function BitwardenUnlock({
     )
   }
 
-  const account = accounts.find((a) => a.id === selected)
+  // The account asked for, else the first one still locked.
+  const account =
+    accounts.find((candidate) => candidate.id === chosenId) ??
+    accounts.find((candidate) => !candidate.unlocked) ??
+    accounts[0]
   // The same email can have an account on several servers; the server tells them apart. A label
   // that already ends with the server, as for accounts sharing an email, needs no second line.
   const host = account && serverHost(account.server)
@@ -81,20 +76,12 @@ export function BitwardenUnlock({
       setMessage(t("unlock.enterPassword"))
       return
     }
-    setBusy(true)
-    setMessage(null)
-    try {
-      await callBackground("bitwarden.unlock", {
-        accountId: account.id,
-        password,
-      })
-      setPassword("")
-      onUnlocked()
-    } catch (error) {
-      setMessage(errorMessage(error))
-    } finally {
-      setBusy(false)
-    }
+    const unlocked = await run(() =>
+      callBackground("bitwarden.unlock", { accountId: account.id, password }),
+    )
+    if (!unlocked) return
+    setPassword("")
+    onUnlocked()
   }
 
   return (
@@ -117,15 +104,15 @@ export function BitwardenUnlock({
       </div>
       {accounts.length > 1 && (
         <VaultSelect
-          vaults={accounts.map((a) => ({
-            id: a.id,
+          vaults={accounts.map((candidate) => ({
+            id: candidate.id,
             kind: "bitwarden",
-            label: a.label,
-            status: a.unlocked ? "ready" : "locked",
+            label: candidate.label,
+            status: candidate.unlocked ? "ready" : "locked",
           }))}
-          value={selected ?? null}
+          value={account?.id ?? null}
           onChange={(id) => {
-            setSelected(id)
+            setChosenId(id)
             setPassword("")
             setMessage(null)
           }}

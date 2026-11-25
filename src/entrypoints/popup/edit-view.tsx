@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/select"
 import { Separator } from "@/components/ui/separator"
 import { Skeleton } from "@/components/ui/skeleton"
+import { useAsyncAction } from "@/hooks/use-async-action"
 import { generatePassword, getGeneratorOptions } from "@/lib/generator"
 import { t } from "@/lib/i18n"
 import type {
@@ -112,8 +113,7 @@ export function EditView({
   onDone: () => void
 }) {
   const [form, setForm] = useState<EditableLogin | null>(null)
-  const [busy, setBusy] = useState(false)
-  const [message, setMessage] = useState<string | null>(null)
+  const { busy, message, setMessage, run } = useAsyncAction()
   /** The password shows only when asked for, or once a new one was generated. */
   const [revealed, setRevealed] = useState(false)
   /**
@@ -142,7 +142,7 @@ export function EditView({
       },
       (error) => setMessage(errorMessage(error)),
     )
-  }, [vault.id, login.id])
+  }, [vault.id, login.id, setMessage])
 
   const update = (change: Partial<EditableLogin>) =>
     setForm((current) => (current ? { ...current, ...change } : current))
@@ -166,10 +166,8 @@ export function EditView({
 
   const save = async () => {
     if (!form) return
-    setBusy(true)
-    setMessage(null)
     const uris = form.uris.filter((website) => website.uri.trim() !== "")
-    try {
+    await run(async () => {
       await callBackground("popup.editLogin", {
         vaultId: vault.id,
         loginId: login.id,
@@ -181,11 +179,7 @@ export function EditView({
         },
       })
       onDone()
-    } catch (error) {
-      setMessage(errorMessage(error))
-    } finally {
-      setBusy(false)
-    }
+    })
   }
 
   return (

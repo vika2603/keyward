@@ -1,13 +1,14 @@
 import { PencilIcon } from "lucide-react"
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useMemo, useState } from "react"
 import { callBackground } from "@/background/api"
 import { BrandIcon, vaultLabel } from "@/components/keyward/brand-icon"
 import { FADE_IN } from "@/components/keyward/loading"
 import { NoteIcon } from "@/components/keyward/note-icon"
 import { notifyError } from "@/components/keyward/notify"
 import { Skeleton } from "@/components/ui/skeleton"
+import { useBackgroundQuery } from "@/hooks/use-background-query"
 import { t } from "@/lib/i18n"
-import type { NoteDetails, NoteSummary, VaultInfo } from "@/lib/providers/types"
+import type { NoteSummary, VaultInfo } from "@/lib/providers/types"
 import { cn } from "@/lib/utils"
 import {
   CopyButton,
@@ -41,23 +42,16 @@ export function NoteView({
     () => ({ vaultId: vault.id, noteId: note.id }),
     [vault.id, note.id],
   )
-  const [details, setDetails] = useState<NoteDetails | null>(null)
-  /** Loading failed; a toast says why, and the placeholder goes away. */
-  const [failed, setFailed] = useState(false)
+  const {
+    data: details,
+    error: loadError,
+    reload,
+    update: updateDetails,
+  } = useBackgroundQuery("popup.note", ids, { onError: notifyError })
   /** Indexes of the hidden custom fields the user revealed. */
   const [shownFields, setShownFields] = useState<ReadonlySet<number>>(
     () => new Set(),
   )
-
-  /** Changes once the note's master password was entered again, so it loads anew. */
-  const [opened, setOpened] = useState(0)
-  // biome-ignore lint/correctness/useExhaustiveDependencies: `opened` asks for the note again.
-  useEffect(() => {
-    callBackground("popup.note", ids).then(setDetails, (error) => {
-      setFailed(true)
-      notifyError(error)
-    })
-  }, [ids, opened])
 
   const copyText = useCallback(async (text: string, secret: boolean) => {
     try {
@@ -93,7 +87,7 @@ export function NoteView({
             itemId={note.id}
             favorite={details.favorite}
             onChange={(favorite) =>
-              setDetails((current) => current && { ...current, favorite })
+              updateDetails((current) => ({ ...current, favorite }))
             }
           />
         )}
@@ -108,7 +102,7 @@ export function NoteView({
           <NoteIcon className="size-10" />
           <span className="min-w-0 truncate text-base font-medium">{name}</span>
         </div>
-        {!details && !failed && (
+        {!details && !loadError && (
           <div role="status" className="flex flex-col gap-1.5">
             <span className="sr-only">{t("common.loading")}</span>
             <Skeleton className="mx-1 h-3 w-16" />
@@ -123,7 +117,7 @@ export function NoteView({
                   vaultId={vault.id}
                   itemId={note.id}
                   hint={t("popup.note.withheld")}
-                  onPassed={() => setOpened((count) => count + 1)}
+                  onPassed={reload}
                 />
               </Section>
             )}

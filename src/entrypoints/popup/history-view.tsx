@@ -1,14 +1,15 @@
 import { CheckIcon, CopyIcon, EyeIcon, Trash2Icon } from "lucide-react"
-import { useCallback, useEffect, useRef, useState } from "react"
-import {
-  callBackground,
-  type HistoryEntry,
-  historyEntryOf,
-} from "@/background/api"
+import { useCallback, useMemo, useRef, useState } from "react"
+import { callBackground, historyEntryOf } from "@/background/api"
 import { useCopyThrough } from "@/components/keyward/copy-through"
 import { notifyError } from "@/components/keyward/notify"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
+import { useBackgroundQuery } from "@/hooks/use-background-query"
+import {
+  COPIED_FEEDBACK_MS,
+  useTransientValue,
+} from "@/hooks/use-transient-value"
 import type { GeneratorKind } from "@/lib/generator"
 import { currentLanguage, type MessageKey, t } from "@/lib/i18n"
 import { BackHeader } from "./header"
@@ -40,28 +41,28 @@ function whenText(at: number): string {
 }
 
 export function HistoryView({ onBack }: { onBack: () => void }) {
-  const [entries, setEntries] = useState<HistoryEntry[] | null>(null)
+  const { data: received, update: updateEntries } = useBackgroundQuery(
+    "history.list",
+    null,
+    { onError: notifyError },
+  )
+  // A background from before the kinds still sends entries in its own form until it reloads.
+  const entries = useMemo(() => received?.map(historyEntryOf), [received])
   const [shown, setShown] = useState(false)
   const [confirming, setConfirming] = useState(false)
-  const [copied, setCopied] = useState<string | null>(null)
+  const [copiedId, showCopied] = useTransientValue<string>(COPIED_FEEDBACK_MS)
 
-  useEffect(() => {
-    // A background from before the kinds still sends entries in its own form until it reloads.
-    void callBackground("history.list", null).then(
-      (received) => setEntries(received.map(historyEntryOf)),
-      () => setEntries([]),
-    )
-  }, [])
-
-  const copy = useCallback(async (id: string) => {
-    try {
-      await callBackground("history.copy", { id })
-      setCopied(id)
-      setTimeout(() => setCopied(null), 1500)
-    } catch (error) {
-      notifyError(error)
-    }
-  }, [])
+  const copy = useCallback(
+    async (id: string) => {
+      try {
+        await callBackground("history.copy", { id })
+        showCopied(id)
+      } catch (error) {
+        notifyError(error)
+      }
+    },
+    [showCopied],
+  )
   const list = useRef<HTMLDivElement>(null)
   useCopyThrough(
     list,
@@ -77,7 +78,7 @@ export function HistoryView({ onBack }: { onBack: () => void }) {
   const clear = async () => {
     try {
       await callBackground("history.clear", null)
-      setEntries([])
+      updateEntries(() => [])
     } catch (error) {
       notifyError(error)
     } finally {
@@ -170,7 +171,7 @@ export function HistoryView({ onBack }: { onBack: () => void }) {
                   title={copyLabel}
                   onClick={() => void copy(entry.id)}
                 >
-                  {copied === entry.id ? <CheckIcon /> : <CopyIcon />}
+                  {copiedId === entry.id ? <CheckIcon /> : <CopyIcon />}
                 </Button>
               </div>
             )

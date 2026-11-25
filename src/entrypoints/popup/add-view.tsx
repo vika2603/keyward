@@ -16,11 +16,12 @@ import {
 } from "@/components/ui/select"
 import { Separator } from "@/components/ui/separator"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { useAsyncAction } from "@/hooks/use-async-action"
+import { useBackgroundQuery } from "@/hooks/use-background-query"
 import { generatePassword, getGeneratorOptions } from "@/lib/generator"
 import { t } from "@/lib/i18n"
 import type {
   CustomField,
-  Folder,
   NewLoginDetails,
   VaultInfo,
 } from "@/lib/providers/types"
@@ -46,30 +47,20 @@ function LoginDetailsFields({
   details: NewLoginDetails
   onChange: (change: Partial<NewLoginDetails>) => void
 }) {
-  const [folders, setFolders] = useState<Folder[]>([])
+  // Without its folders the login is saved outside every folder.
+  const { data: folders, error } = useBackgroundQuery("popup.folders", {
+    vaultId,
+  })
   /** A background from before these fields does not know the folder request, and drops the fields. */
-  const [stored, setStored] = useState(true)
-  useEffect(() => {
-    let current = true
-    setFolders([])
-    callBackground("popup.folders", { vaultId }).then(
-      (loaded) => {
-        if (current) setFolders(loaded)
-      },
-      (error) => {
-        // Without its folders the login is saved outside every folder.
-        if (current && isUnsupportedRequest(error)) setStored(false)
-      },
-    )
-    return () => {
-      current = false
-    }
-  }, [vaultId])
+  const detailsSupported = !isUnsupportedRequest(error)
   const folderChoices = [
     { value: NO_FOLDER, label: t("popup.main.filter.noFolder") },
-    ...folders.map((folder) => ({ value: folder.id, label: folder.name })),
+    ...(folders ?? []).map((folder) => ({
+      value: folder.id,
+      label: folder.name,
+    })),
   ]
-  if (!stored) return null
+  if (!detailsSupported) return null
 
   return (
     <>
@@ -84,7 +75,7 @@ function LoginDetailsFields({
           autoComplete="off"
         />
       </label>
-      {folders.length > 0 && (
+      {folders && folders.length > 0 && (
         <div className="flex flex-col gap-2">
           <span className="text-sm leading-none font-medium">
             {t("popup.add.folder")}
@@ -173,8 +164,7 @@ function AddLoginForm({ onDone }: { onDone: () => void }) {
   /** Why no place could be found for the site; the site's places are unknown meanwhile. */
   const [targetsError, setTargetsError] = useState<string | null>(null)
   const request = useRef(0)
-  const [busy, setBusy] = useState(false)
-  const [message, setMessage] = useState<string | null>(null)
+  const { busy, message, setMessage, run } = useAsyncAction()
 
   useEffect(() => {
     callBackground("popup.state", null).then((state) => {
@@ -225,9 +215,7 @@ function AddLoginForm({ onDone }: { onDone: () => void }) {
 
   const save = async () => {
     if (!target) return
-    setBusy(true)
-    setMessage(null)
-    try {
+    await run(async () => {
       await callBackground("popup.saveLogin", {
         vaultId: target,
         site,
@@ -236,11 +224,7 @@ function AddLoginForm({ onDone }: { onDone: () => void }) {
         details: bitwarden ? details : undefined,
       })
       onDone()
-    } catch (error) {
-      setMessage(errorMessage(error))
-    } finally {
-      setBusy(false)
-    }
+    })
   }
 
   const targetKind = targets?.find((t) => t.id === target)?.kind
@@ -387,15 +371,10 @@ type AddKind = "login" | "note"
 /** Adds a login, or a secure note when a ready vault keeps notes. */
 export function AddView({ onBack }: { onBack: () => void }) {
   const [kind, setKind] = useState<AddKind>("login")
-  const [noteTargets, setNoteTargets] = useState<VaultInfo[]>([])
+  // Without targets, as when the request fails, the view offers logins only.
+  const { data: noteTargets } = useBackgroundQuery("popup.noteTargets", null)
 
-  useEffect(() => {
-    callBackground("popup.noteTargets", null).then(setNoteTargets, () => {
-      // Without targets the view offers logins only.
-    })
-  }, [])
-
-  const notesPossible = noteTargets.length > 0
+  const notesPossible = noteTargets !== null && noteTargets.length > 0
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <BackHeader
@@ -417,7 +396,7 @@ export function AddView({ onBack }: { onBack: () => void }) {
           </Tabs>
         </div>
       )}
-      {kind === "note" ? (
+      {kind === "note" && noteTargets ? (
         <NoteForm
           target={{ mode: "create", targets: noteTargets }}
           onDone={onBack}

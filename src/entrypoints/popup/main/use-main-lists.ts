@@ -1,18 +1,15 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
-import {
-  type BackgroundApi,
-  callBackground,
-  type VaultView,
-} from "@/background/api"
+import { callBackground, type VaultView } from "@/background/api"
 import { isUnsupportedRequest } from "@/components/keyward/errors"
 import { notifyError } from "@/components/keyward/notify"
+import { useBackgroundQuery } from "@/hooks/use-background-query"
 import { type AccountFilters, narrowed } from "./group-filter"
 import { mainLists, type ProviderTab } from "./lists"
 
-type PopupState = BackgroundApi["popup.state"]["result"]
-
 /** A search waits for typing to pause this long. */
 const SEARCH_DELAY_MS = 150
+
+const NO_VAULTS: VaultView[] = []
 
 /**
  * Loads the page's vaults and every item of the vaults that list themselves whole, searches as the
@@ -28,36 +25,24 @@ export function useMainLists({
   tab: ProviderTab
   groupFilters: AccountFilters
 }) {
-  const [popupState, setPopupState] = useState<PopupState | null>(null)
-  const [results, setResults] = useState<VaultView[] | null>(null)
+  const stateQuery = useBackgroundQuery("popup.state", null, {
+    onError: notifyError,
+  })
+  const popupState = stateQuery.data
   /** Every item of the vaults that can list themselves whole, to browse instead of the site's logins. */
-  const [allItems, setAllItems] = useState<VaultView[] | null>(null)
+  const allItemsQuery = useBackgroundQuery("popup.allItems", null)
   /** Why the vaults could not be listed whole; shown only where the list would be. */
-  const [allItemsError, setAllItemsError] = useState<unknown>(null)
-  /** Counts the loads, so a search runs again after each. */
-  const [loadCount, setLoadCount] = useState(0)
-  /** A list request failed; its toast says why, and the list stops waiting for it. */
-  const [failed, setFailed] = useState(false)
-
+  const allItemsError = allItemsQuery.error
+  const allItems = allItemsError ? NO_VAULTS : allItemsQuery.data
+  const { reload: reloadState } = stateQuery
+  const { reload: reloadAllItems } = allItemsQuery
   const load = useCallback(() => {
-    setFailed(false)
-    callBackground("popup.state", null).then(setPopupState, (error) => {
-      setFailed(true)
-      notifyError(error)
-    })
-    callBackground("popup.allItems", null).then(
-      (found) => {
-        setAllItems(found)
-        setAllItemsError(null)
-      },
-      (error) => {
-        setAllItems([])
-        setAllItemsError(error)
-      },
-    )
-    setLoadCount((count) => count + 1)
-  }, [])
-  useEffect(load, [load])
+    reloadState()
+    reloadAllItems()
+  }, [reloadState, reloadAllItems])
+
+  const [results, setResults] = useState<VaultView[] | null>(null)
+  const [searchFailed, setSearchFailed] = useState(false)
 
   const lists = useMemo(
     () =>
@@ -72,17 +57,18 @@ export function useMainLists({
   )
   const { search, browsing, filterable } = lists
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: each new state of the vaults, as after a lock, searches again.
   useEffect(() => {
     setResults(null)
-    if (!search || loadCount < 1) return
-    setFailed(false)
+    if (!search) return
+    setSearchFailed(false)
     let stale = false
     const timer = setTimeout(() => {
       callBackground("popup.search", { query: search }).then(
         (found) => !stale && setResults(found),
         (error) => {
           if (stale) return
-          setFailed(true)
+          setSearchFailed(true)
           notifyError(error)
         },
       )
@@ -91,7 +77,7 @@ export function useMainLists({
       stale = true
       clearTimeout(timer)
     }
-  }, [search, loadCount])
+  }, [search, popupState])
 
   // Each account's group filter narrows its part of the list of whole vaults; the site's logins
   // are few and stay as they are.
@@ -116,7 +102,7 @@ export function useMainLists({
     ...lists,
     loading,
     /** A request failed and its toast shows; the list stops waiting for it. */
-    failed,
+    failed: stateQuery.error !== null || searchFailed,
     page: popupState?.page ?? null,
     vaults: popupState?.vaults ?? [],
     browsed,

@@ -1,13 +1,10 @@
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useMemo, useState } from "react"
 import { callBackground } from "@/background/api"
 import { FADE_IN } from "@/components/keyward/loading"
 import { notifyError } from "@/components/keyward/notify"
+import { useBackgroundQuery } from "@/hooks/use-background-query"
 import { t } from "@/lib/i18n"
-import type {
-  LoginSummary,
-  PastPassword,
-  VaultInfo,
-} from "@/lib/providers/types"
+import type { LoginSummary, VaultInfo } from "@/lib/providers/types"
 import {
   CopyButton,
   Field,
@@ -34,14 +31,12 @@ export function PasswordHistoryView({
     () => ({ vaultId: vault.id, loginId: login.id }),
     [vault.id, login.id],
   )
-  const [entries, setEntries] = useState<PastPassword[] | null>(null)
+  const { data: entries } = useBackgroundQuery("popup.passwordHistory", ids, {
+    onError: notifyError,
+  })
   const [shownEntries, setShownEntries] = useState<ReadonlySet<number>>(
     () => new Set(),
   )
-
-  useEffect(() => {
-    callBackground("popup.passwordHistory", ids).then(setEntries, notifyError)
-  }, [ids])
 
   const copyPassword = useCallback(async (password: string) => {
     try {

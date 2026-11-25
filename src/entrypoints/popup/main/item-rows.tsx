@@ -15,6 +15,10 @@ import { NoteIcon } from "@/components/keyward/note-icon"
 import { notify, notifyError } from "@/components/keyward/notify"
 import { SiteIcon } from "@/components/keyward/site-icon"
 import { Button } from "@/components/ui/button"
+import {
+  COPIED_FEEDBACK_MS,
+  useTransientValue,
+} from "@/hooks/use-transient-value"
 import { currentLanguage, t } from "@/lib/i18n"
 import type {
   LoginSummary,
@@ -151,7 +155,7 @@ export function NoteRow({
   density: Settings["density"]
   onOpen: () => void
 }) {
-  const [copied, setCopied] = useState(false)
+  const [copied, showCopied] = useTransientValue<true>(COPIED_FEEDBACK_MS)
   const compact = density === "compact"
 
   const copy = async () => {
@@ -170,8 +174,7 @@ export function NoteRow({
         text: details.text,
         secret: true,
       })
-      setCopied(true)
-      setTimeout(() => setCopied(false), 1500)
+      showCopied(true)
     } catch (error) {
       notifyError(error)
     }
@@ -238,7 +241,7 @@ export function LoginRow({
   nameFirst?: boolean
   onOpen: () => void
 }) {
-  const [copied, setCopied] = useState<Copyable | null>(null)
+  const [copied, showCopied] = useTransientValue<Copyable>(COPIED_FEEDBACK_MS)
   // Apple asks for Touch ID before it hands out a password; the row says so meanwhile.
   const [confirming, setConfirming] = useState(false)
   const compact = density === "compact"
@@ -258,8 +261,7 @@ export function LoginRow({
         const { code } = await callBackground("popup.oneTimeCode", ids)
         await callBackground("popup.copyText", { text: code, secret: true })
       }
-      setCopied(what)
-      setTimeout(() => setCopied(null), 1500)
+      showCopied(what)
     } catch (error) {
       // The login's details ask for the master password, after which it can be copied.
       if (errorCodeOf(error) === "bitwarden.reprompt") onOpen()

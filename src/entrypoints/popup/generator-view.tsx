@@ -25,6 +25,10 @@ import { Separator } from "@/components/ui/separator"
 import { Slider } from "@/components/ui/slider"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
+  COPIED_FEEDBACK_MS,
+  useTransientValue,
+} from "@/hooks/use-transient-value"
+import {
   defaultGeneratorChoices,
   type GeneratorChoices,
   type GeneratorKind,
@@ -186,7 +190,8 @@ export function GeneratorView({
     {},
   )
   const [words, setWords] = useState<string[] | null>(null)
-  const [copied, setCopied] = useState(false)
+  const [copiedValue, showCopied] =
+    useTransientValue<string>(COPIED_FEEDBACK_MS)
   const [message, setMessage] = useState<string | null>(null)
   const shown = useRef<HTMLDivElement>(null)
 
@@ -220,7 +225,6 @@ export function GeneratorView({
   }, [needsWords, words])
 
   const show = useCallback((which: GeneratorKind, value: string | null) => {
-    setCopied(false)
     setValues((current) => {
       const next = { ...current }
       if (value === null) delete next[which]
@@ -258,6 +262,7 @@ export function GeneratorView({
   }, [password, choices, values, kind, generate, show])
 
   const value = values[kind] ?? null
+  const copied = value !== null && copiedValue === value
   const secret = kind !== "username"
 
   const copy = useCallback(async () => {
@@ -268,11 +273,11 @@ export function GeneratorView({
       await recordShown(value, kind, true)
       if (secret) await callBackground("generator.copy", { password: value })
       else await callBackground("popup.copyText", { text: value })
-      setCopied(true)
+      showCopied(value)
     } catch (error) {
       setMessage(errorMessage(error))
     }
-  }, [value, kind, secret])
+  }, [value, kind, secret, showCopied])
   useCopyThrough(
     shown,
     useCallback(() => void copy(), [copy]),

@@ -13,9 +13,9 @@ import { notifyError } from "@/components/keyward/notify"
 import { SiteIcon } from "@/components/keyward/site-icon"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
+import { useBackgroundQuery } from "@/hooks/use-background-query"
 import { t } from "@/lib/i18n"
 import type {
-  LoginDetails,
   LoginSummary,
   OneTimeCode,
   VaultInfo,
@@ -163,9 +163,12 @@ export function DetailView({
     [vault.id, login.id],
   )
   const apple = vault.kind === "apple"
-  const [details, setDetails] = useState<LoginDetails | null>(null)
-  /** Loading failed; a toast says why, and the placeholder goes away. */
-  const [failed, setFailed] = useState(false)
+  const {
+    data: details,
+    error: loadError,
+    reload,
+    update: updateDetails,
+  } = useBackgroundQuery("popup.details", ids, { onError: notifyError })
   const [password, setPassword] = useState<string | null>(null)
   const [revealed, setRevealed] = useState(false)
   const [code, setCode] = useState<OneTimeCode | null>(null)
@@ -180,16 +183,6 @@ export function DetailView({
   const [now, setNow] = useState(Date.now)
   const passwordRef = useRef<HTMLDivElement>(null)
   const codeRef = useRef<HTMLDivElement>(null)
-
-  /** Changes once the item's master password was entered again, so its details load anew. */
-  const [opened, setOpened] = useState(0)
-  // biome-ignore lint/correctness/useExhaustiveDependencies: `opened` asks for the details again.
-  useEffect(() => {
-    callBackground("popup.details", ids).then(setDetails, (error) => {
-      setFailed(true)
-      notifyError(error)
-    })
-  }, [ids, opened])
 
   /** Runs a request, showing its error; null when it failed. */
   const run = useCallback(
@@ -319,7 +312,7 @@ export function DetailView({
             itemId={login.id}
             favorite={details.favorite}
             onChange={(favorite) =>
-              setDetails((current) => current && { ...current, favorite })
+              updateDetails((current) => ({ ...current, favorite }))
             }
           />
         )}
@@ -334,7 +327,7 @@ export function DetailView({
           <SiteIcon host={login.host} text={name} className="size-10" />
           <span className="min-w-0 truncate text-base font-medium">{name}</span>
         </div>
-        {!details && !failed && <DetailSkeleton />}
+        {!details && !loadError && <DetailSkeleton />}
         {details && (
           <div className={cn("flex flex-col gap-3", FADE_IN)}>
             <Section title={t("popup.detail.credentials")}>
@@ -361,7 +354,7 @@ export function DetailView({
                     vaultId={vault.id}
                     itemId={login.id}
                     hint={t("popup.detail.withheld")}
-                    onPassed={() => setOpened((count) => count + 1)}
+                    onPassed={reload}
                   />
                 </div>
               ) : (

@@ -1,20 +1,20 @@
 import { CheckIcon } from "lucide-react"
-import { type ReactNode, useEffect, useState } from "react"
-import { type BackgroundApi, callBackground } from "@/background/api"
+import { type ReactNode, useState } from "react"
+import { callBackground } from "@/background/api"
 import { BrandIcon, vaultLabel } from "@/components/keyward/brand-icon"
 import { errorMessage } from "@/components/keyward/errors"
 import { FADE_IN, LoginListSkeleton } from "@/components/keyward/loading"
 import { LoginLabel } from "@/components/keyward/login-label"
 import { SiteIcon } from "@/components/keyward/site-icon"
 import { Button } from "@/components/ui/button"
+import { useAsyncAction } from "@/hooks/use-async-action"
+import { useBackgroundQuery } from "@/hooks/use-background-query"
 import { t } from "@/lib/i18n"
 import { APPLE_VAULT_ID } from "@/lib/providers/apple/vault-id"
 import type { LoginSummary, VaultInfo } from "@/lib/providers/types"
 import { cn } from "@/lib/utils"
 import { LockedVaultCard } from "./connect-card"
 import { BackHeader } from "./header"
-
-type Setup = BackgroundApi["popup.codeSetup"]["result"]
 
 /** A place the key can go: the Passwords app, or a Bitwarden login. */
 interface Choice {
@@ -61,39 +61,32 @@ export function CodeSetupView({
   /** Pairs or unlocks a vault, then comes back here; the key waits in the background. */
   onConnect: (vault: VaultInfo) => void
 }) {
-  const [setup, setSetup] = useState<Setup | null>(null)
-  const [message, setMessage] = useState<string | null>(null)
+  const { data: setup, error: loadError } = useBackgroundQuery(
+    "popup.codeSetup",
+    null,
+  )
+  const { busy, message: chooseMessage, run } = useAsyncAction()
+  const message = chooseMessage ?? (loadError ? errorMessage(loadError) : null)
   /** The choice waiting for a second click, because it replaces a login's current code. */
-  const [confirming, setConfirming] = useState<string | null>(null)
-  const [busy, setBusy] = useState<string | null>(null)
+  const [confirmingChoiceId, setConfirmingChoiceId] = useState<string | null>(
+    null,
+  )
   const [done, setDone] = useState<Choice | null>(null)
-
-  useEffect(() => {
-    callBackground("popup.codeSetup", null).then(setSetup, (error) =>
-      setMessage(errorMessage(error)),
-    )
-  }, [])
 
   const choose = async (choice: Choice, replaces: boolean) => {
     const id = choiceId(choice)
-    if (replaces && confirming !== id) {
-      setConfirming(id)
+    if (replaces && confirmingChoiceId !== id) {
+      setConfirmingChoiceId(id)
       return
     }
-    setBusy(id)
-    setMessage(null)
-    try {
+    await run(async () => {
       await callBackground("popup.setUpCode", {
         vaultId: choice.vaultId,
         loginId: choice.loginId,
       })
       setDone(choice)
-    } catch (error) {
-      setMessage(errorMessage(error))
-    } finally {
-      setBusy(null)
-      setConfirming(null)
-    }
+    })
+    setConfirmingChoiceId(null)
   }
 
   const loginRow = (vaultId: string, login: LoginSummary) => {
@@ -118,18 +111,18 @@ export function CodeSetupView({
           />
           <Button
             size="sm"
-            variant={confirming === id ? "destructive" : "outline"}
-            disabled={busy !== null}
+            variant={confirmingChoiceId === id ? "destructive" : "outline"}
+            disabled={busy}
             onClick={() => void choose(choice, replaces)}
           >
-            {confirming === id
+            {confirmingChoiceId === id
               ? t("popup.codeSetup.confirmReplace")
               : replaces
                 ? t("popup.codeSetup.replace")
                 : t("popup.codeSetup.add")}
           </Button>
         </div>
-        {confirming === id && (
+        {confirmingChoiceId === id && (
           <p className="pb-1 pl-[42px] text-xs text-muted-foreground">
             {t("popup.codeSetup.replaceHint")}
           </p>
@@ -205,7 +198,7 @@ export function CodeSetupView({
                     <Button
                       size="sm"
                       variant="outline"
-                      disabled={busy !== null}
+                      disabled={busy}
                       onClick={() =>
                         void choose(
                           {
