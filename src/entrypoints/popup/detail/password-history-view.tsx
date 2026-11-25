@@ -1,13 +1,14 @@
-import { useCallback, useMemo, useState } from "react"
-import { callBackground } from "@/background/api"
+import { useMemo, useState } from "react"
 import { FADE_IN } from "@/components/keyward/loading"
 import { notifyError } from "@/components/keyward/notify"
 import { useBackgroundQuery } from "@/hooks/use-background-query"
 import { t } from "@/lib/i18n"
 import type { LoginSummary, VaultInfo } from "@/lib/providers/types"
+import { BackHeader } from "../header"
 import {
   CopyButton,
-  Field,
+  copyText,
+  DetailRow,
   formatDate,
   MaskText,
   RevealButton,
@@ -15,7 +16,6 @@ import {
   Section,
   toggled,
 } from "./detail-parts"
-import { BackHeader } from "./header"
 
 /** A login's earlier passwords, newest first, each hidden until the user shows it. */
 export function PasswordHistoryView({
@@ -38,16 +38,6 @@ export function PasswordHistoryView({
     () => new Set(),
   )
 
-  const copyPassword = useCallback(async (password: string) => {
-    try {
-      await callBackground("popup.copyText", { text: password, secret: true })
-      return true
-    } catch (error) {
-      notifyError(error)
-      return false
-    }
-  }, [])
-
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <BackHeader title={t("popup.passwordHistory.title")} onBack={onBack} />
@@ -63,7 +53,7 @@ export function PasswordHistoryView({
               {entries.map((entry, index) => {
                 const shown = shownEntries.has(index)
                 return (
-                  <Field
+                  <DetailRow
                     // biome-ignore lint/suspicious/noArrayIndexKey: passwords may repeat; their position is their identity.
                     key={index}
                     actions={
@@ -80,7 +70,7 @@ export function PasswordHistoryView({
                         />
                         <CopyButton
                           label={t("popup.copyPassword")}
-                          copy={() => copyPassword(entry.password)}
+                          copy={() => copyText(entry.password, true)}
                         />
                       </>
                     }
@@ -99,7 +89,7 @@ export function PasswordHistoryView({
                         </span>
                       )}
                     </div>
-                  </Field>
+                  </DetailRow>
                 )
               })}
             </Section>

@@ -13,7 +13,9 @@ import type {
 import { AddView } from "./add-view"
 import { CodeSetupView } from "./code-setup-view"
 import { ConnectView } from "./connect-view"
-import { DetailView } from "./detail-view"
+import { DetailView } from "./detail/detail-view"
+import { NoteView } from "./detail/note-view"
+import { PasswordHistoryView } from "./detail/password-history-view"
 import { EditView } from "./edit-view"
 import { GeneratorView } from "./generator-view"
 import { BackHeader } from "./header"
@@ -21,8 +23,6 @@ import { HistoryView } from "./history-view"
 import { newListPlace } from "./main/list-place"
 import { MainView } from "./main/main-view"
 import { NoteForm } from "./note-form"
-import { NoteView } from "./note-view"
-import { PasswordHistoryView } from "./password-history-view"
 import {
   fitWindow,
   isPoppedOut,

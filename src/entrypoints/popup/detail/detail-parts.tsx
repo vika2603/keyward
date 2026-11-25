@@ -47,6 +47,35 @@ export function SecretText({ value }: { value: string }) {
   )
 }
 
+/** Runs a request and shows its error as a toast; null when it failed. */
+export async function requestOrNotify<T>(
+  request: () => Promise<T>,
+): Promise<T | null> {
+  try {
+    return await request()
+  } catch (error) {
+    notifyError(error)
+    return null
+  }
+}
+
+/**
+ * Copies text through the background, which clears a secret from the clipboard after a while; false
+ * when the copy failed and a toast says why.
+ */
+export async function copyText(
+  text: string,
+  secret: boolean,
+): Promise<boolean> {
+  try {
+    await callBackground("popup.copyText", { text, secret })
+    return true
+  } catch (error) {
+    notifyError(error)
+    return false
+  }
+}
+
 export function formatDate(time: number): string {
   return new Intl.DateTimeFormat(currentLanguage(), {
     dateStyle: "medium",
@@ -75,7 +104,8 @@ export function Section({
   )
 }
 
-export function Field({
+/** A row of a detail card: an optional label over the value, and the value's buttons on the right. */
+export function DetailRow({
   label,
   children,
   actions,
@@ -295,17 +325,15 @@ export function CustomFieldRow({
   field,
   shown,
   onToggle,
-  copyText,
 }: {
   field: CustomField
   shown: boolean
   onToggle: () => void
-  copyText: (text: string, secret: boolean) => Promise<boolean>
 }) {
   switch (field.kind) {
     case "text":
       return (
-        <Field
+        <DetailRow
           label={field.name}
           actions={
             field.value && (
@@ -317,11 +345,11 @@ export function CustomFieldRow({
           }
         >
           <span className="whitespace-pre-wrap">{field.value}</span>
-        </Field>
+        </DetailRow>
       )
     case "hidden":
       return (
-        <Field
+        <DetailRow
           label={field.name}
           actions={
             field.value && (
@@ -341,15 +369,15 @@ export function CustomFieldRow({
           }
         >
           {shown ? <SecretText value={field.value} /> : <MaskText />}
-        </Field>
+        </DetailRow>
       )
     case "checkbox":
       return (
-        <Field label={field.name}>
+        <DetailRow label={field.name}>
           {field.checked
             ? t("popup.detail.checked")
             : t("popup.detail.unchecked")}
-        </Field>
+        </DetailRow>
       )
     case "linked": {
       const target =
@@ -357,11 +385,11 @@ export function CustomFieldRow({
           ? t("popup.detail.username")
           : t("popup.detail.password")
       return (
-        <Field label={field.name}>
+        <DetailRow label={field.name}>
           <span className="text-muted-foreground">
             {t("popup.detail.linkedTo", { field: target })}
           </span>
-        </Field>
+        </DetailRow>
       )
     }
   }
