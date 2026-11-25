@@ -27,11 +27,69 @@ export const generatorOptionsItem = storage.defineItem<GeneratorOptions>(
   { fallback: defaultGeneratorOptions },
 )
 
-/** The password the generator shows, kept for the browser session so that reopening it shows the same one. */
-export const generatedPasswordItem = storage.defineItem<string | null>(
-  "session:generator.current",
-  { fallback: null },
+export type GeneratorKind = "password" | "passphrase" | "username"
+
+export interface PassphraseOptions {
+  words: number
+  separator: string
+  capitalize: boolean
+  /** Appends one digit to one of the words. */
+  includeNumber: boolean
+}
+
+export const WORDS_MIN = 3
+export const WORDS_MAX = 20
+
+export const defaultPassphraseOptions: PassphraseOptions = {
+  words: 6,
+  separator: "-",
+  capitalize: false,
+  includeNumber: false,
+}
+
+export type UsernameType = "word" | "plusEmail" | "catchAll"
+
+export interface UsernameOptions {
+  type: UsernameType
+  capitalize: boolean
+  /** Appends four digits to a random word. */
+  includeNumber: boolean
+  /** The address a plus-addressed username is made from. */
+  email: string
+  /** The domain whose catch-all mailbox receives a catch-all username. */
+  domain: string
+}
+
+export const defaultUsernameOptions: UsernameOptions = {
+  type: "word",
+  capitalize: false,
+  includeNumber: false,
+  email: "",
+  domain: "",
+}
+
+/** What the generator makes and how; password options keep their own item. */
+export interface GeneratorChoices {
+  kind: GeneratorKind
+  passphrase: PassphraseOptions
+  username: UsernameOptions
+}
+
+export const defaultGeneratorChoices: GeneratorChoices = {
+  kind: "password",
+  passphrase: defaultPassphraseOptions,
+  username: defaultUsernameOptions,
+}
+
+export const generatorChoicesItem = storage.defineItem<GeneratorChoices>(
+  "local:generatorChoices",
+  { fallback: defaultGeneratorChoices },
 )
+
+/** The values the generator shows, per kind, kept for the browser session so that reopening it shows the same ones. */
+export const generatedItem = storage.defineItem<
+  Partial<Record<GeneratorKind, string>>
+>("session:generator.shown", { fallback: {} })
 
 // Characters that are easy to confuse (l, I, O, 0, 1) are left out of the built-in sets.
 const UPPER = "ABCDEFGHJKLMNPQRSTUVWXYZ"
@@ -84,4 +142,73 @@ export function generatePassword(options: GeneratorOptions): string {
     ;[chars[i], chars[j]] = [chars[j] as string, chars[i] as string]
   }
   return chars.join("")
+}
+
+let wordList: Promise<string[]> | null = null
+
+/** The EFF long word list, loaded the first time a passphrase or word is generated. */
+export function loadWords(): Promise<string[]> {
+  wordList ??= import("diceware-wordlist-en-eff").then((module) =>
+    Object.values(module.default),
+  )
+  return wordList
+}
+
+function capitalized(word: string): string {
+  return word.charAt(0).toUpperCase() + word.slice(1)
+}
+
+/** Lowercase letters and digits, for the random part of an email username. */
+const ADDRESS_CHARS = [..."abcdefghijklmnopqrstuvwxyz0123456789"]
+
+function randomAddressPart(length: number): string {
+  return Array.from({ length }, () => pick(ADDRESS_CHARS)).join("")
+}
+
+export function generatePassphrase(
+  options: PassphraseOptions,
+  words: readonly string[],
+): string {
+  const count = Math.min(
+    WORDS_MAX,
+    Math.max(WORDS_MIN, Math.round(options.words) || WORDS_MIN),
+  )
+  const parts = Array.from({ length: count }, () => {
+    const word = pick(words)
+    return options.capitalize ? capitalized(word) : word
+  })
+  if (options.includeNumber) {
+    const index = randomIndex(parts.length)
+    parts[index] = `${parts[index]}${randomIndex(10)}`
+  }
+  return parts.join(options.separator)
+}
+
+/** A username, or null when the chosen type needs an email address or a domain that is missing or invalid. */
+export function generateUsername(
+  options: UsernameOptions,
+  words: readonly string[],
+): string | null {
+  switch (options.type) {
+    case "word": {
+      const word = pick(words)
+      const base = options.capitalize ? capitalized(word) : word
+      return options.includeNumber
+        ? `${base}${String(randomIndex(10_000)).padStart(4, "0")}`
+        : base
+    }
+    case "plusEmail": {
+      // An existing "+tag" in the address is replaced.
+      const match = options.email
+        .trim()
+        .match(/^([^@\s+]+)(?:\+[^@\s]*)?@([^@\s]+\.[^@\s]+)$/)
+      return match ? `${match[1]}+${randomAddressPart(8)}@${match[2]}` : null
+    }
+    case "catchAll": {
+      const domain = options.domain.trim().replace(/^@/, "")
+      return /^[a-z0-9-]+(\.[a-z0-9-]+)+$/i.test(domain)
+        ? `${randomAddressPart(8)}@${domain}`
+        : null
+    }
+  }
 }

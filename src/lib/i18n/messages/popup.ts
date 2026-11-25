@@ -22,7 +22,7 @@ export const en = {
   "popup.add.confirmOnMac": "Confirm saving in the window on your Mac.",
   "popup.add.save": "Save",
   "popup.connect.chooseBackend": "Choose a backend to connect",
-  "popup.generator.title": "Password generator",
+  "popup.generator.title": "Generator",
   "popup.generator.regenerate": "Regenerate",
   "popup.generator.length": "Length",
   "popup.generator.classesLabel": "Character types to include",
@@ -40,6 +40,31 @@ export const en = {
   "popup.history.empty": "No history",
   "popup.history.note":
     "Keeps generated passwords that were copied or generated while adding a password. Stored only on this device and cleared when the browser closes.",
+  "popup.generator.kindsLabel": "What to generate",
+  "popup.generator.kind.password": "Password",
+  "popup.generator.kind.passphrase": "Passphrase",
+  "popup.generator.kind.username": "Username",
+  "popup.generator.copy": "Copy",
+  "popup.generator.passphraseLength": "Length: {count}",
+  "popup.generator.words": "Words",
+  "popup.generator.wordsHint":
+    "Between {min} and {max}. Use 6 words or more for a strong passphrase.",
+  "popup.generator.separator": "Separator",
+  "popup.generator.options": "Options",
+  "popup.generator.capitalize": "Capitalize",
+  "popup.generator.includeNumber": "Include number",
+  "popup.generator.usernameType": "Type",
+  "popup.generator.usernameType.word": "Random word",
+  "popup.generator.usernameType.plusEmail": "Plus addressed email",
+  "popup.generator.usernameType.catchAll": "Catch-all email",
+  "popup.generator.email": "Email",
+  "popup.generator.emailHint":
+    "Makes name+random@domain from your address. Your email provider must support plus addressing.",
+  "popup.generator.domain": "Domain",
+  "popup.generator.domainHint":
+    "Makes random@domain. The domain must have a catch-all mailbox.",
+  "popup.generator.needEmail": "Enter an email address to generate a username",
+  "popup.generator.needDomain": "Enter a domain to generate a username",
 } as const
 
 export const zhCN: Record<keyof typeof en, string> = {
@@ -65,7 +90,7 @@ export const zhCN: Record<keyof typeof en, string> = {
   "popup.add.confirmOnMac": "在 Mac 弹出的窗口中确认保存。",
   "popup.add.save": "保存",
   "popup.connect.chooseBackend": "选择要连接的后端",
-  "popup.generator.title": "密码生成器",
+  "popup.generator.title": "生成器",
   "popup.generator.regenerate": "重新生成",
   "popup.generator.length": "长度",
   "popup.generator.classesLabel": "包含的字符类型",
@@ -83,4 +108,29 @@ export const zhCN: Record<keyof typeof en, string> = {
   "popup.history.empty": "没有记录",
   "popup.history.note":
     "记录复制过的生成密码，以及添加密码时生成的密码。只保存在本机，关闭浏览器后清除。",
+  "popup.generator.kindsLabel": "生成类型",
+  "popup.generator.kind.password": "密码",
+  "popup.generator.kind.passphrase": "密码短语",
+  "popup.generator.kind.username": "用户名",
+  "popup.generator.copy": "复制",
+  "popup.generator.passphraseLength": "长度：{count}",
+  "popup.generator.words": "单词数",
+  "popup.generator.wordsHint":
+    "取值 {min} 到 {max}。使用 6 个或更多单词的密码短语更安全。",
+  "popup.generator.separator": "分隔符",
+  "popup.generator.options": "选项",
+  "popup.generator.capitalize": "首字母大写",
+  "popup.generator.includeNumber": "包含数字",
+  "popup.generator.usernameType": "类型",
+  "popup.generator.usernameType.word": "随机单词",
+  "popup.generator.usernameType.plusEmail": "加号地址邮箱",
+  "popup.generator.usernameType.catchAll": "Catch-all 邮箱",
+  "popup.generator.email": "邮箱",
+  "popup.generator.emailHint":
+    "用你的邮箱生成「名字+随机串@域名」的地址，邮件服务需要支持加号地址。",
+  "popup.generator.domain": "域名",
+  "popup.generator.domainHint":
+    "生成「随机串@域名」的地址，这个域名需要设置了 Catch-all 收件。",
+  "popup.generator.needEmail": "填写邮箱后生成用户名",
+  "popup.generator.needDomain": "填写域名后生成用户名",
 }

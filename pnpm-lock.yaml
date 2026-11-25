@@ -29,6 +29,9 @@ importers:
       cn:
         specifier: ^0.5.2
         version: 0.5.2
+      diceware-wordlist-en-eff:
+        specifier: 1.0.1
+        version: 1.0.1
       input-otp:
         specifier: ^1.5.0
         version: 1.5.0(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
@@ -1355,6 +1358,9 @@ packages:
   detect-libc@2.1.2:
     resolution: {integrity: sha512-Btj2BOOO83o3WyH59e8MgXsxEQVcarkUOpEYrubB0urwnN10yQ364rsiByU11nZlqWYZm05i/of7io4mzihBtQ==}
     engines: {node: '>=8'}
+
+  diceware-wordlist-en-eff@1.0.1:
+    resolution: {integrity: sha512-GdvxQdhl23fqk5NxH4Q6xv9x5yrMZmyQ14Im5fMHvRyEX68qgjHU1C0i/Ba+GYld5qWSbyel0TbHuc5i08gDcA==}
 
   diff@8.0.4:
     resolution: {integrity: sha512-DPi0FmjiSU5EvQV0++GFDOJ9ASQUVFh5kD+OzOnYdi7n3Wpm9hWWGfB/O2blfHcMVTL5WkQXSnRiK9makhrcnw==}
@@ -4257,6 +4263,8 @@ snapshots:
   destr@2.0.5: {}
 
   detect-libc@2.1.2: {}
+
+  diceware-wordlist-en-eff@1.0.1: {}
 
   diff@8.0.4: {}
 

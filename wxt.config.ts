@@ -46,7 +46,7 @@ export default defineConfig({
       },
       "open-generator": {
         suggested_key: { default: "Ctrl+Shift+G", mac: "MacCtrl+Shift+G" },
-        description: "Open the password generator",
+        description: "Open the generator",
       },
       "lock-all": {
         description: "Lock all backends",
