@@ -1,3 +1,4 @@
+import { withScheme } from "@/lib/site"
 export interface ServerUrls {
   /** What the user entered, normalized; empty for bitwarden.com. */
   base: string
@@ -67,9 +68,7 @@ export function isCloudServer(address: string): boolean {
 export function normalizeServerAddress(address: string): string {
   const trimmed = address.trim()
   if (!trimmed) return ""
-  const url = new URL(
-    /^[a-z][a-z\d+.-]*:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`,
-  )
+  const url = new URL(withScheme(trimmed, "https"))
   if (url.protocol !== "https:" && url.protocol !== "http:")
     throw new Error("Unsupported address")
   // Chrome's parser takes spaces in a host and escapes them, where the URL standard refuses them.
