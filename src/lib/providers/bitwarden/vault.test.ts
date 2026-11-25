@@ -11,6 +11,7 @@ import {
 } from "./crypto"
 import {
   decryptDetails,
+  decryptGroups,
   decryptLogin,
   decryptNote,
   decryptPassword,
@@ -110,6 +111,7 @@ describe("organization items", () => {
     expect(decryptLogin(cipher, keys)).toEqual({
       id: "item-1",
       organizationId: "org-1",
+      grouping: { organizationId: "org-1", folderId: null, collectionIds: [] },
       name: "Example",
       username: "someone",
       uris: [{ uri: "https://example.com", match: 1 }],
@@ -117,6 +119,53 @@ describe("organization items", () => {
       reprompt: false,
     })
     expect(decryptPassword(cipher, keys)).toBe("previous-password")
+  })
+
+  it("names the organization, folders and collections, leaving out those it cannot read", () => {
+    const sync = {
+      Profile: {
+        Organizations: [
+          { Id: "org-1", Name: "Family" },
+          { Id: "org-2", Name: "Without a key" },
+        ],
+      },
+      Folders: [
+        { Id: "folder-1", Name: sdk.symmetric_encrypt_string("Work", userKey) },
+        { Id: "folder-2", Name: "not encrypted text" },
+      ],
+      Collections: [
+        {
+          Id: "collection-1",
+          OrganizationId: "org-1",
+          Name: sdk.symmetric_encrypt_string("Shared", orgKey),
+        },
+        {
+          Id: "collection-2",
+          OrganizationId: "org-2",
+          Name: sdk.symmetric_encrypt_string("Hidden", orgKey),
+        },
+      ],
+    }
+    expect(decryptGroups(sync, keys)).toEqual({
+      organizations: [{ id: "org-1", name: "Family" }],
+      folders: [{ id: "folder-1", name: "Work" }],
+      collections: [
+        { id: "collection-1", organizationId: "org-1", name: "Shared" },
+      ],
+    })
+  })
+
+  it("tells where an item sits", () => {
+    const placed = {
+      ...cipher,
+      FolderId: "folder-1",
+      CollectionIds: ["collection-1", ""],
+    }
+    expect(decryptLogin(placed, keys).grouping).toEqual({
+      organizationId: "org-1",
+      folderId: "folder-1",
+      collectionIds: ["collection-1"],
+    })
   })
 
   it("replaces the password, keeps the other fields and moves the old password to the history", async () => {
@@ -201,6 +250,7 @@ describe("search", () => {
   const item: LoginItem = {
     id: "item-4",
     organizationId: null,
+    grouping: { organizationId: null, folderId: null, collectionIds: [] },
     name: "Work Mail",
     username: "someone@example.com",
     uris: [{ uri: "https://mail.example.org/login", match: null }],
@@ -429,6 +479,7 @@ describe("secure notes", () => {
       id: "note-1",
       name: "Wi-Fi",
       reprompt: false,
+      grouping: { organizationId: null, folderId: null, collectionIds: [] },
     })
   })
 

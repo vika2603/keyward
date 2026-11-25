@@ -20,6 +20,7 @@ import {
   type PastPassword,
   type TabRef,
   VaultError,
+  type VaultGroups,
   type VaultInfo,
   type VaultProvider,
 } from "../types"
@@ -53,6 +54,7 @@ import { masterKeySalt, type VaultCrypto, WrongPasswordError } from "./crypto"
 import { type CustomEndpoints, serverHost, serverUrls } from "./server"
 import {
   decryptDetails,
+  decryptGroups,
   decryptLogin,
   decryptNote,
   decryptPassword,
@@ -111,6 +113,7 @@ interface PendingSignIn {
 interface Vault {
   syncedAt: number
   keys: VaultKeys
+  groups: VaultGroups
   items: LoginItem[]
   ciphers: Record<string, unknown>[]
   notes: NoteItem[]
@@ -496,6 +499,7 @@ export class BitwardenProvider implements VaultProvider {
     const vault = {
       syncedAt: stored.syncedAt,
       keys,
+      groups: decryptGroups(stored.data, keys),
       items,
       ciphers,
       notes,
@@ -547,13 +551,16 @@ export class BitwardenProvider implements VaultProvider {
   }
 
   /** Every login and note of the account, as the popup lists them when browsing the vault. */
-  async allItems(
-    vaultId: string,
-  ): Promise<{ logins: LoginSummary[]; notes: NoteSummary[] }> {
-    const { items, notes } = await this.vault(accountIdOfVault(vaultId))
+  async allItems(vaultId: string): Promise<{
+    logins: LoginSummary[]
+    notes: NoteSummary[]
+    groups: VaultGroups
+  }> {
+    const { items, notes, groups } = await this.vault(accountIdOfVault(vaultId))
     return {
       logins: items.map(summaryOf),
-      notes: notes.map((note) => ({ id: note.id, name: note.name })),
+      notes: notes.map(noteSummaryOf),
+      groups,
     }
   }
 
@@ -562,7 +569,7 @@ export class BitwardenProvider implements VaultProvider {
     return notes
       .filter((note) => textMatchesQuery(note.name, query))
       .sort((first, second) => first.name.localeCompare(second.name))
-      .map((note) => ({ id: note.id, name: note.name }))
+      .map(noteSummaryOf)
   }
 
   private async noteEntry(
@@ -934,7 +941,12 @@ function summaryOf(item: LoginItem): LoginSummary {
       item.uris.map((u) => hostOfSavedUri(u.uri)).find((h) => h !== null) ??
       undefined,
     hasCode: item.hasTotp && !item.reprompt,
+    grouping: item.grouping,
   }
+}
+
+function noteSummaryOf(note: NoteItem): NoteSummary {
+  return { id: note.id, name: note.name, grouping: note.grouping }
 }
 
 function requireCodeKey(key: string): void {

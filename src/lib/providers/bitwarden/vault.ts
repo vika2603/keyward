@@ -1,7 +1,9 @@
 import type {
   CustomField,
   EditableNote,
+  ItemGrouping,
   PastPassword,
+  VaultGroups,
 } from "@/lib/providers/types"
 import { MatchType } from "@/lib/settings"
 import { pick, prop } from "./api"
@@ -13,6 +15,7 @@ const CIPHER_TYPE_SECURE_NOTE = 2
 export interface LoginItem {
   id: string
   organizationId: string | null
+  grouping: ItemGrouping
   name: string
   username: string
   uris: { uri: string; match: MatchType | null }[]
@@ -62,6 +65,11 @@ export class VaultKeys {
     return new VaultKeys(crypto, userKey, orgKeys)
   }
 
+  /** The key of an organization whose key could be read. */
+  forOrganization(organizationId: string): Uint8Array | undefined {
+    return this.orgKeys.get(organizationId)
+  }
+
   /** The key of an item: its own key when it has one, else the key of its owner. */
   forCipher(cipher: unknown): Uint8Array {
     const orgId = prop(cipher, "OrganizationId")
@@ -100,6 +108,7 @@ export interface NoteItem {
   name: string
   /** Whether the note asks for the master password before its text is shown. */
   reprompt: boolean
+  grouping: ItemGrouping
 }
 
 export function noteCiphers(sync: unknown): Record<string, unknown>[] {
@@ -120,7 +129,68 @@ export function decryptNote(
     id: String(prop(cipher, "Id")),
     name: keys.decrypt(prop(cipher, "Name"), keys.forCipher(cipher)),
     reprompt: prop(cipher, "Reprompt") === 1,
+    grouping: groupingOf(cipher),
   }
+}
+
+function groupingOf(cipher: Record<string, unknown>): ItemGrouping {
+  const organizationId = prop(cipher, "OrganizationId")
+  const folderId = prop(cipher, "FolderId")
+  const collectionIds = prop(cipher, "CollectionIds")
+  return {
+    organizationId: isNonEmptyString(organizationId) ? organizationId : null,
+    folderId: isNonEmptyString(folderId) ? folderId : null,
+    collectionIds: Array.isArray(collectionIds)
+      ? collectionIds.filter(isNonEmptyString)
+      : [],
+  }
+}
+
+function listOf(value: unknown): unknown[] {
+  return Array.isArray(value) ? value : []
+}
+
+/**
+ * The organizations, folders and collections of a sync, with their names decrypted. Those whose
+ * key or name cannot be read are left out, as their items are.
+ */
+export function decryptGroups(sync: unknown, keys: VaultKeys): VaultGroups {
+  const organizations = listOf(
+    prop(prop(sync, "Profile"), "Organizations"),
+  ).flatMap((organization) => {
+    const id = prop(organization, "Id")
+    const name = prop(organization, "Name")
+    return isNonEmptyString(id) &&
+      typeof name === "string" &&
+      keys.forOrganization(id)
+      ? [{ id, name }]
+      : []
+  })
+  const folders = listOf(prop(sync, "Folders")).flatMap((folder) => {
+    const id = prop(folder, "Id")
+    if (!isNonEmptyString(id)) return []
+    try {
+      return [{ id, name: keys.decrypt(prop(folder, "Name"), keys.userKey) }]
+    } catch {
+      return []
+    }
+  })
+  const collections = listOf(prop(sync, "Collections")).flatMap(
+    (collection) => {
+      const id = prop(collection, "Id")
+      const organizationId = prop(collection, "OrganizationId")
+      if (!isNonEmptyString(id) || !isNonEmptyString(organizationId)) return []
+      const key = keys.forOrganization(organizationId)
+      if (!key) return []
+      try {
+        const name = keys.decrypt(prop(collection, "Name"), key)
+        return [{ id, organizationId, name }]
+      } catch {
+        return []
+      }
+    },
+  )
+  return { organizations, folders, collections }
 }
 
 /** Whether a text contains every word of the query, ignoring case. */
@@ -146,6 +216,7 @@ export function decryptLogin(
   return {
     id: String(prop(cipher, "Id")),
     organizationId: typeof orgId === "string" ? orgId : null,
+    grouping: groupingOf(cipher),
     name: keys.decrypt(prop(cipher, "Name"), key),
     username: keys.decrypt(prop(login, "Username"), key),
     uris: Array.isArray(uris)

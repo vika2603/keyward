@@ -24,6 +24,21 @@ export interface VaultInfo {
   error?: string
 }
 
+/** Where a Bitwarden item sits; the popup narrows its list by these. */
+export interface ItemGrouping {
+  /** The organization that owns the item; null for the account's own vault. */
+  organizationId: string | null
+  folderId: string | null
+  collectionIds: string[]
+}
+
+/** A vault's organizations, folders and collections by name, for narrowing its list. */
+export interface VaultGroups {
+  organizations: { id: string; name: string }[]
+  folders: { id: string; name: string }[]
+  collections: { id: string; organizationId: string; name: string }[]
+}
+
 /** A login without its password, as lists and menus show it. */
 export interface LoginSummary {
   /** Unique within its vault. */
@@ -37,6 +52,7 @@ export interface LoginSummary {
   hasCode?: boolean
   /** The login this tab signed in with on the site moments ago, listed first for its code. */
   recent?: boolean
+  grouping?: ItemGrouping
 }
 
 /** What the detail view shows of a login. The password and one-time code are read on request. */
@@ -73,6 +89,7 @@ export type CustomField =
 export interface NoteSummary {
   id: string
   name: string
+  grouping?: ItemGrouping
 }
 
 export interface NoteDetails {
@@ -205,9 +222,11 @@ export interface VaultProvider {
   /** Earlier passwords of a login, newest first; only providers whose details count them have it. */
   passwordHistory?(vaultId: string, loginId: string): Promise<PastPassword[]>
   /** Every login and note of a vault; only providers that can list a whole vault have it. */
-  allItems?(
-    vaultId: string,
-  ): Promise<{ logins: LoginSummary[]; notes: NoteSummary[] }>
+  allItems?(vaultId: string): Promise<{
+    logins: LoginSummary[]
+    notes: NoteSummary[]
+    groups?: VaultGroups
+  }>
   /** Secure notes whose name contains every word of the query; only providers with notes have these. */
   searchNotes?(vaultId: string, query: string): Promise<NoteSummary[]>
   note?(vaultId: string, noteId: string): Promise<NoteDetails>

@@ -1,6 +1,7 @@
 import {
   ChevronDownIcon,
   ExternalLinkIcon,
+  ListFilterIcon,
   LockIcon,
   PlusIcon,
   RefreshCcwDotIcon,
@@ -52,6 +53,14 @@ import {
   VirtualRows,
 } from "./all-items"
 import { ConnectCard, LockedVaultCard } from "./connect-card"
+import {
+  canFilter,
+  type GroupFilter,
+  GroupFilterBar,
+  isFiltering,
+  NO_GROUP_FILTER,
+  narrowed,
+} from "./group-filter"
 import { openOptions, SettingsButton } from "./header"
 
 type Filter = "all" | ProviderKind
@@ -66,6 +75,9 @@ export interface ListPlace {
   itemFilter: ItemFilter | null
   /** Vaults whose logins for the site were folded. */
   foldedSiteVaults: ReadonlySet<string>
+  groupFilter: GroupFilter
+  /** Whether the pickers of the group filter are shown. */
+  groupFilterShown: boolean
   scrollTop: number
 }
 
@@ -74,6 +86,8 @@ export function newListPlace(): ListPlace {
     tab: "all",
     itemFilter: null,
     foldedSiteVaults: new Set(),
+    groupFilter: NO_GROUP_FILTER,
+    groupFilterShown: false,
     scrollTop: 0,
   }
 }
@@ -111,6 +125,20 @@ export function MainView({
   const [foldedSiteVaults, setFoldedSiteVaults] = useState(
     place.foldedSiteVaults,
   )
+  const [groupFilter, setGroupFilter] = useState(place.groupFilter)
+  const [groupFilterShown, setGroupFilterShown] = useState(
+    place.groupFilterShown,
+  )
+  const changeGroupFilter = (next: GroupFilter) => {
+    place.groupFilter = next
+    setGroupFilter(next)
+  }
+  const showGroupFilter = (shown: boolean) => {
+    place.groupFilterShown = shown
+    setGroupFilterShown(shown)
+    // Hiding the pickers drops what they chose, so nothing filters the list unseen.
+    if (!shown) changeGroupFilter(NO_GROUP_FILTER)
+  }
   const changeTab = (next: Filter) => {
     place.tab = next
     setFilter(next)
@@ -194,9 +222,21 @@ export function MainView({
     }
     load()
   }
-  const shown = (search ? (results ?? []) : vaults).filter(
-    (vault) => filter === "all" || vault.kind === filter,
+  const inTab = (vault: VaultView) => filter === "all" || vault.kind === filter
+  // Every ready vault of the tab, as listed whole: what the group filter picks from.
+  const filterable = (everything ?? []).filter(
+    (vault) => inTab(vault) && vault.status === "ready" && !vault.error,
   )
+  // A filter on an account that left the tab, or was locked, no longer applies.
+  const activeFilter = filterable.some(
+    (vault) => vault.id === groupFilter.vaultId,
+  )
+    ? groupFilter
+    : NO_GROUP_FILTER
+  const filtering = isFiltering(activeFilter)
+  const shown = (search ? (results ?? []) : vaults)
+    .filter(inTab)
+    .map((vault) => narrowed(vault, activeFilter))
   const tabs = connected && kinds.size > 1
   // Vaults to pair or unlock get a large button each, except on the "all" tab once one is open:
   // each is then unlocked from its own tab. The others list their logins or say why they cannot.
@@ -228,12 +268,9 @@ export function MainView({
   const oneProvider = filter !== "all" || kinds.size === 1
   // Locked vaults have nothing to browse; their unlock cards show instead.
   const browsing = connected && !search && oneProvider && shownReady
-  const browsed = (everything ?? []).filter(
-    (vault) =>
-      (filter === "all" || vault.kind === filter) &&
-      vault.status === "ready" &&
-      !vault.error,
-  )
+  const browsed = filterable
+    .filter((vault) => !filtering || vault.id === activeFilter.vaultId)
+    .map((vault) => narrowed(vault, activeFilter))
   const waitingForItems = browsing && everything === null
   const browsable = browsing && browsed.length > 0
   const siteItemCount = listed.reduce(
@@ -305,50 +342,71 @@ export function MainView({
         <SettingsButton />
       </div>
       {(loading || connected) && (
-        <div className="relative px-2 pb-2">
-          <SearchIcon className="pointer-events-none absolute top-2 left-4.5 size-4 text-muted-foreground" />
-          <Input
-            ref={searchRef}
-            type="search"
-            value={query}
-            onChange={(event) => onQuery(event.target.value)}
-            onKeyDown={(event) => {
-              // While an input method composes text, Enter, Escape and the arrows belong to it.
-              if (event.nativeEvent.isComposing) return
-              // Escape clears a search before it closes the popup.
-              if (event.key === "Escape" && query) {
-                event.preventDefault()
-                onQuery("")
-              } else if (event.key === "ArrowDown") {
-                event.preventDefault()
-                rows()[0]?.focus()
-              } else if (event.key === "Enter") {
-                rows()[0]?.click()
-              }
-            }}
-            placeholder={t("popup.main.search")}
-            aria-label={t("popup.main.search")}
-            autoComplete="off"
-            spellCheck={false}
-            autoFocus
-            className="pr-8 pl-8 [&::-webkit-search-cancel-button]:appearance-none"
-          />
-          {query && (
-            <Button
-              variant="ghost"
-              size="icon-xs"
-              className="absolute top-1 right-3.5 text-muted-foreground"
-              aria-label={t("popup.main.clearSearch")}
-              title={t("popup.main.clearSearch")}
-              onClick={() => {
-                onQuery("")
-                searchRef.current?.focus()
+        <div className="flex gap-1.5 px-2 pb-2">
+          <div className="relative min-w-0 flex-1">
+            <SearchIcon className="pointer-events-none absolute top-2 left-2.5 size-4 text-muted-foreground" />
+            <Input
+              ref={searchRef}
+              type="search"
+              value={query}
+              onChange={(event) => onQuery(event.target.value)}
+              onKeyDown={(event) => {
+                // While an input method composes text, Enter, Escape and the arrows belong to it.
+                if (event.nativeEvent.isComposing) return
+                // Escape clears a search before it closes the popup.
+                if (event.key === "Escape" && query) {
+                  event.preventDefault()
+                  onQuery("")
+                } else if (event.key === "ArrowDown") {
+                  event.preventDefault()
+                  rows()[0]?.focus()
+                } else if (event.key === "Enter") {
+                  rows()[0]?.click()
+                }
               }}
+              placeholder={t("popup.main.search")}
+              aria-label={t("popup.main.search")}
+              autoComplete="off"
+              spellCheck={false}
+              autoFocus
+              className="pr-8 pl-8 [&::-webkit-search-cancel-button]:appearance-none"
+            />
+            {query && (
+              <Button
+                variant="ghost"
+                size="icon-xs"
+                className="absolute top-1 right-1.5 text-muted-foreground"
+                aria-label={t("popup.main.clearSearch")}
+                title={t("popup.main.clearSearch")}
+                onClick={() => {
+                  onQuery("")
+                  searchRef.current?.focus()
+                }}
+              >
+                <XIcon />
+              </Button>
+            )}
+          </div>
+          {canFilter(filterable) && (
+            <Button
+              variant={groupFilterShown || filtering ? "secondary" : "ghost"}
+              size="icon"
+              aria-label={t("popup.main.filter.toggle")}
+              title={t("popup.main.filter.toggle")}
+              aria-pressed={groupFilterShown}
+              onClick={() => showGroupFilter(!groupFilterShown)}
             >
-              <XIcon />
+              <ListFilterIcon />
             </Button>
           )}
         </div>
+      )}
+      {groupFilterShown && canFilter(filterable) && (
+        <GroupFilterBar
+          vaults={filterable}
+          filter={activeFilter}
+          onChange={changeGroupFilter}
+        />
       )}
       {tabs && (
         <div className="px-2 pb-2">

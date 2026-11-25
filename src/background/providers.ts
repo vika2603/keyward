@@ -101,7 +101,12 @@ export class Providers {
         try {
           const provider = this.providerOf(vault.id)
           const items = await provider.allItems?.(vault.id)
-          return { ...vault, logins: items?.logins ?? [], notes: items?.notes }
+          return {
+            ...vault,
+            logins: items?.logins ?? [],
+            notes: items?.notes,
+            groups: items?.groups,
+          }
         } catch (error) {
           if (error instanceof VaultError && error.code === "locked")
             return { ...vault, status: "locked", logins: [] }

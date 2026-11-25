@@ -20,13 +20,16 @@ import type {
   OneTimeCode,
   PastPassword,
   ProviderKind,
+  VaultGroups,
   VaultInfo,
 } from "@/lib/providers/types"
 
 export interface VaultView extends VaultInfo {
   logins: LoginSummary[]
-  /** Secure notes, listed only in search results. */
+  /** Secure notes, listed only in search results and the whole vault. */
   notes?: NoteSummary[]
+  /** Given with the whole vault, by providers that group their items. */
+  groups?: VaultGroups
 }
 
 export type PopupView =
