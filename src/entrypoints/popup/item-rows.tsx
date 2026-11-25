@@ -7,9 +7,9 @@ import {
 } from "lucide-react"
 import { useState } from "react"
 import { callBackground } from "@/background/api"
-import { errorMessage } from "@/components/keyward/errors"
 import { LoginLabel } from "@/components/keyward/login-label"
 import { NoteIcon } from "@/components/keyward/note-icon"
+import { notify, notifyError } from "@/components/keyward/notify"
 import { SiteIcon } from "@/components/keyward/site-icon"
 import { Button } from "@/components/ui/button"
 import { t } from "@/lib/i18n"
@@ -27,26 +27,23 @@ export function NoteRow({
   note,
   density,
   onOpen,
-  onError,
 }: {
   vault: VaultInfo
   note: NoteSummary
   density: Settings["density"]
   onOpen: () => void
-  onError: (message: string | null) => void
 }) {
   const [copied, setCopied] = useState(false)
   const compact = density === "compact"
 
   const copy = async () => {
-    onError(null)
     try {
       const details = await callBackground("popup.note", {
         vaultId: vault.id,
         noteId: note.id,
       })
       if (details.withheld) {
-        onError(t("popup.note.withheld"))
+        notify(t("popup.note.withheld"))
         return
       }
       // An empty note has nothing to copy.
@@ -58,7 +55,7 @@ export function NoteRow({
       setCopied(true)
       setTimeout(() => setCopied(false), 1500)
     } catch (error) {
-      onError(errorMessage(error))
+      notifyError(error)
     }
   }
 
@@ -112,7 +109,6 @@ export function LoginRow({
   density,
   nameFirst = false,
   onOpen,
-  onError,
 }: {
   vault: VaultInfo
   login: LoginSummary
@@ -123,7 +119,6 @@ export function LoginRow({
    */
   nameFirst?: boolean
   onOpen: () => void
-  onError: (message: string | null) => void
 }) {
   const [copied, setCopied] = useState<Copyable | null>(null)
   // Apple asks for Touch ID before it hands out a password; the row says so meanwhile.
@@ -135,7 +130,6 @@ export function LoginRow({
     : login.title
 
   const copy = async (what: Copyable) => {
-    onError(null)
     if (what === "password" && vault.kind === "apple") setConfirming(true)
     try {
       if (what === "username")
@@ -149,7 +143,7 @@ export function LoginRow({
       setCopied(what)
       setTimeout(() => setCopied(null), 1500)
     } catch (error) {
-      onError(errorMessage(error))
+      notifyError(error)
     } finally {
       setConfirming(false)
     }

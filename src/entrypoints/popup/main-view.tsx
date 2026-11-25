@@ -23,8 +23,8 @@ import {
   providerName,
   vaultLabel,
 } from "@/components/keyward/brand-icon"
-import { errorMessage } from "@/components/keyward/errors"
 import { FADE_IN, LoginListSkeleton } from "@/components/keyward/loading"
+import { notifyError } from "@/components/keyward/notify"
 import { Button } from "@/components/ui/button"
 import {
   Collapsible,
@@ -72,11 +72,12 @@ export function MainView({
   /** Every item of the vaults that can list themselves whole, for browsing below the site's logins. */
   const [everything, setEverything] = useState<VaultView[] | null>(null)
   /** Why the vaults could not be listed whole; shown only where the list would be. */
-  const [everythingError, setEverythingError] = useState<string | null>(null)
+  const [everythingError, setEverythingError] = useState<unknown>(null)
   /** Changes after a lock, so the search runs again. */
   const [version, setVersion] = useState(0)
   const [filter, setFilter] = useState<Filter>("all")
-  const [message, setMessage] = useState<string | null>(null)
+  /** A list request failed; its toast says why, and the list stops waiting for it. */
+  const [failed, setFailed] = useState(false)
   const searchRef = useRef<HTMLInputElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
   /** The rows' buttons that open a login, in list order; arrow keys move between them. */
@@ -86,9 +87,11 @@ export function MainView({
   ]
 
   const load = useCallback(() => {
-    callBackground("popup.state", null).then(setState, (error) =>
-      setMessage(errorMessage(error)),
-    )
+    setFailed(false)
+    callBackground("popup.state", null).then(setState, (error) => {
+      setFailed(true)
+      notifyError(error)
+    })
     callBackground("popup.allItems", null).then(
       (found) => {
         setEverything(found)
@@ -96,7 +99,7 @@ export function MainView({
       },
       (error) => {
         setEverything([])
-        setEverythingError(errorMessage(error))
+        setEverythingError(error)
       },
     )
     setVersion((v) => v + 1)
@@ -110,11 +113,16 @@ export function MainView({
   useEffect(() => {
     setResults(null)
     if (!search || version < 1) return
+    setFailed(false)
     let stale = false
     const timer = setTimeout(() => {
       callBackground("popup.search", { query: search }).then(
         (found) => !stale && setResults(found),
-        (error) => !stale && setMessage(errorMessage(error)),
+        (error) => {
+          if (stale) return
+          setFailed(true)
+          notifyError(error)
+        },
       )
     }, SEARCH_DELAY_MS)
     return () => {
@@ -129,11 +137,10 @@ export function MainView({
   const kinds = new Set(vaults.map((vault) => vault.kind))
   const anyReady = vaults.some((vault) => vault.status === "ready")
   const lockAll = async () => {
-    setMessage(null)
     try {
       await callBackground("popup.lockAll", null)
     } catch (error) {
-      setMessage(errorMessage(error))
+      notifyError(error)
     }
     load()
   }
@@ -178,6 +185,10 @@ export function MainView({
   )
   const waitingForItems = browsing && everything === null
   const browsable = browsing && browsed.length > 0
+  // The whole vault is asked for on every opening; its failure matters only where it would show.
+  useEffect(() => {
+    if (browsing && everythingError) notifyError(everythingError)
+  }, [browsing, everythingError])
   // Apple's helper looks logins up by site only, so a search for other text cannot reach it.
   const appleSearchHint =
     search !== "" &&
@@ -301,16 +312,8 @@ export function MainView({
           else list[Math.min(next, list.length - 1)]?.focus()
         }}
       >
-        {message && (
-          <p className="px-3 pt-2 text-xs text-destructive">{message}</p>
-        )}
-        {browsing && everythingError && (
-          <p className="px-3 pt-2 text-xs text-destructive">
-            {everythingError}
-          </p>
-        )}
         {loading || (search && results === null) || waitingForItems ? (
-          !message && <LoginListSkeleton compact={density === "compact"} />
+          !failed && <LoginListSkeleton compact={density === "compact"} />
         ) : !vaults.length ? (
           <EmptyState icon text={t("popup.main.noVault")}>
             <ConnectCard
@@ -346,7 +349,6 @@ export function MainView({
                       onOpenNote={(note) =>
                         onNavigate({ name: "note", vault, note })
                       }
-                      onError={setMessage}
                     />
                   ))
                 ) : (
@@ -369,7 +371,6 @@ export function MainView({
               onOpenNote={(vault, note) =>
                 onNavigate({ name: "note", vault, note })
               }
-              onError={setMessage}
             />
           </div>
         ) : !listed.length ? (
@@ -413,7 +414,6 @@ export function MainView({
                 onLocked={load}
                 onOpen={(login) => onNavigate({ name: "detail", vault, login })}
                 onOpenNote={(note) => onNavigate({ name: "note", vault, note })}
-                onError={setMessage}
               />
             ))}
             {appleSearchHint && (
@@ -468,7 +468,6 @@ function VaultGroup({
   onLocked,
   onOpen,
   onOpenNote,
-  onError,
 }: {
   vault: VaultView
   density: Settings["density"]
@@ -477,17 +476,15 @@ function VaultGroup({
   onLocked: () => void
   onOpen: (login: LoginSummary) => void
   onOpenNote: (note: NoteSummary) => void
-  onError: (message: string | null) => void
 }) {
   const [open, setOpen] = useState(true)
   const rows = useMemo(() => rowsOfVault(vault), [vault])
 
   const lock = async () => {
-    onError(null)
     try {
       await callBackground("popup.lock", { vaultId: vault.id })
     } catch (error) {
-      onError(errorMessage(error))
+      notifyError(error)
     }
     onLocked()
   }
@@ -525,8 +522,8 @@ function VaultGroup({
             aria-label={t("popup.main.openPasswordsApp")}
             title={t("popup.main.openPasswordsApp")}
             onClick={() =>
-              void callBackground("apple.openPasswordsApp", {}).catch((error) =>
-                onError(errorMessage(error)),
+              void callBackground("apple.openPasswordsApp", {}).catch(
+                notifyError,
               )
             }
           >
@@ -572,7 +569,6 @@ function VaultGroup({
             scrollElement={scrollElement}
             onOpenLogin={(_, login) => onOpen(login)}
             onOpenNote={(_, note) => onOpenNote(note)}
-            onError={onError}
           />
         </div>
       </CollapsibleContent>

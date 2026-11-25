@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { callBackground } from "@/background/api"
-import { errorMessage } from "@/components/keyward/errors"
 import { FADE_IN } from "@/components/keyward/loading"
+import { notifyError } from "@/components/keyward/notify"
 import { t } from "@/lib/i18n"
 import type {
   LoginSummary,
@@ -35,24 +35,20 @@ export function PasswordHistoryView({
     [vault.id, login.id],
   )
   const [entries, setEntries] = useState<PastPassword[] | null>(null)
-  const [message, setMessage] = useState<string | null>(null)
   const [shownEntries, setShownEntries] = useState<ReadonlySet<number>>(
     () => new Set(),
   )
 
   useEffect(() => {
-    callBackground("popup.passwordHistory", ids).then(setEntries, (error) =>
-      setMessage(errorMessage(error)),
-    )
+    callBackground("popup.passwordHistory", ids).then(setEntries, notifyError)
   }, [ids])
 
   const copyPassword = useCallback(async (password: string) => {
-    setMessage(null)
     try {
       await callBackground("popup.copyText", { text: password, secret: true })
       return true
     } catch (error) {
-      setMessage(errorMessage(error))
+      notifyError(error)
       return false
     }
   }, [])
@@ -61,7 +57,6 @@ export function PasswordHistoryView({
     <div className="flex min-h-0 flex-1 flex-col">
       <BackHeader title={t("popup.passwordHistory.title")} onBack={onBack} />
       <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-3 pb-3">
-        {message && <p className="px-1 text-xs text-destructive">{message}</p>}
         {entries?.length === 0 && (
           <p className="px-1 text-sm text-muted-foreground">
             {t("popup.passwordHistory.empty")}

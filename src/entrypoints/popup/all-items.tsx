@@ -148,7 +148,6 @@ export function VirtualRows({
   nameFirst = false,
   onOpenLogin,
   onOpenNote,
-  onError,
 }: {
   rows: readonly Row[]
   density: Settings["density"]
@@ -158,7 +157,6 @@ export function VirtualRows({
   nameFirst?: boolean
   onOpenLogin: (vault: VaultView, login: LoginSummary) => void
   onOpenNote: (vault: VaultView, note: NoteSummary) => void
-  onError: (message: string | null) => void
 }) {
   const listRef = useRef<HTMLDivElement>(null)
   /** How far the rows start below the top of the scrolled content. */
@@ -236,7 +234,6 @@ export function VirtualRows({
                 density={density}
                 nameFirst={nameFirst}
                 onOpen={() => onOpenLogin(row.vault, row.login)}
-                onError={onError}
               />
             )}
             {row.type === "note" && (
@@ -245,7 +242,6 @@ export function VirtualRows({
                 note={row.note}
                 density={density}
                 onOpen={() => onOpenNote(row.vault, row.note)}
-                onError={onError}
               />
             )}
           </div>
@@ -262,14 +258,12 @@ export function AllItems({
   scrollElement,
   onOpenLogin,
   onOpenNote,
-  onError,
 }: {
   vaults: readonly VaultView[]
   density: Settings["density"]
   scrollElement: RefObject<HTMLDivElement | null>
   onOpenLogin: (vault: VaultView, login: LoginSummary) => void
   onOpenNote: (vault: VaultView, note: NoteSummary) => void
-  onError: (message: string | null) => void
 }) {
   const [kind, setKind] = useState<ItemKind>("all")
   const rows = useMemo(() => rowsOf(vaults, kind), [vaults, kind])
@@ -344,7 +338,6 @@ export function AllItems({
           nameFirst
           onOpenLogin={onOpenLogin}
           onOpenNote={onOpenNote}
-          onError={onError}
         />
       </CollapsibleContent>
     </Collapsible>

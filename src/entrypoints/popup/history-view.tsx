@@ -2,7 +2,7 @@ import { CheckIcon, CopyIcon, EyeIcon, Trash2Icon } from "lucide-react"
 import { useCallback, useEffect, useRef, useState } from "react"
 import { callBackground, type HistoryEntry } from "@/background/api"
 import { useCopyThrough } from "@/components/keyward/copy-through"
-import { errorMessage } from "@/components/keyward/errors"
+import { notifyError } from "@/components/keyward/notify"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { currentLanguage, t } from "@/lib/i18n"
@@ -33,20 +33,18 @@ export function HistoryView({ onBack }: { onBack: () => void }) {
   const [shown, setShown] = useState(false)
   const [confirming, setConfirming] = useState(false)
   const [copied, setCopied] = useState<string | null>(null)
-  const [message, setMessage] = useState<string | null>(null)
 
   useEffect(() => {
     void callBackground("history.list", null).then(setEntries)
   }, [])
 
   const copy = useCallback(async (id: string) => {
-    setMessage(null)
     try {
       await callBackground("history.copy", { id })
       setCopied(id)
       setTimeout(() => setCopied(null), 1500)
     } catch (error) {
-      setMessage(errorMessage(error))
+      notifyError(error)
     }
   }, [])
   const list = useRef<HTMLDivElement>(null)
@@ -116,9 +114,6 @@ export function HistoryView({ onBack }: { onBack: () => void }) {
       </BackHeader>
       <Separator />
       <div className="min-h-0 flex-1 overflow-y-auto">
-        {message && (
-          <p className="px-3 pt-2 text-xs text-destructive">{message}</p>
-        )}
         {entries && !entries.length && (
           <p className="flex h-full items-center justify-center px-3 pb-12 text-center text-sm text-muted-foreground">
             {t("popup.history.empty")}

@@ -2,9 +2,9 @@ import { PencilIcon } from "lucide-react"
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { callBackground } from "@/background/api"
 import { BrandIcon, vaultLabel } from "@/components/keyward/brand-icon"
-import { errorMessage } from "@/components/keyward/errors"
 import { FADE_IN } from "@/components/keyward/loading"
 import { NoteIcon } from "@/components/keyward/note-icon"
+import { notifyError } from "@/components/keyward/notify"
 import { Skeleton } from "@/components/ui/skeleton"
 import { t } from "@/lib/i18n"
 import type { NoteDetails, NoteSummary, VaultInfo } from "@/lib/providers/types"
@@ -40,37 +40,37 @@ export function NoteView({
     [vault.id, note.id],
   )
   const [details, setDetails] = useState<NoteDetails | null>(null)
-  const [message, setMessage] = useState<string | null>(null)
+  /** Loading failed; a toast says why, and the placeholder goes away. */
+  const [failed, setFailed] = useState(false)
   /** Indexes of the hidden custom fields the user revealed. */
   const [shownFields, setShownFields] = useState<ReadonlySet<number>>(
     () => new Set(),
   )
 
   useEffect(() => {
-    callBackground("popup.note", ids).then(setDetails, (error) =>
-      setMessage(errorMessage(error)),
-    )
+    callBackground("popup.note", ids).then(setDetails, (error) => {
+      setFailed(true)
+      notifyError(error)
+    })
   }, [ids])
 
   const copyText = useCallback(async (text: string, secret: boolean) => {
-    setMessage(null)
     try {
       await callBackground("popup.copyText", { text, secret })
       return true
     } catch (error) {
-      setMessage(errorMessage(error))
+      notifyError(error)
       return false
     }
   }, [])
 
   const remove = async () => {
-    setMessage(null)
     try {
       await callBackground("popup.removeNote", ids)
       onBack()
       return true
     } catch (error) {
-      setMessage(errorMessage(error))
+      notifyError(error)
       return false
     }
   }
@@ -93,8 +93,7 @@ export function NoteView({
           <NoteIcon className="size-10" />
           <span className="min-w-0 truncate text-base font-medium">{name}</span>
         </div>
-        {message && <p className="px-1 text-xs text-destructive">{message}</p>}
-        {!details && !message && (
+        {!details && !failed && (
           <div role="status" className="flex flex-col gap-1.5">
             <span className="sr-only">{t("common.loading")}</span>
             <Skeleton className="mx-1 h-3 w-16" />

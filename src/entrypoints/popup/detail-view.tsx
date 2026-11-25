@@ -8,8 +8,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { callBackground } from "@/background/api"
 import { BrandIcon, vaultLabel } from "@/components/keyward/brand-icon"
 import { useCopyThrough } from "@/components/keyward/copy-through"
-import { errorMessage } from "@/components/keyward/errors"
 import { FADE_IN } from "@/components/keyward/loading"
+import { notifyError } from "@/components/keyward/notify"
 import { SiteIcon } from "@/components/keyward/site-icon"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -162,7 +162,8 @@ export function DetailView({
   )
   const apple = vault.kind === "apple"
   const [details, setDetails] = useState<LoginDetails | null>(null)
-  const [message, setMessage] = useState<string | null>(null)
+  /** Loading failed; a toast says why, and the placeholder goes away. */
+  const [failed, setFailed] = useState(false)
   const [password, setPassword] = useState<string | null>(null)
   const [revealed, setRevealed] = useState(false)
   const [code, setCode] = useState<OneTimeCode | null>(null)
@@ -178,19 +179,19 @@ export function DetailView({
   const codeRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    callBackground("popup.details", ids).then(setDetails, (error) =>
-      setMessage(errorMessage(error)),
-    )
+    callBackground("popup.details", ids).then(setDetails, (error) => {
+      setFailed(true)
+      notifyError(error)
+    })
   }, [ids])
 
   /** Runs a request, showing its error; null when it failed. */
   const run = useCallback(
     async <T,>(task: () => Promise<T>): Promise<T | null> => {
-      setMessage(null)
       try {
         return await task()
       } catch (error) {
-        setMessage(errorMessage(error))
+        notifyError(error)
         return null
       }
     },
@@ -312,8 +313,7 @@ export function DetailView({
           <SiteIcon host={login.host} text={name} className="size-10" />
           <span className="min-w-0 truncate text-base font-medium">{name}</span>
         </div>
-        {message && <p className="px-1 text-xs text-destructive">{message}</p>}
-        {!details && !message && <DetailSkeleton />}
+        {!details && !failed && <DetailSkeleton />}
         {details && (
           <div className={cn("flex flex-col gap-3", FADE_IN)}>
             <Section title={t("popup.detail.credentials")}>
