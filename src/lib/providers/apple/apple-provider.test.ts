@@ -1,4 +1,6 @@
-import { describe, expect, it } from "vitest"
+import { beforeEach, describe, expect, it, vi } from "vitest"
+import { fakeBrowser } from "wxt/testing/fake-browser"
+import { updateSettings } from "@/lib/settings"
 import { AppleProvider, passwordIn } from "./apple-provider"
 
 describe("passwordIn", () => {
@@ -45,5 +47,48 @@ describe("AppleProvider.canSave", () => {
     expect(canSave("https://site.test/")).toBe(false)
     expect(canSave("https://keyward-test.example/")).toBe(false)
     expect(canSave("http://intranet/")).toBe(false)
+  })
+})
+
+describe("AppleProvider.logins", () => {
+  beforeEach(() => fakeBrowser.reset())
+
+  it("lists the logins of sites the settings make equivalent to the page's", async () => {
+    await updateSettings({
+      equivalentDomains: [["example.com", "www.example.org"]],
+    })
+    const apple = new AppleProvider()
+    const listings: Record<string, { username: string; site: string }[]> = {
+      "accounts.example.com": [{ username: "me", site: "example.com" }],
+      "example.org": [
+        { username: "me", site: "example.com" },
+        { username: "other", site: "example.org" },
+      ],
+    }
+    const listEntries = vi
+      .spyOn(
+        apple as unknown as {
+          listEntries: (host: string) => Promise<unknown[]>
+        },
+        "listEntries",
+      )
+      .mockImplementation(async (host) =>
+        (listings[host] ?? []).map((entry) => ({
+          ...entry,
+          sites: [entry.site],
+        })),
+      )
+    const logins = await apple.logins(
+      "apple",
+      new URL("https://accounts.example.com/login"),
+    )
+    expect(listEntries.mock.calls.map(([host]) => host)).toEqual([
+      "accounts.example.com",
+      "example.org",
+    ])
+    expect(logins.map((login) => [login.username, login.host])).toEqual([
+      ["me", "example.com"],
+      ["other", "example.org"],
+    ])
   })
 })

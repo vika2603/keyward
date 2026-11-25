@@ -1,5 +1,7 @@
 import { parse as parseHost } from "tldts"
 import { bigIntToBytes, bytesToBigInt } from "@/lib/bytes"
+import { equivalentDomainsOf } from "@/lib/matching"
+import { getSettings } from "@/lib/settings"
 import { isHostOrSubdomain } from "@/lib/site"
 import {
   type Credential,
@@ -396,8 +398,7 @@ export class AppleProvider implements VaultProvider {
   }
 
   async logins(_vaultId: string, page: URL): Promise<LoginSummary[]> {
-    const host = page.hostname
-    const entries = await this.listEntries(host, { tabId: 0, frameId: 0 })
+    const entries = await this.listForPage(page.hostname)
     return entries.map((entry) => ({
       id: loginId(entry.username, entry.site),
       username: entry.username,
@@ -411,6 +412,27 @@ export class AppleProvider implements VaultProvider {
     const host = query.trim().toLowerCase()
     if (!host.includes(".") || !isHostName(host)) return []
     return this.logins(vaultId, new URL(`https://${host}`))
+  }
+
+  /**
+   * Logins the helper lists for a page's host and for each site the settings make equivalent to it.
+   * The helper matches sites itself, so an equivalent site takes a listing of its own.
+   */
+  private async listForPage(host: string): Promise<Entry[]> {
+    const tab = { tabId: 0, frameId: 0 }
+    const { equivalentDomains } = await getSettings()
+    const hosts = [host, ...equivalentDomainsOf(host, equivalentDomains)]
+    const entries: Entry[] = []
+    for (const listedHost of hosts) {
+      for (const entry of await this.listEntries(listedHost, tab)) {
+        const listedBefore = entries.some(
+          (seen) =>
+            seen.username === entry.username && seen.site === entry.site,
+        )
+        if (!listedBefore) entries.push(entry)
+      }
+    }
+    return entries
   }
 
   private async listEntries(host: string, tab: TabRef): Promise<Entry[]> {
@@ -456,11 +478,9 @@ export class AppleProvider implements VaultProvider {
     const { username, site } = parseLoginId(id)
     if (!isHostName(site))
       throw new VaultError("The login has no site", "unknownLogin")
-    // The helper's own listing for the page decides which logins belong to it.
-    const listed = await this.listEntries(page?.hostname ?? site, {
-      tabId: 0,
-      frameId: 0,
-    })
+    // The helper's own listing for the page, and for its equivalent sites, decides which logins
+    // belong to it.
+    const listed = await this.listForPage(page?.hostname ?? site)
     if (
       !listed.some(
         (entry) => entry.username === username && entry.site === site,
@@ -506,8 +526,8 @@ export class AppleProvider implements VaultProvider {
       throw new VaultError("The login has no site", "unknownLogin")
     const tab = { tabId: 0, frameId: 0 }
     const target = page ?? new URL(`https://${site}`)
-    const entry = (await this.listEntries(target.hostname, tab)).find(
-      (e) => e.username === username && e.site === site,
+    const entry = (await this.listForPage(target.hostname)).find(
+      (candidate) => candidate.username === username && candidate.site === site,
     )
     if (!entry)
       throw new VaultError("The login does not match this page", "notFound")

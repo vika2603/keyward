@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { ruleForHost, uriMatches } from "./matching"
+import { equivalentDomainsOf, ruleForHost, uriMatches } from "./matching"
 import { MatchType, type SiteRule } from "./settings"
 
 const page = new URL("https://accounts.example.co.uk:8443/login?next=/home")
@@ -30,6 +30,17 @@ describe("uriMatches", () => {
     }
     expect(uriMatches("https://example.org", null, page, grouped)).toBe(true)
     expect(uriMatches("https://example.net", null, page, grouped)).toBe(false)
+  })
+
+  it("reads a host in an equivalent domain group as its whole site", () => {
+    const grouped = {
+      ...options,
+      equivalentDomains: [["www.example.co.uk", "login.example.org"]],
+    }
+    expect(uriMatches("https://example.org", null, page, grouped)).toBe(true)
+    expect(
+      equivalentDomainsOf("accounts.example.co.uk", grouped.equivalentDomains),
+    ).toEqual(["example.org"])
   })
 
   it("compares host and port for a host match", () => {

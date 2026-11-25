@@ -33,7 +33,7 @@ import {
   type SiteBehavior,
   type SiteRule,
 } from "@/lib/settings"
-import { hostOfSavedUri } from "@/lib/site"
+import { hostOfSavedUri, siteDomainOf } from "@/lib/site"
 import { Card, Option, PageHeader, Section } from "./parts"
 import { useSettings } from "./use-settings"
 
@@ -407,8 +407,9 @@ function DomainGroupDialog({
     ...new Set(
       text
         .split(/[\s,，、]+/)
-        .map((d) => hostOfSavedUri(d))
-        .filter((d) => d !== null),
+        .map((entry) => hostOfSavedUri(entry))
+        .filter((host) => host !== null)
+        .map(siteDomainOf),
     ),
   ]
 

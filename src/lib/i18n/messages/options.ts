@@ -117,10 +117,10 @@ export const en = {
   "options.sites.domains.add": "Add group",
   "options.sites.domains.separator": ", ",
   "options.sites.domains.description":
-    "Domains in the same group share items. Passwords isn't affected.",
+    "Domains in the same group share items. Saving a new login still uses the page's own domain.",
   "options.sites.domains.delete": "Delete this group of equivalent domains",
   "options.sites.domains.empty":
-    "No equivalent domains yet. Domains in the same group share Bitwarden items; Passwords isn't affected.",
+    "No equivalent domains yet. Domains in the same group share items in every vault.",
   "options.sites.domainDialog.title": "Add equivalent domains",
   "options.sites.domainDialog.description":
     "Enter two or more domains, separated by commas or spaces.",
@@ -309,10 +309,10 @@ export const zhCN: Record<keyof typeof en, string> = {
   "options.sites.domains.add": "添加一组",
   "options.sites.domains.separator": "、",
   "options.sites.domains.description":
-    "同一组里的域名共用条目。 Passwords 不受影响。",
+    "同一组里的域名共用条目。保存新登录时仍记在当前网页的域名下。",
   "options.sites.domains.delete": "删除这一组等价域名",
   "options.sites.domains.empty":
-    "还没有等价域名。同一组里的域名共用 Bitwarden 条目，Passwords 不受影响。",
+    "还没有等价域名。同一组里的域名在所有密码库里共用条目。",
   "options.sites.domainDialog.title": "添加等价域名",
   "options.sites.domainDialog.description":
     "输入两个或更多域名，用逗号或空格分隔。",

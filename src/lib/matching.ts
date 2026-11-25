@@ -11,14 +11,32 @@ export interface MatchOptions {
   equivalentDomains: string[][]
 }
 
-/** Domains treated as the same site as `domain`, including itself. */
+/**
+ * Registrable domains treated as the same site as `domain`, including itself. A group entry may be
+ * any host of its site, such as www.example.com; it stands for the whole site.
+ */
 function equivalentsOf(domain: string, groups: string[][]): Set<string> {
   const result = new Set([domain])
   for (const group of groups) {
-    const normalized = group.map((d) => d.trim().toLowerCase()).filter(Boolean)
-    if (normalized.includes(domain)) for (const d of normalized) result.add(d)
+    const domains = group
+      .map((entry) => entry.trim().toLowerCase())
+      .filter(Boolean)
+      .map(siteDomainOf)
+    if (domains.includes(domain))
+      for (const member of domains) result.add(member)
   }
   return result
+}
+
+/** The other sites the settings make equivalent to `host`'s site, as registrable domains. */
+export function equivalentDomainsOf(
+  host: string,
+  groups: string[][],
+): string[] {
+  const domain = siteDomainOf(host)
+  return [...equivalentsOf(domain, groups)].filter(
+    (member) => member !== domain,
+  )
 }
 
 /**
