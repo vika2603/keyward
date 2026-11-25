@@ -227,20 +227,14 @@ export class AppleProvider implements VaultProvider {
   }
 
   /**
-   * Asks the helper to show a pairing code on the Mac. While a code is already shown this keeps it,
-   * unless `restart` asks for a new one.
+   * Asks the helper to show a pairing code on the Mac. A helper process shows the same code for
+   * every handshake, so asking again, as when the pairing page opens again, shows the code already
+   * given; one the user just read stays valid. `restart` starts a new helper process for a new code.
    */
   startPairing(restart: boolean): Promise<void> {
     return this.serialized("pair", async () => {
-      if (!restart && this.state.phase === "awaitingCode" && this.pairing)
-        return
       if (this.state.phase === "paired" && this.session) return
-      // A helper process shows the same code for every handshake, so a new code takes a new process.
-      if (restart && this.port.connected) {
-        this.port.disconnect()
-        this.capabilities = null
-        this.pairing = null
-      }
+      if (restart) this.endHelperProcess()
       await this.ensureConnected()
       const version = this.capabilities?.secretSessionVersion
       if (version !== undefined && version !== SRP_WITH_RFC_VERIFICATION) {
@@ -716,10 +710,20 @@ export class AppleProvider implements VaultProvider {
       : null
   }
 
+  /** Ends the session and the helper process, so pairing again shows a new code. */
   async lock(): Promise<void> {
     this.session = null
+    this.endHelperProcess()
+    const { phase } = this.state
+    if (phase !== "disabled" && phase !== "unavailable")
+      this.setState({ phase: "unpaired" })
+  }
+
+  /** Disconnects from the helper, which ends its process; the next request starts a new one. */
+  private endHelperProcess(): void {
+    this.port.disconnect()
+    this.capabilities = null
     this.pairing = null
-    if (this.port.connected) this.setState({ phase: "unpaired" })
   }
 
   async lockAll(): Promise<void> {
