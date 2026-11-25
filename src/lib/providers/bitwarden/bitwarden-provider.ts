@@ -6,6 +6,7 @@ import {
   type Credential,
   type CustomField,
   type EditableLogin,
+  type EditableNote,
   type ExistingLogin,
   type FillField,
   type ListOptions,
@@ -13,6 +14,8 @@ import {
   type LoginEdit,
   type LoginSummary,
   type NewLogin,
+  type NoteDetails,
+  type NoteSummary,
   type OneTimeCode,
   type PastPassword,
   type TabRef,
@@ -50,6 +53,7 @@ import { serverUrls } from "./server"
 import {
   decryptDetails,
   decryptLogin,
+  decryptNote,
   decryptPassword,
   decryptPasswordHistory,
   decryptTotp,
@@ -58,7 +62,11 @@ import {
   type LoginItem,
   loginCiphers,
   matchesQuery,
+  type NoteItem,
   newLoginRequest,
+  newNoteRequest,
+  noteCiphers,
+  textMatchesQuery,
   VaultKeys,
 } from "./vault"
 import { accountIdOfVault, vaultIdOf } from "./vault-id"
@@ -100,6 +108,8 @@ interface Vault {
   keys: VaultKeys
   items: LoginItem[]
   ciphers: Record<string, unknown>[]
+  notes: NoteItem[]
+  noteCiphers: Record<string, unknown>[]
 }
 
 /**
@@ -456,15 +466,19 @@ export class BitwardenProvider implements VaultProvider {
       prop(stored.data, "Profile"),
     )
     const ciphers = loginCiphers(stored.data)
-    const items: LoginItem[] = []
-    for (const cipher of ciphers) {
-      try {
-        items.push(decryptLogin(cipher, keys))
-      } catch {
-        // An item that cannot be decrypted is left out rather than failing the whole list.
-      }
+    const items = decryptEach(ciphers, (cipher) => decryptLogin(cipher, keys))
+    const noteCiphersOfVault = noteCiphers(stored.data)
+    const notes = decryptEach(noteCiphersOfVault, (cipher) =>
+      decryptNote(cipher, keys),
+    )
+    const vault = {
+      syncedAt: stored.syncedAt,
+      keys,
+      items,
+      ciphers,
+      notes,
+      noteCiphers: noteCiphersOfVault,
     }
-    const vault = { syncedAt: stored.syncedAt, keys, items, ciphers }
     this.cache.set(accountId, vault)
     return vault
   }
@@ -509,6 +523,95 @@ export class BitwardenProvider implements VaultProvider {
       .sort((a, b) => a.name.localeCompare(b.name))
       .slice(0, SEARCH_LIMIT)
       .map(summaryOf)
+  }
+
+  async searchNotes(vaultId: string, query: string): Promise<NoteSummary[]> {
+    const { notes } = await this.vault(accountIdOfVault(vaultId))
+    return notes
+      .filter((note) => textMatchesQuery(note.name, query))
+      .sort((first, second) => first.name.localeCompare(second.name))
+      .slice(0, SEARCH_LIMIT)
+      .map((note) => ({ id: note.id, name: note.name }))
+  }
+
+  private async noteEntry(
+    vaultId: string,
+    noteId: string,
+  ): Promise<{
+    vault: Vault
+    note: NoteItem
+    cipher: Record<string, unknown>
+  }> {
+    const vault = await this.vault(accountIdOfVault(vaultId))
+    const note = vault.notes.find((candidate) => candidate.id === noteId)
+    const cipher = vault.noteCiphers.find(
+      (candidate) => prop(candidate, "Id") === noteId,
+    )
+    if (!note || !cipher) throw new VaultError("Unknown note", "notFound")
+    return { vault, note, cipher }
+  }
+
+  /** The login or note an item ID names. */
+  private async anyItem(
+    vaultId: string,
+    itemId: string,
+  ): Promise<{ item: RepromptItem; cipher: Record<string, unknown> }> {
+    const { notes } = await this.vault(accountIdOfVault(vaultId))
+    const isNote = notes.some((note) => note.id === itemId)
+    if (!isNote) return this.pageItem(vaultId, itemId, null)
+    const { note, cipher } = await this.noteEntry(vaultId, itemId)
+    return { item: note, cipher }
+  }
+
+  async note(vaultId: string, noteId: string): Promise<NoteDetails> {
+    const { vault, note, cipher } = await this.noteEntry(vaultId, noteId)
+    const details = decryptDetails(cipher, vault.keys)
+    return {
+      name: note.name,
+      // Like a login's secrets, a re-prompted note's contents stay in Bitwarden's own apps.
+      text: note.reprompt ? undefined : details.notes,
+      customFields: note.reprompt ? undefined : details.customFields,
+      withheld: note.reprompt,
+      editable: isEditable(note, cipher),
+      created: details.created,
+      modified: details.modified,
+    }
+  }
+
+  async editableNote(vaultId: string, noteId: string): Promise<EditableNote> {
+    const { vault, note, cipher } = await this.noteEntry(vaultId, noteId)
+    refuseEdit(note, cipher)
+    const { notes, customFields } = decryptDetails(cipher, vault.keys)
+    return { name: note.name, text: notes, customFields }
+  }
+
+  async saveNote(vaultId: string, note: EditableNote): Promise<void> {
+    const accountId = accountIdOfVault(vaultId)
+    const account = await this.account(accountId)
+    const { keys } = await this.vault(accountId)
+    await new BitwardenApi(serverUrls(account.server)).createCipher(
+      await this.accessToken(account),
+      newNoteRequest(note, keys, account.userId),
+    )
+    await this.sync(accountId)
+  }
+
+  /** Saves the parts of the note that differ from what is saved. */
+  async editNote(
+    vaultId: string,
+    noteId: string,
+    next: EditableNote,
+  ): Promise<void> {
+    const current = await this.editableNote(vaultId, noteId)
+    const changed: ItemChange = {}
+    if (next.name !== current.name) changed.name = next.name
+    if (next.text !== current.text) changed.notes = next.text
+    const fieldsChanged =
+      JSON.stringify(next.customFields) !== JSON.stringify(current.customFields)
+    if (fieldsChanged) changed.customFields = next.customFields
+    if (!Object.keys(changed).length) return
+    const { cipher } = await this.noteEntry(vaultId, noteId)
+    await this.change(vaultId, cipher, changed)
   }
 
   /**
@@ -667,14 +770,14 @@ export class BitwardenProvider implements VaultProvider {
     await this.change(vaultId, cipher, changed)
   }
 
-  async remove(vaultId: string, loginId: string): Promise<void> {
+  async remove(vaultId: string, itemId: string): Promise<void> {
     const accountId = accountIdOfVault(vaultId)
     const account = await this.account(accountId)
-    const { item, cipher } = await this.pageItem(vaultId, loginId, null)
+    const { item, cipher } = await this.anyItem(vaultId, itemId)
     refuseEdit(item, cipher)
     await new BitwardenApi(serverUrls(account.server)).trashCipher(
       await this.accessToken(account),
-      loginId,
+      itemId,
     )
     await this.sync(accountId)
   }
@@ -753,6 +856,22 @@ export class BitwardenProvider implements VaultProvider {
   }
 }
 
+/** Decrypts each cipher; one that cannot be decrypted is left out rather than failing the list. */
+function decryptEach<T>(
+  ciphers: Record<string, unknown>[],
+  decrypt: (cipher: Record<string, unknown>) => T,
+): T[] {
+  const decrypted: T[] = []
+  for (const cipher of ciphers) {
+    try {
+      decrypted.push(decrypt(cipher))
+    } catch {
+      // Left out, as above.
+    }
+  }
+  return decrypted
+}
+
 function summaryOf(item: LoginItem): LoginSummary {
   return {
     id: item.id,
@@ -780,11 +899,17 @@ function requireCodeKey(key: string): void {
  * Items that ask for the master password again stay with Bitwarden's own apps, and an
  * organization's read-only items, marked so by the server, cannot be changed.
  */
-function isEditable(item: LoginItem, cipher: Record<string, unknown>): boolean {
+/** What editing and re-prompt checks need of a login or a note. */
+type RepromptItem = { reprompt: boolean }
+
+function isEditable(
+  item: RepromptItem,
+  cipher: Record<string, unknown>,
+): boolean {
   return !item.reprompt && prop(cipher, "Edit") !== false
 }
 
-function refuseEdit(item: LoginItem, cipher: Record<string, unknown>): void {
+function refuseEdit(item: RepromptItem, cipher: Record<string, unknown>): void {
   refuseReprompt(item)
   if (!isEditable(item, cipher))
     throw new VaultError("The login cannot be changed", "notEditable")
@@ -816,7 +941,7 @@ function fillFields(
 }
 
 /** Items marked for master password re-prompt are left to Bitwarden's own apps. */
-function refuseReprompt(item: LoginItem): void {
+function refuseReprompt(item: RepromptItem): void {
   if (item.reprompt) {
     throw new VaultError(
       "The login asks for the master password again",

@@ -68,11 +68,32 @@ export class Providers {
     )
   }
 
-  /** Every vault with its logins that match a search of the whole vault, whatever the page. */
+  /** Every vault with its logins and notes that match a search of the whole vault, whatever the page. */
   async search(query: string): Promise<VaultView[]> {
-    return this.listEach(await this.vaults(), (provider, vaultId) =>
-      provider.search(vaultId, query),
+    const views = await this.listEach(
+      await this.vaults(),
+      (provider, vaultId) => provider.search(vaultId, query),
     )
+    return Promise.all(views.map((view) => this.withNotes(view, query)))
+  }
+
+  /** The view with the vault's notes that match the query, when the vault keeps notes. */
+  private async withNotes(view: VaultView, query: string): Promise<VaultView> {
+    const provider = this.providerOf(view.id)
+    const searchable = view.status === "ready" && !view.error
+    if (!searchable || !provider.searchNotes) return view
+    try {
+      return { ...view, notes: await provider.searchNotes(view.id, query) }
+    } catch {
+      // The logins already show; a failed note search leaves the notes out.
+      return view
+    }
+  }
+
+  /** Ready vaults that can store a new secure note. */
+  async noteTargets(): Promise<VaultInfo[]> {
+    const ready = await this.savable()
+    return ready.filter((vault) => this.providerOf(vault.id).saveNote)
   }
 
   private async listForPage(

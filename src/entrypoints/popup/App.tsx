@@ -2,15 +2,23 @@ import { useEffect, useState } from "react"
 import { callBackground, type PopupView } from "@/background/api"
 import { useAppearance } from "@/components/keyward/appearance"
 import { useLanguage } from "@/components/keyward/language"
-import type { LoginSummary, VaultInfo } from "@/lib/providers/types"
+import { t } from "@/lib/i18n"
+import type {
+  LoginSummary,
+  NoteSummary,
+  VaultInfo,
+} from "@/lib/providers/types"
 import { AddView } from "./add-view"
 import { CodeSetupView } from "./code-setup-view"
 import { ConnectView } from "./connect-view"
 import { DetailView } from "./detail-view"
 import { EditView } from "./edit-view"
 import { GeneratorView } from "./generator-view"
+import { BackHeader } from "./header"
 import { HistoryView } from "./history-view"
 import { MainView } from "./main-view"
+import { NoteForm } from "./note-form"
+import { NoteView } from "./note-view"
 import { PasswordHistoryView } from "./password-history-view"
 
 export type View =
@@ -20,6 +28,8 @@ export type View =
   | { name: "detail"; vault: VaultInfo; login: LoginSummary }
   | { name: "edit"; vault: VaultInfo; login: LoginSummary }
   | { name: "passwordHistory"; vault: VaultInfo; login: LoginSummary }
+  | { name: "note"; vault: VaultInfo; note: NoteSummary }
+  | { name: "editNote"; vault: VaultInfo; note: NoteSummary }
 
 // Requested once per popup: the background hands out a pending view only to the first request.
 const initialView = callBackground("popup.takeView", null).catch(
@@ -62,6 +72,27 @@ export function App() {
             setView({ ...view, name: "passwordHistory" })
           }
         />
+      )}
+      {view?.name === "note" && (
+        <NoteView
+          vault={view.vault}
+          note={view.note}
+          onBack={main}
+          onEdit={() => setView({ ...view, name: "editNote" })}
+        />
+      )}
+      {view?.name === "editNote" && (
+        <div className="flex min-h-0 flex-1 flex-col">
+          <BackHeader
+            title={t("popup.note.editTitle")}
+            onBack={() => setView({ ...view, name: "note" })}
+          />
+          <NoteForm
+            target={{ mode: "edit", vault: view.vault, note: view.note }}
+            onDone={() => setView({ ...view, name: "note" })}
+            onCancel={() => setView({ ...view, name: "note" })}
+          />
+        </div>
       )}
       {view?.name === "passwordHistory" && (
         <PasswordHistoryView

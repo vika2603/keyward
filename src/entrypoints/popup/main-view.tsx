@@ -1,6 +1,7 @@
 import {
   CheckIcon,
   ChevronDownIcon,
+  CopyIcon,
   ExternalLinkIcon,
   KeyRoundIcon,
   LockIcon,
@@ -22,6 +23,7 @@ import {
 import { errorMessage } from "@/components/keyward/errors"
 import { FADE_IN, LoginListSkeleton } from "@/components/keyward/loading"
 import { LoginLabel } from "@/components/keyward/login-label"
+import { NoteIcon } from "@/components/keyward/note-icon"
 import { SiteIcon } from "@/components/keyward/site-icon"
 import { Button } from "@/components/ui/button"
 import {
@@ -35,6 +37,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { t } from "@/lib/i18n"
 import type {
   LoginSummary,
+  NoteSummary,
   ProviderKind,
   VaultInfo,
 } from "@/lib/providers/types"
@@ -135,7 +138,10 @@ export function MainView({
   const listed = shown.filter(
     (vault) =>
       vault.status !== "locked" &&
-      (vault.status !== "ready" || vault.error || vault.logins.length),
+      (vault.status !== "ready" ||
+        vault.error ||
+        vault.logins.length ||
+        vault.notes?.length),
   )
   const lockedCards = locked.map((vault) => (
     <LockedVaultCard
@@ -327,6 +333,7 @@ export function MainView({
                 density={density}
                 onLocked={load}
                 onOpen={(login) => onNavigate({ name: "detail", vault, login })}
+                onOpenNote={(note) => onNavigate({ name: "note", vault, note })}
                 onError={setMessage}
               />
             ))}
@@ -380,12 +387,14 @@ function VaultGroup({
   density,
   onLocked,
   onOpen,
+  onOpenNote,
   onError,
 }: {
   vault: VaultView
   density: Settings["density"]
   onLocked: () => void
   onOpen: (login: LoginSummary) => void
+  onOpenNote: (note: NoteSummary) => void
   onError: (message: string | null) => void
 }) {
   const [open, setOpen] = useState(true)
@@ -484,9 +493,102 @@ function VaultGroup({
               onError={onError}
             />
           ))}
+          {vault.notes?.map((note) => (
+            <NoteRow
+              key={note.id}
+              vault={vault}
+              note={note}
+              density={density}
+              onOpen={() => onOpenNote(note)}
+              onError={onError}
+            />
+          ))}
         </div>
       </CollapsibleContent>
     </Collapsible>
+  )
+}
+
+/** A secure note in search results: opens on click, and copies its text from a button. */
+function NoteRow({
+  vault,
+  note,
+  density,
+  onOpen,
+  onError,
+}: {
+  vault: VaultInfo
+  note: NoteSummary
+  density: Settings["density"]
+  onOpen: () => void
+  onError: (message: string | null) => void
+}) {
+  const [copied, setCopied] = useState(false)
+  const compact = density === "compact"
+
+  const copy = async () => {
+    onError(null)
+    try {
+      const details = await callBackground("popup.note", {
+        vaultId: vault.id,
+        noteId: note.id,
+      })
+      if (details.withheld) {
+        onError(t("popup.note.withheld"))
+        return
+      }
+      // An empty note has nothing to copy.
+      if (!details.text) return
+      await callBackground("popup.copyText", {
+        text: details.text,
+        secret: true,
+      })
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1500)
+    } catch (error) {
+      onError(errorMessage(error))
+    }
+  }
+
+  return (
+    <div
+      className={cn(
+        "group/row flex items-center gap-2.5 rounded-lg px-2 py-1.5 hover:bg-muted focus-within:bg-muted",
+        compact ? "min-h-9" : "min-h-12",
+      )}
+    >
+      <button
+        type="button"
+        title={t("popup.main.viewDetails")}
+        data-row
+        onClick={onOpen}
+        className="flex min-w-0 flex-1 items-center gap-2.5 self-stretch text-left outline-none"
+      >
+        <NoteIcon
+          className={cn(
+            "group-hover/row:bg-background group-focus-within/row:bg-background",
+            compact && "size-6",
+          )}
+        />
+        <LoginLabel
+          username={note.name}
+          detail={t("popup.note.title")}
+          compact={compact}
+        />
+      </button>
+      <div className="flex shrink-0 gap-0.5 opacity-0 group-hover/row:opacity-100 group-focus-within/row:opacity-100">
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          className="hover:bg-background"
+          aria-label={t("popup.note.copy")}
+          title={t("popup.note.copy")}
+          onClick={() => void copy()}
+        >
+          {copied ? <CheckIcon /> : <CopyIcon />}
+        </Button>
+      </div>
+    </div>
   )
 }
 

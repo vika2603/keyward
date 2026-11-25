@@ -1,9 +1,14 @@
-import type { CustomField, PastPassword } from "@/lib/providers/types"
+import type {
+  CustomField,
+  EditableNote,
+  PastPassword,
+} from "@/lib/providers/types"
 import { MatchType } from "@/lib/settings"
 import { pick, prop } from "./api"
 import type { VaultCrypto } from "./crypto"
 
 const CIPHER_TYPE_LOGIN = 1
+const CIPHER_TYPE_SECURE_NOTE = 2
 
 export interface LoginItem {
   id: string
@@ -89,6 +94,42 @@ export function loginCiphers(sync: unknown): Record<string, unknown>[] {
   )
 }
 
+/** A secure note as lists show it; its text stays encrypted until it is opened. */
+export interface NoteItem {
+  id: string
+  name: string
+  /** Whether the note asks for the master password before its text is shown. */
+  reprompt: boolean
+}
+
+export function noteCiphers(sync: unknown): Record<string, unknown>[] {
+  const ciphers = prop(sync, "Ciphers")
+  if (!Array.isArray(ciphers)) return []
+  return ciphers.filter(
+    (cipher) =>
+      prop(cipher, "Type") === CIPHER_TYPE_SECURE_NOTE &&
+      !prop(cipher, "DeletedDate"),
+  )
+}
+
+export function decryptNote(
+  cipher: Record<string, unknown>,
+  keys: VaultKeys,
+): NoteItem {
+  return {
+    id: String(prop(cipher, "Id")),
+    name: keys.decrypt(prop(cipher, "Name"), keys.forCipher(cipher)),
+    reprompt: prop(cipher, "Reprompt") === 1,
+  }
+}
+
+/** Whether a text contains every word of the query, ignoring case. */
+export function textMatchesQuery(text: string, query: string): boolean {
+  const words = query.toLowerCase().split(/\s+/).filter(Boolean)
+  const lowerText = text.toLowerCase()
+  return words.length > 0 && words.every((word) => lowerText.includes(word))
+}
+
 function isMatchType(value: unknown): value is MatchType {
   return Object.values(MatchType).includes(value as MatchType)
 }
@@ -123,12 +164,8 @@ export function decryptLogin(
 
 /** Whether the item's name, username or addresses contain every word of the query, ignoring case. */
 export function matchesQuery(item: LoginItem, query: string): boolean {
-  const words = query.toLowerCase().split(/\s+/).filter(Boolean)
-  if (!words.length) return false
   const text = [item.name, item.username, ...item.uris.map((u) => u.uri)]
-    .join("\n")
-    .toLowerCase()
-  return words.every((word) => text.includes(word))
+  return textMatchesQuery(text.join("\n"), query)
 }
 
 function isNonEmptyString(value: unknown): value is string {
@@ -374,6 +411,30 @@ export function newLoginRequest(
   }
 }
 
+/** The request body for a new personal secure note, encrypted with the account key. */
+export function newNoteRequest(
+  note: EditableNote,
+  keys: VaultKeys,
+  userId: string,
+): Record<string, unknown> {
+  const key = keys.userKey
+  return {
+    type: CIPHER_TYPE_SECURE_NOTE,
+    encryptedFor: userId,
+    folderId: null,
+    organizationId: null,
+    name: keys.encrypt(note.name, key),
+    notes: keys.encrypt(note.text, key),
+    favorite: false,
+    reprompt: 0,
+    key: null,
+    fields: note.customFields.map((field) =>
+      encryptCustomField(field, keys, key),
+    ),
+    secureNote: { type: 0 },
+  }
+}
+
 /** What an update changes in a login item; fields left out stay as they are, empty ones are cleared. */
 export interface ItemChange {
   name?: string
@@ -432,8 +493,8 @@ async function urisRequest(
 }
 
 /**
- * The request body that updates a login item. The server replaces the whole item, so the other
- * encrypted fields are sent back unchanged; a replaced password moves to the history.
+ * The request body that updates a login or a secure note. The server replaces the whole item, so
+ * the other encrypted fields are sent back unchanged; a replaced password moves to the history.
  */
 export async function itemUpdateRequest(
   cipher: Record<string, unknown>,
@@ -471,8 +532,7 @@ export async function itemUpdateRequest(
   const passwordHistory = replaced.length
     ? [...replaced, ...kept].slice(0, MAX_PASSWORD_HISTORY)
     : kept
-  return {
-    type: CIPHER_TYPE_LOGIN,
+  const common = {
     encryptedFor: userId,
     folderId: prop(cipher, "FolderId") ?? null,
     organizationId: prop(cipher, "OrganizationId") ?? null,
@@ -484,6 +544,18 @@ export async function itemUpdateRequest(
     lastKnownRevisionDate: prop(cipher, "RevisionDate") ?? null,
     fields: customFieldsRequest(cipher, change.customFields, keys, key),
     passwordHistory: passwordHistory.length ? passwordHistory : null,
+  }
+  if (prop(cipher, "Type") === CIPHER_TYPE_SECURE_NOTE) {
+    const secureNote = pick(cipher, "SecureNote")
+    return {
+      type: CIPHER_TYPE_SECURE_NOTE,
+      ...common,
+      secureNote: { type: prop(secureNote, "Type") ?? 0 },
+    }
+  }
+  return {
+    type: CIPHER_TYPE_LOGIN,
+    ...common,
     login: {
       username: field(change.username, prop(login, "Username")),
       password: field(change.password, oldPassword),

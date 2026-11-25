@@ -1,7 +1,14 @@
-import { CheckIcon, CopyIcon, EyeIcon, EyeOffIcon } from "lucide-react"
+import {
+  CheckIcon,
+  CopyIcon,
+  EyeIcon,
+  EyeOffIcon,
+  Trash2Icon,
+} from "lucide-react"
 import { type ReactNode, type RefObject, useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { currentLanguage, t } from "@/lib/i18n"
+import type { CustomField } from "@/lib/providers/types"
 
 /** Shown in place of a secret that is not revealed; it does not tell the secret's length. */
 const MASK = "••••••••••••"
@@ -170,4 +177,137 @@ export function toggled(
   if (next.has(index)) next.delete(index)
   else next.add(index)
   return next
+}
+
+export function CustomFieldRow({
+  field,
+  shown,
+  onToggle,
+  copyText,
+}: {
+  field: CustomField
+  shown: boolean
+  onToggle: () => void
+  copyText: (text: string, secret: boolean) => Promise<boolean>
+}) {
+  switch (field.kind) {
+    case "text":
+      return (
+        <Field
+          label={field.name}
+          actions={
+            field.value && (
+              <CopyButton
+                label={t("popup.detail.copyField")}
+                copy={() => copyText(field.value, false)}
+              />
+            )
+          }
+        >
+          <span className="whitespace-pre-wrap">{field.value}</span>
+        </Field>
+      )
+    case "hidden":
+      return (
+        <Field
+          label={field.name}
+          actions={
+            field.value && (
+              <>
+                <RevealButton
+                  shown={shown}
+                  showLabel={t("popup.detail.showField")}
+                  hideLabel={t("popup.detail.hideField")}
+                  onClick={onToggle}
+                />
+                <CopyButton
+                  label={t("popup.detail.copyField")}
+                  copy={() => copyText(field.value, true)}
+                />
+              </>
+            )
+          }
+        >
+          {shown ? <SecretText value={field.value} /> : <MaskText />}
+        </Field>
+      )
+    case "checkbox":
+      return (
+        <Field label={field.name}>
+          {field.checked
+            ? t("popup.detail.checked")
+            : t("popup.detail.unchecked")}
+        </Field>
+      )
+    case "linked": {
+      const target =
+        field.linkedTo === "username"
+          ? t("popup.detail.username")
+          : t("popup.detail.password")
+      return (
+        <Field label={field.name}>
+          <span className="text-muted-foreground">
+            {t("popup.detail.linkedTo", { field: target })}
+          </span>
+        </Field>
+      )
+    }
+  }
+}
+
+/** A line of the item info card: a name on the left, its value on the right. */
+export function InfoRow({
+  label,
+  children,
+}: {
+  label: string
+  children: ReactNode
+}) {
+  return (
+    <div className="flex min-h-10 items-center gap-3 border-t px-3 py-2 text-sm first:border-t-0">
+      <span className="shrink-0">{label}</span>
+      <span className="flex min-w-0 flex-1 items-center justify-end gap-1.5 text-muted-foreground">
+        {children}
+      </span>
+    </div>
+  )
+}
+
+/**
+ * The delete button of a detail view. Deleting asks twice: the first click arms the button and
+ * shows where the item goes; leaving the button disarms it.
+ */
+export function DeleteButton({
+  hint,
+  onDelete,
+}: {
+  hint: string
+  /** False when the delete failed; the button can then be used again. */
+  onDelete: () => Promise<boolean>
+}) {
+  const [state, setState] = useState<"armed" | "busy" | null>(null)
+  const click = async () => {
+    if (state !== "armed") {
+      setState("armed")
+      return
+    }
+    setState("busy")
+    if (!(await onDelete())) setState(null)
+  }
+  return (
+    <div className="flex flex-col gap-1.5">
+      <Button
+        variant={state ? "destructive" : "outline"}
+        disabled={state === "busy"}
+        onClick={() => void click()}
+        onBlur={() =>
+          setState((current) => (current === "armed" ? null : current))
+        }
+      >
+        <Trash2Icon />
+        {state ? t("popup.detail.confirmDelete") : t("popup.detail.delete")}
+      </Button>
+      {state && <p className="px-1 text-xs text-muted-foreground">{hint}</p>}
+    </div>
+  )
 }

@@ -69,6 +69,32 @@ export type CustomField =
   /** Stands for one of the login's own fields when a page asks for it under this name. */
   | { kind: "linked"; name: string; linkedTo: "username" | "password" }
 
+/** A secure note as lists show it: a named text kept apart from logins. */
+export interface NoteSummary {
+  id: string
+  name: string
+}
+
+export interface NoteDetails {
+  name: string
+  /** Left out when the note's contents are withheld. */
+  text?: string
+  customFields?: CustomField[]
+  /** Whether the note's contents are left to the provider's own apps, as for logins. */
+  withheld: boolean
+  editable: boolean
+  /** Milliseconds since the epoch. */
+  created?: number
+  modified?: number
+}
+
+/** A note's fields for a new note or an edit form. */
+export interface EditableNote {
+  name: string
+  text: string
+  customFields: CustomField[]
+}
+
 export interface PastPassword {
   password: string
   /** When the password was replaced, in milliseconds since the epoch. */
@@ -178,10 +204,16 @@ export interface VaultProvider {
   ): Promise<OneTimeCode>
   /** Earlier passwords of a login, newest first; only providers whose details count them have it. */
   passwordHistory?(vaultId: string, loginId: string): Promise<PastPassword[]>
+  /** Secure notes whose name contains every word of the query; only providers with notes have these. */
+  searchNotes?(vaultId: string, query: string): Promise<NoteSummary[]>
+  note?(vaultId: string, noteId: string): Promise<NoteDetails>
+  editableNote?(vaultId: string, noteId: string): Promise<EditableNote>
+  saveNote?(vaultId: string, note: EditableNote): Promise<void>
+  editNote?(vaultId: string, noteId: string, note: EditableNote): Promise<void>
   /** A login's fields for an edit form; only providers whose details say `editable` have it. */
   editable?(vaultId: string, loginId: string): Promise<EditableLogin>
   edit?(vaultId: string, loginId: string, change: LoginEdit): Promise<void>
-  /** Moves a login to the trash, where the provider's own apps can restore it. */
+  /** Moves a login or note to the trash, where the provider's own apps can restore it. */
   remove?(vaultId: string, loginId: string): Promise<void>
   /** Whether the provider can store a login for this address; a save prompt offers only those that can. */
   canSave(url: URL): boolean

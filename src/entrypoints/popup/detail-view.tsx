@@ -3,16 +3,8 @@ import {
   ExternalLinkIcon,
   PencilIcon,
   RefreshCwIcon,
-  Trash2Icon,
 } from "lucide-react"
-import {
-  type ReactNode,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { callBackground } from "@/background/api"
 import { BrandIcon, vaultLabel } from "@/components/keyward/brand-icon"
 import { useCopyThrough } from "@/components/keyward/copy-through"
@@ -23,7 +15,6 @@ import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { t } from "@/lib/i18n"
 import type {
-  CustomField,
   LoginDetails,
   LoginSummary,
   OneTimeCode,
@@ -32,9 +23,12 @@ import type {
 import { cn } from "@/lib/utils"
 import {
   CopyButton,
+  CustomFieldRow,
+  DeleteButton,
   Field,
   formatDate,
   IconButton,
+  InfoRow,
   MaskText,
   RevealButton,
   SecretText,
@@ -144,94 +138,6 @@ function CodeText({ code }: { code: string }) {
 /** What a code looks like before it is shown; as wide as the code itself. */
 const CODE_MASK = "••••••"
 
-function CustomFieldRow({
-  field,
-  shown,
-  onToggle,
-  copyText,
-}: {
-  field: CustomField
-  shown: boolean
-  onToggle: () => void
-  copyText: (text: string, secret: boolean) => Promise<boolean>
-}) {
-  switch (field.kind) {
-    case "text":
-      return (
-        <Field
-          label={field.name}
-          actions={
-            field.value && (
-              <CopyButton
-                label={t("popup.detail.copyField")}
-                copy={() => copyText(field.value, false)}
-              />
-            )
-          }
-        >
-          <span className="whitespace-pre-wrap">{field.value}</span>
-        </Field>
-      )
-    case "hidden":
-      return (
-        <Field
-          label={field.name}
-          actions={
-            field.value && (
-              <>
-                <RevealButton
-                  shown={shown}
-                  showLabel={t("popup.detail.showField")}
-                  hideLabel={t("popup.detail.hideField")}
-                  onClick={onToggle}
-                />
-                <CopyButton
-                  label={t("popup.detail.copyField")}
-                  copy={() => copyText(field.value, true)}
-                />
-              </>
-            )
-          }
-        >
-          {shown ? <SecretText value={field.value} /> : <MaskText />}
-        </Field>
-      )
-    case "checkbox":
-      return (
-        <Field label={field.name}>
-          {field.checked
-            ? t("popup.detail.checked")
-            : t("popup.detail.unchecked")}
-        </Field>
-      )
-    case "linked": {
-      const target =
-        field.linkedTo === "username"
-          ? t("popup.detail.username")
-          : t("popup.detail.password")
-      return (
-        <Field label={field.name}>
-          <span className="text-muted-foreground">
-            {t("popup.detail.linkedTo", { field: target })}
-          </span>
-        </Field>
-      )
-    }
-  }
-}
-
-/** A line of the item info card: a name on the left, its value on the right. */
-function InfoRow({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <div className="flex min-h-10 items-center gap-3 border-t px-3 py-2 text-sm first:border-t-0">
-      <span className="shrink-0">{label}</span>
-      <span className="flex min-w-0 flex-1 items-center justify-end gap-1.5 text-muted-foreground">
-        {children}
-      </span>
-    </div>
-  )
-}
-
 /**
  * One login of the page: its username, password, one-time code, addresses, notes, custom fields and
  * history. The password and code are read only when asked for; Apple asks for Touch ID first.
@@ -268,8 +174,6 @@ export function DetailView({
   /** What waits for Touch ID or the provider right now. */
   const [waiting, setWaiting] = useState<"password" | "code" | null>(null)
   const [now, setNow] = useState(Date.now)
-  /** Deleting asks twice: the first click arms the button. */
-  const [removing, setRemoving] = useState<"armed" | "busy" | null>(null)
   const passwordRef = useRef<HTMLDivElement>(null)
   const codeRef = useRef<HTMLDivElement>(null)
 
@@ -378,19 +282,13 @@ export function DetailView({
     useCallback(() => void copyCode(), [copyCode]),
   )
 
-  const remove = async () => {
-    if (removing !== "armed") {
-      setRemoving("armed")
-      return
-    }
-    setRemoving("busy")
-    const done = await run(async () => {
+  /** True once the login is gone; false when the request failed and its error shows. */
+  const remove = async () =>
+    (await run(async () => {
       await callBackground("popup.removeLogin", ids)
+      onBack()
       return true
-    })
-    if (done) onBack()
-    else setRemoving(null)
-  }
+    })) === true
 
   const name = details?.name || login.title
   const customFields = details?.customFields ?? []
@@ -644,28 +542,10 @@ export function DetailView({
               </Button>
             )}
             {details.editable && (
-              <div className="flex flex-col gap-1.5">
-                <Button
-                  variant={removing ? "destructive" : "outline"}
-                  disabled={removing === "busy"}
-                  onClick={() => void remove()}
-                  onBlur={() =>
-                    setRemoving((current) =>
-                      current === "armed" ? null : current,
-                    )
-                  }
-                >
-                  <Trash2Icon />
-                  {removing
-                    ? t("popup.detail.confirmDelete")
-                    : t("popup.detail.delete")}
-                </Button>
-                {removing && (
-                  <p className="px-1 text-xs text-muted-foreground">
-                    {t("popup.detail.deleteHint")}
-                  </p>
-                )}
-              </div>
+              <DeleteButton
+                hint={t("popup.detail.deleteHint")}
+                onDelete={remove}
+              />
             )}
           </div>
         )}

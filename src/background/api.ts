@@ -9,10 +9,13 @@ import type {
 } from "@/lib/providers/bitwarden/bitwarden-provider"
 import type {
   EditableLogin,
+  EditableNote,
   FillField,
   LoginDetails,
   LoginEdit,
   LoginSummary,
+  NoteDetails,
+  NoteSummary,
   OneTimeCode,
   PastPassword,
   ProviderKind,
@@ -21,6 +24,8 @@ import type {
 
 export interface VaultView extends VaultInfo {
   logins: LoginSummary[]
+  /** Secure notes, listed only in search results. */
+  notes?: NoteSummary[]
 }
 
 export type PopupView =
@@ -108,6 +113,30 @@ export type BackgroundApi = {
   "popup.oneTimeCode": {
     payload: { vaultId: string; loginId: string }
     result: OneTimeCode
+  }
+  "popup.note": {
+    payload: { vaultId: string; noteId: string }
+    result: NoteDetails
+  }
+  /** A note's fields for the edit view, when its details say it is editable. */
+  "popup.editableNote": {
+    payload: { vaultId: string; noteId: string }
+    result: EditableNote
+  }
+  /** Vaults a new secure note can be saved to. */
+  "popup.noteTargets": { payload: null; result: VaultInfo[] }
+  "popup.saveNote": {
+    payload: { vaultId: string; note: EditableNote }
+    result: null
+  }
+  "popup.editNote": {
+    payload: { vaultId: string; noteId: string; note: EditableNote }
+    result: null
+  }
+  /** Moves a note to the provider's trash. */
+  "popup.removeNote": {
+    payload: { vaultId: string; noteId: string }
+    result: null
   }
   /** A login's earlier passwords, when its details count them. */
   "popup.passwordHistory": {

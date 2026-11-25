@@ -4,6 +4,7 @@ import { normalizeServerAddress } from "@/lib/providers/bitwarden/server"
 import { isBitwardenVault } from "@/lib/providers/bitwarden/vault-id"
 import {
   type CustomField,
+  type EditableNote,
   type LoginEdit,
   type TabRef,
   VaultError,
@@ -127,6 +128,26 @@ function loginEdit(value: unknown): LoginEdit {
   if (input.customFields !== undefined)
     edit.customFields = customFieldsInput(input.customFields)
   return edit
+}
+
+function noNotes(): VaultError {
+  return new VaultError("The vault keeps no notes", "notFound")
+}
+
+/** Bitwarden stores up to 10,000 characters of notes. */
+const MAX_NOTE_LENGTH = 10_000
+
+function noteInput(value: unknown): EditableNote {
+  if (typeof value !== "object" || value === null)
+    throw new VaultError("Invalid note", "invalidInput")
+  const input = value as Record<string, unknown>
+  const name = requireText(input.name, "name").trim()
+  if (!name) throw new VaultError("The note needs a name", "invalidInput")
+  return {
+    name,
+    text: requireText(input.text, "text", MAX_NOTE_LENGTH),
+    customFields: customFieldsInput(input.customFields),
+  }
 }
 
 const MAX_CUSTOM_FIELDS = 100
@@ -281,6 +302,57 @@ export function createHandlers(providers: Providers): Handlers<BackgroundApi> {
         const provider = providers.providerOf(vaultId)
         if (!provider.remove) throw notEditable()
         await provider.remove(vaultId, requireText(loginId, "loginId"))
+        return null
+      },
+    },
+    "popup.note": {
+      allow: popup,
+      handle: ({ vaultId, noteId }) => {
+        const provider = providers.providerOf(vaultId)
+        if (!provider.note) throw noNotes()
+        return provider.note(vaultId, requireText(noteId, "noteId"))
+      },
+    },
+    "popup.editableNote": {
+      allow: popup,
+      handle: ({ vaultId, noteId }) => {
+        const provider = providers.providerOf(vaultId)
+        if (!provider.editableNote) throw noNotes()
+        return provider.editableNote(vaultId, requireText(noteId, "noteId"))
+      },
+    },
+    "popup.noteTargets": {
+      allow: popup,
+      handle: () => providers.noteTargets(),
+    },
+    "popup.saveNote": {
+      allow: popup,
+      handle: async ({ vaultId, note }) => {
+        const provider = providers.providerOf(vaultId)
+        if (!provider.saveNote) throw noNotes()
+        await provider.saveNote(vaultId, noteInput(note))
+        return null
+      },
+    },
+    "popup.editNote": {
+      allow: popup,
+      handle: async ({ vaultId, noteId, note }) => {
+        const provider = providers.providerOf(vaultId)
+        if (!provider.editNote) throw noNotes()
+        await provider.editNote(
+          vaultId,
+          requireText(noteId, "noteId"),
+          noteInput(note),
+        )
+        return null
+      },
+    },
+    "popup.removeNote": {
+      allow: popup,
+      handle: async ({ vaultId, noteId }) => {
+        const provider = providers.providerOf(vaultId)
+        if (!provider.remove) throw notEditable()
+        await provider.remove(vaultId, requireText(noteId, "noteId"))
         return null
       },
     },

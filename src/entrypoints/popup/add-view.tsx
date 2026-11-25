@@ -6,12 +6,15 @@ import { VaultSelect } from "@/components/keyward/vault-select"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { generatePassword, generatorOptionsItem } from "@/lib/generator"
 import { t } from "@/lib/i18n"
 import type { VaultInfo } from "@/lib/providers/types"
 import { BackHeader } from "./header"
+import { NoteForm } from "./note-form"
 
-export function AddView({ onBack }: { onBack: () => void }) {
+/** A new login: its site, username, password and the vault it goes to. */
+function AddLoginForm({ onDone }: { onDone: () => void }) {
   const [site, setSite] = useState("")
   const [username, setUsername] = useState("")
   const [password, setPassword] = useState("")
@@ -69,7 +72,7 @@ export function AddView({ onBack }: { onBack: () => void }) {
         username,
         password,
       })
-      onBack()
+      onDone()
     } catch (error) {
       setMessage(errorMessage(error))
     } finally {
@@ -86,7 +89,6 @@ export function AddView({ onBack }: { onBack: () => void }) {
         void save()
       }}
     >
-      <BackHeader title={t("popup.add.title")} onBack={onBack} />
       <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-3 pt-1 pb-3">
         <label className="flex flex-col gap-2">
           <span className="text-sm leading-none font-medium">
@@ -178,5 +180,52 @@ export function AddView({ onBack }: { onBack: () => void }) {
         </Button>
       </div>
     </form>
+  )
+}
+
+type AddKind = "login" | "note"
+
+/** Adds a login, or a secure note when a ready vault keeps notes. */
+export function AddView({ onBack }: { onBack: () => void }) {
+  const [kind, setKind] = useState<AddKind>("login")
+  const [noteTargets, setNoteTargets] = useState<VaultInfo[]>([])
+
+  useEffect(() => {
+    callBackground("popup.noteTargets", null).then(setNoteTargets, () => {
+      // Without targets the view offers logins only.
+    })
+  }, [])
+
+  const notesPossible = noteTargets.length > 0
+  return (
+    <div className="flex min-h-0 flex-1 flex-col">
+      <BackHeader
+        title={
+          kind === "note" ? t("popup.note.addTitle") : t("popup.add.title")
+        }
+        onBack={onBack}
+      />
+      {notesPossible && (
+        <div className="px-3 pb-2">
+          <Tabs
+            value={kind}
+            onValueChange={(value) => setKind(value as AddKind)}
+          >
+            <TabsList className="w-full">
+              <TabsTrigger value="login">{t("popup.add.login")}</TabsTrigger>
+              <TabsTrigger value="note">{t("popup.add.note")}</TabsTrigger>
+            </TabsList>
+          </Tabs>
+        </div>
+      )}
+      {kind === "note" ? (
+        <NoteForm
+          target={{ mode: "create", targets: noteTargets }}
+          onDone={onBack}
+        />
+      ) : (
+        <AddLoginForm onDone={onBack} />
+      )}
+    </div>
   )
 }

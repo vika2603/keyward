@@ -12,12 +12,15 @@ import {
 import {
   decryptDetails,
   decryptLogin,
+  decryptNote,
   decryptPassword,
   decryptPasswordHistory,
   decryptTotp,
   itemUpdateRequest,
   type LoginItem,
   matchesQuery,
+  newNoteRequest,
+  noteCiphers,
   VaultKeys,
 } from "./vault"
 
@@ -393,5 +396,75 @@ describe("item details", () => {
       modified: undefined,
       passwordModified: undefined,
     })
+  })
+})
+
+describe("secure notes", () => {
+  const userKey = sdk.make_user_key_aes256_cbc_hmac()
+  const keys = VaultKeys.fromProfile(crypto, userKey, {})
+  const encrypt = (text: string) => sdk.symmetric_encrypt_string(text, userKey)
+  const decrypt = (value: unknown) =>
+    typeof value === "string"
+      ? sdk.symmetric_decrypt_string(value, userKey)
+      : value
+  const note = {
+    Id: "note-1",
+    Type: 2,
+    Name: encrypt("Wi-Fi"),
+    Notes: encrypt("first line\nsecond line"),
+    SecureNote: { Type: 0 },
+    RevisionDate: "2026-04-02T09:30:00.000Z",
+  }
+
+  it("lists notes apart from logins and leaves out deleted ones", () => {
+    const sync = {
+      Ciphers: [
+        note,
+        { ...note, Id: "note-2", DeletedDate: "2026-05-01T00:00:00.000Z" },
+        { Id: "login-1", Type: 1, Login: {} },
+      ],
+    }
+    expect(noteCiphers(sync).map((cipher) => cipher.Id)).toEqual(["note-1"])
+    expect(decryptNote(note, keys)).toEqual({
+      id: "note-1",
+      name: "Wi-Fi",
+      reprompt: false,
+    })
+  })
+
+  it("encrypts a new note with its custom fields", () => {
+    const request = newNoteRequest(
+      {
+        name: "Wi-Fi",
+        text: "network details",
+        customFields: [{ kind: "hidden", name: "Key", value: "fake" }],
+      },
+      keys,
+      "user-1",
+    )
+    expect(request.type).toBe(2)
+    expect(request.secureNote).toEqual({ type: 0 })
+    expect(decrypt(request.name)).toBe("Wi-Fi")
+    expect(decrypt(request.notes)).toBe("network details")
+    const [field] = request.fields as Record<string, unknown>[]
+    expect([field?.type, decrypt(field?.name), decrypt(field?.value)]).toEqual([
+      1,
+      "Key",
+      "fake",
+    ])
+  })
+
+  it("updates a note as a note, without a login part", async () => {
+    const request = await itemUpdateRequest(
+      note,
+      { notes: "changed" },
+      keys,
+      "user-1",
+    )
+    expect(request.type).toBe(2)
+    expect(request.secureNote).toEqual({ type: 0 })
+    expect(request.login).toBeUndefined()
+    expect(request.name).toBe(note.Name)
+    expect(decrypt(request.notes)).toBe("changed")
   })
 })
