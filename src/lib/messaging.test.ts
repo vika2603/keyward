@@ -62,6 +62,15 @@ describe("serveRequests", () => {
     ])
   })
 
+  it("says a request named like an inherited property is unsupported", async () => {
+    for (const type of ["constructor", "toString", "__proto__"]) {
+      const replies = await deliver({ keyward: 1, type, payload: null })
+      expect(replies).toEqual([
+        { ok: false, error: "Unsupported request", code: "unsupported" },
+      ])
+    }
+  })
+
   it("leaves messages of other shapes to their own listeners", async () => {
     const replies = await deliver({ keywardOffscreen: 1, text: "copied" })
     expect(replies).toEqual([])

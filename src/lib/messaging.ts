@@ -83,24 +83,19 @@ export function serveRequests<Api extends ApiShape>(
   browser.runtime.onMessage.addListener(
     (message: unknown, sender, sendResponse) => {
       if (!isEnvelope(message)) return false
-      const entry = handlers[message.type as keyof Api]
+      // Own entries only: a type such as "constructor" must not find what every object inherits.
+      const entry = Object.hasOwn(handlers, message.type)
+        ? handlers[message.type as keyof Api]
+        : undefined
       // A page built after this background can ask for requests it does not know. Saying so, rather
       // than not answering, lets the page do without the feature.
       if (!entry) {
-        sendResponse({
-          ok: false,
-          error: "Unsupported request",
-          code: "unsupported",
-        } satisfies Reply<never>)
+        sendResponse(errorReply("Unsupported request", "unsupported"))
         return false
       }
       const kind = senderKind(sender)
       if (!kind || !entry.allow.includes(kind)) {
-        sendResponse({
-          ok: false,
-          error: "Not allowed",
-          code: "forbidden",
-        } satisfies Reply<never>)
+        sendResponse(errorReply("Not allowed", "forbidden"))
         return false
       }
       Promise.resolve()
@@ -112,11 +107,12 @@ export function serveRequests<Api extends ApiShape>(
               value: value ?? null,
             } satisfies Reply<unknown>),
           (error: unknown) =>
-            sendResponse({
-              ok: false,
-              error: error instanceof Error ? error.message : String(error),
-              code: errorCode(error),
-            } satisfies Reply<never>),
+            sendResponse(
+              errorReply(
+                error instanceof Error ? error.message : String(error),
+                errorCode(error),
+              ),
+            ),
         )
       return true
     },
@@ -135,6 +131,10 @@ export async function sendRequest<
     throw new RequestError("No response from the background", "noResponse")
   if (!reply.ok) throw new RequestError(reply.error, reply.code)
   return reply.value
+}
+
+function errorReply(error: string, code: string): Reply<never> {
+  return { ok: false, error, code }
 }
 
 function isEnvelope(message: unknown): message is Envelope {
