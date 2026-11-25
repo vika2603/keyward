@@ -50,6 +50,7 @@ import {
   markRecent,
   neverForSite,
   onSubmitted,
+  promptFolders,
   promptState,
   recallUsername,
   saveTargets,
@@ -861,14 +862,30 @@ export function createHandlers(providers: Providers): Handlers<BackgroundApi> {
     },
     "prompt.confirm": {
       allow: ["savePrompt"],
-      handle: async ({ token, targetId }, sender) => {
+      handle: async ({ token, targetId, name, folderId }, sender) => {
         await confirmPrompt(
           providers,
           (await prompts.claim(sender, token)).tabId,
           targetId,
+          {
+            name: requireText(name ?? "", "name"),
+            folderId:
+              folderId === undefined || folderId === null
+                ? null
+                : requireText(folderId, "folderId", 64),
+          },
         )
         return null
       },
+    },
+    "prompt.folders": {
+      allow: ["savePrompt"],
+      handle: async ({ token, vaultId }, sender) =>
+        promptFolders(
+          providers,
+          (await prompts.claim(sender, token)).tabId,
+          requireText(vaultId, "vaultId"),
+        ),
     },
     "prompt.never": {
       allow: ["savePrompt"],

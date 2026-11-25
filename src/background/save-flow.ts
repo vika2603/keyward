@@ -1,5 +1,10 @@
 import { ruleForHost } from "@/lib/matching"
-import { VaultError, type VaultInfo } from "@/lib/providers/types"
+import {
+  type Folder,
+  type NewLogin,
+  VaultError,
+  type VaultInfo,
+} from "@/lib/providers/types"
 import { getSettings, updateSettings } from "@/lib/settings"
 import { siteDomainOf } from "@/lib/site"
 import type { PromptState, VaultView } from "./api"
@@ -247,15 +252,38 @@ export async function promptState(
   }
 }
 
+/** The folders of a vault the prompt offers; none for a vault it does not offer. */
+export async function promptFolders(
+  providers: Providers,
+  tabId: number,
+  vaultId: string,
+): Promise<Folder[]> {
+  const session = await prompts.get(tabId)
+  if (!session) throw new VaultError("Nothing to show", "overlay.closed")
+  const targets = await promptTargets(providers, new URL(session.url))
+  if (!targets.some((target) => target.id === vaultId)) return []
+  const provider = providers.providerOf(vaultId)
+  return provider.folders ? provider.folders(vaultId) : []
+}
+
 export async function confirmPrompt(
   providers: Providers,
   tabId: number,
   targetId: string | null,
+  choices: { name: string; folderId: string | null } = {
+    name: "",
+    folderId: null,
+  },
 ): Promise<void> {
   const session = await prompts.get(tabId)
   if (!session) throw new VaultError("Nothing to save", "overlay.closed")
   const url = new URL(session.url)
-  const login = { url, username: session.username, password: session.password }
+  const login: NewLogin = {
+    url,
+    username: session.username,
+    password: session.password,
+    details: { ...choices, notes: "", totp: "", customFields: [] },
+  }
   const tab = { tabId, frameId: 0 }
   if (session.update) {
     const { vaultId, loginId } = session.update

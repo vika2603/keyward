@@ -13,7 +13,20 @@ import {
 import { SiteIcon } from "@/components/keyward/site-icon"
 import { VaultSelect } from "@/components/keyward/vault-select"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { t } from "@/lib/i18n"
+import type { Folder } from "@/lib/providers/types"
+import { cn } from "@/lib/utils"
+
+const NO_FOLDER = "none"
 
 /** Asks to save or update a login after the user signed in; shown at the top right of the page. */
 export function App() {
@@ -22,6 +35,10 @@ export function App() {
   const card = useRef<HTMLDivElement>(null)
   const [state, setState] = useState<PromptState | null>(null)
   const [target, setTarget] = useState<string | null>(null)
+  /** The new login's name; empty names it after the site. */
+  const [name, setName] = useState("")
+  const [folders, setFolders] = useState<Folder[]>([])
+  const [folderId, setFolderId] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
 
@@ -54,7 +71,11 @@ export function App() {
     setBusy(true)
     setMessage(null)
     try {
-      await callOverlay("prompt.confirm", { targetId: target })
+      await callOverlay("prompt.confirm", {
+        targetId: target,
+        name: bitwardenTarget ? name : "",
+        folderId: bitwardenTarget ? folderId : null,
+      })
     } catch (error) {
       setMessage(errorMessage(error))
       setBusy(false)
@@ -62,9 +83,32 @@ export function App() {
   }
 
   const update = state?.mode === "update"
+  const targetKind = state?.targets.find((vault) => vault.id === target)?.kind
   const appleTarget = update
     ? state?.updateVault?.kind === "apple"
-    : state?.targets.find((vault) => vault.id === target)?.kind === "apple"
+    : targetKind === "apple"
+  // A Bitwarden login keeps a name and a folder of its own; Apple names logins after their site.
+  const bitwardenTarget = !update && targetKind === "bitwarden"
+
+  useEffect(() => {
+    setFolders([])
+    setFolderId(null)
+    if (!bitwardenTarget || !target) return
+    let current = true
+    callOverlay("prompt.folders", { vaultId: target }).then(
+      (found) => current && setFolders(found),
+      () => {
+        // Without its folders the login is saved outside every folder.
+      },
+    )
+    return () => {
+      current = false
+    }
+  }, [bitwardenTarget, target])
+  const folderChoices = [
+    { value: NO_FOLDER, label: t("overlay.prompt.noFolder") },
+    ...folders.map((folder) => ({ value: folder.id, label: folder.name })),
+  ]
 
   return (
     <div className="p-2">
@@ -114,16 +158,71 @@ export function App() {
                 </p>
               )
             ) : (
-              <div className="flex flex-col gap-2">
-                <span className="text-xs font-medium text-muted-foreground">
-                  {t("overlay.prompt.saveTo")}
-                </span>
-                <VaultSelect
-                  vaults={state.targets}
-                  value={target}
-                  onChange={setTarget}
-                  label={t("overlay.prompt.saveTo")}
-                />
+              <div className="flex flex-col gap-3">
+                {bitwardenTarget && (
+                  <label className="flex flex-col gap-2">
+                    <span className="text-xs font-medium text-muted-foreground">
+                      {t("overlay.prompt.name")}
+                    </span>
+                    <Input
+                      value={name}
+                      placeholder={state.host}
+                      onChange={(event) => setName(event.target.value)}
+                      autoComplete="off"
+                    />
+                  </label>
+                )}
+                <div
+                  className={cn(
+                    "grid gap-2",
+                    folders.length > 0 && "grid-cols-2",
+                  )}
+                >
+                  <div className="flex min-w-0 flex-col gap-2">
+                    <span className="text-xs font-medium text-muted-foreground">
+                      {t("overlay.prompt.saveTo")}
+                    </span>
+                    <VaultSelect
+                      vaults={state.targets}
+                      value={target}
+                      onChange={setTarget}
+                      label={t("overlay.prompt.saveTo")}
+                    />
+                  </div>
+                  {folders.length > 0 && (
+                    <div className="flex min-w-0 flex-col gap-2">
+                      <span className="text-xs font-medium text-muted-foreground">
+                        {t("overlay.prompt.folder")}
+                      </span>
+                      <Select
+                        value={folderId ?? NO_FOLDER}
+                        onValueChange={(value) =>
+                          setFolderId(value === NO_FOLDER ? null : value)
+                        }
+                        items={folderChoices}
+                      >
+                        <SelectTrigger
+                          className="w-full min-w-0"
+                          aria-label={t("overlay.prompt.folder")}
+                        >
+                          <SelectValue className="truncate" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectGroup>
+                            {folderChoices.map((choice) => (
+                              <SelectItem
+                                key={choice.value}
+                                value={choice.value}
+                              >
+                                {choice.label}
+                              </SelectItem>
+                            ))}
+                          </SelectGroup>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+                </div>
               </div>
             )}
             {busy && appleTarget && (

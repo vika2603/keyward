@@ -294,8 +294,19 @@ export type BackgroundApi = {
   "menu.connect": { payload: { token: string; vaultId: string }; result: null }
   "prompt.state": { payload: { token: string }; result: PromptState }
   "prompt.confirm": {
-    payload: { token: string; targetId: string | null }
+    payload: {
+      token: string
+      targetId: string | null
+      /** For a vault that keeps them: the new login's name, empty for its site, and folder. */
+      name?: string
+      folderId?: string | null
+    }
     result: null
+  }
+  /** The folders of one of the prompt's vaults. */
+  "prompt.folders": {
+    payload: { token: string; vaultId: string }
+    result: Folder[]
   }
   "prompt.never": { payload: { token: string }; result: null }
   "prompt.close": { payload: { token: string }; result: null }

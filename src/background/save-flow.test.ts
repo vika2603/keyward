@@ -2,7 +2,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 import { fakeBrowser } from "wxt/testing/fake-browser"
 import { updateSettings } from "@/lib/settings"
 import { prompts } from "./overlays"
-import { onSubmitted, promptState, showPrompt } from "./save-flow"
+import {
+  confirmPrompt,
+  onSubmitted,
+  promptFolders,
+  promptState,
+  showPrompt,
+} from "./save-flow"
 import {
   accountVault,
   appleVault,
@@ -193,6 +199,37 @@ describe("onSubmitted", () => {
       password: "typed-password",
     })
     expect(await prompts.get(TAB)).toBeNull()
+  })
+})
+
+describe("confirmPrompt", () => {
+  it("saves the login with the name and folder chosen in the prompt", async () => {
+    const { providers, calls } = fakeProviders([{ info: accountVault }])
+    await onSubmitted(providers, TAB, 0, login)
+    await confirmPrompt(providers, TAB, accountVault.id, {
+      name: "Accounts",
+      folderId: "folder-1",
+    })
+    expect(calls.save).toHaveBeenCalledWith(
+      accountVault.id,
+      expect.objectContaining({
+        username: "someone",
+        password: "typed-password",
+        details: expect.objectContaining({
+          name: "Accounts",
+          folderId: "folder-1",
+        }),
+      }),
+      expect.anything(),
+    )
+  })
+
+  it("lists folders only for a vault the prompt offers", async () => {
+    const { providers } = fakeProviders([{ info: accountVault }])
+    await onSubmitted(providers, TAB, 0, login)
+    await expect(
+      promptFolders(providers, TAB, "bitwarden:other"),
+    ).resolves.toEqual([])
   })
 })
 
