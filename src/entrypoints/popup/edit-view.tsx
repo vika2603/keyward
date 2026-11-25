@@ -21,6 +21,7 @@ import type {
   VaultInfo,
 } from "@/lib/providers/types"
 import { cn } from "@/lib/utils"
+import { CustomFieldsEditor } from "./custom-fields-editor"
 import { BackHeader } from "./header"
 
 function Field({
@@ -42,7 +43,7 @@ function Field({
   )
 }
 
-/** Changes a login's name, username, password, addresses, notes and authenticator key. */
+/** Changes a login's name, username, password, addresses, notes, authenticator key and custom fields. */
 export function EditView({
   vault,
   login,
@@ -244,6 +245,12 @@ export function EditView({
                 value={form.notes}
                 onChange={(event) => update({ notes: event.target.value })}
                 className="w-full min-w-0 resize-y rounded-lg border border-input bg-transparent px-2.5 py-1.5 text-sm outline-none placeholder:text-muted-foreground focus-visible:border-foreground/35 focus-visible:ring-3 focus-visible:ring-foreground/6 dark:bg-input/30"
+              />
+            </Field>
+            <Field label={t("popup.detail.customFields")}>
+              <CustomFieldsEditor
+                fields={form.customFields}
+                onChange={(customFields) => update({ customFields })}
               />
             </Field>
           </div>

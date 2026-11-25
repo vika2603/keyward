@@ -86,7 +86,14 @@ export interface OneTimeCode {
 export interface Credential {
   username: string
   password: string
+  /** Custom fields that go into the page fields of the same name. */
+  fields?: FillField[]
 }
+
+/** A custom field to fill: text for a text field, or the state of a check box. */
+export type FillField =
+  | { name: string; text: string }
+  | { name: string; checked: boolean }
 
 /** Where a request comes from, passed through to providers that report it to their host. */
 export interface TabRef {
@@ -109,6 +116,7 @@ export interface EditableLogin {
   notes: string
   /** The authenticator key as saved: an `otpauth://` URI, a `steam://` key or a base32 secret. */
   totp: string
+  customFields: CustomField[]
 }
 
 /** New values for a login's fields; fields left out stay as they are. */

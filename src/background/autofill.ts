@@ -127,6 +127,7 @@ export async function fillLogin(
     origin: page.origin,
     username: credential.username,
     password: credential.password,
+    fields: credential.fields ?? [],
     autoSubmit: settings.autoSubmit,
   })
   // A one-time code page that follows offers this login's code first.

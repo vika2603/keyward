@@ -9,6 +9,7 @@ import type {
 } from "@/lib/providers/bitwarden/bitwarden-provider"
 import type {
   EditableLogin,
+  FillField,
   LoginDetails,
   LoginEdit,
   LoginSummary,
@@ -272,6 +273,8 @@ export type ContentMessage =
       origin: string
       username: string
       password: string
+      /** Custom fields for the page fields of the same name. */
+      fields: FillField[]
       autoSubmit: boolean
     }
   | { type: "fillCode"; origin: string; code: string }

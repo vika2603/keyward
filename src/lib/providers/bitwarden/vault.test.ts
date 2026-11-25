@@ -284,6 +284,82 @@ describe("item details", () => {
     ])
   })
 
+  it("saves edited custom fields and keeps a replaced hidden value in the history", async () => {
+    const encrypt = (text: string) =>
+      sdk.symmetric_encrypt_string(text, userKey)
+    const withFields = {
+      ...cipher,
+      Reprompt: 0,
+      Fields: [
+        { Type: 1, Name: encrypt("PIN"), Value: encrypt("1111") },
+        { Type: 1, Name: encrypt("Backup"), Value: encrypt("kept") },
+        { Type: 9, Name: encrypt("Future type"), Value: encrypt("x") },
+      ],
+    }
+    const request = await itemUpdateRequest(
+      withFields,
+      {
+        customFields: [
+          { kind: "hidden", name: "PIN", value: "2222" },
+          { kind: "hidden", name: "Backup", value: "kept" },
+          { kind: "linked", name: "user", linkedTo: "username" },
+        ],
+      },
+      keys,
+      "user-1",
+    )
+    const fields = request.fields as Record<string, unknown>[]
+    const decrypt = (value: unknown) =>
+      typeof value === "string"
+        ? sdk.symmetric_decrypt_string(value, userKey)
+        : value
+    expect(
+      fields.map((field) => [
+        field.type,
+        decrypt(field.name),
+        decrypt(field.value),
+        field.linkedId,
+      ]),
+    ).toEqual([
+      [1, "PIN", "2222", null],
+      [1, "Backup", "kept", null],
+      [3, "user", null, 100],
+      [9, "Future type", "x", null],
+    ])
+    const history = request.passwordHistory as { password: string }[]
+    expect(history.map((entry) => decrypt(entry.password))).toEqual([
+      "PIN: 1111",
+    ])
+  })
+
+  it("leaves the fields and the history alone when the change does not touch the fields", async () => {
+    const withFields = {
+      ...cipher,
+      Fields: [
+        {
+          Type: 0,
+          Name: sdk.symmetric_encrypt_string("Account", userKey),
+          Value: sdk.symmetric_encrypt_string("12345", userKey),
+        },
+      ],
+    }
+    const request = await itemUpdateRequest(
+      withFields,
+      { notes: "changed" },
+      keys,
+      "user-1",
+    )
+    expect(request.fields).toEqual([
+      {
+        type: 0,
+        name: withFields.Fields[0]?.Name,
+        value: withFields.Fields[0]?.Value,
+        linkedId: null,
+      },
+    ])
+    expect(request.passwordHistory).toBeNull()
+  })
+
   it("counts earlier passwords and decrypts them newest first", () => {
     const withHistory = {
       ...cipher,

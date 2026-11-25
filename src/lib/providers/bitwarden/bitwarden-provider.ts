@@ -4,8 +4,10 @@ import { hostOfSavedUri } from "@/lib/site"
 import { oneTimeCode } from "@/lib/totp"
 import {
   type Credential,
+  type CustomField,
   type EditableLogin,
   type ExistingLogin,
+  type FillField,
   type ListOptions,
   type LoginDetails,
   type LoginEdit,
@@ -541,9 +543,12 @@ export class BitwardenProvider implements VaultProvider {
   ): Promise<Credential> {
     const { vault, item, cipher } = await this.pageItem(vaultId, loginId, page)
     refuseReprompt(item)
+    const { customFields } = decryptDetails(cipher, vault.keys)
+    const password = decryptPassword(cipher, vault.keys)
     return {
       username: item.username,
-      password: decryptPassword(cipher, vault.keys),
+      password,
+      fields: fillFields(customFields, { username: item.username, password }),
     }
   }
 
@@ -621,13 +626,15 @@ export class BitwardenProvider implements VaultProvider {
   async editable(vaultId: string, loginId: string): Promise<EditableLogin> {
     const { vault, item, cipher } = await this.pageItem(vaultId, loginId, null)
     refuseEdit(item, cipher)
+    const { notes, customFields } = decryptDetails(cipher, vault.keys)
     return {
       name: item.name,
       username: item.username,
       password: decryptPassword(cipher, vault.keys),
       uris: item.uris.map((u) => u.uri).filter((uri) => uri !== ""),
-      notes: decryptDetails(cipher, vault.keys).notes,
+      notes,
       totp: item.hasTotp ? decryptTotp(cipher, vault.keys) : "",
+      customFields,
     }
   }
 
@@ -650,6 +657,11 @@ export class BitwardenProvider implements VaultProvider {
     const uris = change.uris?.map((uri) => uri.trim()).filter(Boolean)
     if (uris !== undefined && uris.join("\n") !== current.uris.join("\n"))
       changed.uris = uris
+    const fieldsChanged =
+      change.customFields !== undefined &&
+      JSON.stringify(change.customFields) !==
+        JSON.stringify(current.customFields)
+    if (fieldsChanged) changed.customFields = change.customFields
     if (!Object.keys(changed).length) return
     const { cipher } = await this.pageItem(vaultId, loginId, null)
     await this.change(vaultId, cipher, changed)
@@ -776,6 +788,31 @@ function refuseEdit(item: LoginItem, cipher: Record<string, unknown>): void {
   refuseReprompt(item)
   if (!isEditable(item, cipher))
     throw new VaultError("The login cannot be changed", "notEditable")
+}
+
+/** What a fill puts into the page for a custom field; a linked field takes its login value. */
+function fillFieldOf(
+  field: CustomField,
+  login: { username: string; password: string },
+): FillField {
+  switch (field.kind) {
+    case "checkbox":
+      return { name: field.name, checked: field.checked }
+    case "linked":
+      return { name: field.name, text: login[field.linkedTo] }
+    default:
+      return { name: field.name, text: field.value }
+  }
+}
+
+/** The custom fields a fill can match to page fields: those with a name. */
+function fillFields(
+  customFields: CustomField[],
+  login: { username: string; password: string },
+): FillField[] {
+  return customFields
+    .filter((field) => field.name !== "")
+    .map((field) => fillFieldOf(field, login))
 }
 
 /** Items marked for master password re-prompt are left to Bitwarden's own apps. */

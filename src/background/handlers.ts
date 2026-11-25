@@ -2,7 +2,12 @@ import { generatePassword, generatorOptionsItem } from "@/lib/generator"
 import type { Handlers, Sender } from "@/lib/messaging"
 import { normalizeServerAddress } from "@/lib/providers/bitwarden/server"
 import { isBitwardenVault } from "@/lib/providers/bitwarden/vault-id"
-import { type LoginEdit, type TabRef, VaultError } from "@/lib/providers/types"
+import {
+  type CustomField,
+  type LoginEdit,
+  type TabRef,
+  VaultError,
+} from "@/lib/providers/types"
 import { getSettings, updateSettings } from "@/lib/settings"
 import { normalizeSiteInput, siteDomainOf } from "@/lib/site"
 import { keyLabel } from "@/lib/totp"
@@ -119,7 +124,42 @@ function loginEdit(value: unknown): LoginEdit {
       throw new VaultError("Invalid addresses", "invalidInput")
     edit.uris = input.uris.map((uri) => requireText(uri, "uri", 2048))
   }
+  if (input.customFields !== undefined)
+    edit.customFields = customFieldsInput(input.customFields)
   return edit
+}
+
+const MAX_CUSTOM_FIELDS = 100
+
+function customFieldsInput(value: unknown): CustomField[] {
+  if (!Array.isArray(value) || value.length > MAX_CUSTOM_FIELDS)
+    throw new VaultError("Invalid custom fields", "invalidInput")
+  return value.map(customFieldInput)
+}
+
+function customFieldInput(value: unknown): CustomField {
+  const invalid = new VaultError("Invalid custom field", "invalidInput")
+  if (typeof value !== "object" || value === null) throw invalid
+  const field = value as Record<string, unknown>
+  const name = requireText(field.name, "field name")
+  switch (field.kind) {
+    case "text":
+    case "hidden":
+      return {
+        kind: field.kind,
+        name,
+        value: requireText(field.value, "field value", 5000),
+      }
+    case "checkbox":
+      if (typeof field.checked !== "boolean") throw invalid
+      return { kind: "checkbox", name, checked: field.checked }
+    case "linked":
+      if (field.linkedTo !== "username" && field.linkedTo !== "password")
+        throw invalid
+      return { kind: "linked", name, linkedTo: field.linkedTo }
+    default:
+      throw invalid
+  }
 }
 
 function fieldKind(value: unknown): FieldKind {

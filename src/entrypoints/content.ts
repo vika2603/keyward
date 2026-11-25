@@ -12,6 +12,7 @@ import {
   deepActiveElement,
   eventOrigin,
   fillCodeField,
+  fillCustomFields,
   fillTargets,
   isPasswordField,
   loginFields,
@@ -166,8 +167,11 @@ export default defineContentScript({
       menu.close()
       if (!anchor) return
       const { username, password } = fillTargets(anchor)
+      const loginFields = [username, password].filter((field) => field !== null)
       filling = true
       try {
+        // Custom fields go first, so the focus ends on the login's own fields as typing would leave it.
+        fillCustomFields(anchor, message.fields, loginFields)
         if (username && message.username)
           setFieldValue(username, message.username)
         if (password) setFieldValue(password, message.password)

@@ -3,6 +3,8 @@
  * web components put them there; a login form is the nearest `<form>` across shadow boundaries.
  */
 
+import type { FillField } from "@/lib/providers/types"
+
 const TEXT_TYPES = new Set(["text", "email", "tel", ""])
 const USERNAME_HINT =
   /user|email|e-mail|login|account|identifier|phone|mobile|账号|帳號|用户|手机|邮箱/i
@@ -348,6 +350,66 @@ export function fillTargets(anchor: HTMLInputElement): {
   if (isPasswordField(anchor))
     return { username: scopes.usernameFor(anchor), password: anchor }
   return { username: anchor, password: scopes.passwordFor(anchor) }
+}
+
+/** Input types that take neither typed text nor a check mark. */
+const NOT_FILLABLE_TYPES = new Set([
+  "button",
+  "color",
+  "file",
+  "hidden",
+  "image",
+  "radio",
+  "range",
+  "reset",
+  "submit",
+])
+
+/** Names a page gives a field: its id, name, aria-label, placeholder and label text, in lower case. */
+function pageNamesOf(input: HTMLInputElement): string[] {
+  const labels = [...(input.labels ?? [])].map(
+    (label) => label.textContent ?? "",
+  )
+  const names = [
+    input.id,
+    input.name,
+    input.getAttribute("aria-label") ?? "",
+    input.placeholder,
+    ...labels,
+  ]
+  return names.map((name) => name.trim().toLowerCase()).filter(Boolean)
+}
+
+/**
+ * Fills a login's custom fields in the form of `anchor`. Each goes into the visible field whose id,
+ * name, aria-label, placeholder or label equals the custom field's name, ignoring case, which is how
+ * Bitwarden's apps match them. `skip` holds the fields the username and password go into.
+ */
+export function fillCustomFields(
+  anchor: HTMLInputElement,
+  fields: readonly FillField[],
+  skip: readonly HTMLInputElement[],
+): void {
+  if (!fields.length) return
+  const candidates = deepInputs(scopeOf(anchor)).filter(
+    (input) =>
+      usable(input) &&
+      !skip.includes(input) &&
+      !NOT_FILLABLE_TYPES.has(input.type),
+  )
+  for (const field of fields) {
+    const name = field.name.trim().toLowerCase()
+    const target = candidates.find((input) => pageNamesOf(input).includes(name))
+    if (!target) continue
+    candidates.splice(candidates.indexOf(target), 1)
+    const isCheckbox = target.type === "checkbox"
+    if ("checked" in field) {
+      // A click changes the box the way the user would, so page frameworks see it.
+      if (isCheckbox && target.checked !== field.checked) target.click()
+    } else if (!isCheckbox) {
+      setFieldValue(target, field.text)
+    }
+  }
 }
 
 /** Sets a value the way typing would, so that page frameworks see the change. */

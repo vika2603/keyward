@@ -55,6 +55,7 @@ describe("fillLogin", () => {
       type: "fill",
       origin: "https://accounts.example.com",
       ...credential,
+      fields: [],
       autoSubmit: false,
     })
   })

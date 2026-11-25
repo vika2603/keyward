@@ -157,6 +157,9 @@ const FIELD_LINKED = 3
 const LINKED_USERNAME = 100
 const LINKED_PASSWORD = 101
 
+/** How many earlier passwords Bitwarden's apps keep for an item. */
+const MAX_PASSWORD_HISTORY = 5
+
 function decryptCustomField(
   field: unknown,
   keys: VaultKeys,
@@ -182,6 +185,96 @@ function decryptCustomField(
     default:
       return null
   }
+}
+
+/** A custom field as the server stores it, encrypted with the item key. */
+function encryptCustomField(
+  field: CustomField,
+  keys: VaultKeys,
+  key: Uint8Array,
+): Record<string, unknown> {
+  const name = keys.encrypt(field.name, key)
+  switch (field.kind) {
+    case "text":
+    case "hidden":
+      return {
+        type: field.kind === "text" ? FIELD_TEXT : FIELD_HIDDEN,
+        name,
+        value: keys.encrypt(field.value, key),
+        linkedId: null,
+      }
+    case "checkbox":
+      return {
+        type: FIELD_BOOLEAN,
+        name,
+        value: keys.encrypt(String(field.checked), key),
+        linkedId: null,
+      }
+    case "linked":
+      return {
+        type: FIELD_LINKED,
+        name,
+        value: null,
+        linkedId:
+          field.linkedTo === "username" ? LINKED_USERNAME : LINKED_PASSWORD,
+      }
+  }
+}
+
+function savedFieldRequest(field: unknown): Record<string, unknown> {
+  return {
+    type: prop(field, "Type"),
+    name: prop(field, "Name"),
+    value: prop(field, "Value"),
+    linkedId: prop(field, "LinkedId") ?? null,
+  }
+}
+
+/**
+ * The item's custom fields for a request. A field this code cannot read is kept as saved, so an
+ * edit never drops it.
+ */
+function customFieldsRequest(
+  cipher: Record<string, unknown>,
+  next: CustomField[] | undefined,
+  keys: VaultKeys,
+  key: Uint8Array,
+): Record<string, unknown>[] {
+  const saved = savedList(cipher, "Fields")
+  if (next === undefined) return saved.map(savedFieldRequest)
+  const unreadable = saved.filter(
+    (field) => decryptCustomField(field, keys, key) === null,
+  )
+  return [
+    ...next.map((field) => encryptCustomField(field, keys, key)),
+    ...unreadable.map(savedFieldRequest),
+  ]
+}
+
+/**
+ * Hidden fields whose value the change replaces or removes. Bitwarden's apps keep their old values in
+ * the password history as "name: value", so a secret never goes away unnoticed.
+ */
+function replacedHiddenValues(
+  cipher: Record<string, unknown>,
+  next: CustomField[] | undefined,
+  keys: VaultKeys,
+  key: Uint8Array,
+): string[] {
+  if (next === undefined) return []
+  const savedHidden = savedList(cipher, "Fields")
+    .map((field) => decryptCustomField(field, keys, key))
+    .filter((field) => field?.kind === "hidden" && field.name && field.value)
+  return savedHidden.flatMap((field) => {
+    if (field?.kind !== "hidden") return []
+    const stillThere = next.some(
+      (candidate) =>
+        candidate.kind === "hidden" &&
+        candidate.name === field.name &&
+        candidate.value === field.value,
+    )
+    return stillThere ? [] : [`${field.name}: ${field.value}`]
+  })
 }
 
 function savedList(cipher: Record<string, unknown>, name: string): unknown[] {
@@ -290,6 +383,8 @@ export interface ItemChange {
   notes?: string
   /** An authenticator key: an `otpauth://` URI, a `steam://` key or a base32 secret. */
   totp?: string
+  /** The item's whole list of custom fields. */
+  customFields?: CustomField[]
 }
 
 /**
@@ -353,23 +448,29 @@ export async function itemUpdateRequest(
     value === undefined ? (saved ?? null) : keys.encrypt(value, key)
   const now = new Date().toISOString()
   const oldPassword = prop(login, "Password")
-  const history = prop(cipher, "PasswordHistory")
-  const kept = Array.isArray(history)
-    ? history.map((h) => ({
-        password: prop(h, "Password"),
-        lastUsedDate: prop(h, "LastUsedDate"),
-      }))
-    : []
-  const passwordHistory =
-    change.password === undefined
-      ? kept
-      : [
-          ...(typeof oldPassword === "string" && oldPassword
-            ? [{ password: oldPassword, lastUsedDate: now }]
-            : []),
-          ...kept,
-        ].slice(0, 5)
-  const fields = prop(cipher, "Fields")
+  const kept = savedList(cipher, "PasswordHistory").map((entry) => ({
+    password: prop(entry, "Password"),
+    lastUsedDate: prop(entry, "LastUsedDate"),
+  }))
+  const replacedPassword =
+    change.password !== undefined &&
+    typeof oldPassword === "string" &&
+    oldPassword
+      ? [oldPassword]
+      : []
+  const replacedFields = replacedHiddenValues(
+    cipher,
+    change.customFields,
+    keys,
+    key,
+  ).map((text) => keys.encrypt(text, key))
+  const replaced = [...replacedPassword, ...replacedFields].map((password) => ({
+    password,
+    lastUsedDate: now,
+  }))
+  const passwordHistory = replaced.length
+    ? [...replaced, ...kept].slice(0, MAX_PASSWORD_HISTORY)
+    : kept
   return {
     type: CIPHER_TYPE_LOGIN,
     encryptedFor: userId,
@@ -381,14 +482,7 @@ export async function itemUpdateRequest(
     reprompt: prop(cipher, "Reprompt") ?? 0,
     key: prop(cipher, "Key") ?? null,
     lastKnownRevisionDate: prop(cipher, "RevisionDate") ?? null,
-    fields: Array.isArray(fields)
-      ? fields.map((f) => ({
-          type: prop(f, "Type"),
-          name: prop(f, "Name"),
-          value: prop(f, "Value"),
-          linkedId: prop(f, "LinkedId") ?? null,
-        }))
-      : null,
+    fields: customFieldsRequest(cipher, change.customFields, keys, key),
     passwordHistory: passwordHistory.length ? passwordHistory : null,
     login: {
       username: field(change.username, prop(login, "Username")),
