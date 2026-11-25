@@ -3,7 +3,7 @@ import { fakeBrowser } from "wxt/testing/fake-browser"
 import type { Sender } from "@/lib/messaging"
 import type { BackgroundApi } from "../api"
 import { listHistory } from "../history"
-import { menus } from "../overlays"
+import { menuSessions } from "../overlays"
 import { accountVault, fakeProviders, pageModule } from "../test-support"
 import { createHandlers } from "."
 
@@ -72,7 +72,7 @@ describe("request checks", () => {
   })
 
   it("refuses a menu height that is not a number", async () => {
-    await menus.set({
+    await menuSessions.set({
       tabId: TAB,
       frameId: 0,
       token: "menu-token",

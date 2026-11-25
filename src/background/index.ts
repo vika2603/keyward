@@ -13,7 +13,7 @@ import { CLEAR_CLIPBOARD_ALARM, clearClipboard } from "./clipboard"
 import { watchCodeSetup } from "./code-setup"
 import { createHandlers } from "./handlers"
 import { LoginMenus } from "./login-menus"
-import { menus } from "./overlays"
+import { menuSessions } from "./overlays"
 import { openPopup } from "./popup-window"
 import { Providers } from "./providers"
 import { forgetTab } from "./save-flow"
@@ -147,6 +147,6 @@ export function startBackground(): void {
 
   browser.tabs.onRemoved.addListener((tabId) => {
     void forgetTab(tabId)
-    void menus.remove(tabId)
+    void menuSessions.remove(tabId)
   })
 }

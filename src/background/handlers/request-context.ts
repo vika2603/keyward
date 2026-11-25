@@ -1,6 +1,6 @@
 import type { Sender } from "@/lib/messaging"
 import { type TabRef, VaultError } from "@/lib/providers/types"
-import { menus } from "../overlays"
+import { menuSessions } from "../overlays"
 import { activeTab, sendToFrame, webPage } from "../page"
 
 /** The senders the toolbar popup's requests come from. */
@@ -16,9 +16,9 @@ export function tabFrame(sender: Sender): { tabId: number; frameId: number } {
 }
 
 export async function closeMenu(tabId: number): Promise<void> {
-  const session = await menus.get(tabId)
+  const session = await menuSessions.get(tabId)
   if (!session) return
-  await menus.remove(tabId)
+  await menuSessions.remove(tabId)
   await sendToFrame(tabId, session.frameId, { type: "menu.close" }).catch(
     () => {},
   )

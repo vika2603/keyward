@@ -1,6 +1,6 @@
 import type { Handlers } from "@/lib/messaging"
 import type { BackgroundApi } from "../api"
-import { prompts } from "../overlays"
+import { promptSessions } from "../overlays"
 import { sendToFrame } from "../page"
 import type { Providers } from "../providers"
 import {
@@ -22,14 +22,17 @@ export function promptHandlers(providers: Providers) {
     "prompt.state": {
       allow: ["savePrompt"],
       handle: async ({ token }, sender) =>
-        promptState(providers, (await prompts.claim(sender, token)).tabId),
+        promptState(
+          providers,
+          (await promptSessions.claim(sender, token)).tabId,
+        ),
     },
     "prompt.confirm": {
       allow: ["savePrompt"],
       handle: async ({ token, targetId, name, folderId }, sender) => {
         await confirmPrompt(
           providers,
-          (await prompts.claim(sender, token)).tabId,
+          (await promptSessions.claim(sender, token)).tabId,
           optionalText(targetId, "targetId"),
           {
             name: requireText(name ?? "", "name"),
@@ -44,28 +47,28 @@ export function promptHandlers(providers: Providers) {
       handle: async ({ token, vaultId }, sender) =>
         promptFolders(
           providers,
-          (await prompts.claim(sender, token)).tabId,
+          (await promptSessions.claim(sender, token)).tabId,
           requireText(vaultId, "vaultId"),
         ),
     },
     "prompt.never": {
       allow: ["savePrompt"],
       handle: async ({ token }, sender) => {
-        await neverForSite((await prompts.claim(sender, token)).tabId)
+        await neverForSite((await promptSessions.claim(sender, token)).tabId)
         return null
       },
     },
     "prompt.close": {
       allow: ["savePrompt"],
       handle: async ({ token }, sender) => {
-        await closePrompt((await prompts.claim(sender, token)).tabId)
+        await closePrompt((await promptSessions.claim(sender, token)).tabId)
         return null
       },
     },
     "prompt.resize": {
       allow: ["savePrompt"],
       handle: async ({ token, height }, sender) => {
-        const session = await prompts.claim(sender, token)
+        const session = await promptSessions.claim(sender, token)
         await sendToFrame(session.tabId, session.frameId, {
           type: "prompt.resize",
           height: requireFiniteNumber(height, "height"),

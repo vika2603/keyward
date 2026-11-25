@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { fakeBrowser } from "wxt/testing/fake-browser"
 import { getSettings, MatchType, updateSettings } from "@/lib/settings"
-import { prompts } from "./overlays"
+import { promptSessions } from "./overlays"
 import {
   confirmPrompt,
   neverForSite,
@@ -35,7 +35,7 @@ describe("onSubmitted", () => {
   it("offers to save a login that no vault has", async () => {
     const { providers } = fakeProviders([{ info: accountVault }])
     await onSubmitted(providers, TAB, 0, login)
-    const session = await prompts.get(TAB)
+    const session = await promptSessions.get(TAB)
     expect(session).toMatchObject({
       mode: "save",
       username: "someone",
@@ -56,7 +56,7 @@ describe("onSubmitted", () => {
       },
     ])
     await onSubmitted(providers, TAB, 0, login)
-    expect(await prompts.get(TAB)).toMatchObject({
+    expect(await promptSessions.get(TAB)).toMatchObject({
       mode: "update",
       update: { vaultId: accountVault.id, loginId: "item-1" },
     })
@@ -72,7 +72,7 @@ describe("onSubmitted", () => {
         { info: appleVault, existing },
       ])
       await onSubmitted(providers, TAB, 0, login)
-      expect(await prompts.get(TAB)).toBeNull()
+      expect(await promptSessions.get(TAB)).toBeNull()
     }
   })
 
@@ -84,7 +84,7 @@ describe("onSubmitted", () => {
       },
     ])
     await onSubmitted(providers, TAB, 0, login)
-    expect(await prompts.get(TAB)).toBeNull()
+    expect(await promptSessions.get(TAB)).toBeNull()
   })
 
   it("offers to update an Apple login when a new password was typed for it", async () => {
@@ -95,7 +95,7 @@ describe("onSubmitted", () => {
       },
     ])
     await onSubmitted(providers, TAB, 0, { ...login, newPassword: true })
-    expect(await prompts.get(TAB)).toMatchObject({
+    expect(await promptSessions.get(TAB)).toMatchObject({
       mode: "update",
       update: { vaultId: appleVault.id, loginId: "apple-1" },
     })
@@ -116,12 +116,12 @@ describe("onSubmitted", () => {
       },
     ])
     await onSubmitted(providers, TAB, 0, changed)
-    expect(await prompts.get(TAB)).toMatchObject({
+    expect(await promptSessions.get(TAB)).toMatchObject({
       mode: "update",
       username: "someone",
     })
 
-    await prompts.remove(TAB)
+    await promptSessions.remove(TAB)
     const two = fakeProviders([
       {
         info: accountVault,
@@ -129,7 +129,7 @@ describe("onSubmitted", () => {
       },
     ])
     await onSubmitted(two.providers, TAB, 0, changed)
-    expect(await prompts.get(TAB)).toBeNull()
+    expect(await promptSessions.get(TAB)).toBeNull()
   })
 
   it("does not offer to save when no ready vault can store a login for the site", async () => {
@@ -138,7 +138,7 @@ describe("onSubmitted", () => {
       { info: { ...accountVault, status: "locked" } },
     ])
     await onSubmitted(providers, TAB, 0, login)
-    expect(await prompts.get(TAB)).toBeNull()
+    expect(await promptSessions.get(TAB)).toBeNull()
     expect(pageModule.sendToFrame).not.toHaveBeenCalled()
   })
 
@@ -162,17 +162,17 @@ describe("onSubmitted", () => {
     const state = await promptState(both.providers, TAB)
     expect(state.targets.map((target) => target.id)).toEqual([accountVault.id])
 
-    await prompts.remove(TAB)
+    await promptSessions.remove(TAB)
     const appleOnly = fakeProviders([{ info: appleVault, refusesSaving: true }])
     await onSubmitted(appleOnly.providers, TAB, 0, login)
-    expect(await prompts.get(TAB)).toBeNull()
+    expect(await promptSessions.get(TAB)).toBeNull()
   })
 
   it("respects the settings and site rules that turn prompts off", async () => {
     const { providers } = fakeProviders([{ info: accountVault }])
     await updateSettings({ askSave: false })
     await onSubmitted(providers, TAB, 0, login)
-    expect(await prompts.get(TAB)).toBeNull()
+    expect(await promptSessions.get(TAB)).toBeNull()
 
     await updateSettings({
       askSave: true,
@@ -187,19 +187,19 @@ describe("onSubmitted", () => {
       ],
     })
     await onSubmitted(providers, TAB, 0, login)
-    expect(await prompts.get(TAB)).toBeNull()
+    expect(await promptSessions.get(TAB)).toBeNull()
   })
 
   it("joins the username of the first page of a two-step login with the password of the second", async () => {
     const { providers } = fakeProviders([{ info: accountVault }])
     await onSubmitted(providers, TAB, 0, { username: "someone", password: "" })
-    expect(await prompts.get(TAB)).toBeNull()
+    expect(await promptSessions.get(TAB)).toBeNull()
     setFrame(TAB, 0, "https://login.example.com/password")
     await onSubmitted(providers, TAB, 0, {
       username: "",
       password: "typed-password",
     })
-    expect(await prompts.get(TAB)).toMatchObject({ username: "someone" })
+    expect(await promptSessions.get(TAB)).toMatchObject({ username: "someone" })
   })
 
   it("does not carry a remembered username to another site", async () => {
@@ -210,7 +210,7 @@ describe("onSubmitted", () => {
       username: "",
       password: "typed-password",
     })
-    expect(await prompts.get(TAB)).toBeNull()
+    expect(await promptSessions.get(TAB)).toBeNull()
   })
 })
 
@@ -238,7 +238,7 @@ describe("neverForSite", () => {
         behavior: "noSave",
       },
     ])
-    expect(await prompts.get(TAB)).toBeNull()
+    expect(await promptSessions.get(TAB)).toBeNull()
   })
 
   it("changes the host's own rule instead of adding one", async () => {
@@ -303,7 +303,7 @@ describe("showPrompt", () => {
   it("shows a pending prompt again only on the site of the login, with a new token", async () => {
     const { providers } = fakeProviders([{ info: accountVault }])
     await onSubmitted(providers, TAB, 0, login)
-    const first = (await prompts.get(TAB))?.token
+    const first = (await promptSessions.get(TAB))?.token
     pageModule.sendToFrame.mockClear()
 
     setFrame(TAB, 0, "https://unrelated.net/")
@@ -313,6 +313,6 @@ describe("showPrompt", () => {
     setFrame(TAB, 0, "https://www.example.com/home")
     await showPrompt(TAB)
     expect(pageModule.sendToFrame).toHaveBeenCalledTimes(1)
-    expect((await prompts.get(TAB))?.token).not.toBe(first)
+    expect((await promptSessions.get(TAB))?.token).not.toBe(first)
   })
 })

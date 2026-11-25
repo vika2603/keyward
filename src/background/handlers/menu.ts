@@ -4,7 +4,7 @@ import { VaultError } from "@/lib/providers/types"
 import { siteDomainOf } from "@/lib/site"
 import type { BackgroundApi } from "../api"
 import { fillCode, fillLogin, fillNewPassword } from "../autofill"
-import { menus } from "../overlays"
+import { menuSessions } from "../overlays"
 import { frameUrl, sendToFrame } from "../page"
 import { openPopup } from "../popup-window"
 import type { Providers } from "../providers"
@@ -18,7 +18,7 @@ export function menuHandlers(providers: Providers) {
     "menu.state": {
       allow: ["menu"],
       handle: async ({ token }, sender) => {
-        const session = await menus.claim(sender, token)
+        const session = await menuSessions.claim(sender, token)
         const page = await frameUrl(session.tabId, session.frameId)
         if (!page)
           throw new VaultError("The frame is not a web page", "notWebPage")
@@ -33,7 +33,7 @@ export function menuHandlers(providers: Providers) {
           let suggestion = session.suggestion
           if (session.newPassword && !suggestion) {
             suggestion = generatePassword(await getGeneratorOptions())
-            await menus.set({ ...session, suggestion })
+            await menuSessions.set({ ...session, suggestion })
           }
           return {
             host: page.hostname,
@@ -57,7 +57,7 @@ export function menuHandlers(providers: Providers) {
     "menu.fill": {
       allow: ["menu"],
       handle: async ({ token, vaultId, loginId }, sender) => {
-        const session = await menus.claim(sender, token)
+        const session = await menuSessions.claim(sender, token)
         const fill = session.kind === "code" ? fillCode : fillLogin
         await fill(
           providers,
@@ -73,7 +73,7 @@ export function menuHandlers(providers: Providers) {
     "menu.fillSuggestion": {
       allow: ["menu"],
       handle: async ({ token }, sender) => {
-        const session = await menus.claim(sender, token)
+        const session = await menuSessions.claim(sender, token)
         if (!session.suggestion)
           throw new VaultError("No password is offered", "invalidInput")
         await fillNewPassword(
@@ -88,7 +88,7 @@ export function menuHandlers(providers: Providers) {
     "menu.usePasskey": {
       allow: ["menu"],
       handle: async ({ token }, sender) => {
-        const session = await menus.claim(sender, token)
+        const session = await menuSessions.claim(sender, token)
         if (!session.passkey)
           throw new VaultError("No passkey sign-in is offered", "invalidInput")
         await sendToFrame(session.tabId, session.frameId, {
@@ -101,7 +101,7 @@ export function menuHandlers(providers: Providers) {
     "menu.resize": {
       allow: ["menu"],
       handle: async ({ token, height }, sender) => {
-        const session = await menus.claim(sender, token)
+        const session = await menuSessions.claim(sender, token)
         await sendToFrame(session.tabId, session.frameId, {
           type: "menu.resize",
           height: requireFiniteNumber(height, "height"),
@@ -112,14 +112,14 @@ export function menuHandlers(providers: Providers) {
     "menu.close": {
       allow: ["menu"],
       handle: async ({ token }, sender) => {
-        await closeMenu((await menus.claim(sender, token)).tabId)
+        await closeMenu((await menuSessions.claim(sender, token)).tabId)
         return null
       },
     },
     "menu.connect": {
       allow: ["menu"],
       handle: async ({ token, vaultId }, sender) => {
-        const session = await menus.claim(sender, token)
+        const session = await menuSessions.claim(sender, token)
         const vault = namedVault(providers, vaultId)
         await closeMenu(session.tabId)
         await openPopup({
@@ -133,7 +133,7 @@ export function menuHandlers(providers: Providers) {
     "menu.newLogin": {
       allow: ["menu"],
       handle: async ({ token }, sender) => {
-        const session = await menus.claim(sender, token)
+        const session = await menuSessions.claim(sender, token)
         await closeMenu(session.tabId)
         await openPopup({ name: "add" })
         return null

@@ -2,7 +2,7 @@ import type { Handlers } from "@/lib/messaging"
 import type { BackgroundApi } from "../api"
 import { contentConfig, hasCodes, notePasskeyUsed } from "../autofill"
 import { offerCandidate } from "../code-setup"
-import { menus } from "../overlays"
+import { menuSessions } from "../overlays"
 import type { Providers } from "../providers"
 import { onSubmitted, showPrompt } from "../save-flow"
 import { closeMenu, tabFrame } from "./request-context"
@@ -28,10 +28,10 @@ export function contentHandlers(providers: Providers) {
       allow: ["contentScript"],
       handle: async ({ kind, newPassword, passkey }, sender) => {
         const { tabId, frameId } = tabFrame(sender)
-        const open = await menus.get(tabId)
+        const open = await menuSessions.get(tabId)
         if (open && open.frameId !== frameId) await closeMenu(tabId)
         const token = crypto.randomUUID()
-        await menus.set({
+        await menuSessions.set({
           tabId,
           frameId,
           token,
@@ -62,8 +62,8 @@ export function contentHandlers(providers: Providers) {
       allow: ["contentScript"],
       handle: async (_, sender) => {
         const { tabId, frameId } = tabFrame(sender)
-        if ((await menus.get(tabId))?.frameId === frameId)
-          await menus.remove(tabId)
+        if ((await menuSessions.get(tabId))?.frameId === frameId)
+          await menuSessions.remove(tabId)
         return null
       },
     },

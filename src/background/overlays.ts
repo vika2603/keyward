@@ -84,5 +84,5 @@ export interface PromptSession extends OverlayBase {
   createdAt: number
 }
 
-export const menus = new OverlaySessions<MenuSession>("menu")
-export const prompts = new OverlaySessions<PromptSession>("prompt")
+export const menuSessions = new OverlaySessions<MenuSession>("menu")
+export const promptSessions = new OverlaySessions<PromptSession>("prompt")

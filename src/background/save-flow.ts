@@ -9,7 +9,7 @@ import { getSettings, type SiteRule, updateSettings } from "@/lib/settings"
 import { siteDomainOf } from "@/lib/site"
 import type { PromptState, VaultView } from "./api"
 import { MAX_TEXT_LENGTH } from "./limits"
-import { prompts } from "./overlays"
+import { promptSessions } from "./overlays"
 import { frameUrl, sendToFrame } from "./page"
 import type { Providers } from "./providers"
 
@@ -87,7 +87,7 @@ export function markRecent(
 export async function forgetTab(tabId: number): Promise<void> {
   const { [tabId]: _removed, ...rest } = await rememberedUsernames()
   await browser.storage.session.set({ [USERNAMES_KEY]: rest })
-  await prompts.remove(tabId)
+  await promptSessions.remove(tabId)
 }
 
 /** The username of the site's only saved account, for a change-password form that does not name it. */
@@ -158,7 +158,7 @@ export async function onSubmitted(
   if (update ? !settings.askUpdate : !settings.askSave) return
   if (!update && !(await promptTargets(providers, page)).length) return
 
-  await prompts.set({
+  await promptSessions.set({
     tabId,
     frameId: 0,
     token: crypto.randomUUID(),
@@ -178,10 +178,10 @@ export async function onSubmitted(
  * long as that page belongs to the site of the login.
  */
 export async function showPrompt(tabId: number): Promise<void> {
-  const session = await prompts.get(tabId)
+  const session = await promptSessions.get(tabId)
   if (!session) return
   if (Date.now() - session.createdAt > PROMPT_TTL_MS) {
-    await prompts.remove(tabId)
+    await promptSessions.remove(tabId)
     return
   }
   const top = await frameUrl(tabId, 0)
@@ -191,7 +191,7 @@ export async function showPrompt(tabId: number): Promise<void> {
   )
     return
   const token = crypto.randomUUID()
-  await prompts.set({ ...session, token, overlayFrameId: null })
+  await promptSessions.set({ ...session, token, overlayFrameId: null })
   await sendToFrame(tabId, 0, { type: "prompt.show", token }).catch(() => {})
 }
 
@@ -241,7 +241,7 @@ export async function promptState(
   providers: Providers,
   tabId: number,
 ): Promise<PromptState> {
-  const session = await prompts.get(tabId)
+  const session = await promptSessions.get(tabId)
   if (!session) throw new VaultError("Nothing to show", "overlay.closed")
   const page = new URL(session.url)
   const targets =
@@ -265,7 +265,7 @@ export async function promptFolders(
   tabId: number,
   vaultId: string,
 ): Promise<Folder[]> {
-  const session = await prompts.get(tabId)
+  const session = await promptSessions.get(tabId)
   if (!session) throw new VaultError("Nothing to show", "overlay.closed")
   const targets = await promptTargets(providers, new URL(session.url))
   if (!targets.some((target) => target.id === vaultId)) return []
@@ -282,7 +282,7 @@ export async function confirmPrompt(
     folderId: null,
   },
 ): Promise<void> {
-  const session = await prompts.get(tabId)
+  const session = await promptSessions.get(tabId)
   if (!session) throw new VaultError("Nothing to save", "overlay.closed")
   const url = new URL(session.url)
   const login: NewLogin = {
@@ -310,7 +310,7 @@ export async function confirmPrompt(
  * match type of a rule for a parent domain, which it overrides as the more specific one.
  */
 export async function neverForSite(tabId: number): Promise<void> {
-  const session = await prompts.get(tabId)
+  const session = await promptSessions.get(tabId)
   if (!session) return
   const host = new URL(session.url).hostname
   const { siteRules } = await getSettings()
@@ -338,6 +338,6 @@ function withNoSaveRule(rules: SiteRule[], host: string): SiteRule[] {
 }
 
 export async function closePrompt(tabId: number): Promise<void> {
-  await prompts.remove(tabId)
+  await promptSessions.remove(tabId)
   await sendToFrame(tabId, 0, { type: "prompt.close" }).catch(() => {})
 }
