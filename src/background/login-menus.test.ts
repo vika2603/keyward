@@ -147,6 +147,21 @@ describe("LoginMenus", () => {
     expect(removed).toEqual(expect.arrayContaining(earlier))
   })
 
+  it("removes the menus of the browser session before, whose storage.session is gone", async () => {
+    const { menus, vaults } = setUp()
+    await menus.show(vaults, tab)
+    const earlier = created
+      .filter((item) => item.parentId === undefined)
+      .map((item) => item.id)
+    await fakeBrowser.storage.session.clear()
+    vi.mocked(fakeBrowser.contextMenus.remove).mockClear()
+    await setUp().menus.show(vaults, tab)
+    const removed = vi
+      .mocked(fakeBrowser.contextMenus.remove)
+      .mock.calls.map(([menuId]) => menuId)
+    expect(removed).toEqual(expect.arrayContaining(earlier))
+  })
+
   it("fills into the frame that was right-clicked, and copies a password as a secret", async () => {
     const { menus, vaults, calls } = setUp()
     await menus.show(vaults, tab)

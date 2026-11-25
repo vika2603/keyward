@@ -1,3 +1,4 @@
+import { storage } from "wxt/utils/storage"
 import { generatePassword, getGeneratorOptions } from "@/lib/generator"
 import { type Language, resolveLanguage } from "@/lib/i18n/language"
 import { getSettings } from "@/lib/settings"
@@ -18,8 +19,17 @@ const ACTIONS: readonly Action[] = [
 ]
 const GENERATE_ID = "loginMenus.generate"
 const GENERATE_FILL_ID = "loginMenus.generateFill"
-/** The IDs of the top-level menus the last rendering made; removing them removes their submenus. */
-const MENUS_KEY = "loginMenus.topLevel"
+/**
+ * The IDs of the top-level menus the last rendering made; removing them removes their submenus.
+ * Kept in storage.local, which a browser restart does not clear, so menus Chrome keeps from an
+ * earlier session can still be found and removed. They hold no logins.
+ */
+const madeMenusItem = storage.defineItem<string[]>(
+  "local:loginMenus.topLevel",
+  {
+    fallback: [],
+  },
+)
 /**
  * The logins the submenus list and the page they were listed for. Kept in storage.session rather
  * than in memory: the menus outlive the service worker, and a click can start a new one.
@@ -284,7 +294,7 @@ async function render(
     contexts: ["editable"],
   })
   await add({ id: GENERATE_ID, title: titles.generate })
-  await browser.storage.session.set({ [MENUS_KEY]: made })
+  await madeMenusItem.setValue(made)
 }
 
 function create(
@@ -301,13 +311,11 @@ function create(
 
 /** Takes away the menus made here, which removes their submenus too; the extension's others stay. */
 async function removeOwn(): Promise<void> {
-  const made = (await browser.storage.session.get(MENUS_KEY))[MENUS_KEY] as
-    | string[]
-    | undefined
+  const made = await madeMenusItem.getValue()
   await Promise.all(
-    [GENERATE_ID, ...(made ?? [])].map((id) =>
+    [...new Set([GENERATE_ID, GENERATE_FILL_ID, ...made])].map((id) =>
       browser.contextMenus.remove(id).catch(() => {}),
     ),
   )
-  await browser.storage.session.remove(MENUS_KEY)
+  await madeMenusItem.removeValue()
 }
