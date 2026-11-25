@@ -29,9 +29,9 @@ export function MaskText() {
 }
 
 function charClass(char: string): string | undefined {
-  if (/[0-9]/.test(char)) return "text-blue-600 dark:text-blue-400"
+  if (/[0-9]/.test(char)) return "text-secret-digit"
   if (/[a-zA-Z]/.test(char)) return undefined
-  return "text-amber-700 dark:text-amber-400"
+  return "text-secret-symbol"
 }
 
 /** A revealed secret, with digits and symbols coloured apart from letters. */
