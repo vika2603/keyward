@@ -14,6 +14,7 @@ import {
 } from "@/background/api"
 import { BACKEND_NAMES, BrandIcon } from "@/components/keyward/brand-icon"
 import { errorMessage } from "@/components/keyward/errors"
+import { LoginLabel } from "@/components/keyward/login-label"
 import { SiteLetter } from "@/components/keyward/site-letter"
 import { Button } from "@/components/ui/button"
 import {
@@ -261,22 +262,11 @@ function LoginRow({
           compact && "size-6",
         )}
       />
-      <div className="flex min-w-0 flex-1 flex-col">
-        <span className="truncate text-sm font-medium">
-          {login.username || "（无用户名）"}
-        </span>
-        {confirming ? (
-          <span className="truncate text-xs text-muted-foreground">
-            用触控 ID 或 Mac 密码确认
-          </span>
-        ) : (
-          !compact && (
-            <span className="truncate text-xs text-muted-foreground">
-              {login.title}
-            </span>
-          )
-        )}
-      </div>
+      <LoginLabel
+        username={login.username}
+        detail={confirming ? "用触控 ID 或 Mac 密码确认" : login.title}
+        compact={compact}
+      />
       <div
         className={cn(
           "flex shrink-0 gap-0.5 opacity-0 group-hover/row:opacity-100 group-focus-within/row:opacity-100",

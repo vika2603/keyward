@@ -3,6 +3,7 @@ import type { SourceView } from "@/background/api"
 import { useAppearance } from "@/components/keyward/appearance"
 import { BrandIcon } from "@/components/keyward/brand-icon"
 import { errorMessage } from "@/components/keyward/errors"
+import { LoginLabel } from "@/components/keyward/login-label"
 import {
   callOverlay,
   useClickGuard,
@@ -88,6 +89,8 @@ export function App() {
     (s) => s.status !== "ready" || s.error || s.logins.length,
   )
   const compact = density === "compact"
+  // A lone list of logins needs no heading saying where they come from.
+  const headed = sources.length > 1
 
   return (
     <div className="p-2">
@@ -129,10 +132,12 @@ export function App() {
             </h2>
           ) : (
             <section key={source.id}>
-              <h2 className="flex items-center gap-1.5 px-3 pt-2.5 pb-0.5 text-xs font-medium text-muted-foreground">
-                <BrandIcon kind={source.kind} className="size-3.5" />
-                <span className="truncate">{source.label}</span>
-              </h2>
+              {headed && (
+                <h2 className="flex items-center gap-1.5 px-3 pt-2.5 pb-0.5 text-xs font-medium text-muted-foreground">
+                  <BrandIcon kind={source.kind} className="size-3.5" />
+                  <span className="truncate">{source.label}</span>
+                </h2>
+              )}
               <div className="flex flex-col gap-0.5 p-1">
                 {source.logins.map((login) => (
                   <button
@@ -155,16 +160,11 @@ export function App() {
                         compact && "size-6",
                       )}
                     />
-                    <span className="flex min-w-0 flex-1 flex-col">
-                      <span className="truncate text-sm font-medium">
-                        {login.username || "（无用户名）"}
-                      </span>
-                      {!compact && (
-                        <span className="truncate text-xs text-muted-foreground">
-                          {login.title}
-                        </span>
-                      )}
-                    </span>
+                    <LoginLabel
+                      username={login.username}
+                      detail={login.title}
+                      compact={compact}
+                    />
                   </button>
                 ))}
               </div>

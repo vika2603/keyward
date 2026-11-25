@@ -210,7 +210,7 @@ export function KeysPage() {
           </Option>
           <Option
             name="列表密度"
-            description="紧凑时每行只显示账号名，一屏能放更多条目。"
+            description="紧凑时账号名和站点（Bitwarden 为条目名称）显示在同一行，一屏能放更多条目。"
           >
             <Segmented
               label="列表密度"
