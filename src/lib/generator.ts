@@ -208,8 +208,12 @@ let wordList: Promise<string[]> | null = null
 
 /** The EFF long word list, loaded the first time a passphrase or word is generated. */
 export function loadWords(): Promise<string[]> {
-  wordList ??= import("diceware-wordlist-en-eff").then((module) =>
-    Object.values(module.default),
+  wordList ??= import("diceware-wordlist-en-eff").then(
+    (module) => Object.values(module.default),
+    (error: unknown) => {
+      wordList = null
+      throw error
+    },
   )
   return wordList
 }

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from "vitest"
+import { beforeEach, describe, expect, it, vi } from "vitest"
 import { fakeBrowser } from "wxt/testing/fake-browser"
 import {
   defaultGeneratorOptions,
@@ -226,5 +226,23 @@ describe("loadWords", () => {
     const words = await loadWords()
     expect(words).toHaveLength(7776)
     expect(new Set(words).size).toBe(7776)
+  })
+
+  it("loads the list again after a load that failed", async () => {
+    vi.resetModules()
+    let loads = 0
+    vi.doMock("diceware-wordlist-en-eff", () => {
+      loads++
+      if (loads === 1) throw new Error("The word list chunk failed to load")
+      return { default: { "11111": "abacus", "11112": "abdomen" } }
+    })
+    try {
+      const fresh = await import("./generator")
+      await expect(fresh.loadWords()).rejects.toThrow()
+      expect(await fresh.loadWords()).toEqual(["abacus", "abdomen"])
+    } finally {
+      vi.doUnmock("diceware-wordlist-en-eff")
+      vi.resetModules()
+    }
   })
 })
