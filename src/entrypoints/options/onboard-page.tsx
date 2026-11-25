@@ -11,7 +11,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { lastServerItem } from "@/lib/backends/bitwarden/account-store"
+import {
+  lastServerItem,
+  selfHostedServerItem,
+} from "@/lib/backends/bitwarden/account-store"
 import type { SecondStepMethod } from "@/lib/backends/bitwarden/auth"
 import type { PendingSignInView } from "@/lib/backends/bitwarden/bitwarden-backend"
 import { t } from "@/lib/i18n"
@@ -73,7 +76,8 @@ export function OnboardPage() {
 }
 
 function SignIn({ onSignedIn }: { onSignedIn: () => void }) {
-  const [server, setServer] = useState("")
+  const [selfHosted, setSelfHosted] = useState(false)
+  const [serverUrl, setServerUrl] = useState("")
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [pending, setPending] = useState<PendingSignInView | null>(null)
@@ -103,10 +107,12 @@ function SignIn({ onSignedIn }: { onSignedIn: () => void }) {
     void Promise.all([
       callBackground("bitwarden.pendingSignIn", null),
       lastServerItem.getValue(),
-    ]).then(([view, lastServer]) => {
-      setServer((typed) => typed || lastServer)
+      selfHostedServerItem.getValue(),
+    ]).then(([view, lastServer, savedUrl]) => {
+      const server = view ? view.server : lastServer
+      setSelfHosted(server !== "")
+      setServerUrl(server || savedUrl || lastServer)
       if (view) {
-        setServer(view.server)
         setEmail(view.email)
         setPending(view)
         setMethod(view.methods[0] ?? null)
@@ -214,33 +220,62 @@ function SignIn({ onSignedIn }: { onSignedIn: () => void }) {
       onSubmit={(event) => {
         event.preventDefault()
         void run(async () => {
+          const server = selfHosted ? serverUrl.trim() : ""
           const outcome = await callBackground("bitwarden.signIn", {
             server,
             email,
             password,
           })
           setPassword("")
-          await lastServerItem.setValue(server.trim())
+          await lastServerItem.setValue(server)
+          if (server) await selfHostedServerItem.setValue(server)
           if (outcome.kind === "signedIn") onSignedIn()
           else showSecondStep(outcome.pending)
         })
       }}
     >
-      <label className="flex flex-col gap-2">
+      <div className="flex flex-col gap-2">
         <span className="text-sm leading-none font-medium">
           {t("options.onboard.signIn.server")}
         </span>
-        <Input
-          inputMode="url"
-          spellCheck={false}
-          value={server}
-          onChange={(event) => setServer(event.target.value)}
-          placeholder="https://vault.example.com"
-        />
-        <span className="text-xs text-muted-foreground">
-          {t("options.onboard.signIn.serverHint")}
-        </span>
-      </label>
+        <Select
+          value={selfHosted ? "selfHosted" : "official"}
+          onValueChange={(value) => setSelfHosted(value === "selfHosted")}
+          items={[
+            { value: "official", label: t("options.onboard.signIn.official") },
+            {
+              value: "selfHosted",
+              label: t("options.onboard.signIn.selfHosted"),
+            },
+          ]}
+        >
+          <SelectTrigger
+            className="w-full"
+            aria-label={t("options.onboard.signIn.server")}
+          >
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="official">
+              {t("options.onboard.signIn.official")}
+            </SelectItem>
+            <SelectItem value="selfHosted">
+              {t("options.onboard.signIn.selfHosted")}
+            </SelectItem>
+          </SelectContent>
+        </Select>
+        {selfHosted && (
+          <Input
+            inputMode="url"
+            spellCheck={false}
+            value={serverUrl}
+            onChange={(event) => setServerUrl(event.target.value)}
+            placeholder="https://vault.example.com"
+            aria-label={t("options.onboard.signIn.serverUrl")}
+            required
+          />
+        )}
+      </div>
       <label className="flex flex-col gap-2">
         <span className="text-sm leading-none font-medium">
           {t("options.onboard.signIn.email")}
@@ -269,7 +304,9 @@ function SignIn({ onSignedIn }: { onSignedIn: () => void }) {
       <Button
         type="submit"
         className="w-full"
-        disabled={busy || !email || !password}
+        disabled={
+          busy || !email || !password || (selfHosted && !serverUrl.trim())
+        }
       >
         {busy
           ? t("options.onboard.signIn.busy")

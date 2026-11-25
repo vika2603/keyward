@@ -32,6 +32,11 @@ export const lastServerItem = storage.defineItem<string>(
   "local:bitwarden.lastServer",
   { fallback: "" },
 )
+/** The self-hosted server last signed in to, kept when a later sign-in uses the official service. */
+export const selfHostedServerItem = storage.defineItem<string>(
+  "local:bitwarden.selfHostedServer",
+  { fallback: "" },
+)
 const DEVICE_KEY = "bitwarden.deviceId"
 const sessionKey = (accountId: string) => `bitwarden.session.${accountId}`
 const syncKey = (accountId: string) => `bitwarden.sync.${accountId}`
