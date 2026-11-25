@@ -1,6 +1,7 @@
 import {
   CheckIcon,
   ChevronDownIcon,
+  ExternalLinkIcon,
   KeyRoundIcon,
   LockIcon,
   PlusIcon,
@@ -184,6 +185,7 @@ export function MainView({
                 key={source.id}
                 source={source}
                 density={density}
+                onLocked={load}
                 onConnect={() =>
                   onNavigate({
                     name: "connect",
@@ -207,17 +209,29 @@ export function MainView({
 function SourceGroup({
   source,
   density,
+  onLocked,
   onConnect,
   onOpen,
   onError,
 }: {
   source: SourceView
   density: Settings["density"]
+  onLocked: () => void
   onConnect: () => void
   onOpen: (login: LoginSummary) => void
   onError: (message: string | null) => void
 }) {
   const [open, setOpen] = useState(true)
+
+  const lock = async () => {
+    onError(null)
+    try {
+      await callBackground("popup.lock", { sourceId: source.id })
+    } catch (error) {
+      onError(errorMessage(error))
+    }
+    onLocked()
+  }
 
   if (source.status !== "ready" || source.error) {
     return (
@@ -243,11 +257,63 @@ function SourceGroup({
 
   return (
     <Collapsible open={open} onOpenChange={setOpen} render={<section />}>
-      <h2>
-        <CollapsibleTrigger className="group/trigger flex w-full items-center gap-1.5 px-3 pt-2.5 pb-0.5 text-left text-xs font-medium text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50">
+      {/* The chevron stays last and the lock, which every group has, next to it, so both line up
+          across groups; the Apple group's extra button sits further left. */}
+      <h2 className="flex items-center gap-0.5 pt-1.5 pr-1.5">
+        <CollapsibleTrigger className="flex min-w-0 flex-1 items-center gap-1.5 self-stretch px-3 text-left text-xs font-medium text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50">
           <BrandIcon kind={source.kind} className="size-3.5" />
           <span className="min-w-0 truncate">{sourceLabel(source)}</span>
-          <ChevronDownIcon className="ml-auto size-3.5 transition-transform group-data-[panel-open]/trigger:rotate-0 -rotate-90" />
+        </CollapsibleTrigger>
+        {source.kind === "apple" && (
+          <Button
+            variant="ghost"
+            size="icon-xs"
+            className="text-muted-foreground"
+            aria-label={t("popup.main.openPasswordsApp")}
+            title={t("popup.main.openPasswordsApp")}
+            onClick={() =>
+              void callBackground("apple.openPasswordsApp", {}).catch((error) =>
+                onError(errorMessage(error)),
+              )
+            }
+          >
+            <ExternalLinkIcon />
+          </Button>
+        )}
+        <Button
+          variant="ghost"
+          size="icon-xs"
+          className="text-muted-foreground"
+          aria-label={
+            source.kind === "apple"
+              ? t("popup.main.lockApple")
+              : t("popup.main.lock")
+          }
+          title={
+            source.kind === "apple"
+              ? t("popup.main.lockApple")
+              : t("popup.main.lock")
+          }
+          onClick={() => void lock()}
+        >
+          <LockIcon />
+        </Button>
+        {/* The label above is the keyboard's way to toggle; this is a second target for the pointer. */}
+        <CollapsibleTrigger
+          tabIndex={-1}
+          aria-label={t("popup.main.toggleGroup")}
+          title={t("popup.main.toggleGroup")}
+          render={
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              className="text-muted-foreground"
+            />
+          }
+        >
+          <ChevronDownIcon
+            className={cn("transition-transform", !open && "-rotate-90")}
+          />
         </CollapsibleTrigger>
       </h2>
       <CollapsibleContent>

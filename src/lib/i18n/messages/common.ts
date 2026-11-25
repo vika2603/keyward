@@ -22,6 +22,8 @@ export const en = {
   "error.noResponse": "The extension did not respond. Try again.",
   "error.noCode": "This login has no verification code.",
   "error.invalidCodeKey": "The saved authenticator key can't be read.",
+  "error.noSetup":
+    "There's no verification code to set up. Right-click the QR code on the page again.",
   "error.apple.unavailable":
     "Can't connect to Apple Passwords. It needs Chrome on macOS and the system's password helper.",
   "error.apple.disabled": "Apple Passwords is turned off in settings.",
@@ -97,6 +99,7 @@ export const zhCN: Record<keyof typeof en, string> = {
   "error.noResponse": "插件后台没有响应，请重试。",
   "error.noCode": "这个登录没有验证码。",
   "error.invalidCodeKey": "无法读取保存的验证器密钥。",
+  "error.noSetup": "没有待设置的验证码，请在网页上重新右键二维码。",
   "error.apple.unavailable":
     "无法连接 Apple 密码。需要 macOS 上的 Chrome 和系统自带的密码组件。",
   "error.apple.disabled": "Apple 密码已在设置中关闭。",

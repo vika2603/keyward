@@ -1,5 +1,5 @@
 import { RefreshCcwDotIcon } from "lucide-react"
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { callBackground } from "@/background/api"
 import { errorMessage } from "@/components/keyward/errors"
 import { SourceSelect } from "@/components/keyward/source-select"
@@ -16,7 +16,9 @@ export function AddView({ onBack }: { onBack: () => void }) {
   const [username, setUsername] = useState("")
   const [password, setPassword] = useState("")
   const [targets, setTargets] = useState<SourceInfo[] | null>(null)
+  const [unsupported, setUnsupported] = useState<SourceInfo[]>([])
   const [target, setTarget] = useState<string | null>(null)
+  const request = useRef(0)
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
 
@@ -24,11 +26,28 @@ export function AddView({ onBack }: { onBack: () => void }) {
     void callBackground("popup.state", null).then((state) => {
       if (state.page) setSite((current) => current || state.page?.host || "")
     })
-    void callBackground("popup.saveTargets", null).then((result) => {
-      setTargets(result.targets)
-      setTarget(result.defaultTarget)
-    })
   }, [])
+
+  // Which places can store the login depends on the site, so the choice follows it as it is typed.
+  useEffect(() => {
+    const id = ++request.current
+    const timer = setTimeout(
+      () =>
+        void callBackground("popup.saveTargets", { site }).then((result) => {
+          if (id !== request.current) return
+          setTargets(result.targets)
+          setUnsupported(result.unsupported)
+          setTarget((current) =>
+            result.targets.some((t) => t.id === current)
+              ? current
+              : result.defaultTarget,
+          )
+        }),
+      // The first request runs at once; later ones wait for typing to pause.
+      id === 1 ? 0 : 200,
+    )
+    return () => clearTimeout(timer)
+  }, [site])
 
   const generate = async () => {
     const generated = generatePassword(await generatorOptionsItem.getValue())
@@ -129,10 +148,16 @@ export function AddView({ onBack }: { onBack: () => void }) {
             onChange={setTarget}
             label={t("popup.add.saveTo")}
           />
-          {targets?.length === 0 && (
+          {unsupported.some((s) => s.kind === "apple") ? (
             <p className="text-xs text-muted-foreground">
-              {t("popup.add.noTarget")}
+              {t("error.apple.unsupportedSite")}
             </p>
+          ) : (
+            targets?.length === 0 && (
+              <p className="text-xs text-muted-foreground">
+                {t("popup.add.noTarget")}
+              </p>
+            )
           )}
         </div>
         {busy && apple && (

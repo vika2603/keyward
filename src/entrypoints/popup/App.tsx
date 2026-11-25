@@ -4,6 +4,7 @@ import { useAppearance } from "@/components/keyward/appearance"
 import { useLanguage } from "@/components/keyward/language"
 import type { LoginSummary, SourceInfo } from "@/lib/backends/types"
 import { AddView } from "./add-view"
+import { CodeSetupView } from "./code-setup-view"
 import { ConnectView } from "./connect-view"
 import { DetailView } from "./detail-view"
 import { GeneratorView } from "./generator-view"
@@ -50,6 +51,7 @@ export function App() {
       {view?.name === "history" && (
         <HistoryView onBack={() => setView({ name: "generator" })} />
       )}
+      {view?.name === "codeSetup" && <CodeSetupView onBack={main} />}
       {view?.name === "connect" && (
         <ConnectView kind={view.kind} sourceId={view.sourceId} onDone={main} />
       )}

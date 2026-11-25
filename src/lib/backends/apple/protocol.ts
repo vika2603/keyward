@@ -43,6 +43,8 @@ export interface HelperCapabilities {
   canSaveAccountWithEmptyUserName?: boolean
   canOpenPasswordsAppToNewPasswordSheet?: boolean
   canFillOneTimeCodes?: boolean
+  /** The Passwords app can set up a verification code from an `otpauth://` URI. */
+  scanForOTPURI?: boolean
   operatingSystem?: {
     name?: string
     majorVersion?: number

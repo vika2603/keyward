@@ -48,10 +48,10 @@ import {
   decryptLogin,
   decryptPassword,
   decryptTotp,
+  itemUpdateRequest,
   type LoginItem,
   loginCiphers,
   newLoginRequest,
-  passwordUpdateRequest,
   VaultKeys,
 } from "./vault"
 
@@ -290,14 +290,19 @@ export class BitwardenBackend implements PasswordBackend {
     void this.sync(account.id).catch(() => {})
   }
 
-  async lock(accountId: string): Promise<void> {
-    this.cache.delete(accountId)
-    await clearSession(accountId)
-    this.changed()
+  async lock(sourceId: string): Promise<void> {
+    await this.lockAccount(accountIdOfSource(sourceId))
   }
 
   async lockAll(): Promise<void> {
-    for (const account of await loadAccounts()) await this.lock(account.id)
+    for (const account of await loadAccounts())
+      await this.lockAccount(account.id)
+  }
+
+  private async lockAccount(accountId: string): Promise<void> {
+    this.cache.delete(accountId)
+    await clearSession(accountId)
+    this.changed()
   }
 
   async signOut(accountId: string): Promise<void> {
@@ -314,7 +319,7 @@ export class BitwardenBackend implements PasswordBackend {
         (activity[account.id] ?? 0) < cutoff &&
         (await loadSession(account.id))
       ) {
-        await this.lock(account.id)
+        await this.lockAccount(account.id)
       }
     }
   }
@@ -580,6 +585,34 @@ export class BitwardenBackend implements PasswordBackend {
     }
   }
 
+  /** Stores an authenticator key in a login of the page, replacing the one it has. */
+  async setCode(
+    sourceId: string,
+    loginId: string,
+    page: URL,
+    key: string,
+  ): Promise<void> {
+    try {
+      oneTimeCode(key)
+    } catch {
+      throw new BackendError(
+        "The authenticator key cannot be read",
+        "invalidCodeKey",
+      )
+    }
+    const accountId = accountIdOfSource(sourceId)
+    const account = await this.account(accountId)
+    const { vault, item, cipher } = await this.pageItem(sourceId, loginId, page)
+    refuseReprompt(item)
+    const api = new BitwardenApi(serverUrls(account.server))
+    await api.updateCipher(
+      await this.accessToken(account),
+      loginId,
+      itemUpdateRequest(cipher, { totp: key }, vault.keys, account.userId),
+    )
+    await this.sync(accountId)
+  }
+
   canSave(): boolean {
     return true
   }
@@ -640,7 +673,12 @@ export class BitwardenBackend implements PasswordBackend {
     await api.updateCipher(
       await this.accessToken(account),
       loginId,
-      passwordUpdateRequest(cipher, login.password, keys, account.userId),
+      itemUpdateRequest(
+        cipher,
+        { password: login.password },
+        keys,
+        account.userId,
+      ),
     )
     await this.sync(accountId)
   }

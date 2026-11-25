@@ -585,6 +585,21 @@ export function DetailView({
                 )}
               </div>
             )}
+            {apple && (
+              <Button
+                variant="outline"
+                onClick={() =>
+                  void run(() =>
+                    callBackground("apple.openPasswordsApp", {
+                      site: login.host,
+                    }),
+                  )
+                }
+              >
+                <ExternalLinkIcon />
+                {t("popup.detail.openInPasswordsApp")}
+              </Button>
+            )}
           </div>
         )}
       </div>

@@ -77,6 +77,7 @@ export function fakeBackends(sources: FakeSource[]) {
       calls.update(...args)
     },
     findExisting: async () => source.existing ?? null,
+    lock: async () => {},
     lockAll: async () => {},
   })
   const byId = new Map(sources.map((s) => [s.info.id, backendFor(s)]))

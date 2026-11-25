@@ -690,23 +690,48 @@ export class AppleBackend implements PasswordBackend {
       : null
   }
 
-  async lockAll(): Promise<void> {
+  async lock(): Promise<void> {
     this.session = null
     this.pairing = null
     if (this.port.connected) this.setState({ phase: "unpaired" })
   }
 
-  /** Opens the Passwords app, on the new-password sheet when a URL is given. */
-  async openPasswordsApp(newPasswordUrl?: string): Promise<void> {
+  async lockAll(): Promise<void> {
+    await this.lock()
+  }
+
+  /** Opens the Passwords app, searching for a site when one is given. */
+  async openPasswordsApp(site?: string): Promise<void> {
     await this.ensureConnected()
     this.port.post(
-      newPasswordUrl
-        ? {
-            cmd: Cmd.LaunchPasswordsApp,
-            newPasswordWithSuggestedURL: newPasswordUrl,
-          }
+      site && isHostName(site)
+        ? { cmd: Cmd.LaunchPasswordsApp, searchQueryURL: `https://${site}` }
         : { cmd: Cmd.LaunchPasswordsApp },
     )
+  }
+
+  /** Whether the Passwords app can be handed a verification code to set up right now. */
+  canSetUpCodes(): boolean {
+    return this.session !== null && this.capabilities?.scanForOTPURI === true
+  }
+
+  /**
+   * Hands an `otpauth://` URI to the Passwords app, which asks on the Mac which login of the site
+   * gets the verification code.
+   */
+  async setUpCode(site: string, uri: string): Promise<void> {
+    if (!isHostName(site))
+      throw new BackendError("Not a host name", "invalidSite")
+    if (!this.canSetUpCodes())
+      throw new BackendError(
+        "Apple Passwords cannot set up codes now",
+        "locked",
+      )
+    this.port.post({
+      cmd: Cmd.LaunchPasswordsApp,
+      setUpTOTPPageURL: site,
+      setUpTOTPURI: uri,
+    })
   }
 
   /** Requests of one kind run one after another; different kinds may overlap. */

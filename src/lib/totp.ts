@@ -40,6 +40,28 @@ function expiry(period: number, now: number): number {
  * The current code for a saved authenticator key, which Bitwarden stores as an `otpauth://`
  * URI, a `steam://` key or a bare base32 secret.
  */
+/** Who an `otpauth://` key is for, as its label and issuer say; empty for other keys. */
+export function keyLabel(key: string): { issuer?: string; account?: string } {
+  let url: URL
+  try {
+    url = new URL(key.trim())
+  } catch {
+    return {}
+  }
+  if (url.protocol !== "otpauth:") return {}
+  const label = decodeURIComponent(url.pathname.replace(/^\/+/, ""))
+  const separator = label.indexOf(":")
+  const account = (separator < 0 ? label : label.slice(separator + 1)).trim()
+  const issuer = (
+    url.searchParams.get("issuer") ??
+    (separator < 0 ? "" : label.slice(0, separator))
+  ).trim()
+  return {
+    ...(issuer ? { issuer } : {}),
+    ...(account ? { account } : {}),
+  }
+}
+
 export function oneTimeCode(
   key: string,
   now = Date.now(),

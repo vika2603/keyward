@@ -2,9 +2,11 @@ import { BackendError } from "@/lib/backends/types"
 import { resolveLanguage } from "@/lib/i18n/language"
 import { ruleForHost } from "@/lib/matching"
 import { getSettings, type Settings } from "@/lib/settings"
+import { siteDomainOf } from "@/lib/site"
 import type { ContentConfig, FieldInfo } from "./api"
 import type { Backends } from "./backends"
 import { activeTab, frameUrl, sendToFrame } from "./page"
+import { rememberUsername } from "./save-flow"
 
 /** Whether a frame may show the field icon and receive logins, given its URL and the settings. */
 async function frameAllowed(
@@ -29,6 +31,7 @@ export async function contentConfig(
   const page = await frameUrl(tabId, frameId)
   const off: ContentConfig = {
     active: false,
+    scanCodes: false,
     menuTrigger: settings.menuTrigger,
     theme: settings.theme,
     language: resolveLanguage(settings.language),
@@ -42,7 +45,12 @@ export async function contentConfig(
       : behavior === "menuOnClick"
         ? "click"
         : settings.menuTrigger
-  return { ...off, active: true, menuTrigger }
+  const scanCodes = (await backends.sources()).some(
+    (s) =>
+      s.status === "ready" &&
+      (s.kind === "bitwarden" || backends.apple.canSetUpCodes()),
+  )
+  return { ...off, active: true, menuTrigger, scanCodes }
 }
 
 /** The frame's page, once it is known that the frame may be filled from the source. */
@@ -110,6 +118,13 @@ export async function fillLogin(
     password: credential.password,
     autoSubmit: settings.autoSubmit,
   })
+  // A one-time code page that follows offers this login's code first.
+  if (credential.username)
+    await rememberUsername(
+      tabId,
+      siteDomainOf(page.hostname),
+      credential.username,
+    )
 }
 
 /** Sends a login's current one-time code to one frame, with the same checks as `fillLogin`. */

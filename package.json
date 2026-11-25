@@ -24,6 +24,7 @@
     "cn": "^0.5.2",
     "diceware-wordlist-en-eff": "1.0.1",
     "input-otp": "^1.5.0",
+    "jsqr": "1.4.0",
     "lucide-react": "^1.78.0",
     "otpauth": "9.6.0",
     "react": "^19.3.1",

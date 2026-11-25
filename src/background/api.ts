@@ -23,6 +23,8 @@ export type PopupView =
   | { name: "main" }
   | { name: "generator" }
   | { name: "connect"; kind: BackendKind; sourceId?: string }
+  /** Where an authenticator key picked from a page goes. */
+  | { name: "codeSetup" }
 
 /** What a field takes: a login, or a one-time code from an authenticator. */
 export type FieldKind = "login" | "code"
@@ -41,6 +43,8 @@ export interface HistoryEntry {
 
 export interface ContentConfig {
   active: boolean
+  /** Whether a source can take an authenticator key, so QR codes under the pointer are read. */
+  scanCodes: boolean
   menuTrigger: "click" | "focus"
   theme: "system" | "light" | "dark"
   language: Language
@@ -84,10 +88,35 @@ export type BackgroundApi = {
     payload: { sourceId: string; loginId: string }
     result: OneTimeCode
   }
+  /** Where a login for the typed site can be saved; `unsupported` cannot store that site. */
   "popup.saveTargets": {
-    payload: null
-    result: { targets: SourceInfo[]; defaultTarget: string | null }
+    payload: { site: string }
+    result: {
+      targets: SourceInfo[]
+      defaultTarget: string | null
+      unsupported: SourceInfo[]
+    }
   }
+  /** The authenticator key picked from a page: what it is for and where it can go. */
+  "popup.codeSetup": {
+    payload: null
+    result: {
+      host: string
+      issuer?: string
+      account?: string
+      /** Whether the Passwords app can take the key for this site. */
+      apple: boolean
+      /** Bitwarden accounts that are unlocked, with their logins for the site. */
+      sources: SourceView[]
+    }
+  }
+  /** Stores the picked key: in a Bitwarden login, or through the Passwords app. */
+  "popup.setUpCode": {
+    payload: { sourceId: string; loginId?: string }
+    result: null
+  }
+  /** Locks one Bitwarden account, or ends the Apple pairing. */
+  "popup.lock": { payload: { sourceId: string }; result: null }
   /** Locks every account and ends the Apple pairing, as the lock-all shortcut does. */
   "popup.lockAll": { payload: null; result: null }
   "popup.saveLogin": {
@@ -102,7 +131,8 @@ export type BackgroundApi = {
   "apple.state": { payload: null; result: AppleState }
   "apple.startPairing": { payload: { restart: boolean }; result: AppleState }
   "apple.submitCode": { payload: { code: string }; result: AppleState }
-  "apple.openPasswordsApp": { payload: null; result: null }
+  /** Opens the Passwords app, searching for a site when one is given. */
+  "apple.openPasswordsApp": { payload: { site?: string }; result: null }
   "bitwarden.accounts": { payload: null; result: AccountSummary[] }
   "bitwarden.unlock": {
     payload: { accountId: string; password: string }
@@ -149,6 +179,11 @@ export type BackgroundApi = {
   "prompt.close": { payload: { token: string }; result: null }
   "prompt.resize": { payload: { token: string; height: number }; result: null }
   "content.init": { payload: null; result: ContentConfig }
+  /** What is under the pointer: a link's URI or a picture as a PNG; empty when it is neither. */
+  "content.codeCandidate": {
+    payload: { uri?: string; image?: string }
+    result: boolean
+  }
   "content.openMenu": {
     payload: { kind: FieldKind }
     result: { token: string }

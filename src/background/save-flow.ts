@@ -27,7 +27,8 @@ async function rememberedUsernames(): Promise<RememberedUsernames> {
   )
 }
 
-async function rememberUsername(
+/** Remembers the username a tab last signed in with on a site, for the steps that follow. */
+export async function rememberUsername(
   tabId: number,
   site: string,
   username: string,
@@ -38,7 +39,7 @@ async function rememberUsername(
   })
 }
 
-async function recallUsername(
+export async function recallUsername(
   tabId: number,
   site: string,
 ): Promise<string | null> {
@@ -138,7 +139,8 @@ export async function showPrompt(tabId: number): Promise<void> {
   await sendToFrame(tabId, 0, { type: "prompt.show", token }).catch(() => {})
 }
 
-async function saveTargets(
+/** Sources that can store a login for the page right now. */
+export async function saveTargets(
   backends: Backends,
   page: URL,
 ): Promise<SourceInfo[]> {

@@ -2,6 +2,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 import { fakeBrowser } from "wxt/testing/fake-browser"
 import { updateSettings } from "@/lib/settings"
 import { fillCode, fillFirst, fillLogin, hasCodes } from "./autofill"
+import { markRecent } from "./handlers"
+import { recallUsername } from "./save-flow"
 import {
   accountSource,
   appleSource,
@@ -24,6 +26,12 @@ beforeEach(() => {
 })
 
 describe("fillLogin", () => {
+  it("remembers who signed in, so a code step that follows offers that login first", async () => {
+    const { backends } = fakeBackends([{ info: accountSource, credential }])
+    await fillLogin(backends, TAB, 0, accountSource.id, "item-1")
+    expect(await recallUsername(TAB, "example.com")).toBe("someone")
+  })
+
   it("sends the login to the frame together with the origin it was checked for", async () => {
     const { backends, calls } = fakeBackends([
       { info: accountSource, credential },
@@ -214,5 +222,31 @@ describe("fillCode", () => {
       },
     ])
     expect(await hasCodes(locked.backends, TAB, 0)).toBe(false)
+  })
+})
+
+describe("markRecent", () => {
+  const login = (id: string, username: string) => ({
+    id,
+    username,
+    title: "example.com",
+  })
+  const apple = { ...appleSource, logins: [login("a1", "other")] }
+  const account = {
+    ...accountSource,
+    logins: [login("b1", "first"), login("b2", "Someone@Example.com")],
+  }
+
+  it("puts the login signed in with first, in its source and among the sources", () => {
+    const sources = markRecent([apple, account], "someone@example.com")
+    expect(sources.map((s) => s.id)).toEqual([accountSource.id, appleSource.id])
+    expect(sources[0]?.logins.map((l) => [l.id, l.recent ?? false])).toEqual([
+      ["b2", true],
+      ["b1", false],
+    ])
+  })
+
+  it("leaves the order alone without a recent sign-in", () => {
+    expect(markRecent([apple, account], null)).toEqual([apple, account])
   })
 })

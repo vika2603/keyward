@@ -6,6 +6,7 @@ import {
   isContentMessage,
   SOURCES_CHANGED_KEY,
 } from "@/background/api"
+import { watchCodeImages } from "@/content/code-scan"
 import {
   codeFields,
   deepActiveElement,
@@ -179,6 +180,7 @@ export default defineContentScript({
     }
 
     let active = false
+    let scanCodes = false
     let menuTrigger: ContentConfig["menuTrigger"] = "click"
     let observer: MutationObserver | null = null
     let rescan = 0
@@ -252,6 +254,7 @@ export default defineContentScript({
       theme = config.theme
       icons.setLanguage(config.language)
       menuTrigger = config.menuTrigger
+      scanCodes = config.scanCodes
       codesAvailable = null
       if (config.active === active) {
         if (active) scan()
@@ -278,6 +281,8 @@ export default defineContentScript({
     await configure()
     if (isTop) void callBackground("content.ready", null).catch(() => {})
 
+    // Only an empty field opens the menu on focus. A filled one, as after a fill when the focus
+    // comes back from the menu's frame, opens it from its icon.
     ctx.addEventListener(document, "focusin", (event) => {
       const target = eventOrigin(event)
       if (
@@ -286,12 +291,19 @@ export default defineContentScript({
         event.isTrusted &&
         !filling &&
         target instanceof HTMLInputElement &&
+        !target.value &&
         isOurs(target) &&
         menu.openFor !== target
       ) {
         void openMenu(target).catch(() => {})
       }
     })
+
+    watchCodeImages(
+      ctx,
+      () => active && scanCodes,
+      (candidate) => callBackground("content.codeCandidate", candidate ?? {}),
+    )
 
     watchSubmissions(
       ctx,

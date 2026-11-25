@@ -182,7 +182,11 @@ export function App() {
                         />
                         <LoginLabel
                           username={login.username}
-                          detail={login.title}
+                          detail={
+                            login.recent
+                              ? t("overlay.menu.recent", { site: login.title })
+                              : login.title
+                          }
                           compact={compact}
                         />
                         {state.kind === "code" && (

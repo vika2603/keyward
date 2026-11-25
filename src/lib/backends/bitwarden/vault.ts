@@ -207,13 +207,20 @@ export function newLoginRequest(
   }
 }
 
+/** What an update changes in a login item; fields left out stay as they are. */
+export interface ItemChange {
+  password?: string
+  /** An authenticator key: an `otpauth://` URI, a `steam://` key or a base32 secret. */
+  totp?: string
+}
+
 /**
- * The request body that replaces an item's password. The server replaces the whole item, so the
- * other encrypted fields are sent back unchanged and the old password moves to the history.
+ * The request body that updates a login item. The server replaces the whole item, so the other
+ * encrypted fields are sent back unchanged; a replaced password moves to the history.
  */
-export function passwordUpdateRequest(
+export function itemUpdateRequest(
   cipher: Record<string, unknown>,
-  password: string,
+  change: ItemChange,
   keys: VaultKeys,
   userId: string,
 ): Record<string, unknown> {
@@ -222,17 +229,21 @@ export function passwordUpdateRequest(
   const now = new Date().toISOString()
   const oldPassword = prop(login, "Password")
   const history = prop(cipher, "PasswordHistory")
-  const passwordHistory = [
-    ...(typeof oldPassword === "string" && oldPassword
-      ? [{ password: oldPassword, lastUsedDate: now }]
-      : []),
-    ...(Array.isArray(history)
-      ? history.map((h) => ({
-          password: prop(h, "Password"),
-          lastUsedDate: prop(h, "LastUsedDate"),
-        }))
-      : []),
-  ].slice(0, 5)
+  const kept = Array.isArray(history)
+    ? history.map((h) => ({
+        password: prop(h, "Password"),
+        lastUsedDate: prop(h, "LastUsedDate"),
+      }))
+    : []
+  const passwordHistory =
+    change.password === undefined
+      ? kept
+      : [
+          ...(typeof oldPassword === "string" && oldPassword
+            ? [{ password: oldPassword, lastUsedDate: now }]
+            : []),
+          ...kept,
+        ].slice(0, 5)
   const uris = prop(login, "Uris")
   const fields = prop(cipher, "Fields")
   return {
@@ -254,12 +265,21 @@ export function passwordUpdateRequest(
           linkedId: prop(f, "LinkedId") ?? null,
         }))
       : null,
-    passwordHistory,
+    passwordHistory: passwordHistory.length ? passwordHistory : null,
     login: {
       username: prop(login, "Username") ?? null,
-      password: keys.encrypt(password, key),
-      passwordRevisionDate: now,
-      totp: prop(login, "Totp") ?? null,
+      password:
+        change.password === undefined
+          ? (oldPassword ?? null)
+          : keys.encrypt(change.password, key),
+      passwordRevisionDate:
+        change.password === undefined
+          ? (prop(login, "PasswordRevisionDate") ?? null)
+          : now,
+      totp:
+        change.totp === undefined
+          ? (prop(login, "Totp") ?? null)
+          : keys.encrypt(change.totp, key),
       autofillOnPageLoad: prop(login, "AutofillOnPageLoad") ?? null,
       fido2Credentials: prop(login, "Fido2Credentials") ?? null,
       uris: Array.isArray(uris)

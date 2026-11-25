@@ -1,6 +1,6 @@
 import { Secret } from "otpauth"
 import { describe, expect, it } from "vitest"
-import { oneTimeCode } from "./totp"
+import { keyLabel, oneTimeCode } from "./totp"
 
 // RFC 6238 test secret "12345678901234567890" in base32.
 const SECRET = "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ"
@@ -71,5 +71,27 @@ describe("oneTimeCode", () => {
 
   it("refuses a URI without a secret", () => {
     expect(() => oneTimeCode("otpauth://totp/Example:me?issuer=x")).toThrow()
+  })
+})
+
+describe("keyLabel", () => {
+  it("reads the issuer and account of an otpauth URI", () => {
+    expect(
+      keyLabel("otpauth://totp/GitHub:someone%40example.com?secret=ABC"),
+    ).toEqual({ issuer: "GitHub", account: "someone@example.com" })
+    expect(
+      keyLabel("otpauth://totp/someone?secret=ABC&issuer=Example%20Co"),
+    ).toEqual({ issuer: "Example Co", account: "someone" })
+  })
+
+  it("prefers the issuer parameter over the label's prefix", () => {
+    expect(
+      keyLabel("otpauth://totp/Old:someone?secret=ABC&issuer=New"),
+    ).toEqual({ issuer: "New", account: "someone" })
+  })
+
+  it("has nothing to say about other keys", () => {
+    expect(keyLabel("ABCDEFGHIJKLMNOP")).toEqual({})
+    expect(keyLabel("steam://ABC")).toEqual({})
   })
 })

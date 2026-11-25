@@ -11,6 +11,7 @@ import { SOURCES_CHANGED_KEY } from "./api"
 import { fillFirst } from "./autofill"
 import { Backends } from "./backends"
 import { CLEAR_CLIPBOARD_ALARM, clearClipboard } from "./clipboard"
+import { watchCodeSetup } from "./code-setup"
 import { createHandlers, openPopup } from "./handlers"
 import { menus } from "./overlays"
 import { forgetTab } from "./save-flow"
@@ -57,6 +58,7 @@ export function startBackground(): void {
 
   serveRequests(createHandlers(backends), errorCode)
   const refreshToolbar = watchToolbar(backends)
+  watchCodeSetup((view) => void openPopup(view).catch(() => {}))
 
   let announcing: ReturnType<typeof setTimeout> | undefined
   const announce = () => {

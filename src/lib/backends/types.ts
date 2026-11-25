@@ -35,6 +35,8 @@ export interface LoginSummary {
   host?: string
   /** Whether the login is known to give one-time codes; Apple tells only when asked for codes. */
   hasCode?: boolean
+  /** The login this tab signed in with on the site moments ago, listed first for its code. */
+  recent?: boolean
 }
 
 /** What the detail view shows of a login. The password and one-time code are read on request. */
@@ -135,6 +137,8 @@ export interface PasswordBackend {
     username: string,
     password: string,
   ): Promise<ExistingLogin | null>
+  /** Locks one source; it needs pairing or unlocking again before use. */
+  lock(sourceId: string): Promise<void>
   lockAll(): Promise<void>
 }
 

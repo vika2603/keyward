@@ -13,7 +13,7 @@ import {
   decryptLogin,
   decryptPassword,
   decryptTotp,
-  passwordUpdateRequest,
+  itemUpdateRequest,
   VaultKeys,
 } from "./vault"
 
@@ -113,9 +113,9 @@ describe("organization items", () => {
   })
 
   it("replaces the password, keeps the other fields and moves the old password to the history", () => {
-    const request = passwordUpdateRequest(
+    const request = itemUpdateRequest(
       cipher,
-      "next-password",
+      { password: "next-password" },
       keys,
       "user-1",
     )
@@ -136,6 +136,21 @@ describe("organization items", () => {
       "old-2",
       "old-3",
     ])
+  })
+
+  it("sets an authenticator key and leaves the password and its history alone", () => {
+    const totp = "otpauth://totp/Example:someone?secret=TESTKEY"
+    const request = itemUpdateRequest(cipher, { totp }, keys, "user-1")
+    const login = request.login as Record<string, unknown>
+    expect(sdk.symmetric_decrypt_string(String(login.totp), itemKey)).toBe(totp)
+    expect(login.password).toBe(cipher.Login.Password)
+    expect(login.passwordRevisionDate).toBeNull()
+    expect(request.passwordHistory).toEqual(
+      history.map((h) => ({
+        password: h.Password,
+        lastUsedDate: h.LastUsedDate,
+      })),
+    )
   })
 })
 

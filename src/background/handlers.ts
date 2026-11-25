@@ -3,11 +3,13 @@ import { isBitwardenSource } from "@/lib/backends/bitwarden/source-id"
 import { BackendError } from "@/lib/backends/types"
 import type { Handlers, Sender } from "@/lib/messaging"
 import { getSettings, updateSettings } from "@/lib/settings"
-import { normalizeSiteInput } from "@/lib/site"
-import type { BackgroundApi, FieldKind, PopupView } from "./api"
+import { normalizeSiteInput, siteDomainOf } from "@/lib/site"
+import { keyLabel } from "@/lib/totp"
+import type { BackgroundApi, FieldKind, PopupView, SourceView } from "./api"
 import { contentConfig, fillCode, fillLogin, hasCodes } from "./autofill"
 import type { Backends } from "./backends"
 import { copyText } from "./clipboard"
+import { finishSetup, offerCandidate, pendingSetup } from "./code-setup"
 import { addHistory, clearHistory, listHistory } from "./history"
 import { menus, prompts } from "./overlays"
 import { activeTab, frameUrl, sendToFrame, webPage } from "./page"
@@ -18,6 +20,8 @@ import {
   neverForSite,
   onSubmitted,
   promptState,
+  recallUsername,
+  saveTargets,
   showPrompt,
 } from "./save-flow"
 
@@ -29,6 +33,36 @@ function tabFrame(sender: Sender): { tabId: number; frameId: number } {
     throw new BackendError("The request has no tab", "forbidden")
   }
   return { tabId: sender.tab.id, frameId: sender.frameId }
+}
+
+/**
+ * Puts the login signed in with moments ago first, in its source and among the sources, so its
+ * code is the first one offered.
+ */
+export function markRecent(
+  sources: SourceView[],
+  username: string | null,
+): SourceView[] {
+  const name = username?.trim().toLowerCase()
+  if (!name) return sources
+  const marked = sources.map((source) => {
+    const logins = source.logins.map((login) =>
+      login.username.trim().toLowerCase() === name
+        ? { ...login, recent: true }
+        : login,
+    )
+    return {
+      ...source,
+      logins: [
+        ...logins.filter((l) => l.recent),
+        ...logins.filter((l) => !l.recent),
+      ],
+    }
+  })
+  return [
+    ...marked.filter((s) => s.logins.some((l) => l.recent)),
+    ...marked.filter((s) => !s.logins.some((l) => l.recent)),
+  ]
 }
 
 function requireText(value: unknown, name: string, maxLength = 1024): string {
@@ -157,6 +191,52 @@ export function createHandlers(backends: Backends): Handlers<BackgroundApi> {
           .oneTimeCode(sourceId, loginId, page, { tabId, frameId: 0 })
       },
     },
+    "popup.codeSetup": {
+      allow: popup,
+      handle: async () => {
+        const { uri, page } = await pendingSetup()
+        const sources = await backends.loginsForPage(page)
+        return {
+          host: page.hostname,
+          ...keyLabel(uri),
+          apple: apple.canSetUpCodes() && apple.canSave(page),
+          sources: sources.filter(
+            (s) => s.kind === "bitwarden" && s.status === "ready" && !s.error,
+          ),
+        }
+      },
+    },
+    "popup.setUpCode": {
+      allow: popup,
+      handle: async ({ sourceId, loginId }) => {
+        const { uri, page } = await pendingSetup()
+        if (backends.backendOf(requireText(sourceId, "sourceId")) === apple) {
+          if (!apple.canSave(page))
+            throw new BackendError(
+              "Apple Passwords does not store logins for this host",
+              "apple.unsupportedSite",
+            )
+          await apple.setUpCode(page.hostname, uri)
+        } else {
+          await bitwarden.setCode(
+            sourceId,
+            requireText(loginId, "loginId"),
+            page,
+            uri,
+          )
+        }
+        await finishSetup()
+        return null
+      },
+    },
+    "popup.lock": {
+      allow: popup,
+      handle: async ({ sourceId }) => {
+        const id = requireText(sourceId, "sourceId")
+        await backends.backendOf(id).lock(id)
+        return null
+      },
+    },
     "popup.lockAll": {
       allow: popup,
       handle: async () => {
@@ -166,9 +246,17 @@ export function createHandlers(backends: Backends): Handlers<BackgroundApi> {
     },
     "popup.saveTargets": {
       allow: popup,
-      handle: async () => {
-        const targets = await backends.savable()
-        return { targets, defaultTarget: await defaultTarget(targets) }
+      handle: async ({ site }) => {
+        const ready = await backends.savable()
+        const url = normalizeSiteInput(requireText(site, "site", 2048))
+        const targets = url ? await saveTargets(backends, url) : ready
+        return {
+          targets,
+          defaultTarget: await defaultTarget(targets),
+          unsupported: url
+            ? ready.filter((s) => !backends.backendOf(s.id).canSave(url))
+            : [],
+        }
       },
     },
     "popup.saveLogin": {
@@ -178,7 +266,9 @@ export function createHandlers(backends: Backends): Handlers<BackgroundApi> {
         if (!url) throw new BackendError("Not a web address", "invalidSite")
         if (!requireText(password, "password"))
           throw new BackendError("Empty password", "invalidInput")
-        if (!(await backends.savable()).some((s) => s.id === sourceId)) {
+        if (
+          !(await saveTargets(backends, url)).some((s) => s.id === sourceId)
+        ) {
           throw new BackendError(
             "The chosen place is not available",
             "unknownSource",
@@ -220,8 +310,10 @@ export function createHandlers(backends: Backends): Handlers<BackgroundApi> {
     },
     "apple.openPasswordsApp": {
       allow: connectPages,
-      handle: async () => {
-        await apple.openPasswordsApp()
+      handle: async ({ site }) => {
+        await apple.openPasswordsApp(
+          site === undefined ? undefined : requireText(site, "site", 253),
+        )
         return null
       },
     },
@@ -328,16 +420,24 @@ export function createHandlers(backends: Backends): Handlers<BackgroundApi> {
         if (!page)
           throw new BackendError("The frame is not a web page", "notWebPage")
         const kind = session.kind ?? "login"
+        if (kind === "login")
+          return {
+            host: page.hostname,
+            kind,
+            sources: await backends.loginsForPage(page),
+          }
+        const sources = await backends.codeLoginsForPage(page, {
+          tabId: session.tabId,
+          frameId: session.frameId,
+        })
+        const recent = await recallUsername(
+          session.tabId,
+          siteDomainOf(page.hostname),
+        )
         return {
           host: page.hostname,
           kind,
-          sources:
-            kind === "code"
-              ? await backends.codeLoginsForPage(page, {
-                  tabId: session.tabId,
-                  frameId: session.frameId,
-                })
-              : await backends.loginsForPage(page),
+          sources: markRecent(sources, recent),
         }
       },
     },
@@ -422,6 +522,13 @@ export function createHandlers(backends: Backends): Handlers<BackgroundApi> {
       },
     },
 
+    "content.codeCandidate": {
+      allow: ["contentScript"],
+      handle: (candidate, sender) => {
+        const { tabId, frameId } = tabFrame(sender)
+        return offerCandidate(tabId, frameId, candidate ?? {})
+      },
+    },
     "content.init": {
       allow: ["contentScript"],
       handle: (_, sender) => {

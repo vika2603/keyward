@@ -61,7 +61,7 @@ export function BackendsPage() {
   const openApp = async () => {
     setMessage(null)
     try {
-      await callBackground("apple.openPasswordsApp", null)
+      await callBackground("apple.openPasswordsApp", {})
     } catch (error) {
       setMessage(errorMessage(error))
     }
