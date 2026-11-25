@@ -31,17 +31,27 @@ export function BitwardenUnlock({
   const [message, setMessage] = useState<string | null>(null)
 
   useEffect(() => {
-    void callBackground("bitwarden.accounts", null).then((list) => {
-      setAccounts(list)
-      setSelected((current) =>
-        list.some((a) => a.id === current)
-          ? current
-          : (list.find((a) => !a.unlocked) ?? list[0])?.id,
-      )
-    })
+    callBackground("bitwarden.accounts", null).then(
+      (list) => {
+        setAccounts(list)
+        setSelected((current) =>
+          list.some((a) => a.id === current)
+            ? current
+            : (list.find((a) => !a.unlocked) ?? list[0])?.id,
+        )
+      },
+      (error) => setMessage(errorMessage(error)),
+    )
   }, [])
 
-  if (!accounts) return <FieldsSkeleton rows={2} />
+  // Without its accounts the view has nothing else to show, so the error takes the form's place.
+  if (!accounts) {
+    return message ? (
+      <p className="text-center text-xs text-destructive">{message}</p>
+    ) : (
+      <FieldsSkeleton rows={2} />
+    )
+  }
   if (!accounts.length) {
     return (
       <div className="flex flex-col items-center gap-4 text-center">
