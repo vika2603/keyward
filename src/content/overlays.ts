@@ -1,10 +1,14 @@
 import type { ContentScriptContext } from "wxt/utils/content-script-context"
 import { createIframeUi } from "wxt/utils/content-script-ui/iframe"
 import { eventOrigin } from "./deep-dom"
+import { PROMPT_WIDTH } from "./overlay-size"
 
 /** Room around the overlay's card for its shadow, inside the iframe. */
 const SHADOW_MARGIN = 8
-const PROMPT_WIDTH = 340
+/** The highest z-index there is, so that no page element covers an overlay. */
+const OVERLAY_Z_INDEX = "2147483647"
+/** The save prompt's distance from the top right corner of the window. */
+const PROMPT_INSET = 12
 /** The menu is as wide as its field, within limits that keep its rows readable. */
 const MENU_MIN_WIDTH = 280
 const MENU_MAX_WIDTH = 480
@@ -28,7 +32,7 @@ function lockStyle(element: HTMLElement, styles: Record<string, string>): void {
  * One extension page shown in an iframe over the web page. The page reports its height through the
  * background; until then the frame stays hidden. The frame and its wrapper sit in the page's DOM,
  * so a change the page makes to them closes the overlay, and any move is reported to the frame,
- * which then waits before it accepts a click (see `useTrackVisible`).
+ * which then waits before it accepts a click (see `useClickGuard`).
  */
 class Overlay {
   private ui: IframeUi | null = null
@@ -68,7 +72,7 @@ class Overlay {
       onMount: (wrapper, iframe) => {
         lockStyle(wrapper, {
           position: "fixed",
-          "z-index": "2147483647",
+          "z-index": OVERLAY_Z_INDEX,
           display: "block",
           width: `${this.width}px`,
           height: "0",
@@ -150,8 +154,8 @@ class Overlay {
 
   placeTopRight(): void {
     this.setWrapper({
-      top: `${12 - SHADOW_MARGIN}px`,
-      right: `${12 - SHADOW_MARGIN}px`,
+      top: `${PROMPT_INSET - SHADOW_MARGIN}px`,
+      right: `${PROMPT_INSET - SHADOW_MARGIN}px`,
     })
   }
 
@@ -196,8 +200,8 @@ class Overlay {
     this.observer.observe(document.documentElement, { childList: true })
     const watch = () => {
       if (this.ui !== ui) return
-      const r = ui.iframe.getBoundingClientRect()
-      const rect = `${r.x},${r.y},${r.width},${r.height}`
+      const box = ui.iframe.getBoundingClientRect()
+      const rect = `${box.x},${box.y},${box.width},${box.height}`
       if (loaded && rect !== this.lastRect) {
         this.lastRect = rect
         ui.iframe.contentWindow?.postMessage(

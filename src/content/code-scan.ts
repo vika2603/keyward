@@ -7,8 +7,10 @@ const MIN_SIZE = 40
 const MAX_SIZE = 800
 /** Moving across a page passes over many elements; only one the pointer stays on is read. */
 const HOVER_DELAY_MS = 120
+/** How far width and height may differ, as a share of the longer side, for a square picture. */
+const SQUARE_TOLERANCE = 0.2
 
-export type CodeCandidate = { uri: string } | { image: string } | null
+type CodeCandidate = { uri: string } | { image: string } | null
 
 function isSquarish(width: number, height: number): boolean {
   return (
@@ -16,7 +18,7 @@ function isSquarish(width: number, height: number): boolean {
     height >= MIN_SIZE &&
     width <= MAX_SIZE &&
     height <= MAX_SIZE &&
-    Math.abs(width - height) <= Math.max(width, height) * 0.2
+    Math.abs(width - height) <= Math.max(width, height) * SQUARE_TOLERANCE
   )
 }
 
@@ -35,7 +37,7 @@ function loadImage(
 
 /** Draws a picture on white as a PNG; null when the page's picture may not be read. */
 function toPng(
-  vault: CanvasImageSource,
+  source: CanvasImageSource,
   width: number,
   height: number,
 ): string | null {
@@ -47,7 +49,7 @@ function toPng(
   if (!context) return null
   context.fillStyle = "#ffffff"
   context.fillRect(0, 0, canvas.width, canvas.height)
-  context.drawImage(vault, 0, 0, canvas.width, canvas.height)
+  context.drawImage(source, 0, 0, canvas.width, canvas.height)
   try {
     return canvas.toDataURL("image/png")
   } catch {
@@ -106,15 +108,16 @@ async function candidateOf(element: Element): Promise<CodeCandidate> {
     return element.protocol === "otpauth:" ? { uri: element.href } : null
   const { width, height } = element.getBoundingClientRect()
   if (!isSquarish(width, height)) return null
-  const image =
-    element instanceof HTMLImageElement
-      ? await imageToPng(element)
-      : element instanceof HTMLCanvasElement
-        ? toPng(element, element.width, element.height)
-        : element instanceof SVGSVGElement
-          ? await svgToPng(element)
-          : null
+  const image = await pictureToPng(element)
   return image ? { image } : null
+}
+
+async function pictureToPng(element: Element): Promise<string | null> {
+  if (element instanceof HTMLImageElement) return imageToPng(element)
+  if (element instanceof HTMLCanvasElement)
+    return toPng(element, element.width, element.height)
+  if (element instanceof SVGSVGElement) return svgToPng(element)
+  return null
 }
 
 /** The outermost SVG of a drawing, or the nearest link, picture or canvas. */

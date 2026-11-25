@@ -15,6 +15,14 @@ const INSET = 6
 /** Narrower fields leave no room for both their text and the icon. */
 const NARROW_WIDTH = SIZE * 3
 const OUTSIDE_GAP = 6
+/** Lower fields cannot hold the icon. */
+const MIN_FIELD_HEIGHT = SIZE - 4
+/** How many page controls over a field's end, such as a "show password" button, the icon moves past. */
+const MAX_COVERS = 3
+/** Room left between the icon and a page control over the field. */
+const COVER_GAP = 4
+/** Just below the overlays' z-index, the highest there is, so an open menu covers the icons. */
+const ICON_Z_INDEX = "2147483646"
 
 /*
  * Plain px values: the icons sit in the page, where rem units and the page's own styles would
@@ -94,7 +102,7 @@ export class FieldIcons {
       left: "0",
       width: "0",
       height: "0",
-      "z-index": "2147483646",
+      "z-index": ICON_Z_INDEX,
       display: "block",
     })) {
       this.host.style.setProperty(name, value, "important")
@@ -146,8 +154,8 @@ export class FieldIcons {
 
   setExpanded(field: HTMLInputElement | null): void {
     this.expanded = field
-    for (const [f, icon] of this.icons)
-      icon.setAttribute("aria-expanded", String(f === field))
+    for (const [iconField, icon] of this.icons)
+      icon.setAttribute("aria-expanded", String(iconField === field))
     this.schedule()
   }
 
@@ -182,12 +190,12 @@ export class FieldIcons {
   private freeRight(field: HTMLInputElement, rect: DOMRect): number {
     let right = rect.right - INSET
     const y = rect.top + rect.height / 2
-    for (let i = 0; i < 3; i++) {
+    for (let step = 0; step < MAX_COVERS; step++) {
       const x = right - SIZE / 2
       if (x < rect.left + rect.width / 2) break
       const cover = coveringElement(field, x, y, this.host)
       if (!cover) break
-      right = Math.min(right, cover.getBoundingClientRect().left) - 4
+      right = Math.min(right, cover.getBoundingClientRect().left) - COVER_GAP
     }
     return right
   }
@@ -212,7 +220,7 @@ export class FieldIcons {
       const outside = boxes.length > 1 || rect.width < NARROW_WIDTH
       const shown =
         isVisible(field) &&
-        rect.height >= SIZE - 4 &&
+        rect.height >= MIN_FIELD_HEIGHT &&
         rect.bottom > 0 &&
         rect.top < innerHeight &&
         rect.right > 0 &&

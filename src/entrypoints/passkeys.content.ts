@@ -7,7 +7,7 @@ import {
 /** How long a request waits for the content script before the browser gets it after all. */
 const UNDECIDED_MS = 2000
 
-interface Held {
+interface HeldRequest {
   options: CredentialRequestOptions
   resolve: (credential: Credential | null) => void
   reject: (reason: unknown) => void
@@ -28,14 +28,14 @@ export default defineContentScript({
   runAt: "document_start",
   world: "MAIN",
   main() {
-    const container = globalThis.navigator?.credentials
-    if (!container?.get) return
-    const browserGet = container.get.bind(container)
+    const credentials = globalThis.navigator?.credentials
+    if (!credentials?.get) return
+    const browserGet = credentials.get.bind(credentials)
     /** Null until the content script decides; requests are held meanwhile. */
     let mode: "hold" | "release" | null = null
-    let held: Held | null = null
+    let held: HeldRequest | null = null
 
-    const report = () =>
+    const reportState = () =>
       document.dispatchEvent(
         new CustomEvent(PASSKEY_STATE_EVENT, {
           detail: held && !held.attempt ? "waiting" : "none",
@@ -47,14 +47,14 @@ export default defineContentScript({
         document.dispatchEvent(new CustomEvent(PASSKEY_USED_EVENT))
     }
 
-    const finish = (request: Held, settle: () => void) => {
+    const finish = (request: HeldRequest, settle: () => void) => {
       if (held !== request) return
       held = null
       settle()
-      report()
+      reportState()
     }
 
-    const attempt = (request: Held, conditional: boolean) => {
+    const attempt = (request: HeldRequest, conditional: boolean) => {
       const controller = new AbortController()
       request.attempt = { controller, conditional }
       browserGet({
@@ -76,7 +76,7 @@ export default defineContentScript({
             error instanceof DOMException &&
             error.name === "NotAllowedError"
           ) {
-            apply()
+            applyMode()
             return
           }
           finish(request, () => request.reject(error))
@@ -85,7 +85,7 @@ export default defineContentScript({
     }
 
     /** Hands the held request to the browser's list or takes it back, as the mode says. */
-    const apply = () => {
+    const applyMode = () => {
       const request = held
       if (request && mode === "release" && !request.attempt)
         attempt(request, true)
@@ -94,10 +94,10 @@ export default defineContentScript({
         request.attempt = null
         controller.abort()
       }
-      report()
+      reportState()
     }
 
-    container.get = function get(
+    credentials.get = function get(
       options?: CredentialRequestOptions,
     ): Promise<Credential | null> {
       if (options?.mediation !== "conditional" || !options.publicKey) {
@@ -112,7 +112,12 @@ export default defineContentScript({
           new DOMException("A request is already pending.", "NotAllowedError"),
         )
       return new Promise((resolve, reject) => {
-        const request: Held = { options, resolve, reject, attempt: null }
+        const request: HeldRequest = {
+          options,
+          resolve,
+          reject,
+          attempt: null,
+        }
         held = request
         signal?.addEventListener(
           "abort",
@@ -128,9 +133,9 @@ export default defineContentScript({
           setTimeout(() => {
             if (mode !== null) return
             mode = "release"
-            apply()
+            applyMode()
           }, UNDECIDED_MS)
-        apply()
+        applyMode()
       })
     }
 
@@ -138,10 +143,10 @@ export default defineContentScript({
       const control = (event as CustomEvent<unknown>).detail
       if (control === "hold" || control === "release") {
         mode = control
-        apply()
+        applyMode()
       } else if (control === "use") {
         if (held && !held.attempt) attempt(held, false)
-        report()
+        reportState()
       }
     })
   },

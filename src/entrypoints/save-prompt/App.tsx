@@ -22,6 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { PROMPT_WIDTH } from "@/content/overlay-size"
 import { t } from "@/lib/i18n"
 import type { Folder } from "@/lib/providers/types"
 
@@ -116,7 +117,8 @@ export function App() {
     <div className="p-2">
       <div
         ref={card}
-        className="flex w-[340px] flex-col gap-3 rounded-lg bg-popover p-3 text-popover-foreground shadow-md ring-1 ring-foreground/10"
+        style={{ width: PROMPT_WIDTH }}
+        className="flex flex-col gap-3 rounded-lg bg-popover p-3 text-popover-foreground shadow-md ring-1 ring-foreground/10"
       >
         {state && language && (
           <>

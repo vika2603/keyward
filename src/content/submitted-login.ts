@@ -1,6 +1,10 @@
 import { deepInputs, scopeOf } from "./deep-dom"
 import { FieldIndex, isFillable } from "./field-finder"
-import { isPasswordField, looksLikeUsername } from "./field-hints"
+import {
+  hasAutocomplete,
+  isPasswordField,
+  looksLikeUsername,
+} from "./field-hints"
 
 export interface SubmittedLogin {
   username: string
@@ -26,9 +30,8 @@ export function credentialsAround(element: Element): SubmittedLogin | null {
     const marked = inputs.find(
       (input) =>
         input.type !== "password" &&
-        /\b(username|email)\b/i.test(
-          input.getAttribute("autocomplete") ?? "",
-        ) &&
+        (hasAutocomplete(input, "username") ||
+          hasAutocomplete(input, "email")) &&
         input.value.trim(),
     )
     return {

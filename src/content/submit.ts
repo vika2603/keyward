@@ -30,14 +30,14 @@ export function watchSubmissions(
   active: () => boolean,
   report: (credentials: SubmittedLogin) => void,
 ): void {
-  let last = { key: "", at: 0 }
-  const capture = (element: Element) => {
+  let lastReport = { key: "", at: 0 }
+  const reportCredentialsAround = (element: Element) => {
     if (!active()) return
     const credentials = credentialsAround(element)
     if (!credentials || (!credentials.username && !credentials.password)) return
     const key = `${credentials.username}\n${credentials.password}`
-    if (key === last.key && Date.now() - last.at < DEDUPE_MS) return
-    last = { key, at: Date.now() }
+    if (key === lastReport.key && Date.now() - lastReport.at < DEDUPE_MS) return
+    lastReport = { key, at: Date.now() }
     report(credentials)
   }
 
@@ -46,7 +46,8 @@ export function watchSubmissions(
     "submit",
     (event) => {
       const form = eventOrigin(event)
-      if (event.isTrusted && form instanceof HTMLFormElement) capture(form)
+      if (event.isTrusted && form instanceof HTMLFormElement)
+        reportCredentialsAround(form)
     },
     { capture: true },
   )
@@ -57,7 +58,7 @@ export function watchSubmissions(
       const target = eventOrigin(event)
       if (!event.isTrusted || !(target instanceof Element)) return
       const control = target.closest("button, input, [role='button']")
-      if (isSubmitControl(control)) capture(control)
+      if (isSubmitControl(control)) reportCredentialsAround(control)
     },
     { capture: true },
   )
@@ -68,7 +69,7 @@ export function watchSubmissions(
       if (!event.isTrusted || event.key !== "Enter" || event.isComposing) return
       const target = eventOrigin(event)
       if (target instanceof HTMLInputElement && target.type !== "hidden")
-        capture(target)
+        reportCredentialsAround(target)
     },
     { capture: true },
   )
