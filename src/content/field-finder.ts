@@ -37,9 +37,14 @@ export function isVisible(element: HTMLElement): boolean {
   )
 }
 
-/** Whether the user could type into the field now. */
+/** Whether the user could type into the field now. Hidden inputs are left out before any layout read. */
 export function isFillable(input: HTMLInputElement): boolean {
-  return !input.disabled && !input.readOnly && isVisible(input)
+  return (
+    input.type !== "hidden" &&
+    !input.disabled &&
+    !input.readOnly &&
+    isVisible(input)
+  )
 }
 
 /**

@@ -200,6 +200,10 @@ export class FieldIcons {
         field === focusedField ||
         field === this.expanded ||
         icon === focusedIcon
+      if (!inUse) {
+        icon.style.display = "none"
+        continue
+      }
       // A code split over one-character boxes, or a field too narrow to share with the icon, gets
       // the icon just after it, so the icon never covers what is typed.
       const boxes = codeBoxes(field)
@@ -207,7 +211,6 @@ export class FieldIcons {
       const rect = last.getBoundingClientRect()
       const outside = boxes.length > 1 || rect.width < NARROW_WIDTH
       const shown =
-        inUse &&
         isVisible(field) &&
         rect.height >= SIZE - 4 &&
         rect.bottom > 0 &&

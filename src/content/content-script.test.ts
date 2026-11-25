@@ -82,6 +82,29 @@ describe("watching the page for fields", () => {
   })
 })
 
+describe("placing the field icons", () => {
+  /** The layout reads of the page's inputs while the icons are placed after a resize. */
+  async function inputLayoutReadsOnResize(): Promise<number> {
+    const reads = vi.mocked(HTMLElement.prototype.getBoundingClientRect)
+    reads.mockClear()
+    window.dispatchEvent(new Event("resize"))
+    await vi.advanceTimersByTimeAsync(100)
+    return reads.mock.contexts.filter(
+      (element) => element instanceof HTMLInputElement,
+    ).length
+  }
+
+  it("reads no layout for the fields that are not in use", async () => {
+    document.body.innerHTML = SIGN_IN + SIGN_IN
+    ;({ ctx } = await startContentScript({ config: { menuTrigger: "click" } }))
+    await vi.advanceTimersByTimeAsync(SETTLE_MS)
+    expect(await inputLayoutReadsOnResize()).toBe(0)
+
+    input("[name=password]").focus()
+    expect(await inputLayoutReadsOnResize()).toBeGreaterThan(0)
+  })
+})
+
 const OTHER_ORIGIN = "https://other.example"
 
 type FillMessage = Extract<ContentMessage, { type: "fill" }>
