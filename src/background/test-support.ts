@@ -1,4 +1,5 @@
 import { vi } from "vitest"
+import { fakeBrowser } from "wxt/testing/fake-browser"
 import type {
   Credential,
   ExistingLogin,
@@ -7,6 +8,7 @@ import type {
   VaultInfo,
   VaultProvider,
 } from "@/lib/providers/types"
+import type { SiteBehavior, SiteRule } from "@/lib/settings"
 import type { Providers } from "./providers"
 
 /** URLs of frames, keyed by "tabId:frameId", which the mocked `frameUrl` reads. */
@@ -14,6 +16,71 @@ export const frames = new Map<string, string>()
 
 export function setFrame(tabId: number, frameId: number, url: string): void {
   frames.set(`${tabId}:${frameId}`, url)
+}
+
+/** Resets the fake browser, the frames the page stand-in knows and the calls of every mock. */
+export function resetBackground(): void {
+  fakeBrowser.reset()
+  frames.clear()
+  vi.clearAllMocks()
+}
+
+type MenuClick = (
+  info: { menuItemId: string; frameId?: number },
+  tab?: { id?: number; url?: string },
+) => unknown
+
+/** A context menu as the code under test created it. */
+export interface CreatedMenu {
+  id: string
+  parentId?: string
+  title?: string
+  type?: string
+  enabled?: boolean
+  contexts?: string[]
+}
+
+/**
+ * Gives the fake browser the context menu functions it leaves out. `created` lists the menus made
+ * since; `click` reports a click to the listener registered last, as the browser would.
+ */
+export function fakeContextMenus(): {
+  created: CreatedMenu[]
+  click: (...click: Parameters<MenuClick>) => Promise<unknown>
+} {
+  const created: CreatedMenu[] = []
+  let listener: MenuClick = () => {}
+  const menus = fakeBrowser.contextMenus as unknown as Record<string, unknown>
+  menus.create = vi.fn((properties: CreatedMenu, done?: () => void) => {
+    created.push(properties)
+    done?.()
+  })
+  menus.update = vi.fn(async () => {})
+  menus.remove = vi.fn(async () => {})
+  menus.onClicked = {
+    addListener: (added: MenuClick) => {
+      listener = added
+    },
+  }
+  return {
+    created,
+    click: async (...click) => listener(...click),
+  }
+}
+
+/** A rule for example.com that applies to every vault with the default match. */
+export function siteRule(
+  behavior: SiteBehavior,
+  rule: Partial<SiteRule> = {},
+): SiteRule {
+  return {
+    id: "rule",
+    host: "example.com",
+    match: null,
+    provider: "all",
+    behavior,
+    ...rule,
+  }
 }
 
 /** A stand-in for the `./page` module; tests pass it to `vi.mock`. */

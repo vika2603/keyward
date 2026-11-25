@@ -5,15 +5,10 @@ import type { VaultView } from "./api"
 import { fillLogin, fillNewPassword } from "./autofill"
 import { copyText } from "./clipboard"
 import { LoginMenus } from "./login-menus"
-import { accountVault, fakeProviders } from "./test-support"
+import { accountVault, fakeContextMenus, fakeProviders } from "./test-support"
 
 vi.mock("./autofill", () => ({ fillLogin: vi.fn(), fillNewPassword: vi.fn() }))
 vi.mock("./clipboard", () => ({ copyText: vi.fn() }))
-
-type Clicked = (
-  info: { menuItemId: string; frameId?: number },
-  tab?: { id?: number; url?: string },
-) => void
 
 const TAB = 4
 const PAGE_URL = "https://example.com/login"
@@ -27,39 +22,17 @@ const someone = {
 }
 const shared = { id: "item-2", username: "", title: "Shared account" }
 
-let created: {
-  id: string
-  parentId?: string
-  title?: string
-  type?: string
-  enabled?: boolean
-  contexts?: string[]
-}[]
-let clicked: Clicked
+let contextMenus: ReturnType<typeof fakeContextMenus>
 
 beforeEach(() => {
   fakeBrowser.reset()
   vi.clearAllMocks()
-  created = []
-  // The fake browser leaves context menus out; the code needs these.
-  const menus = fakeBrowser.contextMenus as unknown as Record<string, unknown>
-  menus.create = vi.fn(
-    (properties: (typeof created)[number], done?: () => void) => {
-      created.push(properties)
-      done?.()
-    },
-  )
-  menus.remove = vi.fn(async () => {})
-  menus.onClicked = {
-    addListener: (listener: Clicked) => {
-      clicked = listener
-    },
-  }
+  contextMenus = fakeContextMenus()
 })
 
 /** The login's menu, found by the line it shows. */
 function loginMenu(title: string) {
-  return created.find(
+  return contextMenus.created.find(
     (item) => item.parentId === undefined && item.title === title,
   )
 }
@@ -68,7 +41,7 @@ function loginMenu(title: string) {
 function id(action: string, title: string): string {
   const login = loginMenu(title)
   return (
-    created.find(
+    contextMenus.created.find(
       (item) =>
         item.parentId === login?.id &&
         item.id.startsWith(`loginMenus.${action}.`),
@@ -88,7 +61,7 @@ describe("LoginMenus", () => {
   it("lists each login once under its vault's heading, with only the actions it has", async () => {
     const { menus, vaults } = setUp()
     await menus.show(vaults, tab)
-    const topLevel = created
+    const topLevel = contextMenus.created
       .filter((item) => item.parentId === undefined)
       .map((item) => (item.type === "separator" ? "---" : item.title))
     expect(topLevel).toEqual([
@@ -99,9 +72,9 @@ describe("LoginMenus", () => {
       expect.any(String),
       expect.any(String),
     ])
-    expect(created[0]?.enabled).toBe(false)
+    expect(contextMenus.created[0]?.enabled).toBe(false)
     const actions = (title: string) =>
-      created
+      contextMenus.created
         .filter((item) => item.parentId === loginMenu(title)?.id)
         .map((item) => item.id.split(".")[1])
     expect(actions("someone")).toEqual([
@@ -111,7 +84,7 @@ describe("LoginMenus", () => {
       "copyCode",
     ])
     expect(actions("Shared account")).toEqual(["fill", "copyPassword"])
-    expect(created.at(-1)?.id).toBe("loginMenus.generate")
+    expect(contextMenus.created.at(-1)?.id).toBe("loginMenus.generate")
   })
 
   it("puts each vault's logins under its own heading, and removes the earlier menus first", async () => {
@@ -124,13 +97,13 @@ describe("LoginMenus", () => {
     }
     const { menus, vaults } = setUp()
     await menus.show(vaults, tab)
-    const earlier = created
+    const earlier = contextMenus.created
       .filter((item) => item.parentId === undefined)
       .map((item) => item.id)
-    created = []
+    contextMenus.created.length = 0
     await menus.show([apple, ...vaults], tab)
     expect(
-      created
+      contextMenus.created
         .filter((item) => item.parentId === undefined)
         .map((item) => (item.type === "separator" ? "---" : item.title))
         .slice(0, 5),
@@ -150,7 +123,7 @@ describe("LoginMenus", () => {
   it("removes the menus of the browser session before, whose storage.session is gone", async () => {
     const { menus, vaults } = setUp()
     await menus.show(vaults, tab)
-    const earlier = created
+    const earlier = contextMenus.created
       .filter((item) => item.parentId === undefined)
       .map((item) => item.id)
     await fakeBrowser.storage.session.clear()
@@ -165,8 +138,14 @@ describe("LoginMenus", () => {
   it("fills into the frame that was right-clicked, and copies a password as a secret", async () => {
     const { menus, vaults, calls } = setUp()
     await menus.show(vaults, tab)
-    clicked({ menuItemId: id("fill", "Shared account"), frameId: 2 }, tab)
-    clicked({ menuItemId: id("copyPassword", "someone"), frameId: 0 }, tab)
+    contextMenus.click(
+      { menuItemId: id("fill", "Shared account"), frameId: 2 },
+      tab,
+    )
+    contextMenus.click(
+      { menuItemId: id("copyPassword", "someone"), frameId: 0 },
+      tab,
+    )
     // The listener starts the work without waiting for it.
     await vi.waitFor(() => {
       expect(fillLogin).toHaveBeenCalledWith(
@@ -185,12 +164,15 @@ describe("LoginMenus", () => {
   it("fills a generated password into the right-clicked field's frame, offered only on fields", async () => {
     const { menus } = setUp()
     await menus.show([], tab)
-    const generateFill = created.find(
+    const generateFill = contextMenus.created.find(
       (item) => item.id === "loginMenus.generateFill",
     )
     expect(generateFill?.contexts).toEqual(["editable"])
     vi.mocked(fillNewPassword).mockResolvedValueOnce(true)
-    clicked({ menuItemId: "loginMenus.generateFill", frameId: 2 }, tab)
+    contextMenus.click(
+      { menuItemId: "loginMenus.generateFill", frameId: 2 },
+      tab,
+    )
     await vi.waitFor(() =>
       expect(fillNewPassword).toHaveBeenCalledWith(TAB, 2, expect.any(String)),
     )
@@ -203,12 +185,18 @@ describe("LoginMenus", () => {
     const { menus } = setUp()
     await menus.show([], tab)
     vi.mocked(fillNewPassword).mockResolvedValueOnce(false)
-    clicked({ menuItemId: "loginMenus.generateFill", frameId: 0 }, tab)
+    contextMenus.click(
+      { menuItemId: "loginMenus.generateFill", frameId: 0 },
+      tab,
+    )
     await vi.waitFor(() => expect(copyText).toHaveBeenCalledTimes(1))
     const unfilled = vi.mocked(fillNewPassword).mock.calls[0]?.[2]
     expect(copyText).toHaveBeenLastCalledWith(unfilled, true)
     vi.mocked(fillNewPassword).mockRejectedValueOnce(new Error("turned off"))
-    clicked({ menuItemId: "loginMenus.generateFill", frameId: 0 }, tab)
+    contextMenus.click(
+      { menuItemId: "loginMenus.generateFill", frameId: 0 },
+      tab,
+    )
     await vi.waitFor(() => expect(copyText).toHaveBeenCalledTimes(2))
     expect(copyText).toHaveBeenLastCalledWith(
       vi.mocked(fillNewPassword).mock.calls[1]?.[2],
@@ -220,15 +208,21 @@ describe("LoginMenus", () => {
     const { menus, vaults } = setUp()
     await menus.show(vaults, tab)
     const earlier = id("copyPassword", "someone")
-    clicked({ menuItemId: earlier, frameId: 0 }, { id: TAB + 1, url: PAGE_URL })
-    clicked(
+    contextMenus.click(
+      { menuItemId: earlier, frameId: 0 },
+      { id: TAB + 1, url: PAGE_URL },
+    )
+    contextMenus.click(
       { menuItemId: earlier, frameId: 0 },
       { id: TAB, url: "https://other.example/" },
     )
-    created = []
+    contextMenus.created.length = 0
     await menus.show(vaults, tab)
-    clicked({ menuItemId: earlier, frameId: 0 }, tab)
-    clicked({ menuItemId: id("copyUsername", "someone"), frameId: 0 }, tab)
+    contextMenus.click({ menuItemId: earlier, frameId: 0 }, tab)
+    contextMenus.click(
+      { menuItemId: id("copyUsername", "someone"), frameId: 0 },
+      tab,
+    )
     await vi.waitFor(() =>
       expect(copyText).toHaveBeenCalledWith("someone", false),
     )
@@ -241,7 +235,10 @@ describe("LoginMenus", () => {
     // A new worker has the stored entries but none of the earlier one's memory.
     const { providers } = fakeProviders([{ info: accountVault, credential }])
     new LoginMenus(providers)
-    clicked({ menuItemId: id("copyUsername", "someone"), frameId: 0 }, tab)
+    contextMenus.click(
+      { menuItemId: id("copyUsername", "someone"), frameId: 0 },
+      tab,
+    )
     await vi.waitFor(() =>
       expect(copyText).toHaveBeenCalledWith("someone", false),
     )
@@ -250,13 +247,13 @@ describe("LoginMenus", () => {
   it("shows only the generator without logins, and nothing when turned off", async () => {
     const { menus } = setUp()
     await menus.show([], tab)
-    expect(created.map((item) => item.id)).toEqual([
+    expect(contextMenus.created.map((item) => item.id)).toEqual([
       "loginMenus.generateFill",
       "loginMenus.generate",
     ])
-    created = []
+    contextMenus.created.length = 0
     await updateSettings({ contextMenu: false })
     await menus.show([], tab)
-    expect(created).toEqual([])
+    expect(contextMenus.created).toEqual([])
   })
 })

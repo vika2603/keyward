@@ -20,9 +20,10 @@ import {
   accountVault,
   appleVault,
   fakeProviders,
-  frames,
   pageModule,
+  resetBackground,
   setFrame,
+  siteRule,
 } from "./test-support"
 
 vi.mock("./page", async () => (await import("./test-support")).pageModule)
@@ -31,9 +32,7 @@ const TAB = 9
 const credential = { username: "someone", password: "stored-password" }
 
 beforeEach(() => {
-  fakeBrowser.reset()
-  frames.clear()
-  vi.clearAllMocks()
+  resetBackground()
   setFrame(TAB, 0, "https://accounts.example.com/login")
 })
 
@@ -111,15 +110,7 @@ describe("fillLogin", () => {
 
   it("does not fill on a site whose rule disables it", async () => {
     await updateSettings({
-      siteRules: [
-        {
-          id: "r",
-          host: "example.com",
-          match: null,
-          provider: "all",
-          behavior: "disabled",
-        },
-      ],
+      siteRules: [siteRule("disabled")],
     })
     const { providers } = fakeProviders([{ info: accountVault, credential }])
     await expect(

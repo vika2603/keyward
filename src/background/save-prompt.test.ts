@@ -1,5 +1,4 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
-import { fakeBrowser } from "wxt/testing/fake-browser"
 import { getSettings, MatchType, updateSettings } from "@/lib/settings"
 import { type PromptSession, promptSessions } from "./overlays"
 import {
@@ -14,9 +13,10 @@ import {
   accountVault,
   appleVault,
   fakeProviders,
-  frames,
   pageModule,
+  resetBackground,
   setFrame,
+  siteRule,
 } from "./test-support"
 
 vi.mock("./page", async () => (await import("./test-support")).pageModule)
@@ -32,9 +32,7 @@ async function pendingPrompt(): Promise<PromptSession> {
 }
 
 beforeEach(() => {
-  fakeBrowser.reset()
-  frames.clear()
-  vi.clearAllMocks()
+  resetBackground()
   setFrame(TAB, 0, "https://accounts.example.com/login")
 })
 
@@ -183,15 +181,7 @@ describe("onSubmitted", () => {
 
     await updateSettings({
       askSave: true,
-      siteRules: [
-        {
-          id: "r",
-          host: "example.com",
-          match: null,
-          provider: "all",
-          behavior: "noSave",
-        },
-      ],
+      siteRules: [siteRule("noSave")],
     })
     await onSubmitted(providers, TAB, 0, login)
     expect(await promptSessions.get(TAB)).toBeNull()
