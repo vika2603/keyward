@@ -50,6 +50,8 @@ export type PopupView =
     }
   /** Where an authenticator key picked from a page goes. */
   | { name: "codeSetup" }
+  /** A new login for the active page, asked for from the in-page menu. */
+  | { name: "add" }
 
 /** What a field takes: a login, or a one-time code from an authenticator. */
 export type FieldKind = "login" | "code"
@@ -310,6 +312,8 @@ export type BackgroundApi = {
   "menu.resize": { payload: { token: string; height: number }; result: null }
   "menu.close": { payload: { token: string }; result: null }
   "menu.connect": { payload: { token: string; vaultId: string }; result: null }
+  /** Opens the popup's form for a new login on the page. */
+  "menu.newLogin": { payload: { token: string }; result: null }
   "prompt.state": { payload: { token: string }; result: PromptState }
   "prompt.confirm": {
     payload: {

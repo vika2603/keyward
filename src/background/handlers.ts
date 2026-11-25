@@ -885,6 +885,15 @@ export function createHandlers(providers: Providers): Handlers<BackgroundApi> {
         return null
       },
     },
+    "menu.newLogin": {
+      allow: ["menu"],
+      handle: async ({ token }, sender) => {
+        const session = await menus.claim(sender, token)
+        await closeMenu(session.tabId)
+        await openPopup({ name: "add" })
+        return null
+      },
+    },
 
     "prompt.state": {
       allow: ["savePrompt"],

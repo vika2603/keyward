@@ -2,6 +2,7 @@ export const en = {
   "overlay.menu.guard":
     "The menu had just appeared, moved or was covered by the page, so nothing was filled. Choose again.",
   "overlay.menu.noLogins": "No passwords for {host}",
+  "overlay.menu.newLogin": "New login",
   "overlay.menu.noCodes": "No verification codes for {host}",
   "overlay.menu.code": "Verification code",
   "overlay.menu.recent": "Just used · {site}",
@@ -28,6 +29,7 @@ export const zhCN: Record<keyof typeof en, string> = {
   "overlay.menu.guard":
     "菜单刚出现、移动过或被页面遮挡，没有填入。请再选一次。",
   "overlay.menu.noLogins": "没有 {host} 的密码",
+  "overlay.menu.newLogin": "新建登录",
   "overlay.menu.noCodes": "没有 {host} 的验证码",
   "overlay.menu.code": "验证码",
   "overlay.menu.recent": "刚才使用 · {site}",
