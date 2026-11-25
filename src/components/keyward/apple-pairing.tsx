@@ -1,7 +1,12 @@
 import { REGEXP_ONLY_DIGITS } from "input-otp"
-import { LaptopMinimalCheckIcon, LaptopMinimalIcon } from "lucide-react"
+import {
+  LaptopMinimalCheckIcon,
+  LaptopMinimalIcon,
+  RotateCwIcon,
+} from "lucide-react"
 import { useEffect, useRef, useState } from "react"
 import { callBackground } from "@/background/api"
+import { Button } from "@/components/ui/button"
 import {
   InputOTP,
   InputOTPGroup,
@@ -118,6 +123,23 @@ export function ApplePairing({ onPaired }: { onPaired: () => void }) {
         <p className="text-xs text-destructive">
           {message ?? t("error.apple.unavailable")}
         </p>
+      )}
+      {/* For a code that was dismissed or expired on the Mac; each click asks for one new code. */}
+      {(phase === "awaitingCode" || phase === "unpaired") && (
+        <Button
+          variant="ghost"
+          size="sm"
+          className="text-muted-foreground"
+          disabled={busy}
+          onClick={() => {
+            setCode("")
+            setMessage(null)
+            void start(waiting)
+          }}
+        >
+          <RotateCwIcon />
+          {t("pairing.newCode")}
+        </Button>
       )}
     </div>
   )
