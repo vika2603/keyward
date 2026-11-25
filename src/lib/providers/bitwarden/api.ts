@@ -50,7 +50,9 @@ export function valueAt(object: unknown, name: string): unknown {
   const record = object as Record<string, unknown>
   if (name in record) return record[name]
   const lower = name.toLowerCase()
-  const key = Object.keys(record).find((k) => k.toLowerCase() === lower)
+  const key = Object.keys(record).find(
+    (candidate) => candidate.toLowerCase() === lower,
+  )
   return key === undefined ? undefined : record[key]
 }
 

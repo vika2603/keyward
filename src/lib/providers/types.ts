@@ -292,7 +292,7 @@ export interface VaultProvider {
   editable?(vaultId: string, loginId: string): Promise<EditableLogin>
   edit?(vaultId: string, loginId: string, change: LoginEdit): Promise<void>
   /** Moves a login or note to the trash, where the provider's own apps can restore it. */
-  remove?(vaultId: string, loginId: string): Promise<void>
+  remove?(vaultId: string, itemId: string): Promise<void>
   /** The folders new items can be filed in; only providers with folders have these. */
   folders?(vaultId: string): Promise<Folder[]>
   /** Opens, for a short while, a login or note that asks for the master password again. */
