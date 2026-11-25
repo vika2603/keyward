@@ -4,16 +4,11 @@ import { Button } from "@/components/ui/button"
 import { Kbd, KbdGroup } from "@/components/ui/kbd"
 import { type MessageKey, t } from "@/lib/i18n"
 import {
-  type ExportedSettings,
-  exportableKeys,
   getSettings,
-  MatchType,
-  type SiteRule,
+  importedSettings,
+  settingsFile,
   updateSettings,
-  upgradeSiteRule,
 } from "@/lib/settings"
-import { hostOfSavedUri } from "@/lib/site"
-import { clearTimes } from "./fill-page"
 import { Card, Option, PageHeader, Section, Segmented } from "./parts"
 import { useSettings } from "./use-settings"
 
@@ -25,8 +20,6 @@ function commandNames(): [string, string][] {
     ["lock-all", t("options.keys.command.lockAll")],
   ]
 }
-
-const EXPORT_FORMAT = "keyward-settings"
 
 /** macOS reports modifiers as symbols; they are shown by name, as on other systems. */
 const MODIFIER_NAMES: Record<string, string> = {
@@ -42,82 +35,6 @@ function keysOf(shortcut: string): string[] {
   return [...shortcut].map((key) => MODIFIER_NAMES[key] ?? key)
 }
 
-const RULE_PROVIDERS: readonly unknown[] = ["all", "apple", "bitwarden"]
-const RULE_BEHAVIORS: readonly unknown[] = [
-  "default",
-  "menuOnFocus",
-  "menuOnClick",
-  "noSave",
-  "disabled",
-]
-
-/** A rule from a file is taken only when every field has a value the options page could have set. */
-function isSiteRule(value: unknown): value is SiteRule {
-  if (!value || typeof value !== "object") return false
-  const rule = value as Record<string, unknown>
-  return (
-    typeof rule.id === "string" &&
-    typeof rule.host === "string" &&
-    hostOfSavedUri(rule.host) === rule.host &&
-    (rule.match === null ||
-      Object.values(MatchType).includes(rule.match as MatchType)) &&
-    RULE_PROVIDERS.includes(rule.provider) &&
-    RULE_BEHAVIORS.includes(rule.behavior)
-  )
-}
-
-/** Keeps the known settings whose values have the expected type. */
-export function importedSettings(
-  data: unknown,
-): Partial<ExportedSettings> | null {
-  if (
-    !data ||
-    typeof data !== "object" ||
-    (data as { format?: unknown }).format !== EXPORT_FORMAT
-  )
-    return null
-  const vault = (data as { settings?: unknown }).settings
-  if (!vault || typeof vault !== "object") return null
-  const input = vault as Record<string, unknown>
-  const result: Partial<ExportedSettings> = {}
-  if (input.menuTrigger === "click" || input.menuTrigger === "focus")
-    result.menuTrigger = input.menuTrigger
-  for (const key of [
-    "crossOriginFrames",
-    "autoSubmit",
-    "askSave",
-    "askUpdate",
-    "takeOverSaving",
-    "takeOverPasskeys",
-    "contextMenu",
-  ] as const) {
-    if (typeof input[key] === "boolean") result[key] = input[key]
-  }
-  const clearAfter = input.clipboardClearSeconds
-  if (
-    clearAfter === null ||
-    (typeof clearAfter === "number" &&
-      clearTimes().some(([value]) => value === clearAfter))
-  ) {
-    result.clipboardClearSeconds = clearAfter
-  }
-  if (Object.values(MatchType).includes(input.defaultMatch as MatchType)) {
-    result.defaultMatch = input.defaultMatch as MatchType
-  }
-  if (Array.isArray(input.siteRules)) {
-    result.siteRules = input.siteRules.map(upgradeSiteRule).filter(isSiteRule)
-  }
-  if (Array.isArray(input.equivalentDomains)) {
-    result.equivalentDomains = input.equivalentDomains.filter(
-      (g): g is string[] =>
-        Array.isArray(g) &&
-        g.length >= 2 &&
-        g.every((d) => typeof d === "string" && hostOfSavedUri(d) === d),
-    )
-  }
-  return result
-}
-
 export function KeysPage() {
   const [settings, update] = useSettings()
   const [commands, setCommands] = useState<Browser.commands.Command[]>([])
@@ -131,13 +48,7 @@ export function KeysPage() {
   if (!settings) return null
 
   const exportSettings = async () => {
-    const current = await getSettings()
-    const data = {
-      format: EXPORT_FORMAT,
-      settings: Object.fromEntries(
-        exportableKeys.map((key) => [key, current[key]]),
-      ),
-    }
+    const data = settingsFile(await getSettings())
     const url = URL.createObjectURL(
       new Blob([JSON.stringify(data, null, 2)], { type: "application/json" }),
     )

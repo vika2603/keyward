@@ -35,6 +35,7 @@ import { APPLE_VAULT_ID } from "@/lib/providers/apple/vault-id"
 import type { AccountSummary } from "@/lib/providers/bitwarden/bitwarden-provider"
 import { isCloudServer, serverHost } from "@/lib/providers/bitwarden/server"
 import type { VaultInfo } from "@/lib/providers/types"
+import { AUTO_LOCK_MINUTES, type AutoLockMinutes } from "@/lib/settings"
 import { cn } from "@/lib/utils"
 import { navigate } from "./App"
 import {
@@ -47,14 +48,17 @@ import {
 } from "./parts"
 import { useSettings } from "./use-settings"
 
-function lockTimes(): [number | "never", string][] {
+function lockTimes(): (readonly [AutoLockMinutes | "never", string])[] {
+  const labels: Record<AutoLockMinutes, string> = {
+    1: t("options.duration.oneMinute"),
+    5: t("options.duration.minutes", { count: 5 }),
+    15: t("options.duration.minutes", { count: 15 }),
+    30: t("options.duration.minutes", { count: 30 }),
+    60: t("options.duration.oneHour"),
+    240: t("options.duration.hours", { count: 4 }),
+  }
   return [
-    [1, t("options.duration.oneMinute")],
-    [5, t("options.duration.minutes", { count: 5 })],
-    [15, t("options.duration.minutes", { count: 15 })],
-    [30, t("options.duration.minutes", { count: 30 })],
-    [60, t("options.duration.oneHour")],
-    [240, t("options.duration.hours", { count: 4 })],
+    ...AUTO_LOCK_MINUTES.map((minutes) => [minutes, labels[minutes]] as const),
     ["never", t("options.vaults.autoLock.onQuit")],
   ]
 }

@@ -6,6 +6,10 @@ import {
 } from "@/lib/browser-saving"
 import { t } from "@/lib/i18n"
 import {
+  CLIPBOARD_CLEAR_SECONDS,
+  type ClipboardClearSeconds,
+} from "@/lib/settings"
+import {
   Card,
   ChoiceSelect,
   Option,
@@ -37,12 +41,17 @@ function useBrowserSavingControl(
   return control
 }
 
-export function clearTimes(): [number | "never", string][] {
+function clearTimes(): (readonly [ClipboardClearSeconds | "never", string])[] {
+  const labels: Record<ClipboardClearSeconds, string> = {
+    30: t("options.duration.seconds", { count: 30 }),
+    60: t("options.duration.oneMinute"),
+    120: t("options.duration.minutes", { count: 2 }),
+    300: t("options.duration.minutes", { count: 5 }),
+  }
   return [
-    [30, t("options.duration.seconds", { count: 30 })],
-    [60, t("options.duration.oneMinute")],
-    [120, t("options.duration.minutes", { count: 2 })],
-    [300, t("options.duration.minutes", { count: 5 })],
+    ...CLIPBOARD_CLEAR_SECONDS.map(
+      (seconds) => [seconds, labels[seconds]] as const,
+    ),
     ["never", t("options.fill.clipboardClear.never")],
   ]
 }
