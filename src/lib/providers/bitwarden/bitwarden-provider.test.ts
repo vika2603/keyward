@@ -74,6 +74,16 @@ const ciphers = [
     { Edit: false, FolderId: "folder-1" },
   ),
   cipher(
+    "item-6",
+    {
+      name: "Guarded",
+      username: "careful",
+      password: "{{SECRET_7pyhp5ym}}",
+      uri: "https://guarded.test",
+    },
+    { Reprompt: 1 },
+  ),
+  cipher(
     "item-4",
     {
       name: "Thrown Away",
@@ -290,6 +300,68 @@ describe("save", () => {
       ),
     ).rejects.toMatchObject({ code: "notFound" })
     expect(writes()).toEqual([])
+  })
+})
+
+describe("passReprompt", () => {
+  const masterPassword = "test master password"
+
+  beforeEach(async () => {
+    // An account key wrapped with a known master password, so the password can be checked.
+    await saveAccount({
+      id: ACCOUNT_ID,
+      userId: "user-1",
+      email: "someone@example.com",
+      server: SERVER,
+      kdf: { type: KdfType.Pbkdf2Sha256, iterations: 5000 },
+      // The salt the SDK derived the key with: the email address.
+      salt: "someone@example.com",
+      wrappedUserKey: sdk.encrypt_user_key_with_master_password(
+        userKey,
+        masterPassword,
+        "someone@example.com",
+        { pBKDF2: { iterations: 5000 } },
+      ),
+      encryptedRefreshToken: "unused",
+    })
+  })
+
+  it("keeps an item that asks for the master password closed until it is entered", async () => {
+    const bw = provider()
+    const page = new URL("https://guarded.test/")
+    const tab = { tabId: 1, frameId: 0 }
+    expect((await bw.details(VAULT, "item-6", null)).secretsWithheld).toBe(true)
+    await expect(
+      bw.passReprompt(VAULT, "item-6", "wrong password"),
+    ).rejects.toMatchObject({ code: "bitwarden.wrongPassword" })
+    await expect(
+      bw.credential(VAULT, "item-6", page, tab),
+    ).rejects.toMatchObject({ code: "bitwarden.reprompt" })
+    await bw.passReprompt(VAULT, "item-6", masterPassword)
+    expect((await bw.details(VAULT, "item-6", null)).secretsWithheld).toBe(
+      false,
+    )
+    expect((await bw.credential(VAULT, "item-6", page, tab)).password).toBe(
+      "{{SECRET_7pyhp5ym}}",
+    )
+    // The pass opens that item only.
+    await expect(
+      bw.passReprompt(VAULT, "item-9", masterPassword),
+    ).rejects.toMatchObject({ code: "notFound" })
+  })
+
+  it("lets the pass run out", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] })
+    try {
+      const bw = provider()
+      await bw.passReprompt(VAULT, "item-6", masterPassword)
+      vi.advanceTimersByTime(6 * 60_000)
+      expect((await bw.details(VAULT, "item-6", null)).secretsWithheld).toBe(
+        true,
+      )
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })
 

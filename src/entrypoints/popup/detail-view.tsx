@@ -31,6 +31,7 @@ import {
   IconButton,
   InfoRow,
   MaskText,
+  RepromptForm,
   RevealButton,
   SecretText,
   Section,
@@ -179,12 +180,15 @@ export function DetailView({
   const passwordRef = useRef<HTMLDivElement>(null)
   const codeRef = useRef<HTMLDivElement>(null)
 
+  /** Changes once the item's master password was entered again, so its details load anew. */
+  const [opened, setOpened] = useState(0)
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `opened` asks for the details again.
   useEffect(() => {
     callBackground("popup.details", ids).then(setDetails, (error) => {
       setFailed(true)
       notifyError(error)
     })
-  }, [ids])
+  }, [ids, opened])
 
   /** Runs a request, showing its error; null when it failed. */
   const run = useCallback(
@@ -346,9 +350,14 @@ export function DetailView({
                 )}
               </Field>
               {details.secretsWithheld ? (
-                <p className="border-t px-3 py-3 text-xs text-muted-foreground first:border-t-0">
-                  {t("popup.detail.withheld")}
-                </p>
+                <div className="border-t first:border-t-0">
+                  <RepromptForm
+                    vaultId={vault.id}
+                    itemId={login.id}
+                    hint={t("popup.detail.withheld")}
+                    onPassed={() => setOpened((count) => count + 1)}
+                  />
+                </div>
               ) : (
                 <>
                   <Field

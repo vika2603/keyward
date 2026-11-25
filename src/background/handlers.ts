@@ -373,6 +373,19 @@ export function createHandlers(providers: Providers): Handlers<BackgroundApi> {
         return provider.folders ? provider.folders(vaultId) : []
       },
     },
+    "popup.passReprompt": {
+      allow: popup,
+      handle: async ({ vaultId, itemId, password }) => {
+        const provider = providers.providerOf(vaultId)
+        if (!provider.passReprompt) throw notEditable()
+        await provider.passReprompt(
+          vaultId,
+          requireText(itemId, "itemId"),
+          requireText(password, "password"),
+        )
+        return null
+      },
+    },
     "popup.restoreItem": {
       allow: popup,
       handle: async ({ vaultId, itemId }) => {

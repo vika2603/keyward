@@ -79,6 +79,13 @@ import {
 import { accountIdOfVault, vaultIdOf } from "./vault-id"
 
 const PENDING_LOGIN_KEY = "bitwarden.pendingLogin"
+/** Items whose master password was entered again, by `vaultId|itemId`, with when the pass ends. */
+const REPROMPT_PASSES_KEY = "bitwarden.repromptPasses"
+/**
+ * How long an item stays open after its master password was entered again, so viewing it and
+ * copying from it do not each ask. Keyward's choice; Bitwarden's apps ask for each action.
+ */
+const REPROMPT_PASS_MS = 5 * 60_000
 const ACTIVITY_KEY = "bitwarden.lastActivity"
 /** Refresh the access token this long before it expires. */
 const TOKEN_MARGIN_MS = 60_000
@@ -350,7 +357,74 @@ export class BitwardenProvider implements VaultProvider {
   private async lockAccount(accountId: string): Promise<void> {
     this.cache.delete(accountId)
     await clearSession(accountId)
+    await this.dropRepromptPasses(vaultIdOf(accountId))
     this.changed()
+  }
+
+  private async repromptPasses(): Promise<Record<string, number>> {
+    const stored = (await browser.storage.session.get(REPROMPT_PASSES_KEY))[
+      REPROMPT_PASSES_KEY
+    ]
+    return stored && typeof stored === "object"
+      ? (stored as Record<string, number>)
+      : {}
+  }
+
+  private async dropRepromptPasses(vaultId: string): Promise<void> {
+    const passes = await this.repromptPasses()
+    const kept = Object.fromEntries(
+      Object.entries(passes).filter(([key]) => !key.startsWith(`${vaultId}|`)),
+    )
+    await browser.storage.session.set({ [REPROMPT_PASSES_KEY]: kept })
+  }
+
+  /** The item as Keyward may treat it: one whose master password was entered again acts as open. */
+  private async withPass<T extends RepromptItem & { id: string }>(
+    vaultId: string,
+    item: T,
+  ): Promise<T> {
+    if (!item.reprompt) return item
+    const until = (await this.repromptPasses())[`${vaultId}|${item.id}`]
+    return until !== undefined && until > Date.now()
+      ? { ...item, reprompt: false }
+      : item
+  }
+
+  /**
+   * Opens an item that asks for the master password again, for a few minutes, once the password
+   * proves right. The password is checked here as an unlock checks it; nothing is sent anywhere.
+   */
+  async passReprompt(
+    vaultId: string,
+    itemId: string,
+    password: string,
+  ): Promise<void> {
+    const accountId = accountIdOfVault(vaultId)
+    const { items, notes } = await this.vault(accountId)
+    if (![...items, ...notes].some((item) => item.id === itemId))
+      throw new VaultError("Unknown item", "notFound")
+    const account = await this.account(accountId)
+    const crypto = await this.loadCrypto()
+    const masterKey = crypto.deriveMasterKey(
+      password,
+      masterKeySalt(account.email, account.salt),
+      account.kdf,
+    )
+    try {
+      await unwrapUserKey(crypto, account.wrappedUserKey, masterKey)
+    } catch (error) {
+      if (error instanceof WrongPasswordError)
+        throw new VaultError("Wrong master password", "bitwarden.wrongPassword")
+      throw error
+    }
+    const now = Date.now()
+    const passes = Object.fromEntries(
+      Object.entries(await this.repromptPasses()).filter(
+        ([, until]) => until > now,
+      ),
+    )
+    passes[`${vaultId}|${itemId}`] = now + REPROMPT_PASS_MS
+    await browser.storage.session.set({ [REPROMPT_PASSES_KEY]: passes })
   }
 
   async signOut(accountId: string): Promise<void> {
@@ -601,7 +675,7 @@ export class BitwardenProvider implements VaultProvider {
       (candidate) => prop(candidate, "Id") === noteId,
     )
     if (!note || !cipher) throw new VaultError("Unknown note", "notFound")
-    return { vault, note, cipher }
+    return { vault, note: await this.withPass(vaultId, note), cipher }
   }
 
   /** The login or note an item ID names. */
@@ -691,7 +765,7 @@ export class BitwardenProvider implements VaultProvider {
     const cipher = vault.ciphers.find((c) => prop(c, "Id") === loginId)
     if (!item || !cipher)
       throw new VaultError("The login does not match this page", "notFound")
-    return { vault, item, cipher }
+    return { vault, item: await this.withPass(vaultId, item), cipher }
   }
 
   async credential(

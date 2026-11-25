@@ -43,8 +43,10 @@ export const en = {
   "popup.detail.refreshCode": "Get the current code",
   "popup.detail.codeExpires": "Expires in {count} s",
   "popup.detail.withheld":
-    "This item asks for the master password again. View its password and verification code in Bitwarden.",
+    "This item asks for the master password again. Enter it to see the password and verification code for 5 minutes.",
   "popup.detail.websites": "Websites",
+  "popup.reprompt.password": "Master password",
+  "popup.reprompt.submit": "View",
   "popup.detail.openWebsite": "Open website",
   "popup.detail.copyWebsite": "Copy website",
   "popup.detail.notes": "Notes",
@@ -68,9 +70,9 @@ export const en = {
   "popup.note.content": "Note",
   "popup.note.copy": "Copy note",
   "popup.note.withheld":
-    "This note asks for the master password again. View it in Bitwarden.",
+    "This note asks for the master password again. Enter it to see the note for 5 minutes.",
   "popup.note.deleteHint":
-    "The note moves to the trash, where Bitwarden can restore it.",
+    "The note moves to the trash. Restore it from Trash in the list filter.",
   "popup.add.login": "Login",
   "popup.add.note": "Secure note",
   "popup.passwordHistory.title": "Password history",
@@ -122,7 +124,7 @@ export const en = {
   "popup.detail.delete": "Delete",
   "popup.detail.confirmDelete": "Confirm delete",
   "popup.detail.deleteHint":
-    "The login moves to the trash, where Bitwarden can restore it.",
+    "The login moves to the trash. Restore it from Trash in the list filter.",
   "popup.edit.title": "Edit login",
   "popup.edit.name": "Name",
   "popup.edit.addWebsite": "Add website",
@@ -251,8 +253,10 @@ export const zhCN: Record<keyof typeof en, string> = {
   "popup.detail.refreshCode": "获取当前验证码",
   "popup.detail.codeExpires": "{count} 秒后过期",
   "popup.detail.withheld":
-    "这个条目设置了重新询问主密码，请在 Bitwarden 中查看密码和验证码。",
+    "这个条目设置了重新询问主密码。输入主密码后可以查看密码和验证码，5 分钟内有效。",
   "popup.detail.websites": "网站",
+  "popup.reprompt.password": "主密码",
+  "popup.reprompt.submit": "查看",
   "popup.detail.openWebsite": "打开网站",
   "popup.detail.copyWebsite": "复制网址",
   "popup.detail.notes": "备注",
@@ -276,8 +280,9 @@ export const zhCN: Record<keyof typeof en, string> = {
   "popup.note.content": "内容",
   "popup.note.copy": "复制笔记",
   "popup.note.withheld":
-    "这条笔记设置了重新询问主密码，请在 Bitwarden 中查看。",
-  "popup.note.deleteHint": "笔记会移到回收站，可以在 Bitwarden 里恢复。",
+    "这条笔记设置了重新询问主密码。输入主密码后可以查看，5 分钟内有效。",
+  "popup.note.deleteHint":
+    "笔记会移到回收站，可以在列表筛选的「回收站」里恢复。",
   "popup.add.login": "登录",
   "popup.add.note": "安全笔记",
   "popup.passwordHistory.title": "历史密码",
@@ -327,7 +332,8 @@ export const zhCN: Record<keyof typeof en, string> = {
   "popup.detail.unfavorite": "取消收藏",
   "popup.detail.delete": "删除",
   "popup.detail.confirmDelete": "确认删除",
-  "popup.detail.deleteHint": "登录会移到回收站，可以在 Bitwarden 里恢复。",
+  "popup.detail.deleteHint":
+    "登录会移到回收站，可以在列表筛选的「回收站」里恢复。",
   "popup.edit.title": "编辑登录",
   "popup.edit.name": "名称",
   "popup.edit.addWebsite": "添加网址",

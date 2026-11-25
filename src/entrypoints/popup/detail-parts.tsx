@@ -8,8 +8,10 @@ import {
 } from "lucide-react"
 import { type ReactNode, type RefObject, useEffect, useState } from "react"
 import { callBackground } from "@/background/api"
+import { errorMessage } from "@/components/keyward/errors"
 import { notifyError } from "@/components/keyward/notify"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { currentLanguage, t } from "@/lib/i18n"
 import type { CustomField } from "@/lib/providers/types"
 import { cn } from "@/lib/utils"
@@ -167,6 +169,65 @@ export function FavoriteButton({
     >
       <StarIcon className={cn(favorite && "fill-current")} />
     </Button>
+  )
+}
+
+/**
+ * Asks for the master password of an item that wants it again, and opens the item for a few
+ * minutes once it is right.
+ */
+export function RepromptForm({
+  vaultId,
+  itemId,
+  hint,
+  onPassed,
+}: {
+  vaultId: string
+  itemId: string
+  hint: string
+  onPassed: () => void
+}) {
+  const [password, setPassword] = useState("")
+  const [busy, setBusy] = useState(false)
+  const [message, setMessage] = useState<string | null>(null)
+  const submit = async () => {
+    setBusy(true)
+    setMessage(null)
+    try {
+      await callBackground("popup.passReprompt", { vaultId, itemId, password })
+      setPassword("")
+      onPassed()
+    } catch (error) {
+      setMessage(errorMessage(error))
+    } finally {
+      setBusy(false)
+    }
+  }
+  return (
+    <form
+      className="flex flex-col gap-2 px-3 py-3"
+      onSubmit={(event) => {
+        event.preventDefault()
+        void submit()
+      }}
+    >
+      <p className="text-xs text-muted-foreground">{hint}</p>
+      <div className="flex gap-2">
+        <Input
+          type="password"
+          value={password}
+          onChange={(event) => setPassword(event.target.value)}
+          placeholder={t("popup.reprompt.password")}
+          aria-label={t("popup.reprompt.password")}
+          autoComplete="current-password"
+          autoFocus
+        />
+        <Button type="submit" disabled={busy || !password}>
+          {t("popup.reprompt.submit")}
+        </Button>
+      </div>
+      {message && <p className="text-xs text-destructive">{message}</p>}
+    </form>
   )
 }
 

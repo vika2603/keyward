@@ -18,6 +18,7 @@ import {
   formatDate,
   IconButton,
   InfoRow,
+  RepromptForm,
   Section,
   toggled,
 } from "./detail-parts"
@@ -48,12 +49,15 @@ export function NoteView({
     () => new Set(),
   )
 
+  /** Changes once the note's master password was entered again, so it loads anew. */
+  const [opened, setOpened] = useState(0)
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `opened` asks for the note again.
   useEffect(() => {
     callBackground("popup.note", ids).then(setDetails, (error) => {
       setFailed(true)
       notifyError(error)
     })
-  }, [ids])
+  }, [ids, opened])
 
   const copyText = useCallback(async (text: string, secret: boolean) => {
     try {
@@ -115,9 +119,12 @@ export function NoteView({
           <div className={cn("flex flex-col gap-3", FADE_IN)}>
             {details.withheld && (
               <Section>
-                <p className="px-3 py-3 text-xs text-muted-foreground">
-                  {t("popup.note.withheld")}
-                </p>
+                <RepromptForm
+                  vaultId={vault.id}
+                  itemId={note.id}
+                  hint={t("popup.note.withheld")}
+                  onPassed={() => setOpened((count) => count + 1)}
+                />
               </Section>
             )}
             {text && (

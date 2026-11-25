@@ -287,6 +287,12 @@ export interface VaultProvider {
   remove?(vaultId: string, loginId: string): Promise<void>
   /** The folders new items can be filed in; only providers with folders have these. */
   folders?(vaultId: string): Promise<Folder[]>
+  /** Opens, for a short while, a login or note that asks for the master password again. */
+  passReprompt?(
+    vaultId: string,
+    itemId: string,
+    password: string,
+  ): Promise<void>
   /** Takes a login or note out of the trash. */
   restore?(vaultId: string, itemId: string): Promise<void>
   /** Deletes a login or note in the trash for good. */

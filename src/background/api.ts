@@ -165,6 +165,11 @@ export type BackgroundApi = {
     payload: { vaultId: string; loginId: string; change: LoginEdit }
     result: null
   }
+  /** Opens, for a short while, an item that asks for the master password again. */
+  "popup.passReprompt": {
+    payload: { vaultId: string; itemId: string; password: string }
+    result: null
+  }
   /** Takes a login or note out of the trash. */
   "popup.restoreItem": {
     payload: { vaultId: string; itemId: string }
