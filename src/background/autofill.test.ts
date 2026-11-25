@@ -11,7 +11,11 @@ import {
   notePasskeyUsed,
 } from "./autofill"
 import { listHistory } from "./history"
-import { markRecent, recallUsername, rememberUsername } from "./save-flow"
+import {
+  markRecent,
+  recallUsername,
+  rememberUsername,
+} from "./recent-usernames"
 import {
   accountVault,
   appleVault,

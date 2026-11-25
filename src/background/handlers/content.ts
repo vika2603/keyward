@@ -4,7 +4,7 @@ import { contentConfig, hasCodes, notePasskeyUsed } from "../autofill"
 import { offerCandidate } from "../code-setup"
 import { menuSessions } from "../overlays"
 import type { Providers } from "../providers"
-import { onSubmitted, showPrompt } from "../save-flow"
+import { onSubmitted, showPrompt } from "../save-prompt"
 import { closeMenu, tabFrame } from "./request-context"
 import { fieldKind, requireText } from "./validation"
 

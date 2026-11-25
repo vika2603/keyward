@@ -8,7 +8,11 @@ import { addHistory } from "./history"
 import { activeTab, frameUrl, sendToFrame } from "./page"
 import { hasPasskeySite, rememberPasskeySite } from "./passkey-sites"
 import type { Providers } from "./providers"
-import { markRecent, recallUsername, rememberUsername } from "./save-flow"
+import {
+  markRecent,
+  recallUsername,
+  rememberUsername,
+} from "./recent-usernames"
 
 /** Whether a frame may show the field icon and receive logins, given its URL and the settings. */
 async function frameAllowed(

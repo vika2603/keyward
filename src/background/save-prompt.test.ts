@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { fakeBrowser } from "wxt/testing/fake-browser"
 import { getSettings, MatchType, updateSettings } from "@/lib/settings"
-import { promptSessions } from "./overlays"
+import { type PromptSession, promptSessions } from "./overlays"
 import {
   confirmPrompt,
   neverForSite,
@@ -9,7 +9,7 @@ import {
   promptFolders,
   promptState,
   showPrompt,
-} from "./save-flow"
+} from "./save-prompt"
 import {
   accountVault,
   appleVault,
@@ -23,6 +23,13 @@ vi.mock("./page", async () => (await import("./test-support")).pageModule)
 
 const TAB = 7
 const login = { username: "someone", password: "typed-password" }
+
+/** The tab's pending prompt, as the prompt's requests claim it. */
+async function pendingPrompt(): Promise<PromptSession> {
+  const session = await promptSessions.get(TAB)
+  if (!session) throw new Error("No prompt is pending")
+  return session
+}
 
 beforeEach(() => {
   fakeBrowser.reset()
@@ -148,7 +155,7 @@ describe("onSubmitted", () => {
       { info: accountVault },
     ])
     await onSubmitted(providers, TAB, 0, login)
-    const state = await promptState(providers, TAB)
+    const state = await promptState(providers, await pendingPrompt())
     expect(state.targets.map((t) => t.id)).toEqual([accountVault.id])
     expect(state.defaultTarget).toBe(accountVault.id)
   })
@@ -159,7 +166,7 @@ describe("onSubmitted", () => {
       { info: accountVault },
     ])
     await onSubmitted(both.providers, TAB, 0, login)
-    const state = await promptState(both.providers, TAB)
+    const state = await promptState(both.providers, await pendingPrompt())
     expect(state.targets.map((target) => target.id)).toEqual([accountVault.id])
 
     await promptSessions.remove(TAB)
@@ -226,7 +233,7 @@ describe("neverForSite", () => {
     await updateSettings({ siteRules: [parentRule] })
     const { providers } = fakeProviders([{ info: accountVault }])
     await onSubmitted(providers, TAB, 0, login)
-    await neverForSite(TAB)
+    await neverForSite(await pendingPrompt())
     const { siteRules } = await getSettings()
     expect(siteRules).toEqual([
       parentRule,
@@ -255,7 +262,7 @@ describe("neverForSite", () => {
     })
     const { providers } = fakeProviders([{ info: appleVault }])
     await onSubmitted(providers, TAB, 0, login)
-    await neverForSite(TAB)
+    await neverForSite(await pendingPrompt())
     expect((await getSettings()).siteRules).toEqual([
       {
         id: "own",
@@ -272,7 +279,7 @@ describe("confirmPrompt", () => {
   it("saves the login with the name and folder chosen in the prompt", async () => {
     const { providers, calls } = fakeProviders([{ info: accountVault }])
     await onSubmitted(providers, TAB, 0, login)
-    await confirmPrompt(providers, TAB, accountVault.id, {
+    await confirmPrompt(providers, await pendingPrompt(), accountVault.id, {
       name: "Accounts",
       folderId: "folder-1",
     })
@@ -294,7 +301,7 @@ describe("confirmPrompt", () => {
     const { providers } = fakeProviders([{ info: accountVault }])
     await onSubmitted(providers, TAB, 0, login)
     await expect(
-      promptFolders(providers, TAB, "bitwarden:other"),
+      promptFolders(providers, await pendingPrompt(), "bitwarden:other"),
     ).resolves.toEqual([])
   })
 })

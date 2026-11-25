@@ -13,10 +13,10 @@ import { CLEAR_CLIPBOARD_ALARM, clearClipboard } from "./clipboard"
 import { watchCodeSetup } from "./code-setup"
 import { createHandlers } from "./handlers"
 import { LoginMenus } from "./login-menus"
-import { menuSessions } from "./overlays"
+import { menuSessions, promptSessions } from "./overlays"
 import { openPopup } from "./popup-window"
 import { Providers } from "./providers"
-import { forgetTab } from "./save-flow"
+import { forgetUsername } from "./recent-usernames"
 import { watchToolbar } from "./toolbar"
 
 const AUTO_LOCK_ALARM = "autoLock"
@@ -146,7 +146,8 @@ export function startBackground(): void {
   })
 
   browser.tabs.onRemoved.addListener((tabId) => {
-    void forgetTab(tabId)
+    void forgetUsername(tabId)
+    void promptSessions.remove(tabId)
     void menuSessions.remove(tabId)
   })
 }

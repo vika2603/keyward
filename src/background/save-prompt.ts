@@ -7,88 +7,31 @@ import {
 } from "@/lib/providers/types"
 import { getSettings, type SiteRule, updateSettings } from "@/lib/settings"
 import { siteDomainOf } from "@/lib/site"
-import type { PromptState, VaultView } from "./api"
+import type { PromptState } from "./api"
 import { MAX_TEXT_LENGTH } from "./limits"
-import { promptSessions } from "./overlays"
+import { type PromptSession, promptSessions } from "./overlays"
 import { frameUrl, sendToFrame } from "./page"
 import type { Providers } from "./providers"
+import { recallUsername, rememberUsername } from "./recent-usernames"
+import { defaultTarget, promptTargets } from "./save-targets"
 
-const USERNAMES_KEY = "save.usernames"
-/** A username typed on the first page of a two-step login is used for a password within this time. */
-const USERNAME_TTL_MS = 5 * 60_000
 /** A save prompt shows again on pages loaded within this time after the login, until it is answered. */
 const PROMPT_TTL_MS = 3 * 60_000
 
-type RememberedUsernames = Record<
-  string,
-  { site: string; username: string; at: number }
->
-
-async function rememberedUsernames(): Promise<RememberedUsernames> {
-  return (
-    ((await browser.storage.session.get(USERNAMES_KEY))[
-      USERNAMES_KEY
-    ] as RememberedUsernames) ?? {}
-  )
+interface SubmittedLogin {
+  username: string
+  password: string
+  /** Whether the password was typed into a field for a new password. */
+  newPassword?: boolean
 }
 
-/** Remembers the username a tab last signed in with on a site, for the steps that follow. */
-export async function rememberUsername(
-  tabId: number,
-  site: string,
-  username: string,
-): Promise<void> {
-  const all = await rememberedUsernames()
-  await browser.storage.session.set({
-    [USERNAMES_KEY]: { ...all, [tabId]: { site, username, at: Date.now() } },
-  })
-}
+type StoredLogin = { vaultId: string; loginId: string }
 
-export async function recallUsername(
-  tabId: number,
-  site: string,
-): Promise<string | null> {
-  const entry = (await rememberedUsernames())[tabId]
-  if (!entry || entry.site !== site || Date.now() - entry.at > USERNAME_TTL_MS)
-    return null
-  return entry.username
-}
-
-/**
- * Puts the login this tab used on the site moments ago first, in its vault and among the vaults,
- * so it is the first one offered for the next step.
- */
-export function markRecent(
-  vaults: VaultView[],
-  username: string | null,
-): VaultView[] {
-  const name = username?.trim().toLowerCase()
-  if (!name) return vaults
-  const marked = vaults.map((vault) => {
-    const logins = vault.logins.map((login) =>
-      login.username.trim().toLowerCase() === name
-        ? { ...login, recent: true }
-        : login,
-    )
-    return {
-      ...vault,
-      logins: [
-        ...logins.filter((l) => l.recent),
-        ...logins.filter((l) => !l.recent),
-      ],
-    }
-  })
-  return [
-    ...marked.filter((vault) => vault.logins.some((l) => l.recent)),
-    ...marked.filter((vault) => !vault.logins.some((l) => l.recent)),
-  ]
-}
-
-export async function forgetTab(tabId: number): Promise<void> {
-  const { [tabId]: _removed, ...rest } = await rememberedUsernames()
-  await browser.storage.session.set({ [USERNAMES_KEY]: rest })
-  await promptSessions.remove(tabId)
-}
+/** How the ready vaults hold a submitted login, which decides what the prompt offers. */
+type Holding =
+  | { kind: "unchanged" }
+  | { kind: "changed"; login: StoredLogin }
+  | { kind: "missing" }
 
 /** The username of the site's only saved account, for a change-password form that does not name it. */
 async function onlyUsername(providers: Providers, page: URL): Promise<string> {
@@ -101,15 +44,45 @@ async function onlyUsername(providers: Providers, page: URL): Promise<string> {
 }
 
 /**
- * Handles a login form the user submitted. Offers to save a login no vault has, or to update one
- * whose password differs. Apple Passwords does not reveal saved passwords without Touch ID, so a
- * username it already has counts as saved, unless the password was typed as a new one.
+ * Compares a submitted login with the vaults. It counts as unchanged when a vault has it with this
+ * password, when a vault cannot tell (Apple Passwords does not reveal a password without Touch ID)
+ * and the password was not typed as a new one, or when the vaults that have it are ones Keyward may
+ * not change, so it is neither updated nor saved a second time.
  */
+async function holdingOf(
+  providers: Providers,
+  vaults: VaultInfo[],
+  page: URL,
+  account: string,
+  submitted: SubmittedLogin,
+): Promise<Holding> {
+  let changed: StoredLogin | null = null
+  let keptUnchangeable = false
+  for (const vault of vaults) {
+    const existing = await providers
+      .providerOf(vault.id)
+      .findExisting(vault.id, page, account, submitted.password)
+      .catch(() => null)
+    if (!existing) continue
+    if (existing.samePassword === true) return { kind: "unchanged" }
+    if (existing.samePassword === undefined && !submitted.newPassword)
+      return { kind: "unchanged" }
+    if (existing.editable === false) {
+      keptUnchangeable = true
+      continue
+    }
+    changed ??= { vaultId: vault.id, loginId: existing.loginId }
+  }
+  if (changed) return { kind: "changed", login: changed }
+  return keptUnchangeable ? { kind: "unchanged" } : { kind: "missing" }
+}
+
+/** Handles a login form the user submitted: offers to save a login no vault has, or to update one. */
 export async function onSubmitted(
   providers: Providers,
   tabId: number,
   frameId: number,
-  submitted: { username: string; password: string; newPassword?: boolean },
+  submitted: SubmittedLogin,
 ): Promise<void> {
   if (
     submitted.username.length > MAX_TEXT_LENGTH ||
@@ -137,25 +110,11 @@ export async function onSubmitted(
     (vault) => vault.status === "ready",
   )
   if (!vaults.length) return
-  let update: { vaultId: string; loginId: string } | null = null
-  let keptUnchangeable = false
-  for (const vault of vaults) {
-    const existing = await providers
-      .providerOf(vault.id)
-      .findExisting(vault.id, page, account, submitted.password)
-      .catch(() => null)
-    if (!existing) continue
-    if (existing.samePassword === true) return
-    if (existing.samePassword === undefined && !submitted.newPassword) return
-    if (existing.editable === false) {
-      keptUnchangeable = true
-      continue
-    }
-    update ??= { vaultId: vault.id, loginId: existing.loginId }
-  }
-  // A login a vault keeps but Keyward may not change is neither updated nor saved a second time.
-  if (!update && keptUnchangeable) return
-  if (update ? !settings.askUpdate : !settings.askSave) return
+  const holding = await holdingOf(providers, vaults, page, account, submitted)
+  if (holding.kind === "unchanged") return
+  const update = holding.kind === "changed" ? holding.login : null
+  const userWantsPrompt = update ? settings.askUpdate : settings.askSave
+  if (!userWantsPrompt) return
   if (!update && !(await promptTargets(providers, page)).length) return
 
   await promptSessions.set({
@@ -195,54 +154,10 @@ export async function showPrompt(tabId: number): Promise<void> {
   await sendToFrame(tabId, 0, { type: "prompt.show", token }).catch(() => {})
 }
 
-/** Vaults that can store a login for the page right now. */
-export async function saveTargets(
-  providers: Providers,
-  page: URL,
-): Promise<VaultInfo[]> {
-  return (await providers.vaultsForPage(page)).filter(
-    (vault) =>
-      vault.status === "ready" && providers.providerOf(vault.id).canSave(page),
-  )
-}
-
-/**
- * Vaults a save prompt offers for the page: those that can store the login, except any the user
- * told never to save logins for the site. A vault that cannot answer stays in.
- */
-export async function promptTargets(
-  providers: Providers,
-  page: URL,
-): Promise<VaultInfo[]> {
-  const targets = await saveTargets(providers, page)
-  const refusals = await Promise.all(
-    targets.map((vault) =>
-      (
-        providers.providerOf(vault.id).refusesSaving?.(vault.id, page) ??
-        Promise.resolve(false)
-      ).catch(() => false),
-    ),
-  )
-  return targets.filter((_, index) => !refusals[index])
-}
-
-export async function defaultTarget(
-  targets: VaultInfo[],
-): Promise<string | null> {
-  const { defaultSaveTarget } = await getSettings()
-  return (
-    targets.find((t) => t.id === defaultSaveTarget)?.id ??
-    targets[0]?.id ??
-    null
-  )
-}
-
 export async function promptState(
   providers: Providers,
-  tabId: number,
+  session: PromptSession,
 ): Promise<PromptState> {
-  const session = await promptSessions.get(tabId)
-  if (!session) throw new VaultError("Nothing to show", "overlay.closed")
   const page = new URL(session.url)
   const targets =
     session.mode === "save" ? await promptTargets(providers, page) : []
@@ -262,11 +177,9 @@ export async function promptState(
 /** The folders of a vault the prompt offers; none for a vault it does not offer. */
 export async function promptFolders(
   providers: Providers,
-  tabId: number,
+  session: PromptSession,
   vaultId: string,
 ): Promise<Folder[]> {
-  const session = await promptSessions.get(tabId)
-  if (!session) throw new VaultError("Nothing to show", "overlay.closed")
   const targets = await promptTargets(providers, new URL(session.url))
   if (!targets.some((target) => target.id === vaultId)) return []
   const provider = providers.providerOf(vaultId)
@@ -275,15 +188,13 @@ export async function promptFolders(
 
 export async function confirmPrompt(
   providers: Providers,
-  tabId: number,
+  session: PromptSession,
   targetId: string | null,
   choices: { name: string; folderId: string | null } = {
     name: "",
     folderId: null,
   },
 ): Promise<void> {
-  const session = await promptSessions.get(tabId)
-  if (!session) throw new VaultError("Nothing to save", "overlay.closed")
   const url = new URL(session.url)
   const login: NewLogin = {
     url,
@@ -291,31 +202,29 @@ export async function confirmPrompt(
     password: session.password,
     details: { ...choices, notes: "", totp: "", customFields: [] },
   }
-  const tab = { tabId, frameId: 0 }
+  const tab = { tabId: session.tabId, frameId: 0 }
   if (session.update) {
     const { vaultId, loginId } = session.update
     await providers.providerOf(vaultId).update(vaultId, loginId, login, tab)
   } else {
     const targets = await promptTargets(providers, url)
-    const target = targets.find((t) => t.id === targetId)
+    const target = targets.find((candidate) => candidate.id === targetId)
     if (!target)
       throw new VaultError("The chosen place is not available", "unknownVault")
     await providers.providerOf(target.id).save(target.id, login, tab)
   }
-  await closePrompt(tabId)
+  await closePrompt(session.tabId)
 }
 
 /**
  * Stops asking to save logins on the prompt's site. A new rule for the host keeps the vaults and
  * match type of a rule for a parent domain, which it overrides as the more specific one.
  */
-export async function neverForSite(tabId: number): Promise<void> {
-  const session = await promptSessions.get(tabId)
-  if (!session) return
+export async function neverForSite(session: PromptSession): Promise<void> {
   const host = new URL(session.url).hostname
   const { siteRules } = await getSettings()
   await updateSettings({ siteRules: withNoSaveRule(siteRules, host) })
-  await closePrompt(tabId)
+  await closePrompt(session.tabId)
 }
 
 function withNoSaveRule(rules: SiteRule[], host: string): SiteRule[] {

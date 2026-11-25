@@ -9,7 +9,7 @@ import {
   neverForSite,
   promptFolders,
   promptState,
-} from "../save-flow"
+} from "../save-prompt"
 import {
   optionalFolderId,
   optionalText,
@@ -22,17 +22,14 @@ export function promptHandlers(providers: Providers) {
     "prompt.state": {
       allow: ["savePrompt"],
       handle: async ({ token }, sender) =>
-        promptState(
-          providers,
-          (await promptSessions.claim(sender, token)).tabId,
-        ),
+        promptState(providers, await promptSessions.claim(sender, token)),
     },
     "prompt.confirm": {
       allow: ["savePrompt"],
       handle: async ({ token, targetId, name, folderId }, sender) => {
         await confirmPrompt(
           providers,
-          (await promptSessions.claim(sender, token)).tabId,
+          await promptSessions.claim(sender, token),
           optionalText(targetId, "targetId"),
           {
             name: requireText(name ?? "", "name"),
@@ -47,14 +44,14 @@ export function promptHandlers(providers: Providers) {
       handle: async ({ token, vaultId }, sender) =>
         promptFolders(
           providers,
-          (await promptSessions.claim(sender, token)).tabId,
+          await promptSessions.claim(sender, token),
           requireText(vaultId, "vaultId"),
         ),
     },
     "prompt.never": {
       allow: ["savePrompt"],
       handle: async ({ token }, sender) => {
-        await neverForSite((await promptSessions.claim(sender, token)).tabId)
+        await neverForSite(await promptSessions.claim(sender, token))
         return null
       },
     },
