@@ -56,10 +56,13 @@ export function VaultsPage() {
   const [renaming, setRenaming] = useState<AccountSummary | null>(null)
   /** The account being synced now. */
   const [syncing, setSyncing] = useState<string | null>(null)
-  const [syncMessage, setSyncMessage] = useState<string | null>(null)
+  /** Why loading, syncing or signing out the Bitwarden accounts failed. */
+  const [accountsMessage, setAccountsMessage] = useState<string | null>(null)
 
   const load = useCallback(() => {
-    void callBackground("bitwarden.accounts", null).then(setAccounts)
+    callBackground("bitwarden.accounts", null).then(setAccounts, (error) =>
+      setAccountsMessage(errorMessage(error)),
+    )
   }, [])
   useEffect(load, [load])
 
@@ -74,17 +77,22 @@ export function VaultsPage() {
       )
     )
       return
-    await callBackground("bitwarden.signOut", { accountId: account.id })
+    setAccountsMessage(null)
+    try {
+      await callBackground("bitwarden.signOut", { accountId: account.id })
+    } catch (error) {
+      setAccountsMessage(errorMessage(error))
+    }
     load()
   }
 
   const syncNow = async (account: AccountSummary) => {
     setSyncing(account.id)
-    setSyncMessage(null)
+    setAccountsMessage(null)
     try {
       await callBackground("bitwarden.sync", { accountId: account.id })
     } catch (error) {
-      setSyncMessage(errorMessage(error))
+      setAccountsMessage(errorMessage(error))
     } finally {
       setSyncing(null)
       load()
@@ -227,8 +235,10 @@ export function VaultsPage() {
             </div>
           </Option>
         ))}
-        {syncMessage && (
-          <p className="px-4 pb-3 text-sm text-destructive">{syncMessage}</p>
+        {accountsMessage && (
+          <p className="px-4 pb-3 text-sm text-destructive">
+            {accountsMessage}
+          </p>
         )}
         {accounts.length > 0 && (
           <Option

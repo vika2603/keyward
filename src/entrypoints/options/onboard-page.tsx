@@ -152,29 +152,31 @@ function SignIn({ onSignedIn }: { onSignedIn: () => void }) {
         // Without the accounts, only the last server set up is offered.
       },
     )
-    void Promise.all([
+    Promise.all([
       callBackground("bitwarden.pendingSignIn", null),
       lastServerItem.getValue(),
       selfHostedServerItem.getValue(),
       selfHostedEndpointsItem.getValue(),
-    ]).then(([view, lastServer, savedUrl, savedEndpoints]) => {
-      const server = view ? view.server : savedAddress(lastServer)
-      const choice = serverChoiceOf(server)
-      setServerChoice(choice)
-      setSelfHosted(
-        choice === "selfHosted"
-          ? {
-              address: server,
-              endpoints: view ? (view.endpoints ?? {}) : savedEndpoints,
-            }
-          : { address: savedAddress(savedUrl), endpoints: savedEndpoints },
-      )
-      if (view) {
-        setEmail(view.email)
-        setPending(view)
-        setMethod(view.methods[0] ?? null)
-      }
-    })
+    ])
+      .then(([view, lastServer, savedUrl, savedEndpoints]) => {
+        const server = view ? view.server : savedAddress(lastServer)
+        const choice = serverChoiceOf(server)
+        setServerChoice(choice)
+        setSelfHosted(
+          choice === "selfHosted"
+            ? {
+                address: server,
+                endpoints: view ? (view.endpoints ?? {}) : savedEndpoints,
+              }
+            : { address: savedAddress(savedUrl), endpoints: savedEndpoints },
+        )
+        if (view) {
+          setEmail(view.email)
+          setPending(view)
+          setMethod(view.methods[0] ?? null)
+        }
+      })
+      .catch((error) => setMessage(errorMessage(error)))
   }, [])
 
   const run = async (task: () => Promise<void>) => {
@@ -258,7 +260,9 @@ function SignIn({ onSignedIn }: { onSignedIn: () => void }) {
             variant="ghost"
             className="w-full"
             onClick={() => {
-              void callBackground("bitwarden.cancelSignIn", null)
+              callBackground("bitwarden.cancelSignIn", null).catch((error) =>
+                setMessage(errorMessage(error)),
+              )
               setPending(null)
               setMethod(null)
               setMessage(null)
