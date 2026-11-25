@@ -1,9 +1,9 @@
 import {
   CheckIcon,
   ChevronDownIcon,
-  Dice3Icon,
   KeyRoundIcon,
   PlusIcon,
+  RefreshCcwDotIcon,
   UserIcon,
 } from "lucide-react"
 import { useCallback, useEffect, useState } from "react"
@@ -83,7 +83,7 @@ export function MainView({
           title="密码生成器"
           onClick={() => onNavigate({ name: "generator" })}
         >
-          <Dice3Icon />
+          <RefreshCcwDotIcon />
         </Button>
         <SettingsButton />
       </div>

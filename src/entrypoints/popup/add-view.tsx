@@ -1,4 +1,4 @@
-import { Dice3Icon } from "lucide-react"
+import { RefreshCcwDotIcon } from "lucide-react"
 import { useEffect, useState } from "react"
 import { callBackground } from "@/background/api"
 import { errorMessage } from "@/components/keyward/errors"
@@ -110,7 +110,7 @@ export function AddView({ onBack }: { onBack: () => void }) {
               title="生成密码"
               onClick={() => void generate()}
             >
-              <Dice3Icon />
+              <RefreshCcwDotIcon />
             </Button>
           </div>
         </div>
