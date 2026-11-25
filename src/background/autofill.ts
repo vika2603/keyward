@@ -3,13 +3,13 @@ import { resolveLanguage } from "@/lib/i18n/language"
 import { ruleForHost } from "@/lib/matching"
 import { VaultError } from "@/lib/providers/types"
 import { serialQueue } from "@/lib/serial-queue"
-import { getSettings, type Settings } from "@/lib/settings"
+import { getSettings, type Settings, type SiteBehavior } from "@/lib/settings"
 import { siteDomainOf } from "@/lib/site"
 import type { ContentConfig, FieldInfo } from "./api"
 import { addHistory } from "./history"
 import { activeTab, frameUrl, sendToFrame } from "./page"
 import { hasPasskeySite, rememberPasskeySite } from "./passkey-sites"
-import type { Providers } from "./providers"
+import { type Providers, vaultsForRule } from "./providers"
 import {
   markRecent,
   recallUsername,
@@ -30,13 +30,47 @@ async function frameAllowed(
   return top?.origin === page.origin
 }
 
+/** The frame's page, when the frame may show the field icon and receive logins; null otherwise. */
+async function allowedPage(
+  tabId: number,
+  frameId: number,
+  settings: Settings,
+): Promise<URL | null> {
+  const page = await frameUrl(tabId, frameId)
+  if (!page || !(await frameAllowed(tabId, frameId, page, settings)))
+    return null
+  return page
+}
+
+/** The frame's page, which must be one Keyward may fill; the error says why it may not. */
+async function requireFillablePage(
+  tabId: number,
+  frameId: number,
+  settings: Settings,
+): Promise<URL> {
+  const page = await frameUrl(tabId, frameId)
+  if (!page) throw new VaultError("The frame is not a web page", "notWebPage")
+  if (!(await frameAllowed(tabId, frameId, page, settings)))
+    throw new VaultError("Filling is turned off for this frame", "fillDisabled")
+  return page
+}
+
+/** When the in-page menu opens: as the site's rule says, else as the settings say. */
+function menuTriggerFor(
+  behavior: SiteBehavior | undefined,
+  fallback: Settings["menuTrigger"],
+): Settings["menuTrigger"] {
+  if (behavior === "menuOnFocus") return "focus"
+  if (behavior === "menuOnClick") return "click"
+  return fallback
+}
+
 export async function contentConfig(
   providers: Providers,
   tabId: number,
   frameId: number,
 ): Promise<ContentConfig> {
   const settings = await getSettings()
-  const page = await frameUrl(tabId, frameId)
   const off: ContentConfig = {
     active: false,
     scanCodes: false,
@@ -45,23 +79,25 @@ export async function contentConfig(
     theme: settings.theme,
     language: resolveLanguage(settings.language),
   }
-  if (!page || !(await frameAllowed(tabId, frameId, page, settings))) return off
-  if (!(await providers.vaultsForPage(page)).length) return off
-  const behavior = ruleForHost(settings.siteRules, page.hostname)?.behavior
-  const menuTrigger =
-    behavior === "menuOnFocus"
-      ? "focus"
-      : behavior === "menuOnClick"
-        ? "click"
-        : settings.menuTrigger
-  const scanCodes = (await providers.vaults()).some(
+  const page = await allowedPage(tabId, frameId, settings)
+  if (!page) return off
+  const rule = ruleForHost(settings.siteRules, page.hostname)
+  const vaults = await providers.vaults()
+  if (!vaultsForRule(vaults, rule).length) return off
+  const scanCodes = vaults.some(
     (vault) =>
       vault.status === "ready" &&
       (vault.kind === "bitwarden" || providers.apple.canSetUpCodes()),
   )
   const takeOverPasskeys =
     settings.takeOverPasskeys && (await hasPasskeySite(page))
-  return { ...off, active: true, menuTrigger, scanCodes, takeOverPasskeys }
+  return {
+    ...off,
+    active: true,
+    menuTrigger: menuTriggerFor(rule?.behavior, settings.menuTrigger),
+    scanCodes,
+    takeOverPasskeys,
+  }
 }
 
 /** Notes that the frame's site has a passkey, once the frame may show the menu at all. */
@@ -69,9 +105,8 @@ export async function notePasskeyUsed(
   tabId: number,
   frameId: number,
 ): Promise<void> {
-  const page = await frameUrl(tabId, frameId)
-  if (page && (await frameAllowed(tabId, frameId, page, await getSettings())))
-    await rememberPasskeySite(page)
+  const page = await allowedPage(tabId, frameId, await getSettings())
+  if (page) await rememberPasskeySite(page)
 }
 
 /** The frame's page, once it is known that the frame may be filled from the vault. */
@@ -82,11 +117,7 @@ async function fillablePage(
   vaultId: string,
 ): Promise<{ page: URL; settings: Settings }> {
   const settings = await getSettings()
-  const page = await frameUrl(tabId, frameId)
-  if (!page) throw new VaultError("The frame is not a web page", "notWebPage")
-  if (!(await frameAllowed(tabId, frameId, page, settings))) {
-    throw new VaultError("Filling is turned off for this frame", "fillDisabled")
-  }
+  const page = await requireFillablePage(tabId, frameId, settings)
   if (
     !(await providers.vaultsForPage(page)).some((vault) => vault.id === vaultId)
   ) {
@@ -175,11 +206,7 @@ export async function fillNewPassword(
   frameId: number,
   password: string,
 ): Promise<boolean> {
-  const settings = await getSettings()
-  const page = await frameUrl(tabId, frameId)
-  if (!page) throw new VaultError("The frame is not a web page", "notWebPage")
-  if (!(await frameAllowed(tabId, frameId, page, settings)))
-    throw new VaultError("Filling is turned off for this frame", "fillDisabled")
+  const page = await requireFillablePage(tabId, frameId, await getSettings())
   await addHistory(password, page.hostname)
   const filled = await sendToFrame<boolean | null>(tabId, frameId, {
     type: "fillNew",
@@ -198,10 +225,8 @@ export async function hasCodes(
   tabId: number,
   frameId: number,
 ): Promise<boolean> {
-  const settings = await getSettings()
-  const page = await frameUrl(tabId, frameId)
-  if (!page || !(await frameAllowed(tabId, frameId, page, settings)))
-    return false
+  const page = await allowedPage(tabId, frameId, await getSettings())
+  if (!page) return false
   const views = await providers.codeLoginsForPage(page, { tabId, frameId })
   if (!views.some((view) => view.status === "ready")) return views.length > 0
   return views.some((view) => view.logins.length > 0)
@@ -275,17 +300,8 @@ async function advanceCycle(
   return next
 }
 
-/**
- * Fills a matching login into the frame with the focused login field, else the top frame: the
- * first one, and on each further press soon after, the next. "noLogin" means the page has a login
- * field but no ready vault has a login for it.
- */
-export async function fillFirst(
-  providers: Providers,
-): Promise<"filled" | "noField" | "noLogin"> {
-  const tab = await activeTab()
-  if (tab?.id === undefined) return "noField"
-  const tabId = tab.id
+/** The frame the fill shortcut fills: the one with a focused login field, else the top frame, else any with one. */
+async function targetFrame(tabId: number): Promise<number | null> {
   const frames = (await browser.webNavigation.getAllFrames({ tabId })) ?? []
   const infos = await Promise.all(
     frames.map((frame) =>
@@ -298,13 +314,28 @@ export async function fillFirst(
       ),
     ),
   )
-  const candidates = infos.filter((info) => info !== null)
+  const withField = infos.filter((info) => info !== null)
   const target =
-    candidates.find((c) => c.focused) ??
-    candidates.find((c) => c.frameId === 0) ??
-    candidates[0]
-  if (!target) return "noField"
-  const page = await frameUrl(tabId, target.frameId)
+    withField.find((frame) => frame.focused) ??
+    withField.find((frame) => frame.frameId === 0) ??
+    withField[0]
+  return target?.frameId ?? null
+}
+
+/**
+ * Fills a matching login into the frame with the focused login field, else the top frame: the
+ * first one, and on each further press soon after, the next. "noLogin" means the page has a login
+ * field but no ready vault has a login for it.
+ */
+export async function fillFirst(
+  providers: Providers,
+): Promise<"filled" | "noField" | "noLogin"> {
+  const tab = await activeTab()
+  if (tab?.id === undefined) return "noField"
+  const tabId = tab.id
+  const target = await targetFrame(tabId)
+  if (target === null) return "noField"
+  const page = await frameUrl(tabId, target)
   if (!page) return "noField"
   // On the password step of a two-step login, the account typed on the first step is the one.
   const views = markRecent(
@@ -317,6 +348,6 @@ export async function fillFirst(
   const next = await nextInCycle(tabId, page, available)
   if (next === undefined) return "noLogin"
   const [vaultId, loginId] = JSON.parse(next) as [string, string]
-  await fillLogin(providers, tabId, target.frameId, vaultId, loginId)
+  await fillLogin(providers, tabId, target, vaultId, loginId)
   return "filled"
 }

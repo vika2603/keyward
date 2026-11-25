@@ -11,8 +11,28 @@ import {
   type VaultInfo,
   type VaultProvider,
 } from "@/lib/providers/types"
-import { getSettings } from "@/lib/settings"
+import { getSettings, type SiteRule } from "@/lib/settings"
 import type { VaultView } from "./api"
+
+/** The vaults a site rule lets a page use: those of the provider it names, or all of them. */
+export function vaultsForRule(
+  vaults: VaultInfo[],
+  rule: SiteRule | null,
+): VaultInfo[] {
+  if (!rule || rule.provider === "all") return vaults
+  return vaults.filter((vault) => vault.kind === rule.provider)
+}
+
+/** A vault whose listing failed: locked when it was locked meanwhile, else shown with the error. */
+function failedView(vault: VaultInfo, error: unknown): VaultView {
+  if (error instanceof VaultError && error.code === "locked")
+    return { ...vault, status: "locked", logins: [] }
+  return {
+    ...vault,
+    logins: [],
+    error: error instanceof Error ? error.message : String(error),
+  }
+}
 
 /** All providers behind one lookup by vault ID. Apple comes first, then accounts in sign-in order. */
 export class Providers {
@@ -39,11 +59,11 @@ export class Providers {
 
   /** Vaults a page may use, after the site rule's provider restriction. */
   async vaultsForPage(page: URL): Promise<VaultInfo[]> {
-    const settings = await getSettings()
-    const rule = ruleForHost(settings.siteRules, page.hostname)
-    const vaults = await this.vaults()
-    if (!rule || rule.provider === "all") return vaults
-    return vaults.filter((vault) => vault.kind === rule.provider)
+    const { siteRules } = await getSettings()
+    return vaultsForRule(
+      await this.vaults(),
+      ruleForHost(siteRules, page.hostname),
+    )
   }
 
   async vault(vaultId: string): Promise<VaultInfo> {
@@ -92,30 +112,27 @@ export class Providers {
 
   /** Every item of each ready vault whose provider can list a whole vault. */
   async allItems(): Promise<VaultView[]> {
-    const vaults = await this.vaults()
-    const listable = vaults.filter(
-      (vault) => vault.status === "ready" && this.providerOf(vault.id).allItems,
+    const ready = (await this.vaults()).filter(
+      (vault) => vault.status === "ready",
     )
+    const listed = ready.flatMap((vault) => {
+      const provider = this.providerOf(vault.id)
+      const listAll = provider.allItems?.bind(provider)
+      return listAll ? [{ vault, listAll }] : []
+    })
     return Promise.all(
-      listable.map(async (vault): Promise<VaultView> => {
+      listed.map(async ({ vault, listAll }): Promise<VaultView> => {
         try {
-          const provider = this.providerOf(vault.id)
-          const items = await provider.allItems?.(vault.id)
+          const items = await listAll(vault.id)
           return {
             ...vault,
-            logins: items?.logins ?? [],
-            notes: items?.notes,
-            groups: items?.groups,
-            trashed: items?.trashed,
+            logins: items.logins,
+            notes: items.notes,
+            groups: items.groups,
+            trashed: items.trashed,
           }
         } catch (error) {
-          if (error instanceof VaultError && error.code === "locked")
-            return { ...vault, status: "locked", logins: [] }
-          return {
-            ...vault,
-            logins: [],
-            error: error instanceof Error ? error.message : String(error),
-          }
+          return failedView(vault, error)
         }
       }),
     )
@@ -155,14 +172,7 @@ export class Providers {
             logins: await list(this.providerOf(vault.id), vault.id),
           }
         } catch (error) {
-          if (error instanceof VaultError && error.code === "locked") {
-            return { ...vault, status: "locked" as const, logins: [] }
-          }
-          return {
-            ...vault,
-            logins: [],
-            error: error instanceof Error ? error.message : String(error),
-          }
+          return failedView(vault, error)
         }
       }),
     )
