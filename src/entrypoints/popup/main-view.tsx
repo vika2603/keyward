@@ -176,7 +176,8 @@ export function MainView({
   // With one provider in view and nothing searched, a provider that can list a whole vault offers
   // it beside the site's logins. Passwords cannot, so its view stays as it is.
   const oneProvider = filter !== "all" || kinds.size === 1
-  const browsing = connected && !search && oneProvider
+  // Locked vaults have nothing to browse; their unlock cards show instead.
+  const browsing = connected && !search && oneProvider && shownReady
   const browsed = (everything ?? []).filter(
     (vault) =>
       (filter === "all" || vault.kind === filter) &&
