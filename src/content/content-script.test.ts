@@ -258,6 +258,52 @@ describe("filling a login", () => {
   })
 })
 
+describe("opening the menu while an earlier opening waits for the background", () => {
+  /** Moves the focus to a field as the user does, which opens its menu. */
+  function moveFocusTo(field: HTMLInputElement): void {
+    field.focus()
+    focusByUser(field)
+  }
+
+  async function openOnFirstThenSecondForm() {
+    document.body.innerHTML = TWO_SIGN_INS
+    const page = await startContentScript({ holdMenuSessions: true })
+    ctx = page.ctx
+    moveFocusTo(input("[name=first-username]"))
+    moveFocusTo(input("[name=second-password]"))
+    return page
+  }
+
+  it("does not take the focus back to the field the user left", async () => {
+    const page = await openOnFirstThenSecondForm()
+
+    await page.answerMenuSession(0)
+    expect(document.activeElement).toBe(input("[name=second-password]"))
+    expect(menuIsOpen()).toBe(false)
+
+    await page.answerMenuSession(1)
+    expect(menuIsOpen()).toBe(true)
+    await page.send(login())
+    expect(filled()).toEqual({
+      "second-username": "user@example.com",
+      "second-password": "{{SECRET_xbfqywla}}",
+    })
+  })
+
+  it("shows the menu of the field opened last when the answers arrive the other way round", async () => {
+    const page = await openOnFirstThenSecondForm()
+
+    await page.answerMenuSession(1)
+    await page.answerMenuSession(0)
+    expect(document.activeElement).toBe(input("[name=second-password]"))
+    await page.send(login())
+    expect(filled()).toEqual({
+      "second-username": "user@example.com",
+      "second-password": "{{SECRET_xbfqywla}}",
+    })
+  })
+})
+
 describe("filling a one-time code", () => {
   it("does nothing for a frame that is now at another origin", async () => {
     document.body.innerHTML = CODE_BOXES

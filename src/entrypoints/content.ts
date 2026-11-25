@@ -74,8 +74,15 @@ export default defineContentScript({
 
     let lastMenuField: HTMLInputElement | null = null
     const fills = new FillHandlers(menu, fields, () => lastMenuField)
+    /**
+     * Counts calls to open the menu. Only the latest may show it: the background keeps the token of
+     * the latest session only, and showing an earlier one would move the focus back to a field
+     * the user has left.
+     */
+    let menuOpenings = 0
 
     async function openMenu(field: HTMLInputElement): Promise<void> {
+      const opening = ++menuOpenings
       if (menu.openFor === field) {
         menu.close()
         return
@@ -87,9 +94,9 @@ export default defineContentScript({
         newPassword: fields.isNewPassword(field),
         passkey: passkeys.waiting && fields.isLogin(field),
       }).catch(() => null)
+      if (opening !== menuOpenings || !session) return
       // The page may have stopped offering logins while the session was requested.
-      if (!session || !configuration.current.active || !fields.has(field))
-        return
+      if (!configuration.current.active || !fields.has(field)) return
       icons.setExpanded(field)
       menu.show(field, session.token)
       // Keeps the keyboard path open: ArrowDown in the field moves into the menu.

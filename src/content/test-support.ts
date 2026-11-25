@@ -69,10 +69,13 @@ const ACTIVE_CONFIG: ContentConfig = {
 export async function startContentScript({
   config = {},
   hasCodes = false,
+  holdMenuSessions = false,
 }: {
   config?: Partial<ContentConfig>
   /** Whether a vault has one-time codes for the page. */
   hasCodes?: boolean
+  /** Whether the menu's session requests wait until `answerMenuSession` answers them. */
+  holdMenuSessions?: boolean
 } = {}) {
   const requests: Request[] = []
   const replies: Partial<Record<keyof BackgroundApi, unknown>> = {
@@ -80,15 +83,27 @@ export async function startContentScript({
     "content.openMenu": { token: "menu-token" },
     "content.hasCodes": hasCodes,
   }
+  const heldMenuSessions: (() => void)[] = []
   fakeBrowser.runtime.onMessage.addListener(
     (message, _sender, sendResponse: (response: unknown) => void) => {
       const request = message as Request & { keyward?: number }
       if (request?.keyward !== 1) return false
       requests.push({ type: request.type, payload: request.payload } as Request)
-      sendResponse({ ok: true, value: replies[request.type] ?? null })
+      const answer = () =>
+        sendResponse({ ok: true, value: replies[request.type] ?? null })
+      if (holdMenuSessions && request.type === "content.openMenu")
+        heldMenuSessions.push(answer)
+      else answer()
       return true
     },
   )
+  /** Answers a held session request, counted from 0 in the order they were made. */
+  const answerMenuSession = async (index: number): Promise<void> => {
+    const answer = heldMenuSessions[index]
+    if (!answer) throw new Error(`No menu session request ${index}`)
+    answer()
+    await vi.advanceTimersByTimeAsync(0)
+  }
   const ctx = new ContentScriptContext("content")
   await contentScript.main(ctx)
   /** Delivers a message from the background and returns the content script's answer. */
@@ -103,5 +118,5 @@ export async function startContentScript({
     )
     return answer
   }
-  return { ctx, requests, send }
+  return { ctx, requests, send, answerMenuSession }
 }
