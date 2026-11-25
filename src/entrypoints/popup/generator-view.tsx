@@ -10,7 +10,7 @@ import {
 } from "react"
 import { callBackground } from "@/background/api"
 import { useCopyThrough } from "@/components/keyward/copy-through"
-import { errorMessage } from "@/components/keyward/errors"
+import { errorMessage, isUnsupportedRequest } from "@/components/keyward/errors"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
@@ -157,6 +157,22 @@ function NumberInput({
 }
 
 /** Generates passwords, passphrases and usernames; the shown values last for the browser session. */
+/**
+ * Puts a shown value in the history. A background from before the history kept every value lacks
+ * the request; copying still records the value there, so the generator carries on without it.
+ */
+async function recordShown(
+  value: string,
+  kind: GeneratorKind,
+  copied = false,
+): Promise<void> {
+  try {
+    await callBackground("generator.shown", { value, kind, copied })
+  } catch (error) {
+    if (!isUnsupportedRequest(error)) throw error
+  }
+}
+
 export function GeneratorView({
   onBack,
   onHistory,
@@ -213,8 +229,8 @@ export function GeneratorView({
       return next
     })
     if (value !== null)
-      void callBackground("generator.shown", { value, kind: which }).catch(
-        (error) => setMessage(errorMessage(error)),
+      void recordShown(value, which).catch((error) =>
+        setMessage(errorMessage(error)),
       )
   }, [])
 
@@ -249,7 +265,7 @@ export function GeneratorView({
     setMessage(null)
     try {
       // Kept with its kind right away, since another value may replace it before it settles.
-      await callBackground("generator.shown", { value, kind, copied: true })
+      await recordShown(value, kind, true)
       if (secret) await callBackground("generator.copy", { password: value })
       else await callBackground("popup.copyText", { text: value })
       setCopied(true)
