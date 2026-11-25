@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { t } from "@/lib/i18n"
 import type { AccountSummary } from "@/lib/providers/bitwarden/bitwarden-provider"
+import { serverHost } from "@/lib/providers/bitwarden/server"
 import { cn } from "@/lib/utils"
 import { BrandIcon } from "./brand-icon"
 import { errorMessage } from "./errors"
@@ -56,6 +57,14 @@ export function BitwardenUnlock({
   }
 
   const account = accounts.find((a) => a.id === selected)
+  // The same email can have an account on several servers; the server tells them apart. A label
+  // that already ends with the server, as for accounts sharing an email, needs no second line.
+  const host = account && serverHost(account.server)
+  const server = account && host && !account.label.endsWith(host) && (
+    <p className="max-w-full truncate text-xs text-muted-foreground">
+      {t("unlock.server", { host })}
+    </p>
+  )
   const unlock = async () => {
     if (!account || busy) return
     if (!password) {
@@ -88,9 +97,12 @@ export function BitwardenUnlock({
         </div>
         <h2 className="text-base font-medium">{t("unlock.title")}</h2>
         {accounts.length === 1 && account && (
-          <p className="max-w-full truncate text-sm text-muted-foreground">
-            {account.label}
-          </p>
+          <div className="flex max-w-full flex-col items-center gap-0.5">
+            <p className="max-w-full truncate text-sm text-muted-foreground">
+              {account.label}
+            </p>
+            {server}
+          </div>
         )}
       </div>
       {accounts.length > 1 && (
@@ -110,6 +122,7 @@ export function BitwardenUnlock({
           label={t("unlock.accountLabel")}
         />
       )}
+      {accounts.length > 1 && server}
       {account && !account.unlocked && (
         <form
           className="flex w-full flex-col gap-3"
