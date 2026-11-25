@@ -9,6 +9,7 @@ import {
 } from "lucide-react"
 import { useState } from "react"
 import { callBackground } from "@/background/api"
+import { errorCodeOf } from "@/components/keyward/errors"
 import { LoginLabel } from "@/components/keyward/login-label"
 import { NoteIcon } from "@/components/keyward/note-icon"
 import { notify, notifyError } from "@/components/keyward/notify"
@@ -260,7 +261,9 @@ export function LoginRow({
       setCopied(what)
       setTimeout(() => setCopied(null), 1500)
     } catch (error) {
-      notifyError(error)
+      // The login's details ask for the master password, after which it can be copied.
+      if (errorCodeOf(error) === "bitwarden.reprompt") onOpen()
+      else notifyError(error)
     } finally {
       setConfirming(false)
     }

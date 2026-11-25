@@ -52,7 +52,7 @@ export const en = {
   "error.bitwarden.noPendingSignIn": "The sign-in has expired. Start again.",
   "error.bitwarden.method": "This verification method is not supported.",
   "error.bitwarden.reprompt":
-    "This item asks for the master password again, which Keyward doesn't support. Use it in Bitwarden.",
+    "This item asks for the master password again. Open it in the Keyward popup and enter the master password; it can then be used for 5 minutes.",
   "error.bitwarden.noData": "Nothing has been synced yet. Try again shortly.",
   "error.bitwarden.api": "The server returned an error: {message}",
   "error.other": "Something went wrong: {message}",
@@ -128,7 +128,7 @@ export const zhCN: Record<keyof typeof en, string> = {
   "error.bitwarden.noPendingSignIn": "登录已过期，请重新开始。",
   "error.bitwarden.method": "不支持这种验证方式。",
   "error.bitwarden.reprompt":
-    "这个条目设置了重新验证主密码，Keyward 不支持，请在 Bitwarden 里使用。",
+    "这个条目设置了重新询问主密码。请在 Keyward 弹窗里打开它并输入主密码，之后 5 分钟内可以使用。",
   "error.bitwarden.noData": "还没有同步到数据，请稍后重试。",
   "error.bitwarden.api": "服务器返回错误：{message}",
   "error.other": "出错了：{message}",
