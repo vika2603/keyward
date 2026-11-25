@@ -1,5 +1,5 @@
 import { controlBrowserSaving } from "@/lib/browser-saving"
-import { serveRequests } from "@/lib/messaging"
+import { senderKind, serveRequests } from "@/lib/messaging"
 import { AppleProvider } from "@/lib/providers/apple/apple-provider"
 import { ApiError } from "@/lib/providers/bitwarden/api"
 import { BitwardenProvider } from "@/lib/providers/bitwarden/bitwarden-provider"
@@ -7,7 +7,7 @@ import { WrongPasswordError } from "@/lib/providers/bitwarden/crypto"
 import { loadVaultCrypto } from "@/lib/providers/bitwarden/sdk-loader"
 import { VaultError } from "@/lib/providers/types"
 import { getSettings, settingsItem } from "@/lib/settings"
-import { VAULTS_CHANGED_KEY } from "./api"
+import { APPLE_PAIRING_PORT, VAULTS_CHANGED_KEY } from "./api"
 import { fillFirst } from "./autofill"
 import { CLEAR_CLIPBOARD_ALARM, clearClipboard } from "./clipboard"
 import { watchCodeSetup } from "./code-setup"
@@ -75,6 +75,24 @@ export function startBackground(): void {
     announce()
   })
   bitwarden.onChange(announce)
+  // A Passwords code added or removed changes which code fields get the icon.
+  apple.onCodesChanged(announce)
+
+  let pairingViews = 0
+  browser.runtime.onConnect.addListener((port) => {
+    if (port.name !== APPLE_PAIRING_PORT) return
+    const kind = port.sender ? senderKind(port.sender) : null
+    if (kind !== "popup" && kind !== "options") {
+      port.disconnect()
+      return
+    }
+    pairingViews++
+    port.onDisconnect.addListener(() => {
+      pairingViews--
+      const viewsOpen = () => pairingViews > 0
+      if (!viewsOpen()) void apple.cancelPairing(viewsOpen).catch(() => {})
+    })
+  })
 
   void getSettings().then((settings) => {
     void apple.setEnabled(settings.appleEnabled)

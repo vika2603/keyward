@@ -206,6 +206,8 @@ export type BackgroundApi = {
   "apple.submitCode": { payload: { code: string }; result: AppleState }
   /** Opens the Passwords app, searching for a site when one is given. */
   "apple.openPasswordsApp": { payload: { site?: string }; result: null }
+  /** Opens the Passwords app's form for a new password with the site filled in. */
+  "apple.openNewPasswordSheet": { payload: { site: string }; result: null }
   "bitwarden.accounts": { payload: null; result: AccountSummary[] }
   "bitwarden.unlock": {
     payload: { accountId: string; password: string }
@@ -337,6 +339,12 @@ export const CONTENT_MESSAGE = "keywardContent"
  * on this instead. It holds only a time stamp.
  */
 export const VAULTS_CHANGED_KEY = "sources.changedAt"
+
+/**
+ * A view that asks for the Passwords pairing code holds a port of this name open. When the last
+ * one closes while the code is awaited, the pairing ends and the Mac closes its code window.
+ */
+export const APPLE_PAIRING_PORT = "apple-pairing"
 
 export function isContentMessage(
   message: unknown,

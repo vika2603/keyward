@@ -13,9 +13,13 @@ export const Cmd = {
   ReloginNeeded: 10,
   LaunchPasswordsApp: 13,
   Hello: 14,
+  /** Sent by the helper when the verification codes it offers have changed. */
+  OneTimeCodeAvailable: 15,
   GetOneTimeCodes: 16,
   /** Despite its name, asks for the current code of an authenticator entry; the reply carries it. */
   DidFillOneTimeCode: 17,
+  /** Ends a pairing that waits for its code and closes the window that shows the code on the Mac. */
+  DidCancelPINPairing: 19,
 } as const
 
 export const Action = {
@@ -120,15 +124,20 @@ export class SecureSession {
 /** The entry listed for a site whose passwords are never saved; its words are joined by no-break spaces. */
 const NEVER_SAVED = "Passwords not saved"
 
+/** Whether a listed entry says the user chose never to save passwords for the site. */
+export function isNeverSavedEntry(entry: Record<string, unknown>): boolean {
+  return (
+    typeof entry.USR === "string" &&
+    entry.USR.replace(/\s/g, " ") === NEVER_SAVED
+  )
+}
+
 /**
  * Whether a listed entry is a login. Listings mark every login alike, including one with only a
  * passkey, so logins without a password cannot be told apart here.
  */
 export function isLoginEntry(entry: Record<string, unknown>): boolean {
-  return (
-    typeof entry.USR === "string" &&
-    entry.USR.replace(/\s/g, " ") !== NEVER_SAVED
-  )
+  return typeof entry.USR === "string" && !isNeverSavedEntry(entry)
 }
 
 /** Login entries of a query reply; older helpers list them as `Entry_<n>` keys instead of `Entries`. */

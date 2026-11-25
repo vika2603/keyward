@@ -144,7 +144,7 @@ export async function onSubmitted(
     update ??= { vaultId: vault.id, loginId: existing.loginId }
   }
   if (update ? !settings.askUpdate : !settings.askSave) return
-  if (!update && !(await saveTargets(providers, page)).length) return
+  if (!update && !(await promptTargets(providers, page)).length) return
 
   await prompts.set({
     tabId,
@@ -194,6 +194,26 @@ export async function saveTargets(
   )
 }
 
+/**
+ * Vaults a save prompt offers for the page: those that can store the login, except any the user
+ * told never to save logins for the site. A vault that cannot answer stays in.
+ */
+export async function promptTargets(
+  providers: Providers,
+  page: URL,
+): Promise<VaultInfo[]> {
+  const targets = await saveTargets(providers, page)
+  const refusals = await Promise.all(
+    targets.map((vault) =>
+      (
+        providers.providerOf(vault.id).refusesSaving?.(vault.id, page) ??
+        Promise.resolve(false)
+      ).catch(() => false),
+    ),
+  )
+  return targets.filter((_, index) => !refusals[index])
+}
+
 export async function defaultTarget(
   targets: VaultInfo[],
 ): Promise<string | null> {
@@ -213,7 +233,7 @@ export async function promptState(
   if (!session) throw new VaultError("Nothing to show", "overlay.closed")
   const page = new URL(session.url)
   const targets =
-    session.mode === "save" ? await saveTargets(providers, page) : []
+    session.mode === "save" ? await promptTargets(providers, page) : []
   const updateVault = session.update
     ? await providers.vault(session.update.vaultId).catch(() => null)
     : null
@@ -241,7 +261,7 @@ export async function confirmPrompt(
     const { vaultId, loginId } = session.update
     await providers.providerOf(vaultId).update(vaultId, loginId, login, tab)
   } else {
-    const targets = await saveTargets(providers, url)
+    const targets = await promptTargets(providers, url)
     const target = targets.find((t) => t.id === targetId)
     if (!target)
       throw new VaultError("The chosen place is not available", "unknownVault")

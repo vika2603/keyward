@@ -5,7 +5,7 @@ import {
   RotateCwIcon,
 } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
-import { callBackground } from "@/background/api"
+import { APPLE_PAIRING_PORT, callBackground } from "@/background/api"
 import { Button } from "@/components/ui/button"
 import {
   InputOTP,
@@ -41,6 +41,13 @@ export function ApplePairing({ onPaired }: { onPaired: () => void }) {
       setBusy(false)
     }
   }
+
+  // While this view is open the background knows a code is wanted; closing the view ends the
+  // pairing, so the Mac's code window does not stay behind.
+  useEffect(() => {
+    const port = browser.runtime.connect({ name: APPLE_PAIRING_PORT })
+    return () => port.disconnect()
+  }, [])
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: runs once when shown.
   useEffect(() => {

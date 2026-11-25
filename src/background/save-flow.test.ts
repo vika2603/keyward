@@ -135,6 +135,21 @@ describe("onSubmitted", () => {
     expect(state.defaultTarget).toBe(accountVault.id)
   })
 
+  it("leaves out a vault told never to save logins for the site, and stays quiet when none is left", async () => {
+    const both = fakeProviders([
+      { info: appleVault, refusesSaving: true },
+      { info: accountVault },
+    ])
+    await onSubmitted(both.providers, TAB, 0, login)
+    const state = await promptState(both.providers, TAB)
+    expect(state.targets.map((target) => target.id)).toEqual([accountVault.id])
+
+    await prompts.remove(TAB)
+    const appleOnly = fakeProviders([{ info: appleVault, refusesSaving: true }])
+    await onSubmitted(appleOnly.providers, TAB, 0, login)
+    expect(await prompts.get(TAB)).toBeNull()
+  })
+
   it("respects the settings and site rules that turn prompts off", async () => {
     const { providers } = fakeProviders([{ info: accountVault }])
     await updateSettings({ askSave: false })

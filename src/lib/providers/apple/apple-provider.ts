@@ -24,6 +24,7 @@ import {
   entriesOf,
   type HelperCapabilities,
   isLoginEntry,
+  isNeverSavedEntry,
   QueryStatus,
   SecureSession,
 } from "./protocol"
@@ -150,6 +151,7 @@ export class AppleProvider implements VaultProvider {
   private readonly lanes = new Map<string, Promise<unknown>>()
   private saveCount = 0
   private readonly listeners = new Set<(state: AppleState) => void>()
+  private readonly codeListeners = new Set<() => void>()
 
   constructor() {
     this.port = new HelperPort({
@@ -166,6 +168,11 @@ export class AppleProvider implements VaultProvider {
 
   onChange(listener: (state: AppleState) => void): void {
     this.listeners.add(listener)
+  }
+
+  /** Calls `listener` when the helper says the verification codes it offers have changed. */
+  onCodesChanged(listener: () => void): void {
+    this.codeListeners.add(listener)
   }
 
   getState(): AppleState {
@@ -435,7 +442,36 @@ export class AppleProvider implements VaultProvider {
     return entries
   }
 
+  /**
+   * Whether the user chose in the Passwords app never to save passwords for the page's site. Its
+   * logins are still listed and filled; only the offer to save a new one is left out.
+   */
+  async refusesSaving(_vaultId: string, page: URL): Promise<boolean> {
+    const entries = await this.listedEntries(page.hostname, {
+      tabId: 0,
+      frameId: 0,
+    })
+    return entries.some(isNeverSavedEntry)
+  }
+
   private async listEntries(host: string, tab: TabRef): Promise<Entry[]> {
+    const entries = await this.listedEntries(host, tab)
+    return entries.filter(isLoginEntry).map((entry) => {
+      const sites = Array.isArray(entry.sites) ? entry.sites.map(String) : []
+      return {
+        username: textOf(entry.USR),
+        site: sites[0] ?? host,
+        sites: sites.length ? sites : [host],
+        customTitle: textOf(entry.customTitle) || undefined,
+      }
+    })
+  }
+
+  /** Every entry the helper lists for a host, including the mark of a site never saved. */
+  private async listedEntries(
+    host: string,
+    tab: TabRef,
+  ): Promise<Record<string, unknown>[]> {
     // The helper has crashed on a request with an empty URL, which also ends the session.
     if (!isHostName(host)) return []
     const reply = await this.serialized("list", () =>
@@ -453,16 +489,6 @@ export class AppleProvider implements VaultProvider {
     )
     if (reply.STATUS === QueryStatus.NoResults) return []
     return entriesOf(reply)
-      .filter(isLoginEntry)
-      .map((entry) => {
-        const sites = Array.isArray(entry.sites) ? entry.sites.map(String) : []
-        return {
-          username: textOf(entry.USR),
-          site: sites[0] ?? host,
-          sites: sites.length ? sites : [host],
-          customTitle: textOf(entry.customTitle) || undefined,
-        }
-      })
   }
 
   /**
@@ -760,6 +786,40 @@ export class AppleProvider implements VaultProvider {
     )
   }
 
+  /** Opens the Passwords app's form for a new password, with the site filled in. */
+  async openNewPasswordSheet(site: string): Promise<void> {
+    await this.ensureConnected()
+    if (!this.capabilities?.canOpenPasswordsAppToNewPasswordSheet) {
+      throw new VaultError(
+        "This Passwords app cannot open its new password form",
+        "apple.unsupported",
+      )
+    }
+    if (!isHostName(site))
+      throw new VaultError("Not a web address", "invalidSite")
+    this.port.post({
+      cmd: Cmd.LaunchPasswordsApp,
+      newPasswordWithSuggestedURL: `https://${site}`,
+    })
+  }
+
+  /**
+   * Ends a pairing that waits for its code, as when the view that asked for the code closes. The
+   * Mac then closes the window that shows the code; asking again shows it again. This waits for
+   * pairing requests already made, then asks `stillWanted` again, since a view may have opened
+   * meanwhile.
+   */
+  cancelPairing(stillWanted: () => boolean = () => false): Promise<void> {
+    return this.serialized("pair", async () => {
+      const waitingForCode =
+        this.state.phase === "awaitingCode" && this.pairing !== null
+      if (!waitingForCode || !this.port.connected || stillWanted()) return
+      this.port.post({ cmd: Cmd.DidCancelPINPairing })
+      this.pairing = null
+      this.setState({ phase: "unpaired" })
+    })
+  }
+
   /** Whether the Passwords app can be handed a verification code to set up right now. */
   canSetUpCodes(): boolean {
     return this.session !== null && this.capabilities?.scanForOTPURI === true
@@ -832,6 +892,10 @@ export class AppleProvider implements VaultProvider {
   }
 
   private onUnsolicited(message: HelperMessage): void {
+    if (message.cmd === Cmd.OneTimeCodeAvailable) {
+      for (const listener of this.codeListeners) listener()
+      return
+    }
     if (
       message.cmd === Cmd.PasswordsDisabled ||
       message.cmd === Cmd.ReloginNeeded

@@ -92,3 +92,92 @@ describe("AppleProvider.logins", () => {
     ])
   })
 })
+
+/** The provider's private parts these tests stand in for or look at. */
+interface ProviderInternals {
+  query: (...args: unknown[]) => Promise<Record<string, unknown>>
+  port: { connected: boolean; post: (message: unknown) => void }
+  state: { phase: string }
+  pairing: object | null
+  onUnsolicited: (message: { cmd: number }) => void
+}
+
+function internalsOf(apple: AppleProvider): ProviderInternals {
+  return apple as unknown as ProviderInternals
+}
+
+describe("AppleProvider.refusesSaving", () => {
+  const listing = (...users: string[]) => ({
+    STATUS: 0,
+    Entries: users.map((USR) => ({
+      USR,
+      PWD: "Not Included",
+      sites: ["example.com"],
+    })),
+  })
+
+  it("tells a site set never to save, while its logins are still listed", async () => {
+    const apple = new AppleProvider()
+    vi.spyOn(internalsOf(apple), "query").mockResolvedValue(
+      listing("someone", "Passwords\u00a0not\u00a0saved"),
+    )
+    const page = new URL("https://example.com/login")
+    expect(await apple.refusesSaving("apple", page)).toBe(true)
+    expect(
+      (await apple.logins("apple", page)).map((login) => login.username),
+    ).toEqual(["someone"])
+  })
+
+  it("takes a site with only logins as one that saves", async () => {
+    const apple = new AppleProvider()
+    vi.spyOn(internalsOf(apple), "query").mockResolvedValue(listing("someone"))
+    expect(
+      await apple.refusesSaving("apple", new URL("https://example.com/")),
+    ).toBe(false)
+  })
+})
+
+describe("AppleProvider.cancelPairing", () => {
+  function waitingForCode() {
+    const apple = new AppleProvider()
+    const internals = internalsOf(apple)
+    const post = vi.fn()
+    Object.assign(internals, {
+      port: { connected: true, post },
+      state: { phase: "awaitingCode" },
+      pairing: {},
+    })
+    return { apple, internals, post }
+  }
+
+  it("tells the helper to close its code window and forgets the attempt", async () => {
+    const { apple, post } = waitingForCode()
+    await apple.cancelPairing()
+    expect(post).toHaveBeenCalledWith({ cmd: 19 })
+    expect(apple.getState().phase).toBe("unpaired")
+  })
+
+  it("leaves the pairing alone when a view wants the code again by then", async () => {
+    const { apple, post } = waitingForCode()
+    await apple.cancelPairing(() => true)
+    expect(post).not.toHaveBeenCalled()
+    expect(apple.getState().phase).toBe("awaitingCode")
+  })
+
+  it("sends nothing once paired", async () => {
+    const { apple, internals, post } = waitingForCode()
+    internals.state = { phase: "paired" }
+    await apple.cancelPairing()
+    expect(post).not.toHaveBeenCalled()
+  })
+})
+
+describe("AppleProvider.onCodesChanged", () => {
+  it("passes on the helper's word that its verification codes changed", () => {
+    const apple = new AppleProvider()
+    const listener = vi.fn()
+    apple.onCodesChanged(listener)
+    internalsOf(apple).onUnsolicited({ cmd: 15 })
+    expect(listener).toHaveBeenCalledTimes(1)
+  })
+})

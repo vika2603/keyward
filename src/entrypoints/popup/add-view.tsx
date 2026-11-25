@@ -1,4 +1,4 @@
-import { RefreshCcwDotIcon } from "lucide-react"
+import { ExternalLinkIcon, RefreshCcwDotIcon } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
 import { callBackground } from "@/background/api"
 import { errorMessage } from "@/components/keyward/errors"
@@ -81,6 +81,16 @@ function AddLoginForm({ onDone }: { onDone: () => void }) {
   }
 
   const apple = targets?.find((t) => t.id === target)?.kind === "apple"
+
+  // The Passwords app's own form also takes a title and notes, which Keyward cannot save there.
+  const openNewPasswordSheet = async () => {
+    setMessage(null)
+    try {
+      await callBackground("apple.openNewPasswordSheet", { site })
+    } catch (error) {
+      setMessage(errorMessage(error))
+    }
+  }
   return (
     <form
       className="flex min-h-0 flex-1 flex-col"
@@ -150,6 +160,18 @@ function AddLoginForm({ onDone }: { onDone: () => void }) {
             onChange={setTarget}
             label={t("popup.add.saveTo")}
           />
+          {apple && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="self-start text-muted-foreground"
+              onClick={() => void openNewPasswordSheet()}
+            >
+              <ExternalLinkIcon />
+              {t("popup.add.openNewPasswordSheet")}
+            </Button>
+          )}
           {unsupported.some((vault) => vault.kind === "apple") ? (
             <p className="text-xs text-muted-foreground">
               {t("error.apple.unsupportedSite")}

@@ -501,6 +501,16 @@ export function createHandlers(providers: Providers): Handlers<BackgroundApi> {
       },
     },
 
+    "apple.openNewPasswordSheet": {
+      allow: popup,
+      handle: async ({ site }) => {
+        const url = normalizeSiteInput(requireText(site, "site", 2048))
+        if (!url) throw new VaultError("Not a web address", "invalidSite")
+        await apple.openNewPasswordSheet(url.hostname)
+        return null
+      },
+    },
+
     "bitwarden.accounts": {
       allow: connectPages,
       handle: () => bitwarden.accounts(),

@@ -38,6 +38,8 @@ export interface FakeVault {
   logins?: LoginSummary[]
   /** Whether the vault stores logins for any address; true when left out. */
   canSave?: boolean
+  /** Whether the user told the vault never to save logins for the site. */
+  refusesSaving?: boolean
   /** Logins with one-time codes listed for any page. */
   codeLogins?: LoginSummary[]
   code?: OneTimeCode
@@ -71,6 +73,7 @@ export function fakeProviders(vaults: FakeVault[]) {
       return vault.code
     },
     canSave: () => vault.canSave ?? true,
+    refusesSaving: async () => vault.refusesSaving ?? false,
     save: async (...args) => {
       calls.save(...args)
     },

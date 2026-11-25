@@ -221,6 +221,8 @@ export interface VaultProvider {
   remove?(vaultId: string, loginId: string): Promise<void>
   /** Whether the provider can store a login for this address; a save prompt offers only those that can. */
   canSave(url: URL): boolean
+  /** Whether the user told the provider never to save logins for the page's site; a save prompt leaves it out. */
+  refusesSaving?(vaultId: string, page: URL): Promise<boolean>
   save(vaultId: string, login: NewLogin, tab: TabRef): Promise<void>
   update(
     vaultId: string,
