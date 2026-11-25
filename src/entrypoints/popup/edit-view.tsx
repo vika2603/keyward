@@ -80,6 +80,30 @@ function MatchSelect({
   )
 }
 
+/**
+ * A website as a background from before per-website matching sends and takes it, until the
+ * extension reloads: the address alone.
+ */
+type BareAddress = string
+
+function sentBareAddresses(received: readonly (Website | BareAddress)[]) {
+  return received.some((website) => typeof website === "string")
+}
+
+function websitesOf(received: readonly (Website | BareAddress)[]): Website[] {
+  return received.map((website) =>
+    typeof website === "string" ? { uri: website, match: null } : website,
+  )
+}
+
+/** The websites in the form the background takes them. */
+function websitesFor(websites: Website[], bare: boolean): Website[] {
+  if (!bare) return websites
+  // The request is typed for the current background; an older one reads these as addresses.
+  const addresses: BareAddress[] = websites.map((website) => website.uri)
+  return addresses as unknown as Website[]
+}
+
 /** Changes a login's name, username, password, addresses, notes, authenticator key and custom fields. */
 export function EditView({
   vault,
@@ -106,13 +130,8 @@ export function EditView({
       loginId: login.id,
     }).then(
       (loaded) => {
-        const received = loaded.uris as (Website | string)[]
-        const uris = received.map((website) =>
-          typeof website === "string" ? { uri: website, match: null } : website,
-        )
-        setBareAddresses(
-          received.some((website) => typeof website === "string"),
-        )
+        const uris = websitesOf(loaded.uris)
+        setBareAddresses(sentBareAddresses(loaded.uris))
         setForm({
           ...loaded,
           uris: uris.length ? uris : [{ uri: "", match: null }],
@@ -149,12 +168,7 @@ export function EditView({
       await callBackground("popup.editLogin", {
         vaultId: vault.id,
         loginId: login.id,
-        change: {
-          ...form,
-          uris: bareAddresses
-            ? (uris.map((website) => website.uri) as unknown as Website[])
-            : uris,
-        },
+        change: { ...form, uris: websitesFor(uris, bareAddresses) },
       })
       onDone()
     })

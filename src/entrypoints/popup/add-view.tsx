@@ -1,5 +1,5 @@
 import { ExternalLinkIcon, RefreshCcwDotIcon } from "lucide-react"
-import { useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { callBackground } from "@/background/api"
 import { errorMessage, isUnsupportedRequest } from "@/components/keyward/errors"
 import { FormError, FormField } from "@/components/keyward/form-field"
@@ -129,12 +129,17 @@ function LoginDetailsFields({
   )
 }
 
-const EMPTY_DETAILS: NewLoginDetails = {
+const EMPTY_DETAILS: Omit<NewLoginDetails, "folderId"> = {
   name: "",
   notes: "",
   totp: "",
   customFields: [],
-  folderId: null,
+}
+
+/** The vault a new login goes to, and its folder there. */
+interface Destination {
+  vaultId: string | null
+  folderId: string | null
 }
 
 /** A new login: its site, username, password and the vault it goes to. */
@@ -144,13 +149,26 @@ function AddLoginForm({ onDone }: { onDone: () => void }) {
   const [password, setPassword] = useState("")
   const [targets, setTargets] = useState<VaultInfo[] | null>(null)
   const [unsupported, setUnsupported] = useState<VaultInfo[]>([])
-  const [target, setTarget] = useState<string | null>(null)
+  const [destination, setDestination] = useState<Destination>({
+    vaultId: null,
+    folderId: null,
+  })
+  const target = destination.vaultId
+  /**
+   * Chooses the vault from the one chosen so far. A folder belongs to one account, so another
+   * account starts outside every folder.
+   */
+  const chooseTarget = useCallback(
+    (choose: (current: string | null) => string | null) =>
+      setDestination((current) => {
+        const vaultId = choose(current.vaultId)
+        return vaultId === current.vaultId
+          ? current
+          : { vaultId, folderId: null }
+      }),
+    [],
+  )
   const [details, setDetails] = useState(EMPTY_DETAILS)
-  // A folder belongs to one account, so another account starts outside every folder.
-  // biome-ignore lint/correctness/useExhaustiveDependencies: the folder resets whenever the target changes.
-  useEffect(() => {
-    setDetails((current) => ({ ...current, folderId: null }))
-  }, [target])
   /** Why no place could be found for the site; the site's places are unknown meanwhile. */
   const [targetsError, setTargetsError] = useState<string | null>(null)
   const request = useRef(0)
@@ -173,7 +191,7 @@ function AddLoginForm({ onDone }: { onDone: () => void }) {
             setTargets(result.targets)
             setUnsupported(result.unsupported)
             setTargetsError(null)
-            setTarget((current) =>
+            chooseTarget((current) =>
               result.targets.some((candidate) => candidate.id === current)
                 ? current
                 : result.defaultTarget,
@@ -184,7 +202,7 @@ function AddLoginForm({ onDone }: { onDone: () => void }) {
             // The places found for the previous site may not take this one.
             setTargets([])
             setUnsupported([])
-            setTarget(null)
+            chooseTarget(() => null)
             setTargetsError(errorMessage(error))
           },
         ),
@@ -192,7 +210,7 @@ function AddLoginForm({ onDone }: { onDone: () => void }) {
       id === 1 ? 0 : SITE_TYPING_DELAY_MS,
     )
     return () => clearTimeout(timer)
-  }, [site])
+  }, [site, chooseTarget])
 
   const generate = async () => {
     const generated = generatePassword(await getGeneratorOptions())
@@ -211,7 +229,9 @@ function AddLoginForm({ onDone }: { onDone: () => void }) {
         site,
         username,
         password,
-        details: bitwarden ? details : undefined,
+        details: bitwarden
+          ? { ...details, folderId: destination.folderId }
+          : undefined,
       })
       onDone()
     })
@@ -283,7 +303,7 @@ function AddLoginForm({ onDone }: { onDone: () => void }) {
           <VaultSelect
             vaults={targets ?? []}
             value={target}
-            onChange={setTarget}
+            onChange={(vaultId) => chooseTarget(() => vaultId)}
             label={t("popup.add.saveTo")}
           />
           {/* In a block of its own, so the field does not stretch the button across. */}
@@ -319,10 +339,12 @@ function AddLoginForm({ onDone }: { onDone: () => void }) {
           <LoginDetailsFields
             vaultId={target}
             site={site}
-            details={details}
-            onChange={(change) =>
+            details={{ ...details, folderId: destination.folderId }}
+            onChange={({ folderId, ...change }) => {
+              if (folderId !== undefined)
+                setDestination((current) => ({ ...current, folderId }))
               setDetails((current) => ({ ...current, ...change }))
-            }
+            }}
           />
         )}
         {busy && apple && (
