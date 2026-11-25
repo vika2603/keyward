@@ -1,4 +1,8 @@
-import { generatePassword, getGeneratorOptions } from "@/lib/generator"
+import {
+  type GeneratorKind,
+  generatePassword,
+  getGeneratorOptions,
+} from "@/lib/generator"
 import type { Handlers, Sender } from "@/lib/messaging"
 import {
   type CustomEndpoints,
@@ -27,7 +31,14 @@ import {
 } from "./autofill"
 import { copyText } from "./clipboard"
 import { finishSetup, offerCandidate, pendingSetup } from "./code-setup"
-import { addHistory, clearHistory, listHistory } from "./history"
+import {
+  addHistory,
+  addShownNow,
+  addWhenSettled,
+  clearHistory,
+  listHistory,
+  settleNow,
+} from "./history"
 import { menus, prompts } from "./overlays"
 import { activeTab, frameUrl, sendToFrame, webPage } from "./page"
 import type { Providers } from "./providers"
@@ -45,7 +56,6 @@ import {
 } from "./save-flow"
 
 const POPUP_VIEW_KEY = "popup.view"
-const MAX_GENERATED_LENGTH = 128
 
 function tabFrame(sender: Sender): { tabId: number; frameId: number } {
   if (sender.tab?.id === undefined || sender.frameId === undefined) {
@@ -107,6 +117,10 @@ async function activePage(): Promise<{
 }> {
   const tab = await activeTab()
   return { tabId: tab?.id, page: webPage(tab?.url) }
+}
+
+async function activeHost(): Promise<string | null> {
+  return (await activePage()).page?.hostname ?? null
 }
 
 /** The tab a popup read is reported for; Apple's helper only uses it to route its reply. */
@@ -213,6 +227,12 @@ function customFieldInput(value: unknown): CustomField {
     default:
       throw invalid
   }
+}
+
+function generatorKind(value: unknown): GeneratorKind {
+  if (value !== "password" && value !== "passphrase" && value !== "username")
+    throw new VaultError("Invalid generator kind", "invalidInput")
+  return value
 }
 
 function fieldKind(value: unknown): FieldKind {
@@ -616,7 +636,7 @@ export function createHandlers(providers: Providers): Handlers<BackgroundApi> {
     "generator.copy": {
       allow: popup,
       handle: async ({ password }) => {
-        requireText(password, "password", MAX_GENERATED_LENGTH)
+        requireText(password, "password")
         await copyText(password, true)
         const { page } = await activePage()
         await addHistory(password, page?.hostname ?? null)
@@ -626,19 +646,40 @@ export function createHandlers(providers: Providers): Handlers<BackgroundApi> {
     "generator.record": {
       allow: popup,
       handle: async ({ password, site }) => {
-        requireText(password, "password", MAX_GENERATED_LENGTH)
+        requireText(password, "password")
         const host = normalizeSiteInput(requireText(site, "site"))?.hostname
         await addHistory(password, host ?? null)
         return null
       },
     },
-    "history.list": { allow: popup, handle: () => listHistory() },
+    "generator.shown": {
+      allow: popup,
+      handle: async ({ value, kind, copied }) => {
+        requireText(value, "value")
+        const checkedKind = generatorKind(kind)
+        if (copied === true) {
+          await addShownNow(value, checkedKind, await activeHost())
+        } else {
+          // Nothing is awaited before this, so values wait to settle in the order the popup showed them.
+          addWhenSettled(value, checkedKind, activeHost)
+        }
+        return null
+      },
+    },
+    "history.list": {
+      allow: popup,
+      handle: async () => {
+        await settleNow()
+        return listHistory()
+      },
+    },
     "history.copy": {
       allow: popup,
       handle: async ({ id }) => {
         const entry = (await listHistory()).find((e) => e.id === id)
         if (!entry) throw new VaultError("Unknown entry", "notFound")
-        await copyText(entry.password, true)
+        // A username is not a secret, so it stays on the clipboard.
+        await copyText(entry.value, entry.kind !== "username")
         return null
       },
     },

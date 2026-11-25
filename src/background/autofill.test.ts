@@ -137,7 +137,7 @@ describe("fillNewPassword", () => {
       password: generated,
     })
     expect(await listHistory()).toMatchObject([
-      { password: generated, host: "accounts.example.com" },
+      { value: generated, kind: "password", host: "accounts.example.com" },
     ])
   })
 

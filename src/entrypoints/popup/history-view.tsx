@@ -5,11 +5,18 @@ import { useCopyThrough } from "@/components/keyward/copy-through"
 import { notifyError } from "@/components/keyward/notify"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
-import { currentLanguage, t } from "@/lib/i18n"
+import type { GeneratorKind } from "@/lib/generator"
+import { currentLanguage, type MessageKey, t } from "@/lib/i18n"
 import { BackHeader } from "./header"
 
 /** Fixed length, so the mask does not reveal how long a password is. */
 const MASK = "••••••••••••"
+
+const COPY_LABELS: Record<GeneratorKind, MessageKey> = {
+  password: "popup.history.copyPassword",
+  passphrase: "popup.history.copyPassphrase",
+  username: "popup.history.copyUsername",
+}
 
 function whenText(at: number): string {
   const minutes = Math.round((Date.now() - at) / 60_000)
@@ -120,34 +127,41 @@ export function HistoryView({ onBack }: { onBack: () => void }) {
           </p>
         )}
         <div ref={list} className="flex flex-col gap-0.5 p-1">
-          {entries?.map((entry) => (
-            <div
-              key={entry.id}
-              className="group/row flex min-h-12 items-center gap-2.5 rounded-lg px-2 py-1.5 hover:bg-muted focus-within:bg-muted"
-            >
-              <div className="flex min-w-0 flex-1 flex-col">
-                <span
-                  data-entry={shown ? entry.id : undefined}
-                  className="truncate font-mono text-sm font-medium select-all"
-                >
-                  {shown ? entry.password : MASK}
-                </span>
-                <span className="truncate text-xs text-muted-foreground">
-                  {[entry.host, whenText(entry.at)].filter(Boolean).join(" · ")}
-                </span>
-              </div>
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                className="opacity-0 group-hover/row:opacity-100 group-focus-within/row:opacity-100 hover:bg-background"
-                aria-label={t("popup.copyPassword")}
-                title={t("popup.copyPassword")}
-                onClick={() => void copy(entry.id)}
+          {entries?.map((entry) => {
+            // Usernames are not secrets, so they show without the eye button.
+            const visible = shown || entry.kind === "username"
+            const copyLabel = t(COPY_LABELS[entry.kind])
+            return (
+              <div
+                key={entry.id}
+                className="group/row flex min-h-12 items-center gap-2.5 rounded-lg px-2 py-1.5 hover:bg-muted focus-within:bg-muted"
               >
-                {copied === entry.id ? <CheckIcon /> : <CopyIcon />}
-              </Button>
-            </div>
-          ))}
+                <div className="flex min-w-0 flex-1 flex-col">
+                  <span
+                    data-entry={visible ? entry.id : undefined}
+                    className="truncate font-mono text-sm font-medium select-all"
+                  >
+                    {visible ? entry.value : MASK}
+                  </span>
+                  <span className="truncate text-xs text-muted-foreground">
+                    {[entry.host, whenText(entry.at)]
+                      .filter(Boolean)
+                      .join(" · ")}
+                  </span>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  className="opacity-0 group-hover/row:opacity-100 group-focus-within/row:opacity-100 hover:bg-background"
+                  aria-label={copyLabel}
+                  title={copyLabel}
+                  onClick={() => void copy(entry.id)}
+                >
+                  {copied === entry.id ? <CheckIcon /> : <CopyIcon />}
+                </Button>
+              </div>
+            )
+          })}
         </div>
       </div>
       <Separator />

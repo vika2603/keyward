@@ -212,6 +212,10 @@ export function GeneratorView({
       void generatedItem.setValue(next)
       return next
     })
+    if (value !== null)
+      void callBackground("generator.shown", { value, kind: which }).catch(
+        (error) => setMessage(errorMessage(error)),
+      )
   }, [])
 
   /** A new value for a kind, or null while the word list loads or a username needs more input. */
@@ -244,13 +248,15 @@ export function GeneratorView({
     if (value === null) return
     setMessage(null)
     try {
+      // Kept with its kind right away, since another value may replace it before it settles.
+      await callBackground("generator.shown", { value, kind, copied: true })
       if (secret) await callBackground("generator.copy", { password: value })
       else await callBackground("popup.copyText", { text: value })
       setCopied(true)
     } catch (error) {
       setMessage(errorMessage(error))
     }
-  }, [value, secret])
+  }, [value, kind, secret])
   useCopyThrough(
     shown,
     useCallback(() => void copy(), [copy]),

@@ -1,3 +1,4 @@
+import type { GeneratorKind } from "@/lib/generator"
 import type { Language } from "@/lib/i18n/language"
 import { sendRequest } from "@/lib/messaging"
 import type { AppleState } from "@/lib/providers/apple/apple-provider"
@@ -55,7 +56,8 @@ export interface PageInfo {
 
 export interface HistoryEntry {
   id: string
-  password: string
+  value: string
+  kind: GeneratorKind
   host: string | null
   at: number
 }
@@ -241,6 +243,11 @@ export type BackgroundApi = {
   }
   "bitwarden.cancelSignIn": { payload: null; result: null }
   "generator.copy": { payload: { password: string }; result: null }
+  /** A value the generator view shows; it enters the history once it settles, or at once when it is copied. */
+  "generator.shown": {
+    payload: { value: string; kind: GeneratorKind; copied?: boolean }
+    result: null
+  }
   /** Keeps a password generated in the add view in the history; the popup may close before it is saved. */
   "generator.record": {
     payload: { password: string; site: string }
