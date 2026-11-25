@@ -234,48 +234,6 @@ function SignIn({ onSignedIn }: { onSignedIn: () => void }) {
         })
       }}
     >
-      <div className="flex flex-col gap-2">
-        <span className="text-sm leading-none font-medium">
-          {t("options.onboard.signIn.server")}
-        </span>
-        <Select
-          value={selfHosted ? "selfHosted" : "official"}
-          onValueChange={(value) => setSelfHosted(value === "selfHosted")}
-          items={[
-            { value: "official", label: t("options.onboard.signIn.official") },
-            {
-              value: "selfHosted",
-              label: t("options.onboard.signIn.selfHosted"),
-            },
-          ]}
-        >
-          <SelectTrigger
-            className="w-full"
-            aria-label={t("options.onboard.signIn.server")}
-          >
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="official">
-              {t("options.onboard.signIn.official")}
-            </SelectItem>
-            <SelectItem value="selfHosted">
-              {t("options.onboard.signIn.selfHosted")}
-            </SelectItem>
-          </SelectContent>
-        </Select>
-        {selfHosted && (
-          <Input
-            inputMode="url"
-            spellCheck={false}
-            value={serverUrl}
-            onChange={(event) => setServerUrl(event.target.value)}
-            placeholder="https://vault.example.com"
-            aria-label={t("options.onboard.signIn.serverUrl")}
-            required
-          />
-        )}
-      </div>
       <label className="flex flex-col gap-2">
         <span className="text-sm leading-none font-medium">
           {t("options.onboard.signIn.email")}
@@ -300,6 +258,53 @@ function SignIn({ onSignedIn }: { onSignedIn: () => void }) {
           required
         />
       </label>
+      <div className="flex flex-col gap-2">
+        <div className="flex items-center justify-between gap-3">
+          <span className="text-sm text-muted-foreground">
+            {t("options.onboard.signIn.server")}
+          </span>
+          <Select
+            value={selfHosted ? "selfHosted" : "official"}
+            onValueChange={(value) => setSelfHosted(value === "selfHosted")}
+            items={[
+              {
+                value: "official",
+                label: t("options.onboard.signIn.official"),
+              },
+              {
+                value: "selfHosted",
+                label: t("options.onboard.signIn.selfHosted"),
+              },
+            ]}
+          >
+            <SelectTrigger
+              size="sm"
+              aria-label={t("options.onboard.signIn.server")}
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent align="end">
+              <SelectItem value="official">
+                {t("options.onboard.signIn.official")}
+              </SelectItem>
+              <SelectItem value="selfHosted">
+                {t("options.onboard.signIn.selfHosted")}
+              </SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        {selfHosted && (
+          <Input
+            inputMode="url"
+            spellCheck={false}
+            value={serverUrl}
+            onChange={(event) => setServerUrl(event.target.value)}
+            placeholder="https://vault.example.com"
+            aria-label={t("options.onboard.signIn.serverUrl")}
+            required
+          />
+        )}
+      </div>
       {message && <p className="text-xs text-destructive">{message}</p>}
       <Button
         type="submit"
