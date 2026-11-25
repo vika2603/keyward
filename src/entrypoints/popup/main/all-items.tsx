@@ -1,5 +1,4 @@
 import { useVirtualizer } from "@tanstack/react-virtual"
-import { ChevronDownIcon } from "lucide-react"
 import {
   type ReactNode,
   type RefObject,
@@ -27,7 +26,7 @@ import type {
   TrashedItem,
 } from "@/lib/providers/types"
 import type { Settings } from "@/lib/settings"
-import { cn } from "@/lib/utils"
+import { FoldToggle } from "./fold-toggle"
 import {
   GroupFilterBar,
   GroupFilterButton,
@@ -297,22 +296,10 @@ export function VirtualRows({
                 <span className="px-1 text-xs text-muted-foreground tabular-nums">
                   {row.count}
                 </span>
-                {/* The name is the keyboard's way to fold; this is a second target for the pointer. */}
-                <button
-                  type="button"
-                  tabIndex={-1}
-                  aria-label={t("popup.main.toggleGroup")}
-                  title={t("popup.main.toggleGroup")}
+                <FoldToggle
+                  open={row.open}
                   onClick={() => onToggleVault?.(row.vault.id)}
-                  className="flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground outline-none hover:bg-muted hover:text-foreground [&_svg]:size-3"
-                >
-                  <ChevronDownIcon
-                    className={cn(
-                      "transition-transform",
-                      !row.open && "-rotate-90",
-                    )}
-                  />
-                </button>
+                />
               </div>
             )}
             {row.type === "groupFilter" && (

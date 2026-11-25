@@ -20,7 +20,7 @@ function bitwardenVault(status: VaultStatus): VaultView {
   }
 }
 
-const noSearch = { results: null, allItems: null, search: "" }
+const noSearch = { results: null, allItems: null, query: "" }
 
 describe("mainLists", () => {
   it("narrows to the chosen provider while the tabs show", () => {

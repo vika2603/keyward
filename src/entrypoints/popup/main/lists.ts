@@ -6,6 +6,9 @@ export type ProviderTab = "all" | ProviderKind
 
 /** The vaults the main list shows, and how, from the popup's state and the user's choices. */
 export interface MainLists {
+  anyVaultReady: boolean
+  /** What is searched; empty for the page's logins, and until a vault is ready to search. */
+  search: string
   /** Whether the provider tabs show: once a vault is ready and there are vaults of both kinds. */
   tabsShown: boolean
   /** The tab that applies; every vault while the tabs are hidden. */
@@ -32,7 +35,7 @@ export function mainLists({
   vaults,
   results,
   allItems,
-  search,
+  query,
   tab,
 }: {
   /** The page's vaults. */
@@ -41,13 +44,15 @@ export function mainLists({
   results: readonly VaultView[] | null
   /** Every item of the vaults that can list themselves whole; null while they load. */
   allItems: readonly VaultView[] | null
-  /** What is searched; empty for the page's logins. */
-  search: string
+  /** What is typed in the search box. */
+  query: string
   /** The tab the user chose. */
   tab: ProviderTab
 }): MainLists {
   const kinds = new Set(vaults.map((vault) => vault.kind))
   const anyVaultReady = vaults.some((vault) => vault.status === "ready")
+  // Nothing can be searched or filtered until a vault is ready; the view offers to connect instead.
+  const search = anyVaultReady ? query.trim() : ""
   const tabsShown = anyVaultReady && kinds.size > 1
   // Locking hides the tabs, and with them the choice of one; the choice comes back with them.
   const activeTab = tabsShown ? tab : "all"
@@ -90,6 +95,8 @@ export function mainLists({
     !search.includes(".") &&
     shown.some((vault) => vault.kind === "apple" && vault.status === "ready")
   return {
+    anyVaultReady,
+    search,
     tabsShown,
     activeTab,
     shown,
