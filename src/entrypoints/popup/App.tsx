@@ -2,7 +2,7 @@ import { useEffect, useState } from "react"
 import { callBackground, type PopupView } from "@/background/api"
 import { useAppearance } from "@/components/keyward/appearance"
 import { useLanguage } from "@/components/keyward/language"
-import type { LoginSummary, SourceInfo } from "@/lib/backends/types"
+import type { LoginSummary, VaultInfo } from "@/lib/providers/types"
 import { AddView } from "./add-view"
 import { CodeSetupView } from "./code-setup-view"
 import { ConnectView } from "./connect-view"
@@ -16,8 +16,8 @@ export type View =
   | PopupView
   | { name: "add" }
   | { name: "history" }
-  | { name: "detail"; source: SourceInfo; login: LoginSummary }
-  | { name: "edit"; source: SourceInfo; login: LoginSummary }
+  | { name: "detail"; vault: VaultInfo; login: LoginSummary }
+  | { name: "edit"; vault: VaultInfo; login: LoginSummary }
 
 // Requested once per popup: the background hands out a pending view only to the first request.
 const initialView = callBackground("popup.takeView", null).catch(
@@ -52,7 +52,7 @@ export function App() {
       {view?.name === "add" && <AddView onBack={main} />}
       {view?.name === "detail" && (
         <DetailView
-          source={view.source}
+          vault={view.vault}
           login={view.login}
           onBack={main}
           onEdit={() => setView({ ...view, name: "edit" })}
@@ -60,7 +60,7 @@ export function App() {
       )}
       {view?.name === "edit" && (
         <EditView
-          source={view.source}
+          vault={view.vault}
           login={view.login}
           onDone={() => setView({ ...view, name: "detail" })}
         />
@@ -77,11 +77,11 @@ export function App() {
       {view?.name === "codeSetup" && (
         <CodeSetupView
           onBack={main}
-          onConnect={(source) =>
+          onConnect={(vault) =>
             setView({
               name: "connect",
-              kind: source.kind,
-              sourceId: source.id,
+              kind: vault.kind,
+              vaultId: vault.id,
               back: "codeSetup",
             })
           }
@@ -90,7 +90,7 @@ export function App() {
       {view?.name === "connect" && (
         <ConnectView
           kind={view.kind}
-          sourceId={view.sourceId}
+          vaultId={view.vaultId}
           onDone={
             view.back === "codeSetup"
               ? () => setView({ name: "codeSetup" })

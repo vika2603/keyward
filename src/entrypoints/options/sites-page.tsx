@@ -1,6 +1,6 @@
 import { PlusIcon, Trash2Icon } from "lucide-react"
 import { useState } from "react"
-import { backendName } from "@/components/keyward/brand-icon"
+import { providerName } from "@/components/keyward/brand-icon"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -29,7 +29,7 @@ import {
 import { t } from "@/lib/i18n"
 import {
   MatchType,
-  type RuleBackend,
+  type RuleProvider,
   type SiteBehavior,
   type SiteRule,
 } from "@/lib/settings"
@@ -47,11 +47,11 @@ function matchNames(): [MatchType, string][] {
     [MatchType.Never, t("options.sites.match.never")],
   ]
 }
-function backendNames(): [RuleBackend, string][] {
+function providerNames(): [RuleProvider, string][] {
   return [
-    ["all", t("options.sites.backend.all")],
-    ["apple", backendName("apple")],
-    ["bitwarden", backendName("bitwarden")],
+    ["all", t("options.sites.provider.all")],
+    ["apple", providerName("apple")],
+    ["bitwarden", providerName("bitwarden")],
   ]
 }
 function behaviorNames(): [SiteBehavior, string][] {
@@ -111,7 +111,7 @@ export function SitesPage() {
   if (!settings) return null
 
   const ruleMatch = (rule: SiteRule) => {
-    if (rule.backend === "apple")
+    if (rule.provider === "apple")
       return (
         <span className="text-muted-foreground">
           {t("options.sites.match.bySystem")}
@@ -168,7 +168,7 @@ export function SitesPage() {
                     {t("options.sites.rules.match")}
                   </TableHead>
                   <TableHead className="px-4">
-                    {t("options.sites.rules.backend")}
+                    {t("options.sites.rules.provider")}
                   </TableHead>
                   <TableHead className="px-4">
                     {t("options.sites.rules.behavior")}
@@ -186,7 +186,7 @@ export function SitesPage() {
                     <TableCell className="px-4">{rule.host}</TableCell>
                     <TableCell className="px-4">{ruleMatch(rule)}</TableCell>
                     <TableCell className="px-4">
-                      {nameOf(backendNames(), rule.backend)}
+                      {nameOf(providerNames(), rule.provider)}
                     </TableCell>
                     <TableCell className="px-4">
                       {nameOf(behaviorNames(), rule.behavior)}
@@ -298,7 +298,7 @@ function RuleDialog({
 }) {
   const [site, setSite] = useState("")
   const [match, setMatch] = useState<MatchType | "default">("default")
-  const [backend, setBackend] = useState<RuleBackend>("all")
+  const [provider, setProvider] = useState<RuleProvider>("all")
   const [behavior, setBehavior] = useState<SiteBehavior>("default")
   const host = hostOfSavedUri(site)
 
@@ -314,7 +314,7 @@ function RuleDialog({
               id: crypto.randomUUID(),
               host,
               match: match === "default" ? null : match,
-              backend,
+              provider,
               behavior,
             })
             setSite("")
@@ -341,13 +341,13 @@ function RuleDialog({
           <div className="grid grid-cols-2 gap-3">
             <div className="flex flex-col gap-2">
               <span className="text-sm leading-none font-medium">
-                {t("options.sites.rules.backend")}
+                {t("options.sites.rules.provider")}
               </span>
               <ChoiceSelect
-                names={backendNames()}
-                value={backend}
-                onChange={setBackend}
-                label={t("options.sites.rules.backend")}
+                names={providerNames()}
+                value={provider}
+                onChange={setProvider}
+                label={t("options.sites.rules.provider")}
                 className="w-full"
               />
             </div>

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { AppleBackend, passwordIn } from "./apple-backend"
+import { AppleProvider, passwordIn } from "./apple-provider"
 
 describe("passwordIn", () => {
   const entry = (USR: string, PWD?: string) => ({
@@ -29,8 +29,8 @@ describe("passwordIn", () => {
   })
 })
 
-describe("AppleBackend.canSave", () => {
-  const apple = new AppleBackend()
+describe("AppleProvider.canSave", () => {
+  const apple = new AppleProvider()
   const canSave = (url: string) => apple.canSave(new URL(url))
 
   it("accepts hosts under public suffixes", () => {

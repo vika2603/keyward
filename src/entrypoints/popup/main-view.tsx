@@ -13,15 +13,11 @@ import {
 } from "lucide-react"
 import { type ReactNode, useCallback, useEffect, useRef, useState } from "react"
 import keywardIcon from "@/assets/icon.svg"
-import {
-  callBackground,
-  type PageInfo,
-  type SourceView,
-} from "@/background/api"
+import { callBackground, type PageInfo, type VaultView } from "@/background/api"
 import {
   BrandIcon,
-  backendName,
-  sourceLabel,
+  providerName,
+  vaultLabel,
 } from "@/components/keyward/brand-icon"
 import { errorMessage } from "@/components/keyward/errors"
 import { FADE_IN, LoginListSkeleton } from "@/components/keyward/loading"
@@ -36,19 +32,19 @@ import {
 import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import type {
-  BackendKind,
-  LoginSummary,
-  SourceInfo,
-} from "@/lib/backends/types"
 import { t } from "@/lib/i18n"
+import type {
+  LoginSummary,
+  ProviderKind,
+  VaultInfo,
+} from "@/lib/providers/types"
 import type { Settings } from "@/lib/settings"
 import { cn } from "@/lib/utils"
 import type { View } from "./App"
-import { ConnectCard, LockedSourceCard } from "./connect-card"
+import { ConnectCard, LockedVaultCard } from "./connect-card"
 import { openOptions, SettingsButton } from "./header"
 
-type Filter = "all" | BackendKind
+type Filter = "all" | ProviderKind
 
 /** A search waits for typing to pause this long. */
 const SEARCH_DELAY_MS = 150
@@ -67,9 +63,9 @@ export function MainView({
 }) {
   const [state, setState] = useState<{
     page: PageInfo | null
-    sources: SourceView[]
+    vaults: VaultView[]
   } | null>(null)
-  const [results, setResults] = useState<SourceView[] | null>(null)
+  const [results, setResults] = useState<VaultView[] | null>(null)
   /** Changes after a lock, so the search runs again. */
   const [version, setVersion] = useState(0)
   const [filter, setFilter] = useState<Filter>("all")
@@ -90,8 +86,9 @@ export function MainView({
   }, [])
   useEffect(load, [load])
 
-  // Nothing can be searched or filtered until a source is ready; the view offers to connect instead.
-  const connected = state?.sources.some((s) => s.status === "ready") ?? false
+  // Nothing can be searched or filtered until a vault is ready; the view offers to connect instead.
+  const connected =
+    state?.vaults.some((vault) => vault.status === "ready") ?? false
   const search = connected ? query.trim() : ""
   useEffect(() => {
     setResults(null)
@@ -111,9 +108,9 @@ export function MainView({
 
   const loading = state === null
   const page = state?.page ?? null
-  const sources = state?.sources ?? []
-  const kinds = new Set(sources.map((s) => s.kind))
-  const anyReady = sources.some((s) => s.status === "ready")
+  const vaults = state?.vaults ?? []
+  const kinds = new Set(vaults.map((vault) => vault.kind))
+  const anyReady = vaults.some((vault) => vault.status === "ready")
   const lockAll = async () => {
     setMessage(null)
     try {
@@ -123,27 +120,29 @@ export function MainView({
     }
     load()
   }
-  const shown = (search ? (results ?? []) : sources).filter(
-    (s) => filter === "all" || s.kind === filter,
+  const shown = (search ? (results ?? []) : vaults).filter(
+    (vault) => filter === "all" || vault.kind === filter,
   )
   const tabs = connected && kinds.size > 1
-  // Sources to pair or unlock get a large button each, except on the "all" tab once one is open:
+  // Vaults to pair or unlock get a large button each, except on the "all" tab once one is open:
   // each is then unlocked from its own tab. The others list their logins or say why they cannot.
   const locked =
-    filter === "all" && tabs ? [] : shown.filter((s) => s.status === "locked")
-  // Whether the sources in view can say a site has no logins, or take a new one.
-  const shownReady = shown.some((s) => s.status === "ready")
+    filter === "all" && tabs
+      ? []
+      : shown.filter((vault) => vault.status === "locked")
+  // Whether the vaults in view can say a site has no logins, or take a new one.
+  const shownReady = shown.some((vault) => vault.status === "ready")
   const listed = shown.filter(
-    (s) =>
-      s.status !== "locked" &&
-      (s.status !== "ready" || s.error || s.logins.length),
+    (vault) =>
+      vault.status !== "locked" &&
+      (vault.status !== "ready" || vault.error || vault.logins.length),
   )
-  const lockedCards = locked.map((source) => (
-    <LockedSourceCard
-      key={source.id}
-      source={source}
+  const lockedCards = locked.map((vault) => (
+    <LockedVaultCard
+      key={vault.id}
+      vault={vault}
       onClick={() =>
-        onNavigate({ name: "connect", kind: source.kind, sourceId: source.id })
+        onNavigate({ name: "connect", kind: vault.kind, vaultId: vault.id })
       }
     />
   ))
@@ -151,7 +150,7 @@ export function MainView({
   const appleSearchHint =
     search !== "" &&
     !search.includes(".") &&
-    shown.some((s) => s.kind === "apple" && s.status === "ready")
+    shown.some((vault) => vault.kind === "apple" && vault.status === "ready")
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -176,7 +175,7 @@ export function MainView({
           <RefreshCcwDotIcon />
         </Button>
         {/* Disabled rather than hidden once all is locked, so the buttons beside it stay put. */}
-        {(loading || sources.length > 0) && (
+        {(loading || vaults.length > 0) && (
           <Button
             variant="ghost"
             size="icon"
@@ -247,7 +246,7 @@ export function MainView({
               {(["apple", "bitwarden"] as const).map((kind) => (
                 <TabsTrigger key={kind} value={kind}>
                   <BrandIcon kind={kind} />
-                  {backendName(kind)}
+                  {providerName(kind)}
                 </TabsTrigger>
               ))}
             </TabsList>
@@ -275,8 +274,8 @@ export function MainView({
         )}
         {loading || (search && results === null) ? (
           !message && <LoginListSkeleton compact={density === "compact"} />
-        ) : !sources.length ? (
-          <EmptyState icon text={t("popup.main.noBackend")}>
+        ) : !vaults.length ? (
+          <EmptyState icon text={t("popup.main.noVault")}>
             <ConnectCard
               kind="apple"
               title={t("popup.main.pairApple")}
@@ -321,15 +320,13 @@ export function MainView({
           </EmptyState>
         ) : (
           <div className={FADE_IN}>
-            {listed.map((source) => (
-              <SourceGroup
-                key={source.id}
-                source={source}
+            {listed.map((vault) => (
+              <VaultGroup
+                key={vault.id}
+                vault={vault}
                 density={density}
                 onLocked={load}
-                onOpen={(login) =>
-                  onNavigate({ name: "detail", source, login })
-                }
+                onOpen={(login) => onNavigate({ name: "detail", vault, login })}
                 onError={setMessage}
               />
             ))}
@@ -378,14 +375,14 @@ function EmptyState({
   )
 }
 
-function SourceGroup({
-  source,
+function VaultGroup({
+  vault,
   density,
   onLocked,
   onOpen,
   onError,
 }: {
-  source: SourceView
+  vault: VaultView
   density: Settings["density"]
   onLocked: () => void
   onOpen: (login: LoginSummary) => void
@@ -396,23 +393,23 @@ function SourceGroup({
   const lock = async () => {
     onError(null)
     try {
-      await callBackground("popup.lock", { sourceId: source.id })
+      await callBackground("popup.lock", { vaultId: vault.id })
     } catch (error) {
       onError(errorMessage(error))
     }
     onLocked()
   }
 
-  if (source.status !== "ready" || source.error) {
+  if (vault.status !== "ready" || vault.error) {
     return (
       <section>
         <h2 className="flex items-center gap-1.5 px-3 pt-1.5 pb-0.5 text-xs font-medium text-muted-foreground">
-          <BrandIcon kind={source.kind} className="size-3.5" />
-          <span className="min-w-0 flex-1 truncate">{sourceLabel(source)}</span>
-          <span className="py-1.5" title={source.error}>
-            {source.status === "ready"
-              ? t("source.failed")
-              : t("source.unavailable")}
+          <BrandIcon kind={vault.kind} className="size-3.5" />
+          <span className="min-w-0 flex-1 truncate">{vaultLabel(vault)}</span>
+          <span className="py-1.5" title={vault.error}>
+            {vault.status === "ready"
+              ? t("vault.failed")
+              : t("vault.unavailable")}
           </span>
         </h2>
       </section>
@@ -425,10 +422,10 @@ function SourceGroup({
           across groups; the Apple group's extra button sits further left. */}
       <h2 className="flex items-center gap-0.5 pt-1.5 pr-1.5">
         <CollapsibleTrigger className="flex min-w-0 flex-1 items-center gap-1.5 self-stretch px-3 text-left text-xs font-medium text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50">
-          <BrandIcon kind={source.kind} className="size-3.5" />
-          <span className="min-w-0 truncate">{sourceLabel(source)}</span>
+          <BrandIcon kind={vault.kind} className="size-3.5" />
+          <span className="min-w-0 truncate">{vaultLabel(vault)}</span>
         </CollapsibleTrigger>
-        {source.kind === "apple" && (
+        {vault.kind === "apple" && (
           <Button
             variant="ghost"
             size="icon-xs"
@@ -449,12 +446,12 @@ function SourceGroup({
           size="icon-xs"
           className="text-muted-foreground"
           aria-label={
-            source.kind === "apple"
+            vault.kind === "apple"
               ? t("popup.main.lockApple")
               : t("popup.main.lock")
           }
           title={
-            source.kind === "apple"
+            vault.kind === "apple"
               ? t("popup.main.lockApple")
               : t("popup.main.lock")
           }
@@ -477,10 +474,10 @@ function SourceGroup({
       </h2>
       <CollapsibleContent>
         <div className="flex flex-col gap-0.5 p-1">
-          {source.logins.map((login) => (
+          {vault.logins.map((login) => (
             <LoginRow
               key={login.id}
-              source={source}
+              vault={vault}
               login={login}
               density={density}
               onOpen={() => onOpen(login)}
@@ -496,13 +493,13 @@ function SourceGroup({
 type Copyable = "username" | "password" | "code"
 
 function LoginRow({
-  source,
+  vault,
   login,
   density,
   onOpen,
   onError,
 }: {
-  source: SourceInfo
+  vault: VaultInfo
   login: LoginSummary
   density: Settings["density"]
   onOpen: () => void
@@ -512,11 +509,11 @@ function LoginRow({
   // Apple asks for Touch ID before it hands out a password; the row says so meanwhile.
   const [confirming, setConfirming] = useState(false)
   const compact = density === "compact"
-  const ids = { sourceId: source.id, loginId: login.id }
+  const ids = { vaultId: vault.id, loginId: login.id }
 
   const copy = async (what: Copyable) => {
     onError(null)
-    if (what === "password" && source.kind === "apple") setConfirming(true)
+    if (what === "password" && vault.kind === "apple") setConfirming(true)
     try {
       if (what === "username")
         await callBackground("popup.copyText", { text: login.username })

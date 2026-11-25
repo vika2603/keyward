@@ -8,37 +8,37 @@ export const en = {
   "options.duration.oneHour": "1 hour",
   "options.duration.hours": "{count} hours",
 
-  "options.backends.title": "Vaults",
-  "options.backends.description":
+  "options.vaults.title": "Vaults",
+  "options.vaults.description":
     "Items in the popup and the in-page menu come from the vaults connected here.",
-  "options.backends.apple.description":
+  "options.vaults.apple.description":
     "The connection isn't kept for long. When needed, enter the six-digit code shown on your Mac in the popup.",
-  "options.backends.apple.toggle": "Use Passwords",
-  "options.backends.apple.actions.name": "Available actions",
-  "options.backends.apple.actions.description":
+  "options.vaults.apple.toggle": "Use Passwords",
+  "options.vaults.apple.actions.name": "Available actions",
+  "options.vaults.apple.actions.description":
     "List accounts for the current site, fill, copy passwords and save new ones. Other management is done in the Passwords app.",
-  "options.backends.apple.openApp": "Open Passwords app",
-  "options.backends.bitwarden.signedInDescription":
+  "options.vaults.apple.openApp": "Open Passwords app",
+  "options.vaults.bitwarden.signedInDescription":
     "You can sign in to several accounts at once, and their items are shown together. When locked, unlock each account with its master password in the popup.",
-  "options.backends.bitwarden.signedOutDescription":
+  "options.vaults.bitwarden.signedOutDescription":
     "Not signed in. Works with the official service and self-hosted servers, and you can sign in to several accounts at once.",
-  "options.backends.bitwarden.addAccount": "Add account",
-  "options.backends.bitwarden.signIn": "Sign in",
-  "options.backends.bitwarden.officialServer": "Official service",
-  "options.backends.bitwarden.signOut": "Sign out",
-  "options.backends.bitwarden.signOutConfirm":
+  "options.vaults.bitwarden.addAccount": "Add account",
+  "options.vaults.bitwarden.signIn": "Sign in",
+  "options.vaults.bitwarden.officialServer": "Official service",
+  "options.vaults.bitwarden.signOut": "Sign out",
+  "options.vaults.bitwarden.signOutConfirm":
     "Sign out of {email}? You'll need your master password and two-step login code to sign in again.",
-  "options.backends.autoLock.name": "Auto-lock",
-  "options.backends.autoLock.description":
+  "options.vaults.autoLock.name": "Auto-lock",
+  "options.vaults.autoLock.description":
     "Lock when the extension hasn't been used for this long; you'll then need your master password again. You also need to unlock again after quitting the browser.",
-  "options.backends.autoLock.label": "Auto-lock timeout",
-  "options.backends.autoLock.onQuit": "When the browser quits",
-  "options.backends.lockOnSystemLock.name": "Lock with the computer",
-  "options.backends.lockOnSystemLock.description":
+  "options.vaults.autoLock.label": "Auto-lock timeout",
+  "options.vaults.autoLock.onQuit": "When the browser quits",
+  "options.vaults.lockOnSystemLock.name": "Lock with the computer",
+  "options.vaults.lockOnSystemLock.description":
     "Lock Bitwarden accounts when the computer's screen locks. Passwords stays paired; it asks for Touch ID before each password anyway.",
-  "options.backends.saveTarget.title": "Save location",
-  "options.backends.saveTarget.name": "Save new logins to",
-  "options.backends.saveTarget.description":
+  "options.vaults.saveTarget.title": "Save location",
+  "options.vaults.saveTarget.name": "Save new logins to",
+  "options.vaults.saveTarget.description":
     "You can still choose another location in the save prompt.",
 
   "options.fill.title": "Fill and save",
@@ -93,7 +93,7 @@ export const en = {
   "options.sites.match.default": "Default",
   "options.sites.match.defaultWith": "Default ({match})",
   "options.sites.match.bySystem": "Decided by the system",
-  "options.sites.backend.all": "All",
+  "options.sites.provider.all": "All",
   "options.sites.behavior.default": "Default",
   "options.sites.behavior.menuOnClick": "Show menu on icon click",
   "options.sites.behavior.menuOnFocus": "Show menu on field focus",
@@ -106,7 +106,7 @@ export const en = {
   "options.sites.rules.add": "Add rule",
   "options.sites.rules.site": "Website",
   "options.sites.rules.match": "Match detection",
-  "options.sites.rules.backend": "Vault",
+  "options.sites.rules.provider": "Vault",
   "options.sites.rules.behavior": "Behavior",
   "options.sites.rules.actions": "Actions",
   "options.sites.rules.delete": "Delete rule for {host}",
@@ -205,37 +205,37 @@ export const zhCN: Record<keyof typeof en, string> = {
   "options.duration.oneHour": "1 小时",
   "options.duration.hours": "{count} 小时",
 
-  "options.backends.title": "密码库",
-  "options.backends.description":
+  "options.vaults.title": "密码库",
+  "options.vaults.description":
     "弹窗和页面内菜单里的条目来自这里连接的密码库。",
-  "options.backends.apple.description":
+  "options.vaults.apple.description":
     "连接不会长期保留，需要时在弹窗里输入 Mac 上显示的六位验证码。",
-  "options.backends.apple.toggle": "使用 Passwords",
-  "options.backends.apple.actions.name": "可用操作",
-  "options.backends.apple.actions.description":
+  "options.vaults.apple.toggle": "使用 Passwords",
+  "options.vaults.apple.actions.name": "可用操作",
+  "options.vaults.apple.actions.description":
     "按当前站点列出账号、填充、复制密码和保存新密码。其余管理操作在 Passwords App 中完成。",
-  "options.backends.apple.openApp": "打开 Passwords App",
-  "options.backends.bitwarden.signedInDescription":
+  "options.vaults.apple.openApp": "打开 Passwords App",
+  "options.vaults.bitwarden.signedInDescription":
     "可以同时登录多个账号，条目一起显示。锁定后在弹窗里逐个输入主密码解锁。",
-  "options.backends.bitwarden.signedOutDescription":
+  "options.vaults.bitwarden.signedOutDescription":
     "尚未登录。支持官方服务和自建服务器，可以同时登录多个账号。",
-  "options.backends.bitwarden.addAccount": "添加账号",
-  "options.backends.bitwarden.signIn": "登录",
-  "options.backends.bitwarden.officialServer": "官方服务",
-  "options.backends.bitwarden.signOut": "退出登录",
-  "options.backends.bitwarden.signOutConfirm":
+  "options.vaults.bitwarden.addAccount": "添加账号",
+  "options.vaults.bitwarden.signIn": "登录",
+  "options.vaults.bitwarden.officialServer": "官方服务",
+  "options.vaults.bitwarden.signOut": "退出登录",
+  "options.vaults.bitwarden.signOutConfirm":
     "退出 {email}？之后需要重新输入主密码和两步验证码登录。",
-  "options.backends.autoLock.name": "自动锁定",
-  "options.backends.autoLock.description":
+  "options.vaults.autoLock.name": "自动锁定",
+  "options.vaults.autoLock.description":
     "超过这段时间没有使用插件就锁定，之后需要再次输入主密码。退出浏览器后也要重新解锁。",
-  "options.backends.autoLock.label": "自动锁定时间",
-  "options.backends.autoLock.onQuit": "退出浏览器时",
-  "options.backends.lockOnSystemLock.name": "电脑锁屏时锁定",
-  "options.backends.lockOnSystemLock.description":
+  "options.vaults.autoLock.label": "自动锁定时间",
+  "options.vaults.autoLock.onQuit": "退出浏览器时",
+  "options.vaults.lockOnSystemLock.name": "电脑锁屏时锁定",
+  "options.vaults.lockOnSystemLock.description":
     "电脑锁屏时锁定 Bitwarden 账号。 Passwords 保持配对，它每次取密码都会要求触控 ID。",
-  "options.backends.saveTarget.title": "保存位置",
-  "options.backends.saveTarget.name": "新登录默认保存到",
-  "options.backends.saveTarget.description": "保存提示里仍可临时改选。",
+  "options.vaults.saveTarget.title": "保存位置",
+  "options.vaults.saveTarget.name": "新登录默认保存到",
+  "options.vaults.saveTarget.description": "保存提示里仍可临时改选。",
 
   "options.fill.title": "填充与保存",
   "options.fill.description": "对所有站点生效，可在站点规则里按站点覆盖。",
@@ -286,7 +286,7 @@ export const zhCN: Record<keyof typeof en, string> = {
   "options.sites.match.default": "默认",
   "options.sites.match.defaultWith": "默认（{match}）",
   "options.sites.match.bySystem": "由系统决定",
-  "options.sites.backend.all": "全部",
+  "options.sites.provider.all": "全部",
   "options.sites.behavior.default": "默认",
   "options.sites.behavior.menuOnClick": "点击图标时显示菜单",
   "options.sites.behavior.menuOnFocus": "获得焦点时显示菜单",
@@ -299,7 +299,7 @@ export const zhCN: Record<keyof typeof en, string> = {
   "options.sites.rules.add": "添加规则",
   "options.sites.rules.site": "网址",
   "options.sites.rules.match": "匹配方式",
-  "options.sites.rules.backend": "密码库",
+  "options.sites.rules.provider": "密码库",
   "options.sites.rules.behavior": "行为",
   "options.sites.rules.actions": "操作",
   "options.sites.rules.delete": "删除 {host} 的规则",

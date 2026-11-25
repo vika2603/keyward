@@ -1,11 +1,11 @@
-import { BackendError, type SourceInfo } from "@/lib/backends/types"
 import { ruleForHost } from "@/lib/matching"
+import { VaultError, type VaultInfo } from "@/lib/providers/types"
 import { getSettings, updateSettings } from "@/lib/settings"
 import { siteDomainOf } from "@/lib/site"
-import type { PromptState, SourceView } from "./api"
-import type { Backends } from "./backends"
+import type { PromptState, VaultView } from "./api"
 import { prompts } from "./overlays"
 import { frameUrl, sendToFrame } from "./page"
+import type { Providers } from "./providers"
 
 const USERNAMES_KEY = "save.usernames"
 /** A username typed on the first page of a two-step login is used for a password within this time. */
@@ -50,23 +50,23 @@ export async function recallUsername(
 }
 
 /**
- * Puts the login this tab used on the site moments ago first, in its source and among the sources,
+ * Puts the login this tab used on the site moments ago first, in its vault and among the vaults,
  * so it is the first one offered for the next step.
  */
 export function markRecent(
-  sources: SourceView[],
+  vaults: VaultView[],
   username: string | null,
-): SourceView[] {
+): VaultView[] {
   const name = username?.trim().toLowerCase()
-  if (!name) return sources
-  const marked = sources.map((source) => {
-    const logins = source.logins.map((login) =>
+  if (!name) return vaults
+  const marked = vaults.map((vault) => {
+    const logins = vault.logins.map((login) =>
       login.username.trim().toLowerCase() === name
         ? { ...login, recent: true }
         : login,
     )
     return {
-      ...source,
+      ...vault,
       logins: [
         ...logins.filter((l) => l.recent),
         ...logins.filter((l) => !l.recent),
@@ -74,8 +74,8 @@ export function markRecent(
     }
   })
   return [
-    ...marked.filter((s) => s.logins.some((l) => l.recent)),
-    ...marked.filter((s) => !s.logins.some((l) => l.recent)),
+    ...marked.filter((vault) => vault.logins.some((l) => l.recent)),
+    ...marked.filter((vault) => !vault.logins.some((l) => l.recent)),
   ]
 }
 
@@ -86,22 +86,22 @@ export async function forgetTab(tabId: number): Promise<void> {
 }
 
 /** The username of the site's only saved account, for a change-password form that does not name it. */
-async function onlyUsername(backends: Backends, page: URL): Promise<string> {
+async function onlyUsername(providers: Providers, page: URL): Promise<string> {
   const names = new Set(
-    (await backends.loginsForPage(page))
-      .flatMap((source) => source.logins.map((login) => login.username))
+    (await providers.loginsForPage(page))
+      .flatMap((vault) => vault.logins.map((login) => login.username))
       .filter(Boolean),
   )
   return names.size === 1 ? ([...names][0] ?? "") : ""
 }
 
 /**
- * Handles a login form the user submitted. Offers to save a login no source has, or to update one
+ * Handles a login form the user submitted. Offers to save a login no vault has, or to update one
  * whose password differs. Apple Passwords does not reveal saved passwords without Touch ID, so a
  * username it already has counts as saved, unless the password was typed as a new one.
  */
 export async function onSubmitted(
-  backends: Backends,
+  providers: Providers,
   tabId: number,
   frameId: number,
   submitted: { username: string; password: string; newPassword?: boolean },
@@ -125,26 +125,26 @@ export async function onSubmitted(
   }
   const account =
     username ||
-    (submitted.newPassword ? await onlyUsername(backends, page) : "")
+    (submitted.newPassword ? await onlyUsername(providers, page) : "")
   if (!account) return
 
-  const sources = (await backends.sourcesForPage(page)).filter(
-    (s) => s.status === "ready",
+  const vaults = (await providers.vaultsForPage(page)).filter(
+    (vault) => vault.status === "ready",
   )
-  if (!sources.length) return
-  let update: { sourceId: string; loginId: string } | null = null
-  for (const source of sources) {
-    const existing = await backends
-      .backendOf(source.id)
-      .findExisting(source.id, page, account, submitted.password)
+  if (!vaults.length) return
+  let update: { vaultId: string; loginId: string } | null = null
+  for (const vault of vaults) {
+    const existing = await providers
+      .providerOf(vault.id)
+      .findExisting(vault.id, page, account, submitted.password)
       .catch(() => null)
     if (!existing) continue
     if (existing.samePassword === true) return
     if (existing.samePassword === undefined && !submitted.newPassword) return
-    update ??= { sourceId: source.id, loginId: existing.loginId }
+    update ??= { vaultId: vault.id, loginId: existing.loginId }
   }
   if (update ? !settings.askUpdate : !settings.askSave) return
-  if (!update && !(await saveTargets(backends, page)).length) return
+  if (!update && !(await saveTargets(providers, page)).length) return
 
   await prompts.set({
     tabId,
@@ -183,18 +183,19 @@ export async function showPrompt(tabId: number): Promise<void> {
   await sendToFrame(tabId, 0, { type: "prompt.show", token }).catch(() => {})
 }
 
-/** Sources that can store a login for the page right now. */
+/** Vaults that can store a login for the page right now. */
 export async function saveTargets(
-  backends: Backends,
+  providers: Providers,
   page: URL,
-): Promise<SourceInfo[]> {
-  return (await backends.sourcesForPage(page)).filter(
-    (s) => s.status === "ready" && backends.backendOf(s.id).canSave(page),
+): Promise<VaultInfo[]> {
+  return (await providers.vaultsForPage(page)).filter(
+    (vault) =>
+      vault.status === "ready" && providers.providerOf(vault.id).canSave(page),
   )
 }
 
 export async function defaultTarget(
-  targets: SourceInfo[],
+  targets: VaultInfo[],
 ): Promise<string | null> {
   const { defaultSaveTarget } = await getSettings()
   return (
@@ -205,16 +206,16 @@ export async function defaultTarget(
 }
 
 export async function promptState(
-  backends: Backends,
+  providers: Providers,
   tabId: number,
 ): Promise<PromptState> {
   const session = await prompts.get(tabId)
-  if (!session) throw new BackendError("Nothing to show", "overlay.closed")
+  if (!session) throw new VaultError("Nothing to show", "overlay.closed")
   const page = new URL(session.url)
   const targets =
-    session.mode === "save" ? await saveTargets(backends, page) : []
-  const updateSource = session.update
-    ? await backends.source(session.update.sourceId).catch(() => null)
+    session.mode === "save" ? await saveTargets(providers, page) : []
+  const updateVault = session.update
+    ? await providers.vault(session.update.vaultId).catch(() => null)
     : null
   return {
     mode: session.mode,
@@ -222,32 +223,29 @@ export async function promptState(
     host: page.hostname,
     targets,
     defaultTarget: await defaultTarget(targets),
-    updateSource,
+    updateVault,
   }
 }
 
 export async function confirmPrompt(
-  backends: Backends,
+  providers: Providers,
   tabId: number,
   targetId: string | null,
 ): Promise<void> {
   const session = await prompts.get(tabId)
-  if (!session) throw new BackendError("Nothing to save", "overlay.closed")
+  if (!session) throw new VaultError("Nothing to save", "overlay.closed")
   const url = new URL(session.url)
   const login = { url, username: session.username, password: session.password }
   const tab = { tabId, frameId: 0 }
   if (session.update) {
-    const { sourceId, loginId } = session.update
-    await backends.backendOf(sourceId).update(sourceId, loginId, login, tab)
+    const { vaultId, loginId } = session.update
+    await providers.providerOf(vaultId).update(vaultId, loginId, login, tab)
   } else {
-    const targets = await saveTargets(backends, url)
+    const targets = await saveTargets(providers, url)
     const target = targets.find((t) => t.id === targetId)
     if (!target)
-      throw new BackendError(
-        "The chosen place is not available",
-        "unknownSource",
-      )
-    await backends.backendOf(target.id).save(target.id, login, tab)
+      throw new VaultError("The chosen place is not available", "unknownVault")
+    await providers.providerOf(target.id).save(target.id, login, tab)
   }
   await closePrompt(tabId)
 }
@@ -270,7 +268,7 @@ export async function neverForSite(tabId: number): Promise<void> {
             id: crypto.randomUUID(),
             host,
             match: null,
-            backend: "all",
+            provider: "all",
             behavior: "noSave",
           },
         ],

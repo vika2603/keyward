@@ -2,13 +2,13 @@ import { useEffect, useState } from "react"
 import { callBackground } from "@/background/api"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import type { AccountSummary } from "@/lib/backends/bitwarden/bitwarden-backend"
 import { t } from "@/lib/i18n"
+import type { AccountSummary } from "@/lib/providers/bitwarden/bitwarden-provider"
 import { cn } from "@/lib/utils"
 import { BrandIcon } from "./brand-icon"
 import { errorMessage } from "./errors"
 import { FADE_IN, FieldsSkeleton } from "./loading"
-import { SourceSelect } from "./source-select"
+import { VaultSelect } from "./vault-select"
 
 /**
  * Unlocks signed-in accounts one at a time with their master passwords. An unlocked account stays
@@ -94,8 +94,8 @@ export function BitwardenUnlock({
         )}
       </div>
       {accounts.length > 1 && (
-        <SourceSelect
-          sources={accounts.map((a) => ({
+        <VaultSelect
+          vaults={accounts.map((a) => ({
             id: a.id,
             kind: "bitwarden",
             label: a.email,

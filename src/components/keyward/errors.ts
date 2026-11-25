@@ -9,7 +9,7 @@ const MESSAGES: Record<string, MessageKey> = {
   invalidSite: "error.invalidSite",
   notFound: "error.notFound",
   unknownLogin: "error.notFound",
-  unknownSource: "error.unknownSource",
+  unknownVault: "error.unknownVault",
   notWebPage: "error.notWebPage",
   fillDisabled: "error.fillDisabled",
   pageChanged: "error.pageChanged",

@@ -1,6 +1,6 @@
 import jsQR from "jsqr"
-import { BackendError } from "@/lib/backends/types"
 import { type Language, resolveLanguage } from "@/lib/i18n/language"
+import { VaultError } from "@/lib/providers/types"
 import { getSettings, settingsItem } from "@/lib/settings"
 import { oneTimeCode } from "@/lib/totp"
 import type { PopupView } from "./api"
@@ -99,7 +99,7 @@ export async function pendingSetup(): Promise<{
   ] as PendingSetup | undefined
   const page = pending ? webPage(pending.site) : null
   if (!pending || !page || Date.now() - pending.at > PENDING_MAX_AGE_MS) {
-    throw new BackendError("No verification code to set up", "noSetup")
+    throw new VaultError("No verification code to set up", "noSetup")
   }
   return { uri: pending.uri, page }
 }

@@ -35,7 +35,7 @@ function loadImage(
 
 /** Draws a picture on white as a PNG; null when the page's picture may not be read. */
 function toPng(
-  source: CanvasImageSource,
+  vault: CanvasImageSource,
   width: number,
   height: number,
 ): string | null {
@@ -47,7 +47,7 @@ function toPng(
   if (!context) return null
   context.fillStyle = "#ffffff"
   context.fillRect(0, 0, canvas.width, canvas.height)
-  context.drawImage(source, 0, 0, canvas.width, canvas.height)
+  context.drawImage(vault, 0, 0, canvas.width, canvas.height)
   try {
     return canvas.toDataURL("image/png")
   } catch {
@@ -129,7 +129,7 @@ function targetOf(event: Event): Element | null {
 }
 
 /**
- * Reports what the pointer rests on while `enabled` says a source can take an authenticator key:
+ * Reports what the pointer rests on while `enabled` says a vault can take an authenticator key:
  * QR codes and `otpauth:` links are offered to the background, which reads them, and leaving them
  * withdraws the offer.
  */

@@ -1,9 +1,9 @@
 import { ExternalLinkIcon, PlusIcon } from "lucide-react"
 import { useCallback, useEffect, useState } from "react"
 import { callBackground } from "@/background/api"
-import { BrandIcon, backendName } from "@/components/keyward/brand-icon"
+import { BrandIcon, providerName } from "@/components/keyward/brand-icon"
 import { errorMessage } from "@/components/keyward/errors"
-import { SourceSelect } from "@/components/keyward/source-select"
+import { VaultSelect } from "@/components/keyward/vault-select"
 import { Button } from "@/components/ui/button"
 import {
   Select,
@@ -13,10 +13,10 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
-import { APPLE_SOURCE_ID } from "@/lib/backends/apple/source-id"
-import type { AccountSummary } from "@/lib/backends/bitwarden/bitwarden-backend"
-import type { SourceInfo } from "@/lib/backends/types"
 import { t } from "@/lib/i18n"
+import { APPLE_VAULT_ID } from "@/lib/providers/apple/vault-id"
+import type { AccountSummary } from "@/lib/providers/bitwarden/bitwarden-provider"
+import type { VaultInfo } from "@/lib/providers/types"
 import { navigate } from "./App"
 import { Card, Option, PageHeader, Section } from "./parts"
 import { useSettings } from "./use-settings"
@@ -29,11 +29,11 @@ function lockTimes(): [string, string][] {
     ["30", t("options.duration.minutes", { count: 30 })],
     ["60", t("options.duration.oneHour")],
     ["240", t("options.duration.hours", { count: 4 })],
-    ["never", t("options.backends.autoLock.onQuit")],
+    ["never", t("options.vaults.autoLock.onQuit")],
   ]
 }
 
-export function BackendsPage() {
+export function VaultsPage() {
   const [settings, update] = useSettings()
   const [accounts, setAccounts] = useState<AccountSummary[]>([])
   const [message, setMessage] = useState<string | null>(null)
@@ -48,7 +48,7 @@ export function BackendsPage() {
   const signOut = async (account: AccountSummary) => {
     if (
       !confirm(
-        t("options.backends.bitwarden.signOutConfirm", {
+        t("options.vaults.bitwarden.signOutConfirm", {
           email: account.email,
         }),
       )
@@ -67,19 +67,19 @@ export function BackendsPage() {
     }
   }
 
-  const targets: SourceInfo[] = [
+  const targets: VaultInfo[] = [
     ...(settings.appleEnabled
       ? [
           {
-            id: APPLE_SOURCE_ID,
+            id: APPLE_VAULT_ID,
             kind: "apple" as const,
-            label: backendName("apple"),
+            label: providerName("apple"),
             status: "ready" as const,
           },
         ]
       : []),
     ...accounts.map((a) => ({
-      id: a.sourceId,
+      id: a.vaultId,
       kind: "bitwarden" as const,
       label: a.email,
       status: "ready" as const,
@@ -93,33 +93,33 @@ export function BackendsPage() {
   return (
     <>
       <PageHeader
-        title={t("options.backends.title")}
-        description={t("options.backends.description")}
+        title={t("options.vaults.title")}
+        description={t("options.vaults.description")}
       />
       <Card>
         <Option
           name={
             <span className="flex items-center gap-2.5">
               <BrandIcon kind="apple" />
-              {backendName("apple")}
+              {providerName("apple")}
             </span>
           }
-          description={t("options.backends.apple.description")}
+          description={t("options.vaults.apple.description")}
         >
           <Switch
-            aria-label={t("options.backends.apple.toggle")}
+            aria-label={t("options.vaults.apple.toggle")}
             checked={settings.appleEnabled}
             onCheckedChange={(checked) => update({ appleEnabled: checked })}
           />
         </Option>
         {settings.appleEnabled && (
           <Option
-            name={t("options.backends.apple.actions.name")}
-            description={t("options.backends.apple.actions.description")}
+            name={t("options.vaults.apple.actions.name")}
+            description={t("options.vaults.apple.actions.description")}
           >
             <Button variant="outline" onClick={() => void openApp()}>
               <ExternalLinkIcon />
-              {t("options.backends.apple.openApp")}
+              {t("options.vaults.apple.openApp")}
             </Button>
           </Option>
         )}
@@ -132,13 +132,13 @@ export function BackendsPage() {
           name={
             <span className="flex items-center gap-2.5">
               <BrandIcon kind="bitwarden" />
-              {backendName("bitwarden")}
+              {providerName("bitwarden")}
             </span>
           }
           description={
             accounts.length
-              ? t("options.backends.bitwarden.signedInDescription")
-              : t("options.backends.bitwarden.signedOutDescription")
+              ? t("options.vaults.bitwarden.signedInDescription")
+              : t("options.vaults.bitwarden.signedOutDescription")
           }
         >
           {accounts.length ? (
@@ -148,11 +148,11 @@ export function BackendsPage() {
               onClick={() => navigate("onboard")}
             >
               <PlusIcon />
-              {t("options.backends.bitwarden.addAccount")}
+              {t("options.vaults.bitwarden.addAccount")}
             </Button>
           ) : (
             <Button size="sm" onClick={() => navigate("onboard")}>
-              {t("options.backends.bitwarden.signIn")}
+              {t("options.vaults.bitwarden.signIn")}
             </Button>
           )}
         </Option>
@@ -161,18 +161,18 @@ export function BackendsPage() {
             key={account.id}
             name={account.email}
             description={
-              account.server || t("options.backends.bitwarden.officialServer")
+              account.server || t("options.vaults.bitwarden.officialServer")
             }
           >
             <Button variant="outline" onClick={() => void signOut(account)}>
-              {t("options.backends.bitwarden.signOut")}
+              {t("options.vaults.bitwarden.signOut")}
             </Button>
           </Option>
         ))}
         {accounts.length > 0 && (
           <Option
-            name={t("options.backends.autoLock.name")}
-            description={t("options.backends.autoLock.description")}
+            name={t("options.vaults.autoLock.name")}
+            description={t("options.vaults.autoLock.description")}
           >
             <Select
               value={
@@ -187,7 +187,7 @@ export function BackendsPage() {
               }
               items={lockTimes().map(([value, label]) => ({ value, label }))}
             >
-              <SelectTrigger aria-label={t("options.backends.autoLock.label")}>
+              <SelectTrigger aria-label={t("options.vaults.autoLock.label")}>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -202,11 +202,11 @@ export function BackendsPage() {
         )}
         {accounts.length > 0 && (
           <Option
-            name={t("options.backends.lockOnSystemLock.name")}
-            description={t("options.backends.lockOnSystemLock.description")}
+            name={t("options.vaults.lockOnSystemLock.name")}
+            description={t("options.vaults.lockOnSystemLock.description")}
           >
             <Switch
-              aria-label={t("options.backends.lockOnSystemLock.name")}
+              aria-label={t("options.vaults.lockOnSystemLock.name")}
               checked={settings.lockOnSystemLock}
               onCheckedChange={(checked) =>
                 update({ lockOnSystemLock: checked })
@@ -216,18 +216,18 @@ export function BackendsPage() {
         )}
       </Card>
       {targets.length > 0 && (
-        <Section title={t("options.backends.saveTarget.title")}>
+        <Section title={t("options.vaults.saveTarget.title")}>
           <Card>
             <Option
-              name={t("options.backends.saveTarget.name")}
-              description={t("options.backends.saveTarget.description")}
+              name={t("options.vaults.saveTarget.name")}
+              description={t("options.vaults.saveTarget.description")}
             >
               <div className="w-64 max-w-full">
-                <SourceSelect
-                  sources={targets}
+                <VaultSelect
+                  vaults={targets}
                   value={defaultTarget}
                   onChange={(id) => update({ defaultSaveTarget: id })}
-                  label={t("options.backends.saveTarget.name")}
+                  label={t("options.vaults.saveTarget.name")}
                 />
               </div>
             </Option>

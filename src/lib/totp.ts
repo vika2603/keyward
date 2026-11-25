@@ -1,5 +1,5 @@
 import { HOTP, Secret, TOTP } from "otpauth"
-import type { OneTimeCode } from "@/lib/backends/types"
+import type { OneTimeCode } from "@/lib/providers/types"
 
 /** Steam Guard's code alphabet; its codes are five of these characters. */
 const STEAM_CHARS = "23456789BCDFGHJKMNPQRTVWXY"

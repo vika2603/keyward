@@ -13,13 +13,13 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
 import { Skeleton } from "@/components/ui/skeleton"
+import { generatePassword, generatorOptionsItem } from "@/lib/generator"
+import { t } from "@/lib/i18n"
 import type {
   EditableLogin,
   LoginSummary,
-  SourceInfo,
-} from "@/lib/backends/types"
-import { generatePassword, generatorOptionsItem } from "@/lib/generator"
-import { t } from "@/lib/i18n"
+  VaultInfo,
+} from "@/lib/providers/types"
 import { cn } from "@/lib/utils"
 import { BackHeader } from "./header"
 
@@ -44,11 +44,11 @@ function Field({
 
 /** Changes a login's name, username, password, addresses, notes and authenticator key. */
 export function EditView({
-  source,
+  vault,
   login,
   onDone,
 }: {
-  source: SourceInfo
+  vault: VaultInfo
   login: LoginSummary
   onDone: () => void
 }) {
@@ -60,14 +60,14 @@ export function EditView({
 
   useEffect(() => {
     callBackground("popup.editable", {
-      sourceId: source.id,
+      vaultId: vault.id,
       loginId: login.id,
     }).then(
       (loaded) =>
         setForm({ ...loaded, uris: loaded.uris.length ? loaded.uris : [""] }),
       (error) => setMessage(errorMessage(error)),
     )
-  }, [source.id, login.id])
+  }, [vault.id, login.id])
 
   const update = (change: Partial<EditableLogin>) =>
     setForm((current) => (current ? { ...current, ...change } : current))
@@ -90,7 +90,7 @@ export function EditView({
     setMessage(null)
     try {
       await callBackground("popup.editLogin", {
-        sourceId: source.id,
+        vaultId: vault.id,
         loginId: login.id,
         change: form,
       })

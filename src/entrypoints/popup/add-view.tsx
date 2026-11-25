@@ -2,21 +2,21 @@ import { RefreshCcwDotIcon } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
 import { callBackground } from "@/background/api"
 import { errorMessage } from "@/components/keyward/errors"
-import { SourceSelect } from "@/components/keyward/source-select"
+import { VaultSelect } from "@/components/keyward/vault-select"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
-import type { SourceInfo } from "@/lib/backends/types"
 import { generatePassword, generatorOptionsItem } from "@/lib/generator"
 import { t } from "@/lib/i18n"
+import type { VaultInfo } from "@/lib/providers/types"
 import { BackHeader } from "./header"
 
 export function AddView({ onBack }: { onBack: () => void }) {
   const [site, setSite] = useState("")
   const [username, setUsername] = useState("")
   const [password, setPassword] = useState("")
-  const [targets, setTargets] = useState<SourceInfo[] | null>(null)
-  const [unsupported, setUnsupported] = useState<SourceInfo[]>([])
+  const [targets, setTargets] = useState<VaultInfo[] | null>(null)
+  const [unsupported, setUnsupported] = useState<VaultInfo[]>([])
   const [target, setTarget] = useState<string | null>(null)
   const request = useRef(0)
   const [busy, setBusy] = useState(false)
@@ -64,7 +64,7 @@ export function AddView({ onBack }: { onBack: () => void }) {
     setMessage(null)
     try {
       await callBackground("popup.saveLogin", {
-        sourceId: target,
+        vaultId: target,
         site,
         username,
         password,
@@ -142,13 +142,13 @@ export function AddView({ onBack }: { onBack: () => void }) {
           <span className="text-sm leading-none font-medium">
             {t("popup.add.saveTo")}
           </span>
-          <SourceSelect
-            sources={targets ?? []}
+          <VaultSelect
+            vaults={targets ?? []}
             value={target}
             onChange={setTarget}
             label={t("popup.add.saveTo")}
           />
-          {unsupported.some((s) => s.kind === "apple") ? (
+          {unsupported.some((vault) => vault.kind === "apple") ? (
             <p className="text-xs text-muted-foreground">
               {t("error.apple.unsupportedSite")}
             </p>

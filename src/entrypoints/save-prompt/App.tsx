@@ -2,7 +2,7 @@ import { XIcon } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
 import type { PromptState } from "@/background/api"
 import { useAppearance } from "@/components/keyward/appearance"
-import { BrandIcon, sourceLabel } from "@/components/keyward/brand-icon"
+import { BrandIcon, vaultLabel } from "@/components/keyward/brand-icon"
 import { errorMessage } from "@/components/keyward/errors"
 import { useLanguage } from "@/components/keyward/language"
 import {
@@ -11,7 +11,7 @@ import {
   useReportHeight,
 } from "@/components/keyward/overlay-frame"
 import { SiteIcon } from "@/components/keyward/site-icon"
-import { SourceSelect } from "@/components/keyward/source-select"
+import { VaultSelect } from "@/components/keyward/vault-select"
 import { Button } from "@/components/ui/button"
 import { t } from "@/lib/i18n"
 
@@ -63,8 +63,8 @@ export function App() {
 
   const update = state?.mode === "update"
   const appleTarget = update
-    ? state?.updateSource?.kind === "apple"
-    : state?.targets.find((s) => s.id === target)?.kind === "apple"
+    ? state?.updateVault?.kind === "apple"
+    : state?.targets.find((vault) => vault.id === target)?.kind === "apple"
 
   return (
     <div className="p-2">
@@ -103,12 +103,12 @@ export function App() {
               </div>
             </div>
             {update ? (
-              state.updateSource && (
+              state.updateVault && (
                 <p className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <BrandIcon kind={state.updateSource.kind} />
+                  <BrandIcon kind={state.updateVault.kind} />
                   <span className="min-w-0">
                     {t("overlay.prompt.willUpdate", {
-                      source: sourceLabel(state.updateSource),
+                      vault: vaultLabel(state.updateVault),
                     })}
                   </span>
                 </p>
@@ -118,8 +118,8 @@ export function App() {
                 <span className="text-xs font-medium text-muted-foreground">
                   {t("overlay.prompt.saveTo")}
                 </span>
-                <SourceSelect
-                  sources={state.targets}
+                <VaultSelect
+                  vaults={state.targets}
                   value={target}
                   onChange={setTarget}
                   label={t("overlay.prompt.saveTo")}

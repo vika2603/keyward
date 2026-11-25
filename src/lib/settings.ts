@@ -18,7 +18,7 @@ export type SiteBehavior =
   | "noSave"
   | "disabled"
 
-export type RuleBackend = "all" | "apple" | "bitwarden"
+export type RuleProvider = "all" | "apple" | "bitwarden"
 
 export interface SiteRule {
   id: string
@@ -26,7 +26,7 @@ export interface SiteRule {
   host: string
   /** Overrides the default match type for Bitwarden entries; null keeps the default. */
   match: MatchType | null
-  backend: RuleBackend
+  provider: RuleProvider
   behavior: SiteBehavior
 }
 
@@ -44,7 +44,7 @@ export interface Settings {
   /** Seconds after copying a password before the clipboard is overwritten; null never. */
   clipboardClearSeconds: number | null
   defaultMatch: MatchType
-  /** Source ID new logins are saved to by default; null picks the first available one. */
+  /** Vault ID new logins are saved to by default; null picks the first available one. */
   defaultSaveTarget: string | null
   /** Minutes without use before Bitwarden accounts lock; null only when the browser quits. */
   autoLockMinutes: number | null
@@ -83,8 +83,23 @@ export const settingsItem = storage.defineItem<Settings>("local:settings", {
   fallback: defaultSettings,
 })
 
+/** Rules saved or exported by earlier versions name the `provider` field `backend`. */
+export function upgradeSiteRule(rule: unknown): unknown {
+  const isOldRule =
+    typeof rule === "object" &&
+    rule !== null &&
+    "backend" in rule &&
+    !("provider" in rule)
+  if (!isOldRule) return rule
+
+  const { backend, ...rest } = rule
+  return { ...rest, provider: backend }
+}
+
 export async function getSettings(): Promise<Settings> {
-  return { ...defaultSettings, ...(await settingsItem.getValue()) }
+  const saved = await settingsItem.getValue()
+  const siteRules = (saved.siteRules ?? []).map(upgradeSiteRule) as SiteRule[]
+  return { ...defaultSettings, ...saved, siteRules }
 }
 
 export async function updateSettings(

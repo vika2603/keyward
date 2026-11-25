@@ -1,8 +1,8 @@
 import { FingerprintPatternIcon, KeyRoundIcon, TimerIcon } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
-import type { FieldKind, SourceView } from "@/background/api"
+import type { FieldKind, VaultView } from "@/background/api"
 import { useAppearance } from "@/components/keyward/appearance"
-import { BrandIcon, sourceLabel } from "@/components/keyward/brand-icon"
+import { BrandIcon, vaultLabel } from "@/components/keyward/brand-icon"
 import { errorMessage } from "@/components/keyward/errors"
 import { useLanguage } from "@/components/keyward/language"
 import { FADE_IN, LoginListSkeleton } from "@/components/keyward/loading"
@@ -28,7 +28,7 @@ export function App() {
   const [state, setState] = useState<{
     host: string
     kind: FieldKind
-    sources: SourceView[]
+    vaults: VaultView[]
     suggestion?: string
     passkey?: boolean
   } | null>(null)
@@ -46,7 +46,7 @@ export function App() {
 
   useEffect(() => {
     callOverlay("menu.state", {}).then(setState, (error) => {
-      setState({ host: "", kind: "login", sources: [] })
+      setState({ host: "", kind: "login", vaults: [] })
       setMessage(errorMessage(error))
     })
     // Keys reach this window once the field's content script moves the focus here on ArrowDown,
@@ -93,25 +93,25 @@ export function App() {
       setBusy(null)
     }
   }
-  const fill = (sourceId: string, loginId: string) =>
-    run(loginId, () => callOverlay("menu.fill", { sourceId, loginId }))
+  const fill = (vaultId: string, loginId: string) =>
+    run(loginId, () => callOverlay("menu.fill", { vaultId, loginId }))
   const fillSuggestion = () =>
     run(SUGGESTION_ID, () => callOverlay("menu.fillSuggestion", {}))
   const signInWithPasskey = () =>
     run(PASSKEY_ID, () => callOverlay("menu.usePasskey", {}))
 
   if (!language) return null
-  const allSources = state?.sources ?? []
-  // Once one source is open, the others are paired or unlocked from the popup instead.
-  const anyReady = allSources.some((s) => s.status === "ready")
-  const sources = allSources.filter((s) =>
-    s.status === "locked"
+  const allVaults = state?.vaults ?? []
+  // Once one vault is open, the others are paired or unlocked from the popup instead.
+  const anyReady = allVaults.some((vault) => vault.status === "ready")
+  const vaults = allVaults.filter((vault) =>
+    vault.status === "locked"
       ? !anyReady
-      : s.status !== "ready" || s.error || s.logins.length,
+      : vault.status !== "ready" || vault.error || vault.logins.length,
   )
   const compact = density === "compact"
   // A lone list of logins needs no heading saying where they come from.
-  const headed = sources.length > 1 || Boolean(state?.suggestion)
+  const headed = vaults.length > 1 || Boolean(state?.suggestion)
 
   return (
     <div className="p-2">
@@ -159,62 +159,62 @@ export function App() {
                 </button>
               </div>
             )}
-            {!sources.length && !message && !state.suggestion && (
+            {!vaults.length && !message && !state.suggestion && (
               <p className="px-3 py-3 text-sm text-muted-foreground">
                 {state.kind === "code"
                   ? t("overlay.menu.noCodes", { host: state.host })
                   : t("overlay.menu.noLogins", { host: state.host })}
               </p>
             )}
-            {sources.map((source) =>
-              source.status !== "ready" || source.error ? (
+            {vaults.map((vault) =>
+              vault.status !== "ready" || vault.error ? (
                 <h2
-                  key={source.id}
+                  key={vault.id}
                   className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-muted-foreground first:pt-2"
                 >
-                  <BrandIcon kind={source.kind} className="size-3.5" />
+                  <BrandIcon kind={vault.kind} className="size-3.5" />
                   <span className="min-w-0 flex-1 truncate">
-                    {sourceLabel(source)}
+                    {vaultLabel(vault)}
                   </span>
-                  {source.status === "locked" ? (
+                  {vault.status === "locked" ? (
                     <Button
                       variant="outline"
                       size="sm"
                       onClick={() =>
                         void callOverlay("menu.connect", {
-                          sourceId: source.id,
+                          vaultId: vault.id,
                         }).catch(() => {})
                       }
                     >
-                      {source.kind === "apple"
-                        ? t("source.pair")
-                        : t("source.unlock")}
+                      {vault.kind === "apple"
+                        ? t("vault.pair")
+                        : t("vault.unlock")}
                     </Button>
                   ) : (
-                    <span className="py-1.5" title={source.error}>
-                      {source.status === "ready"
-                        ? t("source.failed")
-                        : t("source.unavailable")}
+                    <span className="py-1.5" title={vault.error}>
+                      {vault.status === "ready"
+                        ? t("vault.failed")
+                        : t("vault.unavailable")}
                     </span>
                   )}
                 </h2>
               ) : (
-                <section key={source.id}>
+                <section key={vault.id}>
                   {headed && (
                     <h2 className="flex items-center gap-1.5 px-3 pt-2.5 pb-0.5 text-xs font-medium text-muted-foreground">
-                      <BrandIcon kind={source.kind} className="size-3.5" />
-                      <span className="truncate">{sourceLabel(source)}</span>
+                      <BrandIcon kind={vault.kind} className="size-3.5" />
+                      <span className="truncate">{vaultLabel(vault)}</span>
                     </h2>
                   )}
                   <div className="flex flex-col gap-0.5 p-1">
-                    {source.logins.map((login) => (
+                    {vault.logins.map((login) => (
                       <button
                         key={login.id}
                         type="button"
                         role="menuitem"
                         data-login
                         disabled={busy !== null}
-                        onClick={() => void fill(source.id, login.id)}
+                        onClick={() => void fill(vault.id, login.id)}
                         className={cn(
                           "group/row flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left outline-none hover:bg-muted focus-visible:bg-muted disabled:cursor-wait",
                           compact ? "min-h-9" : "min-h-12",
@@ -278,7 +278,7 @@ export function App() {
                 </button>
               </div>
             )}
-            {busy && source(sources, busy)?.kind === "apple" && (
+            {busy && vault(vaults, busy)?.kind === "apple" && (
               <p className="px-3 pb-2 text-xs text-muted-foreground">
                 {t("overlay.menu.confirmTouchId")}
               </p>
@@ -299,9 +299,6 @@ export function App() {
 const SUGGESTION_ID = "\nsuggestion"
 const PASSKEY_ID = "\npasskey"
 
-function source(
-  sources: SourceView[],
-  loginId: string,
-): SourceView | undefined {
-  return sources.find((s) => s.logins.some((l) => l.id === loginId))
+function vault(vaults: VaultView[], loginId: string): VaultView | undefined {
+  return vaults.find((vault) => vault.logins.some((l) => l.id === loginId))
 }

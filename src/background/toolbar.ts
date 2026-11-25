@@ -1,11 +1,11 @@
-import type { Backends } from "./backends"
 import { activeTab, webPage } from "./page"
+import type { Providers } from "./providers"
 
 const ICON_SIZES = [16, 32] as const
 const READY_ICON = Object.fromEntries(
   ICON_SIZES.map((size) => [size, `/icon/${size}.png`]),
 )
-/** How much of the icon shows while no source is paired or unlocked. */
+/** How much of the icon shows while no vault is paired or unlocked. */
 const LOCKED_OPACITY = 0.4
 const BADGE_COLOR = "#404040"
 /** Tab events come in bursts, such as an activation followed by a load. */
@@ -35,11 +35,11 @@ function fadedIcon(): Promise<Record<number, ImageData>> {
 }
 
 /**
- * Keeps the toolbar button current: faded while no source is paired or unlocked, and the active
+ * Keeps the toolbar button current: faded while no vault is paired or unlocked, and the active
  * tab's number of logins on its badge. Returns a function that asks for a refresh, for changes the
  * tab events do not cover, such as an unlock.
  */
-export function watchToolbar(backends: Backends): () => void {
+export function watchToolbar(providers: Providers): () => void {
   void browser.action.setBadgeBackgroundColor({ color: BADGE_COLOR })
   void browser.action.setBadgeTextColor?.({ color: "#ffffff" })
 
@@ -47,10 +47,10 @@ export function watchToolbar(backends: Backends): () => void {
   let ready: boolean | null = null
   const update = async () => {
     const tab = await activeTab()
-    const sources = await backends.loginsForPage(webPage(tab?.url), {
+    const vaults = await providers.loginsForPage(webPage(tab?.url), {
       passive: true,
     })
-    const anyReady = sources.some((s) => s.status === "ready")
+    const anyReady = vaults.some((vault) => vault.status === "ready")
     if (anyReady !== ready) {
       ready = anyReady
       await browser.action.setIcon(
@@ -58,7 +58,7 @@ export function watchToolbar(backends: Backends): () => void {
       )
     }
     if (tab?.id === undefined) return
-    const count = sources.reduce((sum, s) => sum + s.logins.length, 0)
+    const count = vaults.reduce((sum, vault) => sum + vault.logins.length, 0)
     await browser.action.setBadgeText({
       tabId: tab.id,
       text: count ? String(count) : "",

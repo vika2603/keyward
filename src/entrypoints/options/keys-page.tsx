@@ -10,6 +10,7 @@ import {
   MatchType,
   type SiteRule,
   updateSettings,
+  upgradeSiteRule,
 } from "@/lib/settings"
 import { hostOfSavedUri } from "@/lib/site"
 import { clearTimes } from "./fill-page"
@@ -41,7 +42,7 @@ function keysOf(shortcut: string): string[] {
   return [...shortcut].map((key) => MODIFIER_NAMES[key] ?? key)
 }
 
-const RULE_BACKENDS: readonly unknown[] = ["all", "apple", "bitwarden"]
+const RULE_PROVIDERS: readonly unknown[] = ["all", "apple", "bitwarden"]
 const RULE_BEHAVIORS: readonly unknown[] = [
   "default",
   "menuOnFocus",
@@ -60,7 +61,7 @@ function isSiteRule(value: unknown): value is SiteRule {
     hostOfSavedUri(rule.host) === rule.host &&
     (rule.match === null ||
       Object.values(MatchType).includes(rule.match as MatchType)) &&
-    RULE_BACKENDS.includes(rule.backend) &&
+    RULE_PROVIDERS.includes(rule.provider) &&
     RULE_BEHAVIORS.includes(rule.behavior)
   )
 }
@@ -73,9 +74,9 @@ function importedSettings(data: unknown): Partial<ExportedSettings> | null {
     (data as { format?: unknown }).format !== EXPORT_FORMAT
   )
     return null
-  const source = (data as { settings?: unknown }).settings
-  if (!source || typeof source !== "object") return null
-  const input = source as Record<string, unknown>
+  const vault = (data as { settings?: unknown }).settings
+  if (!vault || typeof vault !== "object") return null
+  const input = vault as Record<string, unknown>
   const result: Partial<ExportedSettings> = {}
   if (input.menuTrigger === "click" || input.menuTrigger === "focus")
     result.menuTrigger = input.menuTrigger
@@ -99,7 +100,7 @@ function importedSettings(data: unknown): Partial<ExportedSettings> | null {
     result.defaultMatch = input.defaultMatch as MatchType
   }
   if (Array.isArray(input.siteRules)) {
-    result.siteRules = input.siteRules.filter(isSiteRule)
+    result.siteRules = input.siteRules.map(upgradeSiteRule).filter(isSiteRule)
   }
   if (Array.isArray(input.equivalentDomains)) {
     result.equivalentDomains = input.equivalentDomains.filter(

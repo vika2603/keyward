@@ -19,20 +19,20 @@ import {
   useState,
 } from "react"
 import { callBackground } from "@/background/api"
-import { BrandIcon, sourceLabel } from "@/components/keyward/brand-icon"
+import { BrandIcon, vaultLabel } from "@/components/keyward/brand-icon"
 import { useCopyThrough } from "@/components/keyward/copy-through"
 import { errorMessage } from "@/components/keyward/errors"
 import { FADE_IN } from "@/components/keyward/loading"
 import { SiteIcon } from "@/components/keyward/site-icon"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
+import { currentLanguage, t } from "@/lib/i18n"
 import type {
   LoginDetails,
   LoginSummary,
   OneTimeCode,
-  SourceInfo,
-} from "@/lib/backends/types"
-import { currentLanguage, t } from "@/lib/i18n"
+  VaultInfo,
+} from "@/lib/providers/types"
 import { cn } from "@/lib/utils"
 import { BackHeader } from "./header"
 
@@ -248,28 +248,28 @@ function CodeText({ code }: { code: string }) {
  * password and code are read only when asked for; Apple asks for Touch ID first.
  */
 export function DetailView({
-  source,
+  vault,
   login,
   onBack,
   onEdit,
 }: {
-  source: SourceInfo
+  vault: VaultInfo
   login: LoginSummary
   /** Also where the view goes once the login was deleted. */
   onBack: () => void
   onEdit: () => void
 }) {
   const ids = useMemo(
-    () => ({ sourceId: source.id, loginId: login.id }),
-    [source.id, login.id],
+    () => ({ vaultId: vault.id, loginId: login.id }),
+    [vault.id, login.id],
   )
-  const apple = source.kind === "apple"
+  const apple = vault.kind === "apple"
   const [details, setDetails] = useState<LoginDetails | null>(null)
   const [message, setMessage] = useState<string | null>(null)
   const [password, setPassword] = useState<string | null>(null)
   const [revealed, setRevealed] = useState(false)
   const [code, setCode] = useState<OneTimeCode | null>(null)
-  /** What waits for Touch ID or the backend right now. */
+  /** What waits for Touch ID or the provider right now. */
   const [waiting, setWaiting] = useState<"password" | "code" | null>(null)
   const [now, setNow] = useState(Date.now)
   /** Deleting asks twice: the first click arms the button. */
@@ -398,8 +398,8 @@ export function DetailView({
           <div className="flex min-w-0 flex-col gap-0.5">
             <span className="truncate text-sm font-medium">{name}</span>
             <span className="flex items-center gap-1 text-xs text-muted-foreground">
-              <BrandIcon kind={source.kind} className="size-3.5" />
-              <span className="truncate">{sourceLabel(source)}</span>
+              <BrandIcon kind={vault.kind} className="size-3.5" />
+              <span className="truncate">{vaultLabel(vault)}</span>
             </span>
           </div>
         </div>

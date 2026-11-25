@@ -1,8 +1,8 @@
-import { normalizeServerAddress } from "@/lib/backends/bitwarden/server"
-import { isBitwardenSource } from "@/lib/backends/bitwarden/source-id"
-import { BackendError, type LoginEdit, type TabRef } from "@/lib/backends/types"
 import { generatePassword, generatorOptionsItem } from "@/lib/generator"
 import type { Handlers, Sender } from "@/lib/messaging"
+import { normalizeServerAddress } from "@/lib/providers/bitwarden/server"
+import { isBitwardenVault } from "@/lib/providers/bitwarden/vault-id"
+import { type LoginEdit, type TabRef, VaultError } from "@/lib/providers/types"
 import { getSettings, updateSettings } from "@/lib/settings"
 import { normalizeSiteInput, siteDomainOf } from "@/lib/site"
 import { keyLabel } from "@/lib/totp"
@@ -15,12 +15,12 @@ import {
   hasCodes,
   notePasskeyUsed,
 } from "./autofill"
-import type { Backends } from "./backends"
 import { copyText } from "./clipboard"
 import { finishSetup, offerCandidate, pendingSetup } from "./code-setup"
 import { addHistory, clearHistory, listHistory } from "./history"
 import { menus, prompts } from "./overlays"
 import { activeTab, frameUrl, sendToFrame, webPage } from "./page"
+import type { Providers } from "./providers"
 import {
   closePrompt,
   confirmPrompt,
@@ -39,14 +39,14 @@ const MAX_GENERATED_LENGTH = 128
 
 function tabFrame(sender: Sender): { tabId: number; frameId: number } {
   if (sender.tab?.id === undefined || sender.frameId === undefined) {
-    throw new BackendError("The request has no tab", "forbidden")
+    throw new VaultError("The request has no tab", "forbidden")
   }
   return { tabId: sender.tab.id, frameId: sender.frameId }
 }
 
 function requireText(value: unknown, name: string, maxLength = 1024): string {
   if (typeof value !== "string" || value.length > maxLength) {
-    throw new BackendError(`Invalid ${name}`, "invalidInput")
+    throw new VaultError(`Invalid ${name}`, "invalidInput")
   }
   return value
 }
@@ -89,8 +89,8 @@ async function popupTab(): Promise<TabRef> {
   return { tabId: tab?.id ?? 0, frameId: 0 }
 }
 
-function notEditable(): BackendError {
-  return new BackendError("The login cannot be changed", "notEditable")
+function notEditable(): VaultError {
+  return new VaultError("The login cannot be changed", "notEditable")
 }
 
 const MAX_URIS = 50
@@ -98,7 +98,7 @@ const MAX_URIS = 50
 /** The fields of an edit, checked; fields that are left out stay out. */
 function loginEdit(value: unknown): LoginEdit {
   if (typeof value !== "object" || value === null)
-    throw new BackendError("Invalid change", "invalidInput")
+    throw new VaultError("Invalid change", "invalidInput")
   const input = value as Record<string, unknown>
   const edit: LoginEdit = {}
   const limits = {
@@ -116,7 +116,7 @@ function loginEdit(value: unknown): LoginEdit {
   }
   if (input.uris !== undefined) {
     if (!Array.isArray(input.uris) || input.uris.length > MAX_URIS)
-      throw new BackendError("Invalid addresses", "invalidInput")
+      throw new VaultError("Invalid addresses", "invalidInput")
     edit.uris = input.uris.map((uri) => requireText(uri, "uri", 2048))
   }
   return edit
@@ -124,12 +124,12 @@ function loginEdit(value: unknown): LoginEdit {
 
 function fieldKind(value: unknown): FieldKind {
   if (value !== "login" && value !== "code")
-    throw new BackendError("Invalid field kind", "invalidInput")
+    throw new VaultError("Invalid field kind", "invalidInput")
   return value
 }
 
-export function createHandlers(backends: Backends): Handlers<BackgroundApi> {
-  const { apple, bitwarden } = backends
+export function createHandlers(providers: Providers): Handlers<BackgroundApi> {
+  const { apple, bitwarden } = providers
   const popup = ["popup"] as const
   const connectPages = ["popup", "options"] as const
 
@@ -140,7 +140,7 @@ export function createHandlers(backends: Backends): Handlers<BackgroundApi> {
         const { page } = await activePage()
         return {
           page: page ? { url: page.href, host: page.hostname } : null,
-          sources: await backends.loginsForPage(page),
+          vaults: await providers.loginsForPage(page),
         }
       },
     },
@@ -159,14 +159,14 @@ export function createHandlers(backends: Backends): Handlers<BackgroundApi> {
     },
     "popup.search": {
       allow: popup,
-      handle: ({ query }) => backends.search(requireText(query, "query", 256)),
+      handle: ({ query }) => providers.search(requireText(query, "query", 256)),
     },
     "popup.copyPassword": {
       allow: popup,
-      handle: async ({ sourceId, loginId }) => {
-        const credential = await backends
-          .backendOf(sourceId)
-          .credential(sourceId, loginId, null, await popupTab())
+      handle: async ({ vaultId, loginId }) => {
+        const credential = await providers
+          .providerOf(vaultId)
+          .credential(vaultId, loginId, null, await popupTab())
         await copyText(credential.password, true)
         return null
       },
@@ -180,40 +180,40 @@ export function createHandlers(backends: Backends): Handlers<BackgroundApi> {
     },
     "popup.details": {
       allow: popup,
-      handle: ({ sourceId, loginId }) =>
-        backends.backendOf(sourceId).details(sourceId, loginId, null),
+      handle: ({ vaultId, loginId }) =>
+        providers.providerOf(vaultId).details(vaultId, loginId, null),
     },
     "popup.revealPassword": {
       allow: popup,
-      handle: async ({ sourceId, loginId }) => {
-        const { password } = await backends
-          .backendOf(sourceId)
-          .credential(sourceId, loginId, null, await popupTab())
+      handle: async ({ vaultId, loginId }) => {
+        const { password } = await providers
+          .providerOf(vaultId)
+          .credential(vaultId, loginId, null, await popupTab())
         return { password }
       },
     },
     "popup.oneTimeCode": {
       allow: popup,
-      handle: async ({ sourceId, loginId }) =>
-        backends
-          .backendOf(sourceId)
-          .oneTimeCode(sourceId, loginId, null, await popupTab()),
+      handle: async ({ vaultId, loginId }) =>
+        providers
+          .providerOf(vaultId)
+          .oneTimeCode(vaultId, loginId, null, await popupTab()),
     },
     "popup.editable": {
       allow: popup,
-      handle: ({ sourceId, loginId }) => {
-        const backend = backends.backendOf(sourceId)
-        if (!backend.editable) throw notEditable()
-        return backend.editable(sourceId, requireText(loginId, "loginId"))
+      handle: ({ vaultId, loginId }) => {
+        const provider = providers.providerOf(vaultId)
+        if (!provider.editable) throw notEditable()
+        return provider.editable(vaultId, requireText(loginId, "loginId"))
       },
     },
     "popup.editLogin": {
       allow: popup,
-      handle: async ({ sourceId, loginId, change }) => {
-        const backend = backends.backendOf(sourceId)
-        if (!backend.edit) throw notEditable()
-        await backend.edit(
-          sourceId,
+      handle: async ({ vaultId, loginId, change }) => {
+        const provider = providers.providerOf(vaultId)
+        if (!provider.edit) throw notEditable()
+        await provider.edit(
+          vaultId,
           requireText(loginId, "loginId"),
           loginEdit(change),
         )
@@ -222,10 +222,10 @@ export function createHandlers(backends: Backends): Handlers<BackgroundApi> {
     },
     "popup.removeLogin": {
       allow: popup,
-      handle: async ({ sourceId, loginId }) => {
-        const backend = backends.backendOf(sourceId)
-        if (!backend.remove) throw notEditable()
-        await backend.remove(sourceId, requireText(loginId, "loginId"))
+      handle: async ({ vaultId, loginId }) => {
+        const provider = providers.providerOf(vaultId)
+        if (!provider.remove) throw notEditable()
+        await provider.remove(vaultId, requireText(loginId, "loginId"))
         return null
       },
     },
@@ -233,19 +233,22 @@ export function createHandlers(backends: Backends): Handlers<BackgroundApi> {
       allow: popup,
       handle: async () => {
         const { uri, page } = await pendingSetup()
-        const sources = await backends.loginsForPage(page)
+        const vaults = await providers.loginsForPage(page)
         return {
           host: page.hostname,
           ...keyLabel(uri),
           apple: apple.canSetUpCodes() && apple.canSave(page),
-          sources: sources.filter(
-            (s) => s.kind === "bitwarden" && s.status === "ready" && !s.error,
+          vaults: vaults.filter(
+            (vault) =>
+              vault.kind === "bitwarden" &&
+              vault.status === "ready" &&
+              !vault.error,
           ),
-          locked: sources
+          locked: vaults
             .filter(
-              (s) =>
-                s.status === "locked" &&
-                (s.kind === "bitwarden" || apple.canSave(page)),
+              (vault) =>
+                vault.status === "locked" &&
+                (vault.kind === "bitwarden" || apple.canSave(page)),
             )
             .map(({ logins: _, ...info }) => info),
         }
@@ -253,18 +256,18 @@ export function createHandlers(backends: Backends): Handlers<BackgroundApi> {
     },
     "popup.setUpCode": {
       allow: popup,
-      handle: async ({ sourceId, loginId }) => {
+      handle: async ({ vaultId, loginId }) => {
         const { uri, page } = await pendingSetup()
-        if (backends.backendOf(requireText(sourceId, "sourceId")) === apple) {
+        if (providers.providerOf(requireText(vaultId, "vaultId")) === apple) {
           if (!apple.canSave(page))
-            throw new BackendError(
+            throw new VaultError(
               "Apple Passwords does not store logins for this host",
               "apple.unsupportedSite",
             )
           await apple.setUpCode(page.hostname, uri)
         } else {
           await bitwarden.setCode(
-            sourceId,
+            vaultId,
             requireText(loginId, "loginId"),
             page,
             uri,
@@ -276,52 +279,56 @@ export function createHandlers(backends: Backends): Handlers<BackgroundApi> {
     },
     "popup.lock": {
       allow: popup,
-      handle: async ({ sourceId }) => {
-        const id = requireText(sourceId, "sourceId")
-        await backends.backendOf(id).lock(id)
+      handle: async ({ vaultId }) => {
+        const id = requireText(vaultId, "vaultId")
+        await providers.providerOf(id).lock(id)
         return null
       },
     },
     "popup.lockAll": {
       allow: popup,
       handle: async () => {
-        await backends.lockAll()
+        await providers.lockAll()
         return null
       },
     },
     "popup.saveTargets": {
       allow: popup,
       handle: async ({ site }) => {
-        const ready = await backends.savable()
+        const ready = await providers.savable()
         const url = normalizeSiteInput(requireText(site, "site", 2048))
-        const targets = url ? await saveTargets(backends, url) : ready
+        const targets = url ? await saveTargets(providers, url) : ready
         return {
           targets,
           defaultTarget: await defaultTarget(targets),
           unsupported: url
-            ? ready.filter((s) => !backends.backendOf(s.id).canSave(url))
+            ? ready.filter(
+                (vault) => !providers.providerOf(vault.id).canSave(url),
+              )
             : [],
         }
       },
     },
     "popup.saveLogin": {
       allow: popup,
-      handle: async ({ sourceId, site, username, password }) => {
+      handle: async ({ vaultId, site, username, password }) => {
         const url = normalizeSiteInput(requireText(site, "site"))
-        if (!url) throw new BackendError("Not a web address", "invalidSite")
+        if (!url) throw new VaultError("Not a web address", "invalidSite")
         if (!requireText(password, "password"))
-          throw new BackendError("Empty password", "invalidInput")
+          throw new VaultError("Empty password", "invalidInput")
         if (
-          !(await saveTargets(backends, url)).some((s) => s.id === sourceId)
+          !(await saveTargets(providers, url)).some(
+            (vault) => vault.id === vaultId,
+          )
         ) {
-          throw new BackendError(
+          throw new VaultError(
             "The chosen place is not available",
-            "unknownSource",
+            "unknownVault",
           )
         }
         const { tabId } = await activePage()
-        await backends.backendOf(sourceId).save(
-          sourceId,
+        await providers.providerOf(vaultId).save(
+          vaultId,
           { url, username: requireText(username, "username").trim(), password },
           {
             tabId: tabId ?? 0,
@@ -347,7 +354,7 @@ export function createHandlers(backends: Backends): Handlers<BackgroundApi> {
       allow: connectPages,
       handle: async ({ code }) => {
         if (typeof code !== "string" || !/^\d{6}$/.test(code)) {
-          throw new BackendError("The code has six digits", "invalidInput")
+          throw new VaultError("The code has six digits", "invalidInput")
         }
         await apple.submitCode(code)
         return apple.getState()
@@ -444,7 +451,7 @@ export function createHandlers(backends: Backends): Handlers<BackgroundApi> {
       allow: popup,
       handle: async ({ id }) => {
         const entry = (await listHistory()).find((e) => e.id === id)
-        if (!entry) throw new BackendError("Unknown entry", "notFound")
+        if (!entry) throw new VaultError("Unknown entry", "notFound")
         await copyText(entry.password, true)
         return null
       },
@@ -463,7 +470,7 @@ export function createHandlers(backends: Backends): Handlers<BackgroundApi> {
         const session = await menus.claim(sender, token)
         const page = await frameUrl(session.tabId, session.frameId)
         if (!page)
-          throw new BackendError("The frame is not a web page", "notWebPage")
+          throw new VaultError("The frame is not a web page", "notWebPage")
         const kind = session.kind ?? "login"
         // The account this tab used on the site moments ago comes first: the password step of a
         // two-step login, or the code step after a password.
@@ -480,28 +487,28 @@ export function createHandlers(backends: Backends): Handlers<BackgroundApi> {
           return {
             host: page.hostname,
             kind,
-            sources: markRecent(await backends.loginsForPage(page), recent),
+            vaults: markRecent(await providers.loginsForPage(page), recent),
             ...(suggestion ? { suggestion } : {}),
             ...(session.passkey ? { passkey: true } : {}),
           }
         }
-        const sources = await backends.codeLoginsForPage(page, {
+        const vaults = await providers.codeLoginsForPage(page, {
           tabId: session.tabId,
           frameId: session.frameId,
         })
         return {
           host: page.hostname,
           kind,
-          sources: markRecent(sources, recent),
+          vaults: markRecent(vaults, recent),
         }
       },
     },
     "menu.fill": {
       allow: ["menu"],
-      handle: async ({ token, sourceId, loginId }, sender) => {
+      handle: async ({ token, vaultId, loginId }, sender) => {
         const session = await menus.claim(sender, token)
         const fill = session.kind === "code" ? fillCode : fillLogin
-        await fill(backends, session.tabId, session.frameId, sourceId, loginId)
+        await fill(providers, session.tabId, session.frameId, vaultId, loginId)
         await closeMenu(session.tabId)
         return null
       },
@@ -511,7 +518,7 @@ export function createHandlers(backends: Backends): Handlers<BackgroundApi> {
       handle: async ({ token }, sender) => {
         const session = await menus.claim(sender, token)
         if (!session.suggestion)
-          throw new BackendError("No password is offered", "invalidInput")
+          throw new VaultError("No password is offered", "invalidInput")
         await fillNewPassword(
           session.tabId,
           session.frameId,
@@ -526,10 +533,7 @@ export function createHandlers(backends: Backends): Handlers<BackgroundApi> {
       handle: async ({ token }, sender) => {
         const session = await menus.claim(sender, token)
         if (!session.passkey)
-          throw new BackendError(
-            "No passkey sign-in is offered",
-            "invalidInput",
-          )
+          throw new VaultError("No passkey sign-in is offered", "invalidInput")
         await sendToFrame(session.tabId, session.frameId, {
           type: "usePasskey",
         })
@@ -557,11 +561,11 @@ export function createHandlers(backends: Backends): Handlers<BackgroundApi> {
     },
     "menu.connect": {
       allow: ["menu"],
-      handle: async ({ token, sourceId }, sender) => {
+      handle: async ({ token, vaultId }, sender) => {
         const session = await menus.claim(sender, token)
-        const kind = isBitwardenSource(sourceId) ? "bitwarden" : "apple"
+        const kind = isBitwardenVault(vaultId) ? "bitwarden" : "apple"
         await closeMenu(session.tabId)
-        await openPopup({ name: "connect", kind, sourceId })
+        await openPopup({ name: "connect", kind, vaultId })
         return null
       },
     },
@@ -569,13 +573,13 @@ export function createHandlers(backends: Backends): Handlers<BackgroundApi> {
     "prompt.state": {
       allow: ["savePrompt"],
       handle: async ({ token }, sender) =>
-        promptState(backends, (await prompts.claim(sender, token)).tabId),
+        promptState(providers, (await prompts.claim(sender, token)).tabId),
     },
     "prompt.confirm": {
       allow: ["savePrompt"],
       handle: async ({ token, targetId }, sender) => {
         await confirmPrompt(
-          backends,
+          providers,
           (await prompts.claim(sender, token)).tabId,
           targetId,
         )
@@ -619,7 +623,7 @@ export function createHandlers(backends: Backends): Handlers<BackgroundApi> {
       allow: ["contentScript"],
       handle: (_, sender) => {
         const { tabId, frameId } = tabFrame(sender)
-        return contentConfig(backends, tabId, frameId)
+        return contentConfig(providers, tabId, frameId)
       },
     },
     "content.openMenu": {
@@ -645,7 +649,7 @@ export function createHandlers(backends: Backends): Handlers<BackgroundApi> {
       allow: ["contentScript"],
       handle: (_, sender) => {
         const { tabId, frameId } = tabFrame(sender)
-        return hasCodes(backends, tabId, frameId)
+        return hasCodes(providers, tabId, frameId)
       },
     },
     "content.passkeyUsed": {
@@ -669,7 +673,7 @@ export function createHandlers(backends: Backends): Handlers<BackgroundApi> {
       allow: ["contentScript"],
       handle: async ({ username, password, newPassword }, sender) => {
         const { tabId, frameId } = tabFrame(sender)
-        await onSubmitted(backends, tabId, frameId, {
+        await onSubmitted(providers, tabId, frameId, {
           username: requireText(username, "username"),
           password: requireText(password, "password"),
           newPassword: newPassword === true,

@@ -1,23 +1,23 @@
-import type { AppleState } from "@/lib/backends/apple/apple-backend"
-import type { SecondStepMethod } from "@/lib/backends/bitwarden/auth"
+import type { Language } from "@/lib/i18n/language"
+import { sendRequest } from "@/lib/messaging"
+import type { AppleState } from "@/lib/providers/apple/apple-provider"
+import type { SecondStepMethod } from "@/lib/providers/bitwarden/auth"
 import type {
   AccountSummary,
   PendingSignInView,
   SignInOutcome,
-} from "@/lib/backends/bitwarden/bitwarden-backend"
+} from "@/lib/providers/bitwarden/bitwarden-provider"
 import type {
-  BackendKind,
   EditableLogin,
   LoginDetails,
   LoginEdit,
   LoginSummary,
   OneTimeCode,
-  SourceInfo,
-} from "@/lib/backends/types"
-import type { Language } from "@/lib/i18n/language"
-import { sendRequest } from "@/lib/messaging"
+  ProviderKind,
+  VaultInfo,
+} from "@/lib/providers/types"
 
-export interface SourceView extends SourceInfo {
+export interface VaultView extends VaultInfo {
   logins: LoginSummary[]
 }
 
@@ -27,8 +27,8 @@ export type PopupView =
   /** `back` names the view to return to once connected; the main view otherwise. */
   | {
       name: "connect"
-      kind: BackendKind
-      sourceId?: string
+      kind: ProviderKind
+      vaultId?: string
       back?: "codeSetup"
     }
   /** Where an authenticator key picked from a page goes. */
@@ -51,7 +51,7 @@ export interface HistoryEntry {
 
 export interface ContentConfig {
   active: boolean
-  /** Whether a source can take an authenticator key, so QR codes under the pointer are read. */
+  /** Whether a vault can take an authenticator key, so QR codes under the pointer are read. */
   scanCodes: boolean
   menuTrigger: "click" | "focus"
   /**
@@ -67,27 +67,27 @@ export interface PromptState {
   mode: "save" | "update"
   username: string
   host: string
-  targets: SourceInfo[]
+  targets: VaultInfo[]
   defaultTarget: string | null
-  /** The source that holds the login an update replaces. */
-  updateSource: SourceInfo | null
+  /** The vault that holds the login an update replaces. */
+  updateVault: VaultInfo | null
 }
 
 /** Requests the background answers; `messaging.ts` checks which senders may use each one. */
 export type BackgroundApi = {
   "popup.state": {
     payload: null
-    result: { page: PageInfo | null; sources: SourceView[] }
+    result: { page: PageInfo | null; vaults: VaultView[] }
   }
   "popup.takeView": { payload: null; result: PopupView }
-  /** Logins of the whole vault matching the query, per source. */
-  "popup.search": { payload: { query: string }; result: SourceView[] }
+  /** Logins of the whole vault matching the query, per vault. */
+  "popup.search": { payload: { query: string }; result: VaultView[] }
   /**
    * The popup's reads below take any login of the vault, as a search finds them; what they return
    * stays in the popup or goes to the clipboard, never into a page.
    */
   "popup.copyPassword": {
-    payload: { sourceId: string; loginId: string }
+    payload: { vaultId: string; loginId: string }
     result: null
   }
   /** Copies text the popup shows; a secret is cleared from the clipboard after a while. */
@@ -96,38 +96,38 @@ export type BackgroundApi = {
     result: null
   }
   "popup.details": {
-    payload: { sourceId: string; loginId: string }
+    payload: { vaultId: string; loginId: string }
     result: LoginDetails
   }
   "popup.revealPassword": {
-    payload: { sourceId: string; loginId: string }
+    payload: { vaultId: string; loginId: string }
     result: { password: string }
   }
   "popup.oneTimeCode": {
-    payload: { sourceId: string; loginId: string }
+    payload: { vaultId: string; loginId: string }
     result: OneTimeCode
   }
   /** A login's fields for the edit view, when its details say it is editable. */
   "popup.editable": {
-    payload: { sourceId: string; loginId: string }
+    payload: { vaultId: string; loginId: string }
     result: EditableLogin
   }
   "popup.editLogin": {
-    payload: { sourceId: string; loginId: string; change: LoginEdit }
+    payload: { vaultId: string; loginId: string; change: LoginEdit }
     result: null
   }
-  /** Moves a login to the backend's trash. */
+  /** Moves a login to the provider's trash. */
   "popup.removeLogin": {
-    payload: { sourceId: string; loginId: string }
+    payload: { vaultId: string; loginId: string }
     result: null
   }
   /** Where a login for the typed site can be saved; `unsupported` cannot store that site. */
   "popup.saveTargets": {
     payload: { site: string }
     result: {
-      targets: SourceInfo[]
+      targets: VaultInfo[]
       defaultTarget: string | null
-      unsupported: SourceInfo[]
+      unsupported: VaultInfo[]
     }
   }
   /** The authenticator key picked from a page: what it is for and where it can go. */
@@ -140,23 +140,23 @@ export type BackgroundApi = {
       /** Whether the Passwords app can take the key for this site. */
       apple: boolean
       /** Bitwarden accounts that are unlocked, with their logins for the site. */
-      sources: SourceView[]
-      /** Sources that could take the key once paired or unlocked. */
-      locked: SourceInfo[]
+      vaults: VaultView[]
+      /** Vaults that could take the key once paired or unlocked. */
+      locked: VaultInfo[]
     }
   }
   /** Stores the picked key: in a Bitwarden login, or through the Passwords app. */
   "popup.setUpCode": {
-    payload: { sourceId: string; loginId?: string }
+    payload: { vaultId: string; loginId?: string }
     result: null
   }
   /** Locks one Bitwarden account, or ends the Apple pairing. */
-  "popup.lock": { payload: { sourceId: string }; result: null }
+  "popup.lock": { payload: { vaultId: string }; result: null }
   /** Locks every account and ends the Apple pairing, as the lock-all shortcut does. */
   "popup.lockAll": { payload: null; result: null }
   "popup.saveLogin": {
     payload: {
-      sourceId: string
+      vaultId: string
       site: string
       username: string
       password: string
@@ -199,7 +199,7 @@ export type BackgroundApi = {
     result: {
       host: string
       kind: FieldKind
-      sources: SourceView[]
+      vaults: VaultView[]
       /** A generated password offered for a field that takes a new one. */
       suggestion?: string
       /** Whether the page waits for a passkey sign-in, which the menu offers. */
@@ -207,7 +207,7 @@ export type BackgroundApi = {
     }
   }
   "menu.fill": {
-    payload: { token: string; sourceId: string; loginId: string }
+    payload: { token: string; vaultId: string; loginId: string }
     result: null
   }
   /** Fills the offered password into the new-password fields of the menu's form. */
@@ -216,7 +216,7 @@ export type BackgroundApi = {
   "menu.usePasskey": { payload: { token: string }; result: null }
   "menu.resize": { payload: { token: string; height: number }; result: null }
   "menu.close": { payload: { token: string }; result: null }
-  "menu.connect": { payload: { token: string; sourceId: string }; result: null }
+  "menu.connect": { payload: { token: string; vaultId: string }; result: null }
   "prompt.state": { payload: { token: string }; result: PromptState }
   "prompt.confirm": {
     payload: { token: string; targetId: string | null }
@@ -239,7 +239,7 @@ export type BackgroundApi = {
     payload: { kind: FieldKind; newPassword?: boolean; passkey?: boolean }
     result: { token: string }
   }
-  /** Whether a ready source has one-time codes for the frame, asked once the frame has a code field. */
+  /** Whether a ready vault has one-time codes for the frame, asked once the frame has a code field. */
   "content.hasCodes": { payload: null; result: boolean }
   /** The page got a passkey credential; the site's passkey requests go to the menu from now on. */
   "content.passkeyUsed": { payload: null; result: null }
@@ -287,11 +287,11 @@ export interface FieldInfo {
 export const CONTENT_MESSAGE = "keywardContent"
 
 /**
- * A storage.local key whose value changes when sources become ready or locked or their items
+ * A storage.local key whose value changes when vaults become ready or locked or their items
  * change. Content scripts cannot read storage.session or the Apple session, so they reconfigure
  * on this instead. It holds only a time stamp.
  */
-export const SOURCES_CHANGED_KEY = "sources.changedAt"
+export const VAULTS_CHANGED_KEY = "sources.changedAt"
 
 export function isContentMessage(
   message: unknown,

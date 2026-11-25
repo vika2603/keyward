@@ -5,18 +5,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import type { SourceInfo } from "@/lib/backends/types"
 import { t } from "@/lib/i18n"
-import { BrandIcon, sourceLabel } from "./brand-icon"
+import type { VaultInfo } from "@/lib/providers/types"
+import { BrandIcon, vaultLabel } from "./brand-icon"
 
-/** Chooses the source a login is saved to; each choice shows the backend's mark. */
-export function SourceSelect({
-  sources,
+/** Chooses the vault a login is saved to; each choice shows the provider's mark. */
+export function VaultSelect({
+  vaults,
   value,
   onChange,
   label,
 }: {
-  sources: SourceInfo[]
+  vaults: VaultInfo[]
   value: string | null
   onChange: (id: string) => void
   label: string
@@ -27,17 +27,20 @@ export function SourceSelect({
       onValueChange={(next) => {
         if (typeof next === "string") onChange(next)
       }}
-      items={sources.map((s) => ({ value: s.id, label: sourceLabel(s) }))}
-      disabled={!sources.length}
+      items={vaults.map((vault) => ({
+        value: vault.id,
+        label: vaultLabel(vault),
+      }))}
+      disabled={!vaults.length}
     >
       <SelectTrigger className="w-full" aria-label={label}>
         <SelectValue placeholder={t("common.noSaveTarget")}>
           {(id: string | null) => {
-            const source = sources.find((s) => s.id === id)
-            return source ? (
+            const vault = vaults.find((candidate) => candidate.id === id)
+            return vault ? (
               <span className="flex min-w-0 items-center gap-2">
-                <BrandIcon kind={source.kind} />
-                <span className="truncate">{sourceLabel(source)}</span>
+                <BrandIcon kind={vault.kind} />
+                <span className="truncate">{vaultLabel(vault)}</span>
               </span>
             ) : (
               t("common.noSaveTarget")
@@ -46,10 +49,10 @@ export function SourceSelect({
         </SelectValue>
       </SelectTrigger>
       <SelectContent>
-        {sources.map((s) => (
-          <SelectItem key={s.id} value={s.id}>
-            <BrandIcon kind={s.kind} />
-            <span className="truncate">{sourceLabel(s)}</span>
+        {vaults.map((vault) => (
+          <SelectItem key={vault.id} value={vault.id}>
+            <BrandIcon kind={vault.kind} />
+            <span className="truncate">{vaultLabel(vault)}</span>
           </SelectItem>
         ))}
       </SelectContent>

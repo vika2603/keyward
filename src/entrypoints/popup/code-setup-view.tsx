@@ -1,30 +1,30 @@
 import { CheckIcon } from "lucide-react"
 import { type ReactNode, useEffect, useState } from "react"
 import { type BackgroundApi, callBackground } from "@/background/api"
-import { BrandIcon, sourceLabel } from "@/components/keyward/brand-icon"
+import { BrandIcon, vaultLabel } from "@/components/keyward/brand-icon"
 import { errorMessage } from "@/components/keyward/errors"
 import { FADE_IN, LoginListSkeleton } from "@/components/keyward/loading"
 import { LoginLabel } from "@/components/keyward/login-label"
 import { SiteIcon } from "@/components/keyward/site-icon"
 import { Button } from "@/components/ui/button"
-import { APPLE_SOURCE_ID } from "@/lib/backends/apple/source-id"
-import type { LoginSummary, SourceInfo } from "@/lib/backends/types"
 import { t } from "@/lib/i18n"
+import { APPLE_VAULT_ID } from "@/lib/providers/apple/vault-id"
+import type { LoginSummary, VaultInfo } from "@/lib/providers/types"
 import { cn } from "@/lib/utils"
-import { LockedSourceCard } from "./connect-card"
+import { LockedVaultCard } from "./connect-card"
 import { BackHeader } from "./header"
 
 type Setup = BackgroundApi["popup.codeSetup"]["result"]
 
 /** A place the key can go: the Passwords app, or a Bitwarden login. */
 interface Choice {
-  sourceId: string
+  vaultId: string
   loginId?: string
   name: string
 }
 
 function choiceId(choice: Choice): string {
-  return `${choice.sourceId}\n${choice.loginId ?? ""}`
+  return `${choice.vaultId}\n${choice.loginId ?? ""}`
 }
 
 function Group({
@@ -58,8 +58,8 @@ export function CodeSetupView({
   onConnect,
 }: {
   onBack: () => void
-  /** Pairs or unlocks a source, then comes back here; the key waits in the background. */
-  onConnect: (source: SourceInfo) => void
+  /** Pairs or unlocks a vault, then comes back here; the key waits in the background. */
+  onConnect: (vault: VaultInfo) => void
 }) {
   const [setup, setSetup] = useState<Setup | null>(null)
   const [message, setMessage] = useState<string | null>(null)
@@ -84,7 +84,7 @@ export function CodeSetupView({
     setMessage(null)
     try {
       await callBackground("popup.setUpCode", {
-        sourceId: choice.sourceId,
+        vaultId: choice.vaultId,
         loginId: choice.loginId,
       })
       setDone(choice)
@@ -96,9 +96,9 @@ export function CodeSetupView({
     }
   }
 
-  const loginRow = (sourceId: string, login: LoginSummary) => {
+  const loginRow = (vaultId: string, login: LoginSummary) => {
     const choice = {
-      sourceId,
+      vaultId,
       loginId: login.id,
       name: login.username || login.title,
     }
@@ -139,7 +139,7 @@ export function CodeSetupView({
   }
 
   const label = [setup?.issuer, setup?.account].filter(Boolean).join(" · ")
-  const empty = setup !== null && !setup.apple && setup.sources.length === 0
+  const empty = setup !== null && !setup.apple && setup.vaults.length === 0
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -177,7 +177,7 @@ export function CodeSetupView({
               <CheckIcon className="size-5" />
             </span>
             <p className="text-sm">
-              {done.sourceId === APPLE_SOURCE_ID
+              {done.vaultId === APPLE_VAULT_ID
                 ? t("popup.codeSetup.appleOpened")
                 : t("popup.codeSetup.added", { name: done.name })}
             </p>
@@ -209,7 +209,7 @@ export function CodeSetupView({
                       onClick={() =>
                         void choose(
                           {
-                            sourceId: APPLE_SOURCE_ID,
+                            vaultId: APPLE_VAULT_ID,
                             name: t("common.applePasswords"),
                           },
                           false,
@@ -221,14 +221,14 @@ export function CodeSetupView({
                   </div>
                 </Group>
               )}
-              {setup.sources.map((source) => (
+              {setup.vaults.map((vault) => (
                 <Group
-                  key={source.id}
-                  icon={<BrandIcon kind={source.kind} className="size-3.5" />}
-                  title={sourceLabel(source)}
+                  key={vault.id}
+                  icon={<BrandIcon kind={vault.kind} className="size-3.5" />}
+                  title={vaultLabel(vault)}
                 >
-                  {source.logins.length ? (
-                    source.logins.map((login) => loginRow(source.id, login))
+                  {vault.logins.length ? (
+                    vault.logins.map((login) => loginRow(vault.id, login))
                   ) : (
                     <p className="px-3 py-3 text-xs text-muted-foreground">
                       {t("popup.codeSetup.noLogins", { host: setup.host })}
@@ -236,11 +236,11 @@ export function CodeSetupView({
                   )}
                 </Group>
               ))}
-              {setup.locked.map((source) => (
-                <LockedSourceCard
-                  key={source.id}
-                  source={source}
-                  onClick={() => onConnect(source)}
+              {setup.locked.map((vault) => (
+                <LockedVaultCard
+                  key={vault.id}
+                  vault={vault}
+                  onClick={() => onConnect(vault)}
                 />
               ))}
             </div>

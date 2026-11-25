@@ -3,14 +3,14 @@ import { useAppearance } from "@/components/keyward/appearance"
 import { useLanguage } from "@/components/keyward/language"
 import { t } from "@/lib/i18n"
 import { cn } from "@/lib/utils"
-import { BackendsPage } from "./backends-page"
 import { FillPage } from "./fill-page"
 import { KeysPage } from "./keys-page"
 import { OnboardPage } from "./onboard-page"
 import { SitesPage } from "./sites-page"
+import { VaultsPage } from "./vaults-page"
 
 const PAGES = [
-  { hash: "backends", titleKey: "options.backends.title", Page: BackendsPage },
+  { hash: "vaults", titleKey: "options.vaults.title", Page: VaultsPage },
   { hash: "fill", titleKey: "options.fill.title", Page: FillPage },
   { hash: "sites", titleKey: "options.sites.title", Page: SitesPage },
   { hash: "keys", titleKey: "options.keys.title", Page: KeysPage },

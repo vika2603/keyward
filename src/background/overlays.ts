@@ -1,5 +1,5 @@
-import { BackendError } from "@/lib/backends/types"
 import type { Sender } from "@/lib/messaging"
+import { VaultError } from "@/lib/providers/types"
 import type { FieldKind } from "./api"
 
 interface OverlayBase {
@@ -46,7 +46,7 @@ export class OverlaySessions<T extends OverlayBase> {
     const frameId = sender.frameId
     if (tabId === undefined || frameId === undefined) throw forbidden()
     const session = await this.get(tabId)
-    if (!session) throw new BackendError("Nothing to show", "overlay.closed")
+    if (!session) throw new VaultError("Nothing to show", "overlay.closed")
     if (typeof token !== "string" || !token || token !== session.token)
       throw forbidden()
     if (session.overlayFrameId === frameId) return session
@@ -57,8 +57,8 @@ export class OverlaySessions<T extends OverlayBase> {
   }
 }
 
-function forbidden(): BackendError {
-  return new BackendError(
+function forbidden(): VaultError {
+  return new VaultError(
     "This overlay does not belong to the session",
     "forbidden",
   )
@@ -79,8 +79,8 @@ export interface PromptSession extends OverlayBase {
   url: string
   username: string
   password: string
-  /** For updates: the source and login whose password changes. */
-  update: { sourceId: string; loginId: string } | null
+  /** For updates: the vault and login whose password changes. */
+  update: { vaultId: string; loginId: string } | null
   createdAt: number
 }
 

@@ -8,9 +8,9 @@ import {
   saveSession,
   saveSync,
 } from "./account-store"
-import { BitwardenBackend } from "./bitwarden-backend"
+import { BitwardenProvider } from "./bitwarden-provider"
 import { KdfType, pureCryptoAdapter } from "./crypto"
-import { sourceIdOf } from "./source-id"
+import { vaultIdOf } from "./vault-id"
 
 // The SDK's Node build runs the same WebAssembly as the extension.
 const sdk = createRequire(import.meta.url)(
@@ -20,7 +20,7 @@ const crypto = pureCryptoAdapter(sdk)
 
 const SERVER = "https://vault.example.test"
 const ACCOUNT_ID = accountIdOf(SERVER, "user-1")
-const SOURCE = sourceIdOf(ACCOUNT_ID)
+const VAULT = vaultIdOf(ACCOUNT_ID)
 const ACCESS_TOKEN = "test-access-token"
 
 const userKey = sdk.make_user_key_aes256_cbc_hmac()
@@ -75,7 +75,7 @@ const ciphers = [
   ),
 ]
 
-/** Requests the backend sent, with JSON bodies parsed. */
+/** Requests the provider sent, with JSON bodies parsed. */
 const requests: {
   method: string
   url: string
@@ -124,13 +124,13 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-const backend = () => new BitwardenBackend(async () => crypto)
+const provider = () => new BitwardenProvider(async () => crypto)
 const writes = () => requests.filter((r) => r.method !== "GET")
 
 describe("search", () => {
   it("finds logins of the whole vault by name, username or address, whatever the page", async () => {
     const ids = async (query: string) =>
-      (await backend().search(SOURCE, query)).map((l) => l.id)
+      (await provider().search(VAULT, query)).map((l) => l.id)
     expect(await ids("other")).toEqual(["item-2"])
     expect(await ids("someone@")).toEqual(["item-1"])
     expect(await ids("example.com")).toEqual(["item-1", "item-3"])
@@ -140,21 +140,21 @@ describe("search", () => {
 
 describe("reads from Keyward's own views", () => {
   it("reads any login without a page, and only the page's logins with one", async () => {
-    const bw = backend()
+    const bw = provider()
     const tab = { tabId: 1, frameId: 0 }
-    expect((await bw.credential(SOURCE, "item-2", null, tab)).password).toBe(
+    expect((await bw.credential(VAULT, "item-2", null, tab)).password).toBe(
       "second-test-value",
     )
-    expect((await bw.details(SOURCE, "item-2", null)).editable).toBe(true)
+    expect((await bw.details(VAULT, "item-2", null)).editable).toBe(true)
     await expect(
-      bw.credential(SOURCE, "item-2", new URL("https://example.com/"), tab),
+      bw.credential(VAULT, "item-2", new URL("https://example.com/"), tab),
     ).rejects.toMatchObject({ code: "notFound" })
   })
 })
 
 describe("edit", () => {
   it("sends only what changed and leaves the password and its history alone", async () => {
-    await backend().edit(SOURCE, "item-1", {
+    await provider().edit(VAULT, "item-1", {
       name: "Example Mail",
       username: "someone@example.com",
       password: "first-test-value",
@@ -184,14 +184,14 @@ describe("edit", () => {
   })
 
   it("sends nothing when nothing changed", async () => {
-    const bw = backend()
-    await bw.edit(SOURCE, "item-1", await bw.editable(SOURCE, "item-1"))
+    const bw = provider()
+    await bw.edit(VAULT, "item-1", await bw.editable(VAULT, "item-1"))
     expect(writes()).toEqual([])
   })
 
   it("refuses an authenticator key that gives no codes", async () => {
     await expect(
-      backend().edit(SOURCE, "item-1", { totp: "not-a-key!" }),
+      provider().edit(VAULT, "item-1", { totp: "not-a-key!" }),
     ).rejects.toMatchObject({ code: "invalidCodeKey" })
     expect(writes()).toEqual([])
   })
@@ -199,7 +199,7 @@ describe("edit", () => {
 
 describe("remove", () => {
   it("moves the login to the trash", async () => {
-    await backend().remove(SOURCE, "item-2")
+    await provider().remove(VAULT, "item-2")
     expect(writes()).toEqual([
       {
         method: "PUT",
@@ -211,13 +211,13 @@ describe("remove", () => {
   })
 
   it("leaves a read-only login of an organization alone", async () => {
-    const bw = backend()
-    expect((await bw.details(SOURCE, "item-3", null)).editable).toBe(false)
-    await expect(bw.remove(SOURCE, "item-3")).rejects.toMatchObject({
+    const bw = provider()
+    expect((await bw.details(VAULT, "item-3", null)).editable).toBe(false)
+    await expect(bw.remove(VAULT, "item-3")).rejects.toMatchObject({
       code: "notEditable",
     })
     await expect(
-      bw.edit(SOURCE, "item-3", { notes: "x" }),
+      bw.edit(VAULT, "item-3", { notes: "x" }),
     ).rejects.toMatchObject({ code: "notEditable" })
     expect(writes()).toEqual([])
   })

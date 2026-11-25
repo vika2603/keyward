@@ -1,19 +1,19 @@
-import { AppleBackend } from "@/lib/backends/apple/apple-backend"
-import { ApiError } from "@/lib/backends/bitwarden/api"
-import { BitwardenBackend } from "@/lib/backends/bitwarden/bitwarden-backend"
-import { WrongPasswordError } from "@/lib/backends/bitwarden/crypto"
-import { loadVaultCrypto } from "@/lib/backends/bitwarden/sdk-loader"
-import { BackendError } from "@/lib/backends/types"
 import { controlBrowserSaving } from "@/lib/browser-saving"
 import { serveRequests } from "@/lib/messaging"
+import { AppleProvider } from "@/lib/providers/apple/apple-provider"
+import { ApiError } from "@/lib/providers/bitwarden/api"
+import { BitwardenProvider } from "@/lib/providers/bitwarden/bitwarden-provider"
+import { WrongPasswordError } from "@/lib/providers/bitwarden/crypto"
+import { loadVaultCrypto } from "@/lib/providers/bitwarden/sdk-loader"
+import { VaultError } from "@/lib/providers/types"
 import { getSettings, settingsItem } from "@/lib/settings"
-import { SOURCES_CHANGED_KEY } from "./api"
+import { VAULTS_CHANGED_KEY } from "./api"
 import { fillFirst } from "./autofill"
-import { Backends } from "./backends"
 import { CLEAR_CLIPBOARD_ALARM, clearClipboard } from "./clipboard"
 import { watchCodeSetup } from "./code-setup"
 import { createHandlers, openPopup } from "./handlers"
 import { menus } from "./overlays"
+import { Providers } from "./providers"
 import { forgetTab } from "./save-flow"
 import { watchToolbar } from "./toolbar"
 
@@ -42,7 +42,7 @@ async function injectIntoOpenTabs(): Promise<void> {
 }
 
 function errorCode(error: unknown): string {
-  if (error instanceof BackendError) return error.code
+  if (error instanceof VaultError) return error.code
   if (error instanceof WrongPasswordError) return "bitwarden.wrongPassword"
   if (error instanceof ApiError)
     return error.isAuthError ? "bitwarden.auth" : "bitwarden.api"
@@ -50,21 +50,21 @@ function errorCode(error: unknown): string {
   return "internal"
 }
 
-/** Wires the backends to messages, alarms and commands. Listeners are registered synchronously. */
+/** Wires the providers to messages, alarms and commands. Listeners are registered synchronously. */
 export function startBackground(): void {
-  const apple = new AppleBackend()
-  const bitwarden = new BitwardenBackend(loadVaultCrypto)
-  const backends = new Backends(apple, bitwarden)
+  const apple = new AppleProvider()
+  const bitwarden = new BitwardenProvider(loadVaultCrypto)
+  const providers = new Providers(apple, bitwarden)
 
-  serveRequests(createHandlers(backends), errorCode)
-  const refreshToolbar = watchToolbar(backends)
+  serveRequests(createHandlers(providers), errorCode)
+  const refreshToolbar = watchToolbar(providers)
   watchCodeSetup((view) => void openPopup(view).catch(() => {}))
 
   let announcing: ReturnType<typeof setTimeout> | undefined
   const announce = () => {
     clearTimeout(announcing)
     announcing = setTimeout(() => {
-      void browser.storage.local.set({ [SOURCES_CHANGED_KEY]: Date.now() })
+      void browser.storage.local.set({ [VAULTS_CHANGED_KEY]: Date.now() })
       refreshToolbar()
     }, ANNOUNCE_DELAY_MS)
   }
@@ -85,7 +85,7 @@ export function startBackground(): void {
       void apple.setEnabled(Boolean(next?.appleEnabled))
     if (next?.takeOverSaving !== previous?.takeOverSaving)
       void controlBrowserSaving(next?.takeOverSaving ?? true).catch(() => {})
-    // Turning a backend on or off and site rules change what the badge counts.
+    // Turning a provider on or off and site rules change what the badge counts.
     refreshToolbar()
   })
 
@@ -106,14 +106,14 @@ export function startBackground(): void {
 
   browser.commands.onCommand.addListener((command) => {
     if (command === "fill-first")
-      // With nothing to fill, the popup shows why: sources to unlock or pair, or no login for the site.
-      void fillFirst(backends)
+      // With nothing to fill, the popup shows why: vaults to unlock or pair, or no login for the site.
+      void fillFirst(providers)
         .then((result) =>
           result === "noLogin" ? openPopup({ name: "main" }) : undefined,
         )
         .catch(() => {})
     else if (command === "open-generator") void openPopup({ name: "generator" })
-    else if (command === "lock-all") void backends.lockAll()
+    else if (command === "lock-all") void providers.lockAll()
   })
 
   browser.runtime.onInstalled.addListener(({ reason }) => {

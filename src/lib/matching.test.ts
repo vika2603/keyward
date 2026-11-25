@@ -110,7 +110,7 @@ describe("ruleForHost", () => {
     id: host,
     host,
     match: null,
-    backend: "all",
+    provider: "all",
     behavior: "default",
   })
 

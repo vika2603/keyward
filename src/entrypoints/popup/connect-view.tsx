@@ -1,26 +1,24 @@
 import { ApplePairing } from "@/components/keyward/apple-pairing"
 import { BitwardenUnlock } from "@/components/keyward/bitwarden-unlock"
 import {
-  accountIdOfSource,
-  isBitwardenSource,
-} from "@/lib/backends/bitwarden/source-id"
-import type { BackendKind } from "@/lib/backends/types"
+  accountIdOfVault,
+  isBitwardenVault,
+} from "@/lib/providers/bitwarden/vault-id"
+import type { ProviderKind } from "@/lib/providers/types"
 import { BackHeader, openOptions } from "./header"
 
 /** Pairs Apple Passwords or unlocks one account, each on a page of its own. */
 export function ConnectView({
   kind,
-  sourceId,
+  vaultId,
   onDone,
 }: {
-  kind: BackendKind
-  sourceId?: string
+  kind: ProviderKind
+  vaultId?: string
   onDone: () => void
 }) {
   const accountId =
-    sourceId && isBitwardenSource(sourceId)
-      ? accountIdOfSource(sourceId)
-      : undefined
+    vaultId && isBitwardenVault(vaultId) ? accountIdOfVault(vaultId) : undefined
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">

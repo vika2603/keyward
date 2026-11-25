@@ -2,16 +2,16 @@ import { parse as parseHost } from "tldts"
 import { bigIntToBytes, bytesToBigInt } from "@/lib/bytes"
 import { isHostOrSubdomain } from "@/lib/site"
 import {
-  BackendError,
   type Credential,
   type ExistingLogin,
   type LoginDetails,
   type LoginSummary,
   type NewLogin,
   type OneTimeCode,
-  type PasswordBackend,
-  type SourceInfo,
   type TabRef,
+  VaultError,
+  type VaultInfo,
+  type VaultProvider,
 } from "../types"
 import { type HelperMessage, HelperPort, SupersededError } from "./helper-port"
 import {
@@ -25,8 +25,8 @@ import {
   QueryStatus,
   SecureSession,
 } from "./protocol"
-import { APPLE_SOURCE_ID } from "./source-id"
 import { BinaryCodec, SrpClient, sameSessionId, verifyServerProof } from "./srp"
+import { APPLE_VAULT_ID } from "./vault-id"
 
 export type ApplePhase =
   | "disabled"
@@ -76,7 +76,7 @@ function parseLoginId(id: string): { username: string; site: string } {
     typeof parsed[0] !== "string" ||
     typeof parsed[1] !== "string"
   ) {
-    throw new BackendError("Unknown login", "unknownLogin")
+    throw new VaultError("Unknown login", "unknownLogin")
   }
   return { username: parsed[0], site: parsed[1] }
 }
@@ -133,7 +133,7 @@ function textOf(value: unknown): string {
  * belongs to one helper process, so it lives only in memory and lasts while the native port stays
  * open; the open port in turn keeps the service worker alive. A new browser session pairs again.
  */
-export class AppleBackend implements PasswordBackend {
+export class AppleProvider implements VaultProvider {
   readonly kind = "apple" as const
   private readonly port: HelperPort
   private capabilities: HelperCapabilities | null = null
@@ -190,7 +190,7 @@ export class AppleBackend implements PasswordBackend {
   ensureConnected(): Promise<void> {
     if (!this.enabled)
       return Promise.reject(
-        new BackendError("Apple Passwords is turned off", "apple.disabled"),
+        new VaultError("Apple Passwords is turned off", "apple.disabled"),
       )
     if (this.port.connected && this.capabilities) return Promise.resolve()
     this.connecting ??= this.connect().finally(() => {
@@ -213,7 +213,7 @@ export class AppleBackend implements PasswordBackend {
       this.port.disconnect()
       this.capabilities = null
       this.setState({ phase: "unavailable", error: errorText(error) })
-      throw new BackendError(
+      throw new VaultError(
         "The Apple Passwords helper is not available",
         "apple.unavailable",
       )
@@ -244,7 +244,7 @@ export class AppleBackend implements PasswordBackend {
       await this.ensureConnected()
       const version = this.capabilities?.secretSessionVersion
       if (version !== undefined && version !== SRP_WITH_RFC_VERIFICATION) {
-        throw new BackendError(
+        throw new VaultError(
           `Unsupported helper session version ${version}`,
           "apple.unsupported",
         )
@@ -274,13 +274,13 @@ export class AppleBackend implements PasswordBackend {
         typeof pake.TID !== "string" ||
         !sameSessionId(client.codec, client.username, pake.TID)
       ) {
-        throw new BackendError(
+        throw new VaultError(
           "Pairing reply belongs to another session",
           "apple.protocol",
         )
       }
       if (pake.ErrCode !== undefined && Number(pake.ErrCode) !== 0) {
-        throw new BackendError(
+        throw new VaultError(
           `Pairing was refused (error ${pake.ErrCode})`,
           "apple.refused",
         )
@@ -290,13 +290,13 @@ export class AppleBackend implements PasswordBackend {
         typeof pake.s !== "string" ||
         typeof pake.B !== "string"
       ) {
-        throw new BackendError("Unexpected pairing reply", "apple.protocol")
+        throw new VaultError("Unexpected pairing reply", "apple.protocol")
       }
       if (
         pake.PROTO !== undefined &&
         Number(pake.PROTO) !== SRP_WITH_RFC_VERIFICATION
       ) {
-        throw new BackendError(
+        throw new VaultError(
           `Helper chose unsupported protocol ${pake.PROTO}`,
           "apple.unsupported",
         )
@@ -315,7 +315,7 @@ export class AppleBackend implements PasswordBackend {
     return this.serialized("pair", async () => {
       const pairing = this.pairing
       if (!pairing)
-        throw new BackendError("No pairing in progress", "apple.noPairing")
+        throw new VaultError("No pairing in progress", "apple.noPairing")
       this.pairing = null
       const { client } = pairing
       try {
@@ -343,17 +343,17 @@ export class AppleBackend implements PasswordBackend {
           typeof pake.TID !== "string" ||
           !sameSessionId(client.codec, client.username, pake.TID)
         ) {
-          throw new BackendError(
+          throw new VaultError(
             "Pairing reply belongs to another session",
             "apple.protocol",
           )
         }
         if (String(pake.MSG) !== "3")
-          throw new BackendError("Unexpected pairing reply", "apple.protocol")
+          throw new VaultError("Unexpected pairing reply", "apple.protocol")
         if (Number(pake.ErrCode) === 1)
-          throw new BackendError("The code is incorrect", "apple.wrongCode")
+          throw new VaultError("The code is incorrect", "apple.wrongCode")
         if (Number(pake.ErrCode) !== 0) {
-          throw new BackendError(
+          throw new VaultError(
             `Pairing failed (error ${pake.ErrCode})`,
             "apple.refused",
           )
@@ -362,7 +362,7 @@ export class AppleBackend implements PasswordBackend {
           typeof pake.HAMK !== "string" ||
           !verifyServerProof(result, client.codec.decode(pake.HAMK))
         ) {
-          throw new BackendError(
+          throw new VaultError(
             "The helper could not prove it knows the code",
             "apple.protocol",
           )
@@ -381,7 +381,7 @@ export class AppleBackend implements PasswordBackend {
     })
   }
 
-  async sources(): Promise<SourceInfo[]> {
+  async vaults(): Promise<VaultInfo[]> {
     if (!this.enabled) return []
     const { phase, error } = this.state
     const status =
@@ -392,7 +392,7 @@ export class AppleBackend implements PasswordBackend {
           : "locked"
     return [
       {
-        id: APPLE_SOURCE_ID,
+        id: APPLE_VAULT_ID,
         kind: "apple",
         label: "Apple Passwords",
         status,
@@ -401,7 +401,7 @@ export class AppleBackend implements PasswordBackend {
     ]
   }
 
-  async logins(_sourceId: string, page: URL): Promise<LoginSummary[]> {
+  async logins(_vaultId: string, page: URL): Promise<LoginSummary[]> {
     const host = page.hostname
     const entries = await this.listEntries(host, { tabId: 0, frameId: 0 })
     return entries.map((entry) => ({
@@ -413,10 +413,10 @@ export class AppleBackend implements PasswordBackend {
   }
 
   /** The helper looks logins up by site only, so a search must be a site's address. */
-  async search(sourceId: string, query: string): Promise<LoginSummary[]> {
+  async search(vaultId: string, query: string): Promise<LoginSummary[]> {
     const host = query.trim().toLowerCase()
     if (!host.includes(".") || !isHostName(host)) return []
-    return this.logins(sourceId, new URL(`https://${host}`))
+    return this.logins(vaultId, new URL(`https://${host}`))
   }
 
   private async listEntries(host: string, tab: TabRef): Promise<Entry[]> {
@@ -454,14 +454,14 @@ export class AppleBackend implements PasswordBackend {
    * answers, so this waits without a timeout and a newer read replaces it.
    */
   async credential(
-    _sourceId: string,
+    _vaultId: string,
     id: string,
     page: URL | null,
     tab: TabRef,
   ): Promise<Credential> {
     const { username, site } = parseLoginId(id)
     if (!isHostName(site))
-      throw new BackendError("The login has no site", "unknownLogin")
+      throw new VaultError("The login has no site", "unknownLogin")
     // The helper's own listing for the page decides which logins belong to it.
     const listed = await this.listEntries(page?.hostname ?? site, {
       tabId: 0,
@@ -472,7 +472,7 @@ export class AppleBackend implements PasswordBackend {
         (entry) => entry.username === username && entry.site === site,
       )
     ) {
-      throw new BackendError("The login does not match this page", "notFound")
+      throw new VaultError("The login does not match this page", "notFound")
     }
     let reply: Record<string, unknown>
     try {
@@ -489,34 +489,34 @@ export class AppleBackend implements PasswordBackend {
       )
     } catch (error) {
       if (error instanceof SupersededError)
-        throw new BackendError("Replaced by a newer request", "cancelled")
+        throw new VaultError("Replaced by a newer request", "cancelled")
       throw error
     }
     const password = passwordIn(reply, username, site)
     if (password) return { username, password }
     if (password === null)
-      throw new BackendError(
+      throw new VaultError(
         "Apple Passwords has no password for this login",
         "apple.noPassword",
       )
-    throw new BackendError("Apple Passwords returned no password", "notFound")
+    throw new VaultError("Apple Passwords returned no password", "notFound")
   }
 
   async details(
-    _sourceId: string,
+    _vaultId: string,
     id: string,
     page: URL | null,
   ): Promise<LoginDetails> {
     const { username, site } = parseLoginId(id)
     if (!isHostName(site))
-      throw new BackendError("The login has no site", "unknownLogin")
+      throw new VaultError("The login has no site", "unknownLogin")
     const tab = { tabId: 0, frameId: 0 }
     const target = page ?? new URL(`https://${site}`)
     const entry = (await this.listEntries(target.hostname, tab)).find(
       (e) => e.username === username && e.site === site,
     )
     if (!entry)
-      throw new BackendError("The login does not match this page", "notFound")
+      throw new VaultError("The login does not match this page", "notFound")
     const codes = await this.codeEntries(target, tab).catch(() => [])
     return {
       username,
@@ -553,7 +553,7 @@ export class AppleBackend implements PasswordBackend {
   }
 
   async codeLogins(
-    _sourceId: string,
+    _vaultId: string,
     page: URL,
     tab: TabRef,
   ): Promise<LoginSummary[]> {
@@ -571,14 +571,14 @@ export class AppleBackend implements PasswordBackend {
    * for Touch ID first, so this waits without a timeout and a newer read replaces it.
    */
   async oneTimeCode(
-    _sourceId: string,
+    _vaultId: string,
     id: string,
     requested: URL | null,
     tab: TabRef,
   ): Promise<OneTimeCode> {
     const { username, site } = parseLoginId(id)
     if (!requested && !isHostName(site))
-      throw new BackendError("The login has no site", "unknownLogin")
+      throw new VaultError("The login has no site", "unknownLogin")
     const page = requested ?? new URL(`https://${site}`)
     const entries = await this.codeEntries(page, tab)
     // The menu's IDs name the entry's own domain; the popup's name the login's site, which an
@@ -586,8 +586,7 @@ export class AppleBackend implements PasswordBackend {
     const entry =
       entries.find((c) => c.username === username && c.domain === site) ??
       entries.find((c) => isCodeFor(c, username, site))
-    if (!entry)
-      throw new BackendError("The login has no one-time code", "noCode")
+    if (!entry) throw new VaultError("The login has no one-time code", "noCode")
     let reply: Record<string, unknown>
     try {
       reply = await this.query(
@@ -603,7 +602,7 @@ export class AppleBackend implements PasswordBackend {
       )
     } catch (error) {
       if (error instanceof SupersededError)
-        throw new BackendError("Replaced by a newer request", "cancelled")
+        throw new VaultError("Replaced by a newer request", "cancelled")
       throw error
     }
     const match = entriesOf(reply).find(
@@ -614,7 +613,7 @@ export class AppleBackend implements PasswordBackend {
     )
     const code = match?.code
     if (typeof code !== "string" && typeof code !== "number")
-      throw new BackendError("Apple Passwords returned no code", "noCode")
+      throw new VaultError("Apple Passwords returned no code", "noCode")
     return { code: String(code) }
   }
 
@@ -634,13 +633,13 @@ export class AppleBackend implements PasswordBackend {
    * the user has chosen, and the answer does not say what was chosen, so the result is checked by
    * listing. Logins it cannot store are refused before the confirmation is shown.
    */
-  save(_sourceId: string, login: NewLogin, tab: TabRef): Promise<void> {
+  save(_vaultId: string, login: NewLogin, tab: TabRef): Promise<void> {
     const host = login.url.hostname
     if (!isHostName(host))
-      return Promise.reject(new BackendError("Not a host name", "invalidSite"))
+      return Promise.reject(new VaultError("Not a host name", "invalidSite"))
     if (!this.canSave(login.url)) {
       return Promise.reject(
-        new BackendError(
+        new VaultError(
           "Apple Passwords does not store logins for this host",
           "apple.unsupportedSite",
         ),
@@ -651,7 +650,7 @@ export class AppleBackend implements PasswordBackend {
       !this.capabilities?.canSaveAccountWithEmptyUserName
     ) {
       return Promise.reject(
-        new BackendError(
+        new VaultError(
           "Apple Passwords needs a username",
           "apple.emptyUsername",
         ),
@@ -683,7 +682,7 @@ export class AppleBackend implements PasswordBackend {
         const saved = await this.listEntries(host, tab)
         if (saved.some((entry) => entry.username === login.username)) return
       }
-      throw new BackendError(
+      throw new VaultError(
         "Apple Passwords did not store the login",
         "apple.notSaved",
       )
@@ -691,16 +690,16 @@ export class AppleBackend implements PasswordBackend {
   }
 
   update(
-    sourceId: string,
+    vaultId: string,
     _loginId: string,
     login: NewLogin,
     tab: TabRef,
   ): Promise<void> {
-    return this.save(sourceId, login, tab)
+    return this.save(vaultId, login, tab)
   }
 
   async findExisting(
-    _sourceId: string,
+    _vaultId: string,
     page: URL,
     username: string,
   ): Promise<ExistingLogin | null> {
@@ -748,12 +747,9 @@ export class AppleBackend implements PasswordBackend {
    */
   async setUpCode(site: string, uri: string): Promise<void> {
     if (!isHostName(site))
-      throw new BackendError("Not a host name", "invalidSite")
+      throw new VaultError("Not a host name", "invalidSite")
     if (!this.canSetUpCodes())
-      throw new BackendError(
-        "Apple Passwords cannot set up codes now",
-        "locked",
-      )
+      throw new VaultError("Apple Passwords cannot set up codes now", "locked")
     this.port.post({
       cmd: Cmd.LaunchPasswordsApp,
       setUpTOTPPageURL: site,
@@ -784,7 +780,7 @@ export class AppleBackend implements PasswordBackend {
     await this.ensureConnected()
     const session = this.session
     if (!session)
-      throw new BackendError("Apple Passwords needs pairing", "locked")
+      throw new VaultError("Apple Passwords needs pairing", "locked")
     const smsg = await session.seal(body)
     const reply = await this.port.request(
       { ...envelope, payload: JSON.stringify({ QID: qid, SMSG: smsg }) },
@@ -795,15 +791,15 @@ export class AppleBackend implements PasswordBackend {
       decoded = await session.open(payloadOf(reply).SMSG)
     } catch {
       this.dropSession("The helper no longer accepts this session")
-      throw new BackendError("Apple Passwords needs pairing", "locked")
+      throw new VaultError("Apple Passwords needs pairing", "locked")
     }
     const status = decoded.STATUS
     if (status === QueryStatus.InvalidSession) {
       this.dropSession("The helper ended the session")
-      throw new BackendError("Apple Passwords needs pairing", "locked")
+      throw new VaultError("Apple Passwords needs pairing", "locked")
     }
     if (status !== QueryStatus.Success && status !== QueryStatus.NoResults) {
-      throw new BackendError(
+      throw new VaultError(
         `Apple Passwords query failed with status ${String(status)}`,
         "apple.query",
       )

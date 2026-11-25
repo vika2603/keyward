@@ -1,13 +1,13 @@
 /**
- * The contract every password backend implements. The popup, the in-page menu and the save prompt
+ * The contract every password provider implements. The popup, the in-page menu and the save prompt
  * only use this interface, so adding a password manager means adding one implementation and its
- * connect screen. A backend exposes one or more sources: Apple Passwords is one source, each
+ * connect screen. A provider exposes one or more vaults: Apple Passwords is one vault, each
  * signed-in Bitwarden account is another.
  */
 
-export type BackendKind = "apple" | "bitwarden"
+export type ProviderKind = "apple" | "bitwarden"
 
-export type SourceStatus =
+export type VaultStatus =
   /** Logins can be listed and read. */
   | "ready"
   /** Needs pairing or unlocking first. */
@@ -15,18 +15,18 @@ export type SourceStatus =
   /** Cannot be reached at all, for example when the system helper is missing. */
   | "unavailable"
 
-export interface SourceInfo {
+export interface VaultInfo {
   id: string
-  kind: BackendKind
+  kind: ProviderKind
   /** An account's email address; the interface names Apple Passwords itself. */
   label: string
-  status: SourceStatus
+  status: VaultStatus
   error?: string
 }
 
 /** A login without its password, as lists and menus show it. */
 export interface LoginSummary {
-  /** Unique within its source. */
+  /** Unique within its vault. */
   id: string
   username: string
   /** The line under the user name: the site for Apple, the item name for Bitwarden. */
@@ -42,13 +42,13 @@ export interface LoginSummary {
 /** What the detail view shows of a login. The password and one-time code are read on request. */
 export interface LoginDetails {
   username: string
-  /** The item name, when the backend keeps one apart from the site. */
+  /** The item name, when the provider keeps one apart from the site. */
   name?: string
   /** Addresses the login is saved for. */
   uris: string[]
   notes?: string
   hasCode: boolean
-  /** Whether the login's password and code are left to the backend's own apps, as Bitwarden does for items that ask for the master password again. */
+  /** Whether the login's password and code are left to the provider's own apps, as Bitwarden does for items that ask for the master password again. */
   secretsWithheld: boolean
   /** Whether Keyward can edit and delete the login. */
   editable: boolean
@@ -60,9 +60,9 @@ export interface LoginDetails {
 
 export interface OneTimeCode {
   code: string
-  /** Seconds each code lasts, when the backend says. */
+  /** Seconds each code lasts, when the provider says. */
   period?: number
-  /** When the code stops being valid, in milliseconds since the epoch, when the backend says. */
+  /** When the code stops being valid, in milliseconds since the epoch, when the provider says. */
   expiresAt?: number
 }
 
@@ -71,7 +71,7 @@ export interface Credential {
   password: string
 }
 
-/** Where a request comes from, passed through to backends that report it to their host. */
+/** Where a request comes from, passed through to providers that report it to their host. */
 export interface TabRef {
   tabId: number
   frameId: number
@@ -100,7 +100,7 @@ export type LoginEdit = Partial<EditableLogin>
 /** An existing login for a page and user name, used to decide between a save and an update prompt. */
 export interface ExistingLogin {
   loginId: string
-  /** Whether the saved password equals the submitted one; undefined when the backend cannot tell without asking the user. */
+  /** Whether the saved password equals the submitted one; undefined when the provider cannot tell without asking the user. */
   samePassword: boolean | undefined
 }
 
@@ -112,71 +112,71 @@ export interface ListOptions {
   passive?: boolean
 }
 
-export interface PasswordBackend {
-  readonly kind: BackendKind
-  sources(): Promise<SourceInfo[]>
+export interface VaultProvider {
+  readonly kind: ProviderKind
+  vaults(): Promise<VaultInfo[]>
   logins(
-    sourceId: string,
+    vaultId: string,
     page: URL,
     options?: ListOptions,
   ): Promise<LoginSummary[]>
   /**
    * Logins whose name, username or address contain every word of the query, from the whole
-   * vault. A backend that can only look up a site answers a query that is a host name.
+   * vault. A provider that can only look up a site answers a query that is a host name.
    */
-  search(sourceId: string, query: string): Promise<LoginSummary[]>
+  search(vaultId: string, query: string): Promise<LoginSummary[]>
   /**
    * Reads one login's password; may ask the user to authenticate. `page` is the page the login is
    * read for, which it must match. Null is for a login the user picked in Keyward's own views from
    * the whole vault, as from a search; what is read that way never goes into a page.
    */
   credential(
-    sourceId: string,
+    vaultId: string,
     loginId: string,
     page: URL | null,
     tab: TabRef,
   ): Promise<Credential>
   /** Describes one login; `page` as for `credential`. */
   details(
-    sourceId: string,
+    vaultId: string,
     loginId: string,
     page: URL | null,
   ): Promise<LoginDetails>
   /** Logins of the page that give one-time codes. */
-  codeLogins(sourceId: string, page: URL, tab: TabRef): Promise<LoginSummary[]>
+  codeLogins(vaultId: string, page: URL, tab: TabRef): Promise<LoginSummary[]>
   /** The current one-time code of a login; may ask the user to authenticate. `page` as for `credential`. */
   oneTimeCode(
-    sourceId: string,
+    vaultId: string,
     loginId: string,
     page: URL | null,
     tab: TabRef,
   ): Promise<OneTimeCode>
-  /** A login's fields for an edit form; only backends whose details say `editable` have it. */
-  editable?(sourceId: string, loginId: string): Promise<EditableLogin>
-  edit?(sourceId: string, loginId: string, change: LoginEdit): Promise<void>
-  /** Moves a login to the trash, where the backend's own apps can restore it. */
-  remove?(sourceId: string, loginId: string): Promise<void>
-  /** Whether the backend can store a login for this address; a save prompt offers only those that can. */
+  /** A login's fields for an edit form; only providers whose details say `editable` have it. */
+  editable?(vaultId: string, loginId: string): Promise<EditableLogin>
+  edit?(vaultId: string, loginId: string, change: LoginEdit): Promise<void>
+  /** Moves a login to the trash, where the provider's own apps can restore it. */
+  remove?(vaultId: string, loginId: string): Promise<void>
+  /** Whether the provider can store a login for this address; a save prompt offers only those that can. */
   canSave(url: URL): boolean
-  save(sourceId: string, login: NewLogin, tab: TabRef): Promise<void>
+  save(vaultId: string, login: NewLogin, tab: TabRef): Promise<void>
   update(
-    sourceId: string,
+    vaultId: string,
     loginId: string,
     login: NewLogin,
     tab: TabRef,
   ): Promise<void>
   findExisting(
-    sourceId: string,
+    vaultId: string,
     page: URL,
     username: string,
     password: string,
   ): Promise<ExistingLogin | null>
-  /** Locks one source; it needs pairing or unlocking again before use. */
-  lock(sourceId: string): Promise<void>
+  /** Locks one vault; it needs pairing or unlocking again before use. */
+  lock(vaultId: string): Promise<void>
   lockAll(): Promise<void>
 }
 
-export class BackendError extends Error {
+export class VaultError extends Error {
   constructor(
     message: string,
     readonly code: string,

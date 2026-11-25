@@ -4,7 +4,7 @@ import {
   callBackground,
   type FieldInfo,
   isContentMessage,
-  SOURCES_CHANGED_KEY,
+  VAULTS_CHANGED_KEY,
 } from "@/background/api"
 import { watchCodeImages } from "@/content/code-scan"
 import {
@@ -29,7 +29,7 @@ import {
   type PasskeyControl,
 } from "@/content/passkey-events"
 import { watchSubmissions } from "@/content/submit"
-import { ACCOUNTS_KEY } from "@/lib/backends/bitwarden/account-store"
+import { ACCOUNTS_KEY } from "@/lib/providers/bitwarden/account-store"
 import { isDarkTheme } from "@/lib/theme"
 
 export default defineContentScript({
@@ -44,7 +44,7 @@ export default defineContentScript({
     let fields: HTMLInputElement[] = []
     /** Fields for a new password; their menu offers a generated one above the logins. */
     let newPasswords: HTMLInputElement[] = []
-    /** One-time code fields; they get the icon only while a ready source has codes for the page. */
+    /** One-time code fields; they get the icon only while a ready vault has codes for the page. */
     let codes: HTMLInputElement[] = []
     let codesAvailable: boolean | null = null
     let askingCodes = false
@@ -255,7 +255,7 @@ export default defineContentScript({
     }
     /**
      * Asks once per configuration whether code fields should get the icon. A configuration follows
-     * every change of the sources, so an unlock after the page loaded shows the icon too.
+     * every change of the vaults, so an unlock after the page loaded shows the icon too.
      */
     const checkCodes = async () => {
       if (askingCodes) return
@@ -308,7 +308,7 @@ export default defineContentScript({
     })
 
     let requested = 0
-    /** Applies this frame's configuration, which follows the settings and the connected backends. */
+    /** Applies this frame's configuration, which follows the settings and the connected vaults. */
     const configure = async () => {
       const request = ++requested
       const config = await callBackground("content.init", null).catch(
@@ -336,7 +336,7 @@ export default defineContentScript({
       if (
         changes.settings ||
         changes[ACCOUNTS_KEY] ||
-        changes[SOURCES_CHANGED_KEY]
+        changes[VAULTS_CHANGED_KEY]
       )
         void configure()
     }

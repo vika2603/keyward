@@ -11,13 +11,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { t } from "@/lib/i18n"
 import {
   lastServerItem,
   selfHostedServerItem,
-} from "@/lib/backends/bitwarden/account-store"
-import type { SecondStepMethod } from "@/lib/backends/bitwarden/auth"
-import type { PendingSignInView } from "@/lib/backends/bitwarden/bitwarden-backend"
-import { t } from "@/lib/i18n"
+} from "@/lib/providers/bitwarden/account-store"
+import type { SecondStepMethod } from "@/lib/providers/bitwarden/auth"
+import type { PendingSignInView } from "@/lib/providers/bitwarden/bitwarden-provider"
 import { navigate } from "./App"
 
 function methodTexts(): Record<
@@ -46,7 +46,7 @@ function methodTexts(): Record<
 
 /** Signs in to a Bitwarden account; Passwords is paired from the popup when it is used. */
 export function OnboardPage() {
-  const done = () => navigate("backends")
+  const done = () => navigate("vaults")
 
   return (
     <div className="flex min-h-screen flex-col items-center bg-muted px-4 pt-12 pb-16">

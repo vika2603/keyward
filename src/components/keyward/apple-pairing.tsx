@@ -12,8 +12,8 @@ import {
   InputOTPGroup,
   InputOTPSlot,
 } from "@/components/ui/input-otp"
-import type { AppleState } from "@/lib/backends/apple/apple-backend"
 import { t } from "@/lib/i18n"
+import type { AppleState } from "@/lib/providers/apple/apple-provider"
 import { errorCodeOf, errorMessage } from "./errors"
 
 /**

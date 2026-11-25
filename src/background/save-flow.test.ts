@@ -4,9 +4,9 @@ import { updateSettings } from "@/lib/settings"
 import { prompts } from "./overlays"
 import { onSubmitted, promptState, showPrompt } from "./save-flow"
 import {
-  accountSource,
-  appleSource,
-  fakeBackends,
+  accountVault,
+  appleVault,
+  fakeProviders,
   frames,
   pageModule,
   setFrame,
@@ -25,9 +25,9 @@ beforeEach(() => {
 })
 
 describe("onSubmitted", () => {
-  it("offers to save a login that no source has", async () => {
-    const { backends } = fakeBackends([{ info: accountSource }])
-    await onSubmitted(backends, TAB, 0, login)
+  it("offers to save a login that no vault has", async () => {
+    const { providers } = fakeProviders([{ info: accountVault }])
+    await onSubmitted(providers, TAB, 0, login)
     const session = await prompts.get(TAB)
     expect(session).toMatchObject({
       mode: "save",
@@ -42,44 +42,44 @@ describe("onSubmitted", () => {
   })
 
   it("offers to update a login whose saved password differs", async () => {
-    const { backends } = fakeBackends([
+    const { providers } = fakeProviders([
       {
-        info: accountSource,
+        info: accountVault,
         existing: { loginId: "item-1", samePassword: false },
       },
     ])
-    await onSubmitted(backends, TAB, 0, login)
+    await onSubmitted(providers, TAB, 0, login)
     expect(await prompts.get(TAB)).toMatchObject({
       mode: "update",
-      update: { sourceId: accountSource.id, loginId: "item-1" },
+      update: { vaultId: accountVault.id, loginId: "item-1" },
     })
   })
 
-  it("stays quiet when a source already has the login, including Apple without its password", async () => {
+  it("stays quiet when a vault already has the login, including Apple without its password", async () => {
     for (const existing of [
       { loginId: "item-1", samePassword: true },
       { loginId: "apple-1", samePassword: undefined },
     ]) {
-      const { backends } = fakeBackends([
-        { info: accountSource },
-        { info: appleSource, existing },
+      const { providers } = fakeProviders([
+        { info: accountVault },
+        { info: appleVault, existing },
       ])
-      await onSubmitted(backends, TAB, 0, login)
+      await onSubmitted(providers, TAB, 0, login)
       expect(await prompts.get(TAB)).toBeNull()
     }
   })
 
   it("offers to update an Apple login when a new password was typed for it", async () => {
-    const { backends } = fakeBackends([
+    const { providers } = fakeProviders([
       {
-        info: appleSource,
+        info: appleVault,
         existing: { loginId: "apple-1", samePassword: undefined },
       },
     ])
-    await onSubmitted(backends, TAB, 0, { ...login, newPassword: true })
+    await onSubmitted(providers, TAB, 0, { ...login, newPassword: true })
     expect(await prompts.get(TAB)).toMatchObject({
       mode: "update",
-      update: { sourceId: appleSource.id, loginId: "apple-1" },
+      update: { vaultId: appleVault.id, loginId: "apple-1" },
     })
   })
 
@@ -90,55 +90,55 @@ describe("onSubmitted", () => {
       password: "typed-password",
       newPassword: true,
     }
-    const { backends } = fakeBackends([
+    const { providers } = fakeProviders([
       {
-        info: accountSource,
+        info: accountVault,
         logins: [saved],
         existing: { loginId: "item-1", samePassword: false },
       },
     ])
-    await onSubmitted(backends, TAB, 0, changed)
+    await onSubmitted(providers, TAB, 0, changed)
     expect(await prompts.get(TAB)).toMatchObject({
       mode: "update",
       username: "someone",
     })
 
     await prompts.remove(TAB)
-    const two = fakeBackends([
+    const two = fakeProviders([
       {
-        info: accountSource,
+        info: accountVault,
         logins: [saved, { ...saved, id: "item-2", username: "another" }],
       },
     ])
-    await onSubmitted(two.backends, TAB, 0, changed)
+    await onSubmitted(two.providers, TAB, 0, changed)
     expect(await prompts.get(TAB)).toBeNull()
   })
 
-  it("does not offer to save when no ready source can store a login for the site", async () => {
-    const { backends } = fakeBackends([
-      { info: appleSource, canSave: false },
-      { info: { ...accountSource, status: "locked" } },
+  it("does not offer to save when no ready vault can store a login for the site", async () => {
+    const { providers } = fakeProviders([
+      { info: appleVault, canSave: false },
+      { info: { ...accountVault, status: "locked" } },
     ])
-    await onSubmitted(backends, TAB, 0, login)
+    await onSubmitted(providers, TAB, 0, login)
     expect(await prompts.get(TAB)).toBeNull()
     expect(pageModule.sendToFrame).not.toHaveBeenCalled()
   })
 
-  it("offers only the sources that can store a login for the site", async () => {
-    const { backends } = fakeBackends([
-      { info: appleSource, canSave: false },
-      { info: accountSource },
+  it("offers only the vaults that can store a login for the site", async () => {
+    const { providers } = fakeProviders([
+      { info: appleVault, canSave: false },
+      { info: accountVault },
     ])
-    await onSubmitted(backends, TAB, 0, login)
-    const state = await promptState(backends, TAB)
-    expect(state.targets.map((t) => t.id)).toEqual([accountSource.id])
-    expect(state.defaultTarget).toBe(accountSource.id)
+    await onSubmitted(providers, TAB, 0, login)
+    const state = await promptState(providers, TAB)
+    expect(state.targets.map((t) => t.id)).toEqual([accountVault.id])
+    expect(state.defaultTarget).toBe(accountVault.id)
   })
 
   it("respects the settings and site rules that turn prompts off", async () => {
-    const { backends } = fakeBackends([{ info: accountSource }])
+    const { providers } = fakeProviders([{ info: accountVault }])
     await updateSettings({ askSave: false })
-    await onSubmitted(backends, TAB, 0, login)
+    await onSubmitted(providers, TAB, 0, login)
     expect(await prompts.get(TAB)).toBeNull()
 
     await updateSettings({
@@ -148,21 +148,21 @@ describe("onSubmitted", () => {
           id: "r",
           host: "example.com",
           match: null,
-          backend: "all",
+          provider: "all",
           behavior: "noSave",
         },
       ],
     })
-    await onSubmitted(backends, TAB, 0, login)
+    await onSubmitted(providers, TAB, 0, login)
     expect(await prompts.get(TAB)).toBeNull()
   })
 
   it("joins the username of the first page of a two-step login with the password of the second", async () => {
-    const { backends } = fakeBackends([{ info: accountSource }])
-    await onSubmitted(backends, TAB, 0, { username: "someone", password: "" })
+    const { providers } = fakeProviders([{ info: accountVault }])
+    await onSubmitted(providers, TAB, 0, { username: "someone", password: "" })
     expect(await prompts.get(TAB)).toBeNull()
     setFrame(TAB, 0, "https://login.example.com/password")
-    await onSubmitted(backends, TAB, 0, {
+    await onSubmitted(providers, TAB, 0, {
       username: "",
       password: "typed-password",
     })
@@ -170,10 +170,10 @@ describe("onSubmitted", () => {
   })
 
   it("does not carry a remembered username to another site", async () => {
-    const { backends } = fakeBackends([{ info: accountSource }])
-    await onSubmitted(backends, TAB, 0, { username: "someone", password: "" })
+    const { providers } = fakeProviders([{ info: accountVault }])
+    await onSubmitted(providers, TAB, 0, { username: "someone", password: "" })
     setFrame(TAB, 0, "https://other.org/login")
-    await onSubmitted(backends, TAB, 0, {
+    await onSubmitted(providers, TAB, 0, {
       username: "",
       password: "typed-password",
     })
@@ -183,8 +183,8 @@ describe("onSubmitted", () => {
 
 describe("showPrompt", () => {
   it("shows a pending prompt again only on the site of the login, with a new token", async () => {
-    const { backends } = fakeBackends([{ info: accountSource }])
-    await onSubmitted(backends, TAB, 0, login)
+    const { providers } = fakeProviders([{ info: accountVault }])
+    await onSubmitted(providers, TAB, 0, login)
     const first = (await prompts.get(TAB))?.token
     pageModule.sendToFrame.mockClear()
 

@@ -13,9 +13,9 @@ import {
 import { listHistory } from "./history"
 import { markRecent, recallUsername, rememberUsername } from "./save-flow"
 import {
-  accountSource,
-  appleSource,
-  fakeBackends,
+  accountVault,
+  appleVault,
+  fakeProviders,
   frames,
   pageModule,
   setFrame,
@@ -35,18 +35,18 @@ beforeEach(() => {
 
 describe("fillLogin", () => {
   it("remembers who signed in, so a code step that follows offers that login first", async () => {
-    const { backends } = fakeBackends([{ info: accountSource, credential }])
-    await fillLogin(backends, TAB, 0, accountSource.id, "item-1")
+    const { providers } = fakeProviders([{ info: accountVault, credential }])
+    await fillLogin(providers, TAB, 0, accountVault.id, "item-1")
     expect(await recallUsername(TAB, "example.com")).toBe("someone")
   })
 
   it("sends the login to the frame together with the origin it was checked for", async () => {
-    const { backends, calls } = fakeBackends([
-      { info: accountSource, credential },
+    const { providers, calls } = fakeProviders([
+      { info: accountVault, credential },
     ])
-    await fillLogin(backends, TAB, 0, accountSource.id, "item-1")
+    await fillLogin(providers, TAB, 0, accountVault.id, "item-1")
     expect(calls.credential).toHaveBeenCalledWith(
-      accountSource.id,
+      accountVault.id,
       "item-1",
       new URL("https://accounts.example.com/login"),
       { tabId: TAB, frameId: 0 },
@@ -60,7 +60,7 @@ describe("fillLogin", () => {
   })
 
   it("sends nothing when the frame navigated while the password was read", async () => {
-    const { backends } = fakeBackends([{ info: accountSource, credential }])
+    const { providers } = fakeProviders([{ info: accountVault, credential }])
     pageModule.frameUrl.mockImplementationOnce(
       async () => new URL("https://accounts.example.com/login"),
     )
@@ -68,33 +68,33 @@ describe("fillLogin", () => {
       async () => new URL("https://attacker.net/"),
     )
     await expect(
-      fillLogin(backends, TAB, 0, accountSource.id, "item-1"),
+      fillLogin(providers, TAB, 0, accountVault.id, "item-1"),
     ).rejects.toMatchObject({
       code: "pageChanged",
     })
     expect(pageModule.sendToFrame).not.toHaveBeenCalled()
   })
 
-  it("refuses a source that does not serve the site", async () => {
-    const { backends } = fakeBackends([{ info: accountSource, credential }])
+  it("refuses a vault that does not serve the site", async () => {
+    const { providers } = fakeProviders([{ info: accountVault, credential }])
     await expect(
-      fillLogin(backends, TAB, 0, appleSource.id, "x"),
+      fillLogin(providers, TAB, 0, appleVault.id, "x"),
     ).rejects.toMatchObject({
-      code: "unknownSource",
+      code: "unknownVault",
     })
     expect(pageModule.sendToFrame).not.toHaveBeenCalled()
   })
 
   it("does not fill a cross-origin frame unless the setting allows it", async () => {
     setFrame(TAB, 4, "https://widget.other.net/login")
-    const { backends } = fakeBackends([{ info: accountSource, credential }])
+    const { providers } = fakeProviders([{ info: accountVault, credential }])
     await expect(
-      fillLogin(backends, TAB, 4, accountSource.id, "item-1"),
+      fillLogin(providers, TAB, 4, accountVault.id, "item-1"),
     ).rejects.toMatchObject({
       code: "fillDisabled",
     })
     await updateSettings({ crossOriginFrames: true })
-    await fillLogin(backends, TAB, 4, accountSource.id, "item-1")
+    await fillLogin(providers, TAB, 4, accountVault.id, "item-1")
     expect(pageModule.sendToFrame).toHaveBeenCalledWith(
       TAB,
       4,
@@ -111,14 +111,14 @@ describe("fillLogin", () => {
           id: "r",
           host: "example.com",
           match: null,
-          backend: "all",
+          provider: "all",
           behavior: "disabled",
         },
       ],
     })
-    const { backends } = fakeBackends([{ info: accountSource, credential }])
+    const { providers } = fakeProviders([{ info: accountVault, credential }])
     await expect(
-      fillLogin(backends, TAB, 0, accountSource.id, "item-1"),
+      fillLogin(providers, TAB, 0, accountVault.id, "item-1"),
     ).rejects.toMatchObject({
       code: "fillDisabled",
     })
@@ -169,11 +169,11 @@ describe("fillFirst", () => {
     )
   })
 
-  it("fills the first login a ready source lists for the page", async () => {
-    const { backends } = fakeBackends([
-      { info: accountSource, credential, logins: [login] },
+  it("fills the first login a ready vault lists for the page", async () => {
+    const { providers } = fakeProviders([
+      { info: accountVault, credential, logins: [login] },
     ])
-    await expect(fillFirst(backends)).resolves.toBe("filled")
+    await expect(fillFirst(providers)).resolves.toBe("filled")
     expect(pageModule.sendToFrame).toHaveBeenCalledWith(
       TAB,
       0,
@@ -183,28 +183,28 @@ describe("fillFirst", () => {
 
   it("fills the account typed on the first step of a two-step login", async () => {
     const other = { id: "item-2", username: "another", title: "Example" }
-    const { backends, calls } = fakeBackends([
-      { info: accountSource, credential, logins: [login, other] },
+    const { providers, calls } = fakeProviders([
+      { info: accountVault, credential, logins: [login, other] },
     ])
     await rememberUsername(TAB, "example.com", "another")
-    await fillFirst(backends)
+    await fillFirst(providers)
     expect(calls.credential).toHaveBeenCalledWith(
-      accountSource.id,
+      accountVault.id,
       "item-2",
       expect.any(URL),
       expect.anything(),
     )
   })
 
-  it("reports a login field with nothing to fill when the sources are locked", async () => {
-    const { backends } = fakeBackends([
+  it("reports a login field with nothing to fill when the vaults are locked", async () => {
+    const { providers } = fakeProviders([
       {
-        info: { ...accountSource, status: "locked" },
+        info: { ...accountVault, status: "locked" },
         credential,
         logins: [login],
       },
     ])
-    await expect(fillFirst(backends)).resolves.toBe("noLogin")
+    await expect(fillFirst(providers)).resolves.toBe("noLogin")
     expect(pageModule.sendToFrame).not.toHaveBeenCalledWith(
       TAB,
       0,
@@ -217,10 +217,10 @@ describe("fillFirst", () => {
       hasField: false,
       focused: false,
     })
-    const { backends } = fakeBackends([
-      { info: accountSource, credential, logins: [login] },
+    const { providers } = fakeProviders([
+      { info: accountVault, credential, logins: [login] },
     ])
-    await expect(fillFirst(backends)).resolves.toBe("noField")
+    await expect(fillFirst(providers)).resolves.toBe("noField")
   })
 })
 
@@ -229,10 +229,10 @@ describe("fillCode", () => {
   const codeLogin = { id: "item-1", username: "someone", title: "Example" }
 
   it("sends the current code to the frame with the origin it was checked for", async () => {
-    const { backends, calls } = fakeBackends([{ info: accountSource, code }])
-    await fillCode(backends, TAB, 0, accountSource.id, "item-1")
+    const { providers, calls } = fakeProviders([{ info: accountVault, code }])
+    await fillCode(providers, TAB, 0, accountVault.id, "item-1")
     expect(calls.oneTimeCode).toHaveBeenCalledWith(
-      accountSource.id,
+      accountVault.id,
       "item-1",
       new URL("https://accounts.example.com/login"),
       { tabId: TAB, frameId: 0 },
@@ -245,7 +245,7 @@ describe("fillCode", () => {
   })
 
   it("sends nothing when the frame navigated while the code was read", async () => {
-    const { backends } = fakeBackends([{ info: accountSource, code }])
+    const { providers } = fakeProviders([{ info: accountVault, code }])
     pageModule.frameUrl.mockImplementationOnce(
       async () => new URL("https://accounts.example.com/login"),
     )
@@ -253,39 +253,39 @@ describe("fillCode", () => {
       async () => new URL("https://attacker.net/"),
     )
     await expect(
-      fillCode(backends, TAB, 0, accountSource.id, "item-1"),
+      fillCode(providers, TAB, 0, accountVault.id, "item-1"),
     ).rejects.toMatchObject({ code: "pageChanged" })
     expect(pageModule.sendToFrame).not.toHaveBeenCalled()
   })
 
-  it("tells a frame whether a ready source has codes for it", async () => {
-    const withCodes = fakeBackends([
-      { info: accountSource, codeLogins: [codeLogin] },
+  it("tells a frame whether a ready vault has codes for it", async () => {
+    const withCodes = fakeProviders([
+      { info: accountVault, codeLogins: [codeLogin] },
     ])
-    expect(await hasCodes(withCodes.backends, TAB, 0)).toBe(true)
-    const withoutCodes = fakeBackends([
-      { info: accountSource, codeLogins: [] },
-      { info: { ...appleSource, status: "locked" } },
+    expect(await hasCodes(withCodes.providers, TAB, 0)).toBe(true)
+    const withoutCodes = fakeProviders([
+      { info: accountVault, codeLogins: [] },
+      { info: { ...appleVault, status: "locked" } },
     ])
-    expect(await hasCodes(withoutCodes.backends, TAB, 0)).toBe(false)
+    expect(await hasCodes(withoutCodes.providers, TAB, 0)).toBe(false)
   })
 
-  it("gives code fields the icon while no source is ready, to offer unlocking", async () => {
-    const locked = fakeBackends([
-      { info: { ...accountSource, status: "locked" } },
-      { info: { ...appleSource, status: "locked" } },
+  it("gives code fields the icon while no vault is ready, to offer unlocking", async () => {
+    const locked = fakeProviders([
+      { info: { ...accountVault, status: "locked" } },
+      { info: { ...appleVault, status: "locked" } },
     ])
-    expect(await hasCodes(locked.backends, TAB, 0)).toBe(true)
-    const none = fakeBackends([])
-    expect(await hasCodes(none.backends, TAB, 0)).toBe(false)
+    expect(await hasCodes(locked.providers, TAB, 0)).toBe(true)
+    const none = fakeProviders([])
+    expect(await hasCodes(none.providers, TAB, 0)).toBe(false)
   })
 })
 
 describe("passkey sites", () => {
   const takesOver = async (url: string, frameId = 0) => {
     setFrame(TAB, frameId, url)
-    const { backends } = fakeBackends([{ info: accountSource }])
-    return (await contentConfig(backends, TAB, frameId)).takeOverPasskeys
+    const { providers } = fakeProviders([{ info: accountVault }])
+    return (await contentConfig(providers, TAB, frameId)).takeOverPasskeys
   }
 
   it("offers passkeys in the menu only on sites where one was used", async () => {
@@ -311,16 +311,19 @@ describe("markRecent", () => {
     username,
     title: "example.com",
   })
-  const apple = { ...appleSource, logins: [login("a1", "other")] }
+  const apple = { ...appleVault, logins: [login("a1", "other")] }
   const account = {
-    ...accountSource,
+    ...accountVault,
     logins: [login("b1", "first"), login("b2", "Someone@Example.com")],
   }
 
-  it("puts the login signed in with first, in its source and among the sources", () => {
-    const sources = markRecent([apple, account], "someone@example.com")
-    expect(sources.map((s) => s.id)).toEqual([accountSource.id, appleSource.id])
-    expect(sources[0]?.logins.map((l) => [l.id, l.recent ?? false])).toEqual([
+  it("puts the login signed in with first, in its vault and among the vaults", () => {
+    const vaults = markRecent([apple, account], "someone@example.com")
+    expect(vaults.map((vault) => vault.id)).toEqual([
+      accountVault.id,
+      appleVault.id,
+    ])
+    expect(vaults[0]?.logins.map((l) => [l.id, l.recent ?? false])).toEqual([
       ["b2", true],
       ["b1", false],
     ])
