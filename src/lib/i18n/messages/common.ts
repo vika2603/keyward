@@ -3,6 +3,7 @@ export const en = {
   "common.bitwarden": "Bitwarden",
   "common.noUsername": "(no username)",
   "common.loading": "Loading…",
+  "common.passkeyOnly": "{site} · Passkey only",
   "common.noSaveTarget": "Nowhere to save",
   "source.pair": "Pair",
   "source.unlock": "Unlock",
@@ -24,6 +25,8 @@ export const en = {
   "error.invalidCodeKey": "The saved authenticator key can't be read.",
   "error.noSetup":
     "There's no verification code to set up. Right-click the QR code on the page again.",
+  "error.notEditable":
+    "This login can't be changed here. Use the password manager's own app.",
   "error.apple.unavailable":
     "Can't connect to Apple Passwords. It needs Chrome on macOS and the system's password helper.",
   "error.apple.disabled": "Apple Passwords is turned off in settings.",
@@ -80,6 +83,7 @@ export const zhCN: Record<keyof typeof en, string> = {
   "common.bitwarden": "Bitwarden",
   "common.noUsername": "（无用户名）",
   "common.loading": "正在加载…",
+  "common.passkeyOnly": "{site} · 仅通行密钥",
   "common.noSaveTarget": "没有可保存的位置",
   "source.pair": "配对",
   "source.unlock": "解锁",
@@ -100,6 +104,8 @@ export const zhCN: Record<keyof typeof en, string> = {
   "error.noCode": "这个登录没有验证码。",
   "error.invalidCodeKey": "无法读取保存的验证器密钥。",
   "error.noSetup": "没有待设置的验证码，请在网页上重新右键二维码。",
+  "error.notEditable":
+    "这条登录不能在这里修改，请到密码管理器自己的应用里修改。",
   "error.apple.unavailable":
     "无法连接 Apple 密码。需要 macOS 上的 Chrome 和系统自带的密码组件。",
   "error.apple.disabled": "Apple 密码已在设置中关闭。",

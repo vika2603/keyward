@@ -15,6 +15,8 @@ import {
   fillTargets,
   isPasswordField,
   loginFields,
+  newPasswordFields,
+  newPasswordTargets,
   setFieldValue,
   submitFor,
 } from "@/content/fields"
@@ -34,13 +36,17 @@ export default defineContentScript({
     const scheme = () => (isDarkTheme(theme) ? "dark" : "light")
     const prompt = isTop ? new SavePrompt(ctx, scheme) : null
     let fields: HTMLInputElement[] = []
+    /** Fields for a new password; their menu offers a generated one above the logins. */
+    let newPasswords: HTMLInputElement[] = []
     /** One-time code fields; they get the icon only while a ready source has codes for the page. */
     let codes: HTMLInputElement[] = []
     let codesAvailable: boolean | null = null
     let askingCodes = false
     let lastField: HTMLInputElement | null = null
     const isOurs = (field: HTMLInputElement) =>
-      fields.includes(field) || codes.includes(field)
+      fields.includes(field) ||
+      newPasswords.includes(field) ||
+      codes.includes(field)
     /** Set while a fill moves the focus between fields, which must not reopen the menu. */
     let filling = false
     /**
@@ -70,6 +76,7 @@ export default defineContentScript({
       lastField = field
       const { token } = await callBackground("content.openMenu", {
         kind: codes.includes(field) ? "code" : "login",
+        newPassword: newPasswords.includes(field),
       })
       // The page may have stopped offering logins while the session was requested.
       if (!active || !isOurs(field)) return
@@ -104,6 +111,9 @@ export default defineContentScript({
           return
         case "fillCode":
           fillCode(message)
+          return
+        case "fillNew":
+          fillNew(message)
           return
         case "menu.resize":
           menu.resize(message.height)
@@ -179,6 +189,25 @@ export default defineContentScript({
       }
     }
 
+    function fillNew(
+      message: Extract<ContentMessage, { type: "fillNew" }>,
+    ): void {
+      if (location.origin !== message.origin) return
+      const anchor = [
+        menu.openFor,
+        lastField?.isConnected ? lastField : null,
+      ].find((field) => field && newPasswords.includes(field))
+      menu.close()
+      if (!anchor) return
+      filling = true
+      try {
+        for (const field of newPasswordTargets(anchor, newPasswords))
+          setFieldValue(field, message.password)
+      } finally {
+        filling = false
+      }
+    }
+
     let active = false
     let scanCodes = false
     let menuTrigger: ContentConfig["menuTrigger"] = "click"
@@ -188,10 +217,11 @@ export default defineContentScript({
 
     const scan = () => {
       fields = loginFields(document)
-      const found = codeFields(document, fields)
+      newPasswords = newPasswordFields(document)
+      const found = codeFields(document, [...fields, ...newPasswords])
       if (found.length && codesAvailable === null) void checkCodes()
       codes = codesAvailable ? found : []
-      icons.update([...fields, ...codes])
+      icons.update([...fields, ...newPasswords, ...codes])
     }
     /**
      * Asks once per configuration whether code fields should get the icon. A configuration follows
@@ -235,6 +265,7 @@ export default defineContentScript({
       pending = 0
       menu.close()
       fields = []
+      newPasswords = []
       codes = []
       icons.update([])
     }

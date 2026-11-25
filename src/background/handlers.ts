@@ -1,12 +1,19 @@
 import { normalizeServerAddress } from "@/lib/backends/bitwarden/server"
 import { isBitwardenSource } from "@/lib/backends/bitwarden/source-id"
-import { BackendError } from "@/lib/backends/types"
+import { BackendError, type LoginEdit, type TabRef } from "@/lib/backends/types"
+import { generatePassword, generatorOptionsItem } from "@/lib/generator"
 import type { Handlers, Sender } from "@/lib/messaging"
 import { getSettings, updateSettings } from "@/lib/settings"
 import { normalizeSiteInput, siteDomainOf } from "@/lib/site"
 import { keyLabel } from "@/lib/totp"
 import type { BackgroundApi, FieldKind, PopupView, SourceView } from "./api"
-import { contentConfig, fillCode, fillLogin, hasCodes } from "./autofill"
+import {
+  contentConfig,
+  fillCode,
+  fillLogin,
+  fillNewPassword,
+  hasCodes,
+} from "./autofill"
 import type { Backends } from "./backends"
 import { copyText } from "./clipboard"
 import { finishSetup, offerCandidate, pendingSetup } from "./code-setup"
@@ -104,12 +111,43 @@ async function activePage(): Promise<{
   return { tabId: tab?.id, page: webPage(tab?.url) }
 }
 
-/** The web page of the active tab, which the popup's logins belong to. */
-async function requireActivePage(): Promise<{ tabId: number; page: URL }> {
-  const { tabId, page } = await activePage()
-  if (!page || tabId === undefined)
-    throw new BackendError("No web page is open", "notWebPage")
-  return { tabId, page }
+/** The tab a popup read is reported for; Apple's helper only uses it to route its reply. */
+async function popupTab(): Promise<TabRef> {
+  const tab = await activeTab()
+  return { tabId: tab?.id ?? 0, frameId: 0 }
+}
+
+function notEditable(): BackendError {
+  return new BackendError("The login cannot be changed", "notEditable")
+}
+
+const MAX_URIS = 50
+
+/** The fields of an edit, checked; fields that are left out stay out. */
+function loginEdit(value: unknown): LoginEdit {
+  if (typeof value !== "object" || value === null)
+    throw new BackendError("Invalid change", "invalidInput")
+  const input = value as Record<string, unknown>
+  const edit: LoginEdit = {}
+  const limits = {
+    name: 1024,
+    username: 1024,
+    password: 1024,
+    notes: 10_000,
+    totp: 4096,
+  } as const
+  for (const [key, max] of Object.entries(limits) as [
+    keyof typeof limits,
+    number,
+  ][]) {
+    if (input[key] !== undefined) edit[key] = requireText(input[key], key, max)
+  }
+  if (input.uris !== undefined) {
+    if (!Array.isArray(input.uris) || input.uris.length > MAX_URIS)
+      throw new BackendError("Invalid addresses", "invalidInput")
+    edit.uris = input.uris.map((uri) => requireText(uri, "uri", 2048))
+  }
+  return edit
 }
 
 function fieldKind(value: unknown): FieldKind {
@@ -147,13 +185,16 @@ export function createHandlers(backends: Backends): Handlers<BackgroundApi> {
         return { name: "main" }
       },
     },
+    "popup.search": {
+      allow: popup,
+      handle: ({ query }) => backends.search(requireText(query, "query", 256)),
+    },
     "popup.copyPassword": {
       allow: popup,
       handle: async ({ sourceId, loginId }) => {
-        const { tabId, page } = await requireActivePage()
         const credential = await backends
           .backendOf(sourceId)
-          .credential(sourceId, loginId, page, { tabId, frameId: 0 })
+          .credential(sourceId, loginId, null, await popupTab())
         await copyText(credential.password, true)
         return null
       },
@@ -167,28 +208,53 @@ export function createHandlers(backends: Backends): Handlers<BackgroundApi> {
     },
     "popup.details": {
       allow: popup,
-      handle: async ({ sourceId, loginId }) => {
-        const { page } = await requireActivePage()
-        return backends.backendOf(sourceId).details(sourceId, loginId, page)
-      },
+      handle: ({ sourceId, loginId }) =>
+        backends.backendOf(sourceId).details(sourceId, loginId, null),
     },
     "popup.revealPassword": {
       allow: popup,
       handle: async ({ sourceId, loginId }) => {
-        const { tabId, page } = await requireActivePage()
         const { password } = await backends
           .backendOf(sourceId)
-          .credential(sourceId, loginId, page, { tabId, frameId: 0 })
+          .credential(sourceId, loginId, null, await popupTab())
         return { password }
       },
     },
     "popup.oneTimeCode": {
       allow: popup,
-      handle: async ({ sourceId, loginId }) => {
-        const { tabId, page } = await requireActivePage()
-        return backends
+      handle: async ({ sourceId, loginId }) =>
+        backends
           .backendOf(sourceId)
-          .oneTimeCode(sourceId, loginId, page, { tabId, frameId: 0 })
+          .oneTimeCode(sourceId, loginId, null, await popupTab()),
+    },
+    "popup.editable": {
+      allow: popup,
+      handle: ({ sourceId, loginId }) => {
+        const backend = backends.backendOf(sourceId)
+        if (!backend.editable) throw notEditable()
+        return backend.editable(sourceId, requireText(loginId, "loginId"))
+      },
+    },
+    "popup.editLogin": {
+      allow: popup,
+      handle: async ({ sourceId, loginId, change }) => {
+        const backend = backends.backendOf(sourceId)
+        if (!backend.edit) throw notEditable()
+        await backend.edit(
+          sourceId,
+          requireText(loginId, "loginId"),
+          loginEdit(change),
+        )
+        return null
+      },
+    },
+    "popup.removeLogin": {
+      allow: popup,
+      handle: async ({ sourceId, loginId }) => {
+        const backend = backends.backendOf(sourceId)
+        if (!backend.remove) throw notEditable()
+        await backend.remove(sourceId, requireText(loginId, "loginId"))
+        return null
       },
     },
     "popup.codeSetup": {
@@ -420,12 +486,19 @@ export function createHandlers(backends: Backends): Handlers<BackgroundApi> {
         if (!page)
           throw new BackendError("The frame is not a web page", "notWebPage")
         const kind = session.kind ?? "login"
-        if (kind === "login")
+        if (kind === "login") {
+          let suggestion = session.suggestion
+          if (session.newPassword && !suggestion) {
+            suggestion = generatePassword(await generatorOptionsItem.getValue())
+            await menus.set({ ...session, suggestion })
+          }
           return {
             host: page.hostname,
             kind,
-            sources: await backends.loginsForPage(page),
+            sources: await backends.fillableForPage(page),
+            ...(suggestion ? { suggestion } : {}),
           }
+        }
         const sources = await backends.codeLoginsForPage(page, {
           tabId: session.tabId,
           frameId: session.frameId,
@@ -447,6 +520,21 @@ export function createHandlers(backends: Backends): Handlers<BackgroundApi> {
         const session = await menus.claim(sender, token)
         const fill = session.kind === "code" ? fillCode : fillLogin
         await fill(backends, session.tabId, session.frameId, sourceId, loginId)
+        await closeMenu(session.tabId)
+        return null
+      },
+    },
+    "menu.fillSuggestion": {
+      allow: ["menu"],
+      handle: async ({ token }, sender) => {
+        const session = await menus.claim(sender, token)
+        if (!session.suggestion)
+          throw new BackendError("No password is offered", "invalidInput")
+        await fillNewPassword(
+          session.tabId,
+          session.frameId,
+          session.suggestion,
+        )
         await closeMenu(session.tabId)
         return null
       },
@@ -538,7 +626,7 @@ export function createHandlers(backends: Backends): Handlers<BackgroundApi> {
     },
     "content.openMenu": {
       allow: ["contentScript"],
-      handle: async ({ kind }, sender) => {
+      handle: async ({ kind, newPassword }, sender) => {
         const { tabId, frameId } = tabFrame(sender)
         const open = await menus.get(tabId)
         if (open && open.frameId !== frameId) await closeMenu(tabId)
@@ -549,6 +637,7 @@ export function createHandlers(backends: Backends): Handlers<BackgroundApi> {
           token,
           overlayFrameId: null,
           kind: fieldKind(kind),
+          newPassword: newPassword === true,
         })
         return { token }
       },

@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto"
 import { createRequire } from "node:module"
 import type { PureCrypto } from "@bitwarden/sdk-internal"
 import { describe, expect, it } from "vitest"
@@ -14,6 +15,8 @@ import {
   decryptPassword,
   decryptTotp,
   itemUpdateRequest,
+  type LoginItem,
+  matchesQuery,
   VaultKeys,
 } from "./vault"
 
@@ -112,8 +115,8 @@ describe("organization items", () => {
     expect(decryptPassword(cipher, keys)).toBe("previous-password")
   })
 
-  it("replaces the password, keeps the other fields and moves the old password to the history", () => {
-    const request = itemUpdateRequest(
+  it("replaces the password, keeps the other fields and moves the old password to the history", async () => {
+    const request = await itemUpdateRequest(
       cipher,
       { password: "next-password" },
       keys,
@@ -138,9 +141,9 @@ describe("organization items", () => {
     ])
   })
 
-  it("sets an authenticator key and leaves the password and its history alone", () => {
+  it("sets an authenticator key and leaves the password and its history alone", async () => {
     const totp = "otpauth://totp/Example:someone?secret=TESTKEY"
-    const request = itemUpdateRequest(cipher, { totp }, keys, "user-1")
+    const request = await itemUpdateRequest(cipher, { totp }, keys, "user-1")
     const login = request.login as Record<string, unknown>
     expect(sdk.symmetric_decrypt_string(String(login.totp), itemKey)).toBe(totp)
     expect(login.password).toBe(cipher.Login.Password)
@@ -151,6 +154,69 @@ describe("organization items", () => {
         lastUsedDate: h.LastUsedDate,
       })),
     )
+  })
+
+  it("keeps an address that stays and adds a new one with the checksum other apps check", async () => {
+    const request = await itemUpdateRequest(
+      cipher,
+      {
+        name: "Renamed",
+        notes: "",
+        uris: ["https://example.com", "https://login.example.com"],
+      },
+      keys,
+      "user-1",
+    )
+    const login = request.login as {
+      uris: { uri: string; match: unknown; uriChecksum: string | null }[]
+    }
+    expect(sdk.symmetric_decrypt_string(String(request.name), itemKey)).toBe(
+      "Renamed",
+    )
+    expect(request.notes).toBeNull()
+    expect(login.uris[0]).toEqual({
+      uri: cipher.Login.Uris[0]?.Uri,
+      match: 1,
+      uriChecksum: null,
+    })
+    const added = login.uris[1]
+    expect(sdk.symmetric_decrypt_string(String(added?.uri), itemKey)).toBe(
+      "https://login.example.com",
+    )
+    expect(added?.match).toBeNull()
+    // The SHA-256 of the address in base64, as Bitwarden's clients compute it.
+    expect(
+      sdk.symmetric_decrypt_string(String(added?.uriChecksum), itemKey),
+    ).toBe(
+      createHash("sha256").update("https://login.example.com").digest("base64"),
+    )
+  })
+})
+
+describe("search", () => {
+  const item: LoginItem = {
+    id: "item-4",
+    organizationId: null,
+    name: "Work Mail",
+    username: "someone@example.com",
+    uris: [{ uri: "https://mail.example.org/login", match: null }],
+    hasTotp: false,
+    reprompt: false,
+  }
+
+  it("finds an item by any word of its name, username or addresses, ignoring case", () => {
+    expect(matchesQuery(item, "work")).toBe(true)
+    expect(matchesQuery(item, "SOMEONE@")).toBe(true)
+    expect(matchesQuery(item, "mail.example.org")).toBe(true)
+  })
+
+  it("needs every word of the query", () => {
+    expect(matchesQuery(item, "mail someone")).toBe(true)
+    expect(matchesQuery(item, "mail github")).toBe(false)
+  })
+
+  it("finds nothing for an empty query", () => {
+    expect(matchesQuery(item, "   ")).toBe(false)
   })
 })
 

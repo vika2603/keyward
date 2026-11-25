@@ -1,4 +1,4 @@
-import { TimerIcon } from "lucide-react"
+import { KeyRoundIcon, TimerIcon } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
 import type { FieldKind, SourceView } from "@/background/api"
 import { useAppearance } from "@/components/keyward/appearance"
@@ -29,6 +29,7 @@ export function App() {
     host: string
     kind: FieldKind
     sources: SourceView[]
+    suggestion?: string
   } | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
@@ -75,21 +76,26 @@ export function App() {
     return () => removeEventListener("keydown", onKey)
   }, [])
 
-  const fill = async (sourceId: string, loginId: string) => {
+  /** Runs a fill after a click the page could not have faked; `id` marks the row as busy. */
+  const run = async (id: string, task: () => Promise<unknown>) => {
     if (!clickCounts()) {
       setMessage(t("overlay.menu.guard"))
       return
     }
-    setBusy(loginId)
+    setBusy(id)
     setMessage(null)
     try {
-      await callOverlay("menu.fill", { sourceId, loginId })
+      await task()
     } catch (error) {
       setMessage(errorMessage(error))
     } finally {
       setBusy(null)
     }
   }
+  const fill = (sourceId: string, loginId: string) =>
+    run(loginId, () => callOverlay("menu.fill", { sourceId, loginId }))
+  const fillSuggestion = () =>
+    run(SUGGESTION_ID, () => callOverlay("menu.fillSuggestion", {}))
 
   if (!language) return null
   const sources = (state?.sources ?? []).filter(
@@ -97,20 +103,55 @@ export function App() {
   )
   const compact = density === "compact"
   // A lone list of logins needs no heading saying where they come from.
-  const headed = sources.length > 1
+  const headed = sources.length > 1 || Boolean(state?.suggestion)
 
   return (
     <div className="p-2">
       <div
         ref={card}
         role="menu"
-        className="flex max-h-[440px] w-[340px] flex-col overflow-y-auto rounded-lg bg-popover pb-1 text-popover-foreground shadow-md ring-1 ring-foreground/10 outline-none [scrollbar-width:thin]"
+        className="flex max-h-[440px] w-full flex-col overflow-y-auto rounded-lg bg-popover pb-1 text-popover-foreground shadow-md ring-1 ring-foreground/10 outline-none [scrollbar-width:thin]"
       >
         {state === null ? (
           <LoginListSkeleton compact={compact} heading={false} />
         ) : (
           <div className={cn("flex flex-col", FADE_IN)}>
-            {!sources.length && !message && (
+            {state.suggestion && (
+              <div className="p-1">
+                <button
+                  type="button"
+                  role="menuitem"
+                  data-login
+                  disabled={busy !== null}
+                  onClick={() => void fillSuggestion()}
+                  className={cn(
+                    "group/row flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left outline-none hover:bg-muted focus-visible:bg-muted disabled:cursor-wait",
+                    compact ? "min-h-9" : "min-h-12",
+                    busy === SUGGESTION_ID && "bg-muted",
+                  )}
+                >
+                  <span
+                    className={cn(
+                      "flex shrink-0 items-center justify-center rounded-lg bg-muted group-hover/row:bg-background group-focus-visible/row:bg-background",
+                      compact ? "size-6" : "size-8",
+                    )}
+                  >
+                    <KeyRoundIcon className="size-4" />
+                  </span>
+                  <span className="flex min-w-0 flex-1 flex-col">
+                    <span className="truncate text-sm font-medium">
+                      {t("overlay.menu.suggest")}
+                    </span>
+                    {!compact && (
+                      <span className="truncate font-mono text-xs text-muted-foreground">
+                        {state.suggestion}
+                      </span>
+                    )}
+                  </span>
+                </button>
+              </div>
+            )}
+            {!sources.length && !message && !state.suggestion && (
               <p className="px-3 py-3 text-sm text-muted-foreground">
                 {state.kind === "code"
                   ? t("overlay.menu.noCodes", { host: state.host })
@@ -217,6 +258,9 @@ export function App() {
     </div>
   )
 }
+
+/** The busy marker of the suggested password's row; login IDs never take this form. */
+const SUGGESTION_ID = "\nsuggestion"
 
 function source(
   sources: SourceView[],

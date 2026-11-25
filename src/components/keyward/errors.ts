@@ -16,6 +16,7 @@ const MESSAGES: Record<string, MessageKey> = {
   noCode: "error.noCode",
   invalidCodeKey: "error.invalidCodeKey",
   noSetup: "error.noSetup",
+  notEditable: "error.notEditable",
   "apple.unavailable": "error.apple.unavailable",
   "apple.disabled": "error.apple.disabled",
   "apple.wrongCode": "error.apple.wrongCode",

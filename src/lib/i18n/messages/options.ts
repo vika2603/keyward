@@ -161,9 +161,9 @@ export const en = {
 
   "options.onboard.title": "Connect a password backend",
   "options.onboard.description":
-    "Choose a backend to use. You can add other backends and accounts later in settings.",
+    "Pair Apple Passwords, or sign in to a Bitwarden account.",
   "options.onboard.backendTabs": "Choose a backend to connect",
-  "options.onboard.later": "Set up later",
+  "options.onboard.later": "Back",
   "options.onboard.method.authenticator": "Authenticator app",
   "options.onboard.method.authenticatorHint":
     "Enter the code shown in your authenticator app.",
@@ -344,10 +344,9 @@ export const zhCN: Record<keyof typeof en, string> = {
   "options.keys.import.failed": "无法导入：文件不是 Keyward 导出的配置。",
 
   "options.onboard.title": "连接密码后端",
-  "options.onboard.description":
-    "选择要使用的后端。其他后端和账号可以之后在设置里添加。",
+  "options.onboard.description": "配对 Apple 密码，或登录 Bitwarden 账号。",
   "options.onboard.backendTabs": "选择要连接的后端",
-  "options.onboard.later": "稍后设置",
+  "options.onboard.later": "返回",
   "options.onboard.method.authenticator": "验证器 App",
   "options.onboard.method.authenticatorHint": "输入验证器 App 里显示的验证码。",
   "options.onboard.method.email": "邮件",

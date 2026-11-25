@@ -43,7 +43,7 @@ function methodTexts(): Record<
   }
 }
 
-/** First run, and adding accounts later: connect one backend at a time. */
+/** Connects one backend at a time: pairs Apple Passwords or signs in to a Bitwarden account. */
 export function OnboardPage() {
   const [kind, setKind] = useState<BackendKind>("bitwarden")
   const done = () => navigate("backends")

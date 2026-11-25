@@ -120,6 +120,16 @@ export function decryptLogin(
   }
 }
 
+/** Whether the item's name, username or addresses contain every word of the query, ignoring case. */
+export function matchesQuery(item: LoginItem, query: string): boolean {
+  const words = query.toLowerCase().split(/\s+/).filter(Boolean)
+  if (!words.length) return false
+  const text = [item.name, item.username, ...item.uris.map((u) => u.uri)]
+    .join("\n")
+    .toLowerCase()
+  return words.every((word) => text.includes(word))
+}
+
 function isNonEmptyString(value: unknown): value is string {
   return typeof value === "string" && value !== ""
 }
@@ -207,25 +217,76 @@ export function newLoginRequest(
   }
 }
 
-/** What an update changes in a login item; fields left out stay as they are. */
+/** What an update changes in a login item; fields left out stay as they are, empty ones are cleared. */
 export interface ItemChange {
+  name?: string
+  username?: string
   password?: string
+  uris?: string[]
+  notes?: string
   /** An authenticator key: an `otpauth://` URI, a `steam://` key or a base32 secret. */
   totp?: string
+}
+
+/**
+ * The SHA-256 of an address in base64. Bitwarden's apps drop an address of an item with its own key
+ * unless the item carries this checksum, encrypted, next to it.
+ */
+async function uriHash(uri: string): Promise<string> {
+  const digest = await crypto.subtle.digest(
+    "SHA-256",
+    new TextEncoder().encode(uri),
+  )
+  return new Uint8Array(digest).toBase64()
+}
+
+/** The item's addresses for a request: unchanged ones as they are, new ones encrypted with checksums. */
+async function urisRequest(
+  saved: unknown,
+  next: string[] | undefined,
+  keys: VaultKeys,
+  key: Uint8Array,
+): Promise<Record<string, unknown>[]> {
+  const current = Array.isArray(saved)
+    ? saved.map((u) => ({
+        uri: prop(u, "Uri") ?? null,
+        match: prop(u, "Match") ?? null,
+        uriChecksum: prop(u, "UriChecksum") ?? null,
+      }))
+    : []
+  if (next === undefined) return current
+  const byText = new Map(
+    current.map((u) => [keys.decrypt(u.uri, key), u] as const),
+  )
+  return Promise.all(
+    next
+      .filter((uri) => uri !== "")
+      .map(
+        async (uri) =>
+          byText.get(uri) ?? {
+            uri: keys.encrypt(uri, key),
+            match: null,
+            uriChecksum: keys.encrypt(await uriHash(uri), key),
+          },
+      ),
+  )
 }
 
 /**
  * The request body that updates a login item. The server replaces the whole item, so the other
  * encrypted fields are sent back unchanged; a replaced password moves to the history.
  */
-export function itemUpdateRequest(
+export async function itemUpdateRequest(
   cipher: Record<string, unknown>,
   change: ItemChange,
   keys: VaultKeys,
   userId: string,
-): Record<string, unknown> {
+): Promise<Record<string, unknown>> {
   const key = keys.forCipher(cipher)
   const login = pick(cipher, "Login") ?? {}
+  /** The field's new value encrypted, or the saved one when the change leaves it out. */
+  const field = (value: string | undefined, saved: unknown) =>
+    value === undefined ? (saved ?? null) : keys.encrypt(value, key)
   const now = new Date().toISOString()
   const oldPassword = prop(login, "Password")
   const history = prop(cipher, "PasswordHistory")
@@ -244,15 +305,14 @@ export function itemUpdateRequest(
             : []),
           ...kept,
         ].slice(0, 5)
-  const uris = prop(login, "Uris")
   const fields = prop(cipher, "Fields")
   return {
     type: CIPHER_TYPE_LOGIN,
     encryptedFor: userId,
     folderId: prop(cipher, "FolderId") ?? null,
     organizationId: prop(cipher, "OrganizationId") ?? null,
-    name: prop(cipher, "Name") ?? null,
-    notes: prop(cipher, "Notes") ?? null,
+    name: field(change.name, prop(cipher, "Name")),
+    notes: field(change.notes, prop(cipher, "Notes")),
     favorite: prop(cipher, "Favorite") ?? false,
     reprompt: prop(cipher, "Reprompt") ?? 0,
     key: prop(cipher, "Key") ?? null,
@@ -267,28 +327,16 @@ export function itemUpdateRequest(
       : null,
     passwordHistory: passwordHistory.length ? passwordHistory : null,
     login: {
-      username: prop(login, "Username") ?? null,
-      password:
-        change.password === undefined
-          ? (oldPassword ?? null)
-          : keys.encrypt(change.password, key),
+      username: field(change.username, prop(login, "Username")),
+      password: field(change.password, oldPassword),
       passwordRevisionDate:
         change.password === undefined
           ? (prop(login, "PasswordRevisionDate") ?? null)
           : now,
-      totp:
-        change.totp === undefined
-          ? (prop(login, "Totp") ?? null)
-          : keys.encrypt(change.totp, key),
+      totp: field(change.totp, prop(login, "Totp")),
       autofillOnPageLoad: prop(login, "AutofillOnPageLoad") ?? null,
       fido2Credentials: prop(login, "Fido2Credentials") ?? null,
-      uris: Array.isArray(uris)
-        ? uris.map((u) => ({
-            uri: prop(u, "Uri") ?? null,
-            match: prop(u, "Match") ?? null,
-            uriChecksum: prop(u, "UriChecksum") ?? null,
-          }))
-        : [],
+      uris: await urisRequest(prop(login, "Uris"), change.uris, keys, key),
     },
   }
 }

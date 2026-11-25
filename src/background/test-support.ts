@@ -55,6 +55,7 @@ export function fakeBackends(sources: FakeSource[]) {
     kind: source.info.kind,
     sources: async () => [source.info],
     logins: async () => [],
+    search: async () => [],
     credential: async (...args) => {
       calls.credential(...args)
       if (!source.credential) throw new Error("no credential")
@@ -81,13 +82,15 @@ export function fakeBackends(sources: FakeSource[]) {
     lockAll: async () => {},
   })
   const byId = new Map(sources.map((s) => [s.info.id, backendFor(s)]))
+  const loginsForPage = async () =>
+    sources.map((s) => ({
+      ...s.info,
+      logins: s.info.status === "ready" ? (s.logins ?? []) : [],
+    }))
   const backends = {
     sourcesForPage: async () => sources.map((s) => s.info),
-    loginsForPage: async () =>
-      sources.map((s) => ({
-        ...s.info,
-        logins: s.info.status === "ready" ? (s.logins ?? []) : [],
-      })),
+    loginsForPage,
+    fillableForPage: loginsForPage,
     codeLoginsForPage: async () =>
       sources.map((s) => ({
         ...s.info,

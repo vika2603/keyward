@@ -37,6 +37,8 @@ export interface LoginSummary {
   hasCode?: boolean
   /** The login this tab signed in with on the site moments ago, listed first for its code. */
   recent?: boolean
+  /** A login that gave no password when it was read, as one with only a passkey does. */
+  passkeyOnly?: boolean
 }
 
 /** What the detail view shows of a login. The password and one-time code are read on request. */
@@ -50,6 +52,8 @@ export interface LoginDetails {
   hasCode: boolean
   /** Whether the login's password and code are left to the backend's own apps, as Bitwarden does for items that ask for the master password again. */
   secretsWithheld: boolean
+  /** Whether Keyward can edit and delete the login. */
+  editable: boolean
   /** Milliseconds since the epoch. */
   created?: number
   modified?: number
@@ -81,6 +85,20 @@ export interface NewLogin {
   password: string
 }
 
+/** A login's fields as an edit form shows them, secrets included. */
+export interface EditableLogin {
+  name: string
+  username: string
+  password: string
+  uris: string[]
+  notes: string
+  /** The authenticator key as saved: an `otpauth://` URI, a `steam://` key or a base32 secret. */
+  totp: string
+}
+
+/** New values for a login's fields; fields left out stay as they are. */
+export type LoginEdit = Partial<EditableLogin>
+
 /** An existing login for a page and user name, used to decide between a save and an update prompt. */
 export interface ExistingLogin {
   loginId: string
@@ -104,24 +122,42 @@ export interface PasswordBackend {
     page: URL,
     options?: ListOptions,
   ): Promise<LoginSummary[]>
-  /** Reads one login's password; may ask the user to authenticate. */
+  /**
+   * Logins whose name, username or address contain every word of the query, from the whole
+   * vault. A backend that can only look up a site answers a query that is a host name.
+   */
+  search(sourceId: string, query: string): Promise<LoginSummary[]>
+  /**
+   * Reads one login's password; may ask the user to authenticate. `page` is the page the login is
+   * read for, which it must match. Null is for a login the user picked in Keyward's own views from
+   * the whole vault, as from a search; what is read that way never goes into a page.
+   */
   credential(
     sourceId: string,
     loginId: string,
-    page: URL,
+    page: URL | null,
     tab: TabRef,
   ): Promise<Credential>
-  /** Describes one login of the page; the login must match the page as for `credential`. */
-  details(sourceId: string, loginId: string, page: URL): Promise<LoginDetails>
+  /** Describes one login; `page` as for `credential`. */
+  details(
+    sourceId: string,
+    loginId: string,
+    page: URL | null,
+  ): Promise<LoginDetails>
   /** Logins of the page that give one-time codes. */
   codeLogins(sourceId: string, page: URL, tab: TabRef): Promise<LoginSummary[]>
-  /** The current one-time code of a login; may ask the user to authenticate. */
+  /** The current one-time code of a login; may ask the user to authenticate. `page` as for `credential`. */
   oneTimeCode(
     sourceId: string,
     loginId: string,
-    page: URL,
+    page: URL | null,
     tab: TabRef,
   ): Promise<OneTimeCode>
+  /** A login's fields for an edit form; only backends whose details say `editable` have it. */
+  editable?(sourceId: string, loginId: string): Promise<EditableLogin>
+  edit?(sourceId: string, loginId: string, change: LoginEdit): Promise<void>
+  /** Moves a login to the trash, where the backend's own apps can restore it. */
+  remove?(sourceId: string, loginId: string): Promise<void>
   /** Whether the backend can store a login for this address; a save prompt offers only those that can. */
   canSave(url: URL): boolean
   save(sourceId: string, login: NewLogin, tab: TabRef): Promise<void>

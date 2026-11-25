@@ -7,7 +7,9 @@ import type {
 } from "@/lib/backends/bitwarden/bitwarden-backend"
 import type {
   BackendKind,
+  EditableLogin,
   LoginDetails,
+  LoginEdit,
   LoginSummary,
   OneTimeCode,
   SourceInfo,
@@ -67,6 +69,12 @@ export type BackgroundApi = {
     result: { page: PageInfo | null; sources: SourceView[] }
   }
   "popup.takeView": { payload: null; result: PopupView }
+  /** Logins of the whole vault matching the query, per source. */
+  "popup.search": { payload: { query: string }; result: SourceView[] }
+  /**
+   * The popup's reads below take any login of the vault, as a search finds them; what they return
+   * stays in the popup or goes to the clipboard, never into a page.
+   */
   "popup.copyPassword": {
     payload: { sourceId: string; loginId: string }
     result: null
@@ -87,6 +95,20 @@ export type BackgroundApi = {
   "popup.oneTimeCode": {
     payload: { sourceId: string; loginId: string }
     result: OneTimeCode
+  }
+  /** A login's fields for the edit view, when its details say it is editable. */
+  "popup.editable": {
+    payload: { sourceId: string; loginId: string }
+    result: EditableLogin
+  }
+  "popup.editLogin": {
+    payload: { sourceId: string; loginId: string; change: LoginEdit }
+    result: null
+  }
+  /** Moves a login to the backend's trash. */
+  "popup.removeLogin": {
+    payload: { sourceId: string; loginId: string }
+    result: null
   }
   /** Where a login for the typed site can be saved; `unsupported` cannot store that site. */
   "popup.saveTargets": {
@@ -161,12 +183,20 @@ export type BackgroundApi = {
   "history.clear": { payload: null; result: null }
   "menu.state": {
     payload: { token: string }
-    result: { host: string; kind: FieldKind; sources: SourceView[] }
+    result: {
+      host: string
+      kind: FieldKind
+      sources: SourceView[]
+      /** A generated password offered for a field that takes a new one. */
+      suggestion?: string
+    }
   }
   "menu.fill": {
     payload: { token: string; sourceId: string; loginId: string }
     result: null
   }
+  /** Fills the offered password into the new-password fields of the menu's form. */
+  "menu.fillSuggestion": { payload: { token: string }; result: null }
   "menu.resize": { payload: { token: string; height: number }; result: null }
   "menu.close": { payload: { token: string }; result: null }
   "menu.connect": { payload: { token: string; sourceId: string }; result: null }
@@ -185,7 +215,8 @@ export type BackgroundApi = {
     result: boolean
   }
   "content.openMenu": {
-    payload: { kind: FieldKind }
+    /** `newPassword` for a field that takes a new password, which gets a generated one offered. */
+    payload: { kind: FieldKind; newPassword?: boolean }
     result: { token: string }
   }
   /** Whether a ready source has one-time codes for the frame, asked once the frame has a code field. */
@@ -215,6 +246,8 @@ export type ContentMessage =
       autoSubmit: boolean
     }
   | { type: "fillCode"; origin: string; code: string }
+  /** A generated password for the new-password fields of the menu's form. */
+  | { type: "fillNew"; origin: string; password: string }
   | { type: "menu.resize"; height: number }
   | { type: "menu.close" }
   | { type: "prompt.show"; token: string }

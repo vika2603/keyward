@@ -1,8 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { fakeBrowser } from "wxt/testing/fake-browser"
 import { updateSettings } from "@/lib/settings"
-import { fillCode, fillFirst, fillLogin, hasCodes } from "./autofill"
+import {
+  fillCode,
+  fillFirst,
+  fillLogin,
+  fillNewPassword,
+  hasCodes,
+} from "./autofill"
 import { markRecent } from "./handlers"
+import { listHistory } from "./history"
 import { recallUsername } from "./save-flow"
 import {
   accountSource,
@@ -114,6 +121,31 @@ describe("fillLogin", () => {
     ).rejects.toMatchObject({
       code: "fillDisabled",
     })
+  })
+})
+
+describe("fillNewPassword", () => {
+  const generated = "generated-test-value"
+
+  it("sends the password with the frame's origin and keeps it in the generator's history", async () => {
+    await fillNewPassword(TAB, 0, generated)
+    expect(pageModule.sendToFrame).toHaveBeenCalledWith(TAB, 0, {
+      type: "fillNew",
+      origin: "https://accounts.example.com",
+      password: generated,
+    })
+    expect(await listHistory()).toMatchObject([
+      { password: generated, host: "accounts.example.com" },
+    ])
+  })
+
+  it("sends nothing to a cross-origin frame unless the setting allows it", async () => {
+    setFrame(TAB, 4, "https://widget.other.net/signup")
+    await expect(fillNewPassword(TAB, 4, generated)).rejects.toMatchObject({
+      code: "fillDisabled",
+    })
+    expect(pageModule.sendToFrame).not.toHaveBeenCalled()
+    expect(await listHistory()).toEqual([])
   })
 })
 

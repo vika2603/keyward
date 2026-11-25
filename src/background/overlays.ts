@@ -66,6 +66,10 @@ function forbidden(): BackendError {
 
 export interface MenuSession extends OverlayBase {
   kind: FieldKind
+  /** Whether the field takes a new password. */
+  newPassword?: boolean
+  /** The generated password the menu offers, kept so the fill uses the one shown. */
+  suggestion?: string
 }
 
 export interface PromptSession extends OverlayBase {

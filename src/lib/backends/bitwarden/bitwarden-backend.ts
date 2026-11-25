@@ -5,9 +5,11 @@ import { oneTimeCode } from "@/lib/totp"
 import {
   BackendError,
   type Credential,
+  type EditableLogin,
   type ExistingLogin,
   type ListOptions,
   type LoginDetails,
+  type LoginEdit,
   type LoginSummary,
   type NewLogin,
   type OneTimeCode,
@@ -48,9 +50,11 @@ import {
   decryptLogin,
   decryptPassword,
   decryptTotp,
+  type ItemChange,
   itemUpdateRequest,
   type LoginItem,
   loginCiphers,
+  matchesQuery,
   newLoginRequest,
   VaultKeys,
 } from "./vault"
@@ -61,6 +65,8 @@ const ACTIVITY_KEY = "bitwarden.lastActivity"
 const TOKEN_MARGIN_MS = 60_000
 /** Synced data older than this is refreshed in the background when it is used. */
 const SYNC_MAX_AGE_MS = 5 * 60_000
+/** A search lists at most this many logins per account; a longer query narrows it. */
+const SEARCH_LIMIT = 50
 
 export interface AccountSummary {
   id: string
@@ -492,31 +498,35 @@ export class BitwardenBackend implements PasswordBackend {
       page,
       options?.passive,
     )
-    return items.map((item) => ({
-      id: item.id,
-      username: item.username,
-      title: item.name,
-      host:
-        item.uris.map((u) => hostOfSavedUri(u.uri)).find((h) => h !== null) ??
-        undefined,
-      hasCode: item.hasTotp && !item.reprompt,
-    }))
+    return items.map(summaryOf)
   }
 
-  /** A login of the page with its encrypted item; logins of other pages are refused. */
+  async search(sourceId: string, query: string): Promise<LoginSummary[]> {
+    const { items } = await this.vault(accountIdOfSource(sourceId))
+    return items
+      .filter((item) => matchesQuery(item, query))
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .slice(0, SEARCH_LIMIT)
+      .map(summaryOf)
+  }
+
+  /**
+   * A login with its encrypted item. With a page, only a login of that page is found; without one,
+   * any login of the vault, for Keyward's own views.
+   */
   private async pageItem(
     sourceId: string,
     loginId: string,
-    page: URL,
+    page: URL | null,
   ): Promise<{
     vault: Vault
     item: LoginItem
     cipher: Record<string, unknown>
   }> {
-    const { vault, items } = await this.matching(
-      accountIdOfSource(sourceId),
-      page,
-    )
+    const accountId = accountIdOfSource(sourceId)
+    const { vault, items } = page
+      ? await this.matching(accountId, page)
+      : await this.vault(accountId).then((v) => ({ vault: v, items: v.items }))
     const item = items.find((i) => i.id === loginId)
     const cipher = vault.ciphers.find((c) => prop(c, "Id") === loginId)
     if (!item || !cipher)
@@ -524,11 +534,10 @@ export class BitwardenBackend implements PasswordBackend {
     return { vault, item, cipher }
   }
 
-  /** Reads a login's password; the login must match the page it is read for. */
   async credential(
     sourceId: string,
     loginId: string,
-    page: URL,
+    page: URL | null,
     _tab: TabRef,
   ): Promise<Credential> {
     const { vault, item, cipher } = await this.pageItem(sourceId, loginId, page)
@@ -542,7 +551,7 @@ export class BitwardenBackend implements PasswordBackend {
   async details(
     sourceId: string,
     loginId: string,
-    page: URL,
+    page: URL | null,
   ): Promise<LoginDetails> {
     const { vault, item, cipher } = await this.pageItem(sourceId, loginId, page)
     const details = decryptDetails(cipher, vault.keys)
@@ -554,6 +563,7 @@ export class BitwardenBackend implements PasswordBackend {
       notes: item.reprompt ? undefined : details.notes || undefined,
       hasCode: item.hasTotp,
       secretsWithheld: item.reprompt,
+      editable: isEditable(item, cipher),
       created: details.created,
       modified: details.modified,
       passwordModified: details.passwordModified,
@@ -567,7 +577,7 @@ export class BitwardenBackend implements PasswordBackend {
   async oneTimeCode(
     sourceId: string,
     loginId: string,
-    page: URL,
+    page: URL | null,
     _tab: TabRef,
   ): Promise<OneTimeCode> {
     const { vault, item, cipher } = await this.pageItem(sourceId, loginId, page)
@@ -592,23 +602,73 @@ export class BitwardenBackend implements PasswordBackend {
     page: URL,
     key: string,
   ): Promise<void> {
-    try {
-      oneTimeCode(key)
-    } catch {
-      throw new BackendError(
-        "The authenticator key cannot be read",
-        "invalidCodeKey",
-      )
+    requireCodeKey(key)
+    const { item, cipher } = await this.pageItem(sourceId, loginId, page)
+    refuseReprompt(item)
+    await this.change(sourceId, cipher, { totp: key })
+  }
+
+  async editable(sourceId: string, loginId: string): Promise<EditableLogin> {
+    const { vault, item, cipher } = await this.pageItem(sourceId, loginId, null)
+    refuseEdit(item, cipher)
+    return {
+      name: item.name,
+      username: item.username,
+      password: decryptPassword(cipher, vault.keys),
+      uris: item.uris.map((u) => u.uri).filter((uri) => uri !== ""),
+      notes: decryptDetails(cipher, vault.keys).notes,
+      totp: item.hasTotp ? decryptTotp(cipher, vault.keys) : "",
     }
+  }
+
+  /** Saves the fields that differ from the item's; an unchanged password stays out of the history. */
+  async edit(
+    sourceId: string,
+    loginId: string,
+    change: LoginEdit,
+  ): Promise<void> {
+    const current = await this.editable(sourceId, loginId)
+    const changed: ItemChange = {}
+    for (const key of ["name", "username", "password", "notes"] as const) {
+      const value = change[key]
+      if (value !== undefined && value !== current[key]) changed[key] = value
+    }
+    if (change.totp !== undefined && change.totp.trim() !== current.totp) {
+      if (change.totp.trim()) requireCodeKey(change.totp.trim())
+      changed.totp = change.totp.trim()
+    }
+    const uris = change.uris?.map((uri) => uri.trim()).filter(Boolean)
+    if (uris !== undefined && uris.join("\n") !== current.uris.join("\n"))
+      changed.uris = uris
+    if (!Object.keys(changed).length) return
+    const { cipher } = await this.pageItem(sourceId, loginId, null)
+    await this.change(sourceId, cipher, changed)
+  }
+
+  async remove(sourceId: string, loginId: string): Promise<void> {
     const accountId = accountIdOfSource(sourceId)
     const account = await this.account(accountId)
-    const { vault, item, cipher } = await this.pageItem(sourceId, loginId, page)
-    refuseReprompt(item)
-    const api = new BitwardenApi(serverUrls(account.server))
-    await api.updateCipher(
+    const { item, cipher } = await this.pageItem(sourceId, loginId, null)
+    refuseEdit(item, cipher)
+    await new BitwardenApi(serverUrls(account.server)).trashCipher(
       await this.accessToken(account),
       loginId,
-      itemUpdateRequest(cipher, { totp: key }, vault.keys, account.userId),
+    )
+    await this.sync(accountId)
+  }
+
+  private async change(
+    sourceId: string,
+    cipher: Record<string, unknown>,
+    change: ItemChange,
+  ): Promise<void> {
+    const accountId = accountIdOfSource(sourceId)
+    const account = await this.account(accountId)
+    const { keys } = await this.vault(accountId)
+    await new BitwardenApi(serverUrls(account.server)).updateCipher(
+      await this.accessToken(account),
+      String(prop(cipher, "Id")),
+      await itemUpdateRequest(cipher, change, keys, account.userId),
     )
     await this.sync(accountId)
   }
@@ -664,24 +724,48 @@ export class BitwardenBackend implements PasswordBackend {
     login: NewLogin,
     _tab: TabRef,
   ): Promise<void> {
-    const accountId = accountIdOfSource(sourceId)
-    const account = await this.account(accountId)
-    const { keys, ciphers } = await this.vault(accountId)
+    const { ciphers } = await this.vault(accountIdOfSource(sourceId))
     const cipher = ciphers.find((c) => prop(c, "Id") === loginId)
     if (!cipher) throw new BackendError("Unknown login", "notFound")
-    const api = new BitwardenApi(serverUrls(account.server))
-    await api.updateCipher(
-      await this.accessToken(account),
-      loginId,
-      itemUpdateRequest(
-        cipher,
-        { password: login.password },
-        keys,
-        account.userId,
-      ),
-    )
-    await this.sync(accountId)
+    await this.change(sourceId, cipher, { password: login.password })
   }
+}
+
+function summaryOf(item: LoginItem): LoginSummary {
+  return {
+    id: item.id,
+    username: item.username,
+    title: item.name,
+    host:
+      item.uris.map((u) => hostOfSavedUri(u.uri)).find((h) => h !== null) ??
+      undefined,
+    hasCode: item.hasTotp && !item.reprompt,
+  }
+}
+
+function requireCodeKey(key: string): void {
+  try {
+    oneTimeCode(key)
+  } catch {
+    throw new BackendError(
+      "The authenticator key cannot be read",
+      "invalidCodeKey",
+    )
+  }
+}
+
+/**
+ * Items that ask for the master password again stay with Bitwarden's own apps, and an
+ * organization's read-only items, marked so by the server, cannot be changed.
+ */
+function isEditable(item: LoginItem, cipher: Record<string, unknown>): boolean {
+  return !item.reprompt && prop(cipher, "Edit") !== false
+}
+
+function refuseEdit(item: LoginItem, cipher: Record<string, unknown>): void {
+  refuseReprompt(item)
+  if (!isEditable(item, cipher))
+    throw new BackendError("The login cannot be changed", "notEditable")
 }
 
 /** Items marked for master password re-prompt are left to Bitwarden's own apps. */

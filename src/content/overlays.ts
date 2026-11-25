@@ -4,7 +4,10 @@ import { eventOrigin } from "./fields"
 
 /** Room around the overlay's card for its shadow, inside the iframe. */
 const SHADOW_MARGIN = 8
-const WIDTH = 340 + SHADOW_MARGIN * 2
+const PROMPT_WIDTH = 340
+/** The menu is as wide as its field, within limits that keep its rows readable. */
+const MENU_MIN_WIDTH = 280
+const MENU_MAX_WIDTH = 480
 const GAP = 6
 const MAX_HEIGHT = 600
 
@@ -31,6 +34,8 @@ class Overlay {
   private ui: IframeUi | null = null
   private height = 0
   private readonly origin: string
+  /** The frame's width, card and shadow room together. */
+  private width = PROMPT_WIDTH + SHADOW_MARGIN * 2
   private observer: MutationObserver | null = null
   private watchFrame = 0
   private lastRect = ""
@@ -63,7 +68,7 @@ class Overlay {
           position: "fixed",
           "z-index": "2147483647",
           display: "block",
-          width: `${WIDTH}px`,
+          width: `${this.width}px`,
           height: "0",
           visibility: "hidden",
         })
@@ -107,20 +112,29 @@ class Overlay {
     })
   }
 
-  /** Places the frame below the field, or above it when there is no room below. */
+  /**
+   * Places the frame below the field, or above it when there is no room below, as wide as the field
+   * within the menu's limits.
+   */
   placeBelow(field: HTMLElement): void {
     const rect = field.getBoundingClientRect()
+    this.width =
+      Math.round(
+        Math.min(Math.max(rect.width, MENU_MIN_WIDTH), MENU_MAX_WIDTH),
+      ) +
+      SHADOW_MARGIN * 2
     const total = this.height + SHADOW_MARGIN * 2
     const below = rect.bottom + GAP - SHADOW_MARGIN
     const above = rect.top - GAP - this.height - SHADOW_MARGIN
     const top = below + total <= innerHeight || above < 0 ? below : above
     const left = Math.min(
       Math.max(rect.left - SHADOW_MARGIN, 0),
-      Math.max(innerWidth - WIDTH, 0),
+      Math.max(innerWidth - this.width, 0),
     )
     this.setWrapper({
       top: `${Math.round(top)}px`,
       left: `${Math.round(left)}px`,
+      width: `${this.width}px`,
     })
   }
 

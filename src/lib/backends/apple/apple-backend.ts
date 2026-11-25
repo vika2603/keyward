@@ -14,6 +14,7 @@ import {
   type TabRef,
 } from "../types"
 import { type HelperMessage, HelperPort, SupersededError } from "./helper-port"
+import { markPasskeyOnly, passkeyOnlyIds } from "./passkey-marks"
 import {
   Action,
   Cmd,
@@ -389,15 +390,32 @@ export class AppleBackend implements PasswordBackend {
     ]
   }
 
+  /** Logins listed for the host; those known to have only a passkey come last, marked. */
   async logins(_sourceId: string, page: URL): Promise<LoginSummary[]> {
     const host = page.hostname
     const entries = await this.listEntries(host, { tabId: 0, frameId: 0 })
-    return entries.map((entry) => ({
-      id: loginId(entry.username, entry.site),
-      username: entry.username,
-      title: entry.customTitle || entry.site,
-      host: entry.site,
-    }))
+    const marks = await passkeyOnlyIds()
+    const logins = entries.map((entry) => {
+      const id = loginId(entry.username, entry.site)
+      return {
+        id,
+        username: entry.username,
+        title: entry.customTitle || entry.site,
+        host: entry.site,
+        ...(marks.has(id) ? { passkeyOnly: true } : {}),
+      }
+    })
+    return [
+      ...logins.filter((l) => !l.passkeyOnly),
+      ...logins.filter((l) => l.passkeyOnly),
+    ]
+  }
+
+  /** The helper looks logins up by site only, so a search must be a site's address. */
+  async search(sourceId: string, query: string): Promise<LoginSummary[]> {
+    const host = query.trim().toLowerCase()
+    if (!host.includes(".") || !isHostName(host)) return []
+    return this.logins(sourceId, new URL(`https://${host}`))
   }
 
   private async listEntries(host: string, tab: TabRef): Promise<Entry[]> {
@@ -437,14 +455,14 @@ export class AppleBackend implements PasswordBackend {
   async credential(
     _sourceId: string,
     id: string,
-    page: URL,
+    page: URL | null,
     tab: TabRef,
   ): Promise<Credential> {
     const { username, site } = parseLoginId(id)
     if (!isHostName(site))
       throw new BackendError("The login has no site", "unknownLogin")
     // The helper's own listing for the page decides which logins belong to it.
-    const listed = await this.listEntries(page.hostname, {
+    const listed = await this.listEntries(page?.hostname ?? site, {
       tabId: 0,
       frameId: 0,
     })
@@ -474,6 +492,7 @@ export class AppleBackend implements PasswordBackend {
       throw error
     }
     const password = passwordIn(reply, username, site)
+    if (password !== undefined) await markPasskeyOnly(id, password === null)
     if (password) return { username, password }
     if (password === null)
       throw new BackendError(
@@ -486,22 +505,27 @@ export class AppleBackend implements PasswordBackend {
   async details(
     _sourceId: string,
     id: string,
-    page: URL,
+    page: URL | null,
   ): Promise<LoginDetails> {
     const { username, site } = parseLoginId(id)
+    if (!isHostName(site))
+      throw new BackendError("The login has no site", "unknownLogin")
     const tab = { tabId: 0, frameId: 0 }
-    const entry = (await this.listEntries(page.hostname, tab)).find(
+    const target = page ?? new URL(`https://${site}`)
+    const entry = (await this.listEntries(target.hostname, tab)).find(
       (e) => e.username === username && e.site === site,
     )
     if (!entry)
       throw new BackendError("The login does not match this page", "notFound")
-    const codes = await this.codeEntries(page, tab).catch(() => [])
+    const codes = await this.codeEntries(target, tab).catch(() => [])
     return {
       username,
       name: entry.customTitle,
       uris: entry.sites,
       hasCode: codes.some((c) => isCodeFor(c, username, site)),
       secretsWithheld: false,
+      // The helper has no command to change or delete a login; the Passwords app does that.
+      editable: false,
     }
   }
 
@@ -549,10 +573,13 @@ export class AppleBackend implements PasswordBackend {
   async oneTimeCode(
     _sourceId: string,
     id: string,
-    page: URL,
+    requested: URL | null,
     tab: TabRef,
   ): Promise<OneTimeCode> {
     const { username, site } = parseLoginId(id)
+    if (!requested && !isHostName(site))
+      throw new BackendError("The login has no site", "unknownLogin")
+    const page = requested ?? new URL(`https://${site}`)
     const entries = await this.codeEntries(page, tab)
     // The menu's IDs name the entry's own domain; the popup's name the login's site, which an
     // entry for a subdomain or parent domain may serve.

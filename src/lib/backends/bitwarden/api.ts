@@ -286,6 +286,19 @@ export class BitwardenApi {
       }),
     )
   }
+
+  /** Moves an item to the trash; the server answers without a body. */
+  async trashCipher(accessToken: string, id: string): Promise<void> {
+    const response = await this.send(
+      `${this.urls.api}/ciphers/${encodeURIComponent(id)}/delete`,
+      { method: "PUT", accessToken },
+    )
+    if (!response.ok)
+      throw new ApiError(
+        response.status,
+        await this.json(response).catch(() => null),
+      )
+  }
 }
 
 function optionalNumber(value: unknown): number | undefined {

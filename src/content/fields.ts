@@ -19,6 +19,8 @@ const NOT_AUTHENTICATOR_HINT =
   /captcha|image|图形|图片|圖形|短信|簡訊|sms|text message|mail|邮箱|郵箱|邮件|郵件|card|cvv|cvc|csc|credit|coupon|promo|gift|invite|referral|邀请|邀請/i
 /** Longer fields take something other than a one-time code. */
 const CODE_MAX_LENGTH = 12
+const NEW_PASSWORD_HINT =
+  /new|confirm|repeat|retype|again|register|sign-?up|create|新密码|新密碼|确认|確認|重复|重複|再次/i
 
 export function isVisible(element: HTMLElement): boolean {
   if (!element.isConnected) return false
@@ -169,6 +171,22 @@ class Scopes {
       inputs.slice(inputs.indexOf(username) + 1).find(isPasswordField) ?? null
     )
   }
+
+  /**
+   * Whether a password field takes a new password: the page or the field's name says so, or its
+   * form has more password fields, as a sign-up form asks twice and a change-password form asks
+   * for the current one first.
+   */
+  isNewPassword(input: HTMLInputElement): boolean {
+    const autocomplete = input.autocomplete.toLowerCase()
+    if (autocomplete.includes("current-password")) return false
+    if (isNewPassword(input) || NEW_PASSWORD_HINT.test(hints(input)))
+      return true
+    const passwords = this.inputs(scopeOf(input)).filter(isPasswordField)
+    return (
+      passwords.length === 2 || (passwords.length > 2 && passwords[0] !== input)
+    )
+  }
 }
 
 /**
@@ -180,7 +198,8 @@ export function loginFields(root: Document): HTMLInputElement[] {
   const inputs = scopes.inputs(root)
   const fields = new Set<HTMLInputElement>()
   for (const password of inputs.filter(isPasswordField)) {
-    if (isNewPassword(password) || hasCodeAutocomplete(password)) continue
+    if (scopes.isNewPassword(password) || hasCodeAutocomplete(password))
+      continue
     fields.add(password)
     const username = scopes.usernameFor(password)
     if (username) fields.add(username)
@@ -195,6 +214,28 @@ export function loginFields(root: Document): HTMLInputElement[] {
     }
   }
   return [...fields]
+}
+
+/** Password fields that take a new password; they get the icon and a generated password offered. */
+export function newPasswordFields(root: Document): HTMLInputElement[] {
+  const scopes = new Scopes()
+  return scopes
+    .inputs(root)
+    .filter(
+      (input) =>
+        isPasswordField(input) &&
+        !hasCodeAutocomplete(input) &&
+        scopes.isNewPassword(input),
+    )
+}
+
+/** The fields a generated password goes into: `anchor` and the others of its form, such as a confirmation. */
+export function newPasswordTargets(
+  anchor: HTMLInputElement,
+  fields: readonly HTMLInputElement[],
+): HTMLInputElement[] {
+  const scope = scopeOf(anchor)
+  return fields.filter((field) => field === anchor || scopeOf(field) === scope)
 }
 
 /**

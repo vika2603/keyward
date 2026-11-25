@@ -6,8 +6,10 @@ import {
   LockIcon,
   PlusIcon,
   RefreshCcwDotIcon,
+  SearchIcon,
   TimerIcon,
   UserIcon,
+  XIcon,
 } from "lucide-react"
 import { useCallback, useEffect, useState } from "react"
 import {
@@ -46,17 +48,28 @@ import { openOptions, SettingsButton } from "./header"
 
 type Filter = "all" | BackendKind
 
+/** A search waits for typing to pause this long. */
+const SEARCH_DELAY_MS = 150
+
 export function MainView({
   density,
+  query,
+  onQuery,
   onNavigate,
 }: {
   density: Settings["density"]
+  /** Searches the whole vault while not empty; the page's logins show otherwise. */
+  query: string
+  onQuery: (query: string) => void
   onNavigate: (view: View) => void
 }) {
   const [state, setState] = useState<{
     page: PageInfo | null
     sources: SourceView[]
   } | null>(null)
+  const [results, setResults] = useState<SourceView[] | null>(null)
+  /** Changes after a lock, so the search runs again. */
+  const [version, setVersion] = useState(0)
   const [filter, setFilter] = useState<Filter>("all")
   const [message, setMessage] = useState<string | null>(null)
 
@@ -64,8 +77,26 @@ export function MainView({
     callBackground("popup.state", null).then(setState, (error) =>
       setMessage(errorMessage(error)),
     )
+    setVersion((v) => v + 1)
   }, [])
   useEffect(load, [load])
+
+  const search = query.trim()
+  useEffect(() => {
+    setResults(null)
+    if (!search || version < 1) return
+    let stale = false
+    const timer = setTimeout(() => {
+      callBackground("popup.search", { query: search }).then(
+        (found) => !stale && setResults(found),
+        (error) => !stale && setMessage(errorMessage(error)),
+      )
+    }, SEARCH_DELAY_MS)
+    return () => {
+      stale = true
+      clearTimeout(timer)
+    }
+  }, [search, version])
 
   const loading = state === null
   const page = state?.page ?? null
@@ -81,10 +112,17 @@ export function MainView({
     }
     load()
   }
-  const shown = sources.filter((s) => filter === "all" || s.kind === filter)
+  const shown = (search ? (results ?? []) : sources).filter(
+    (s) => filter === "all" || s.kind === filter,
+  )
   const groups = shown.filter(
     (s) => s.status !== "ready" || s.error || s.logins.length,
   )
+  // Apple's helper looks logins up by site only, so a search for other text cannot reach it.
+  const appleSearchHint =
+    search !== "" &&
+    !search.includes(".") &&
+    shown.some((s) => s.kind === "apple" && s.status === "ready")
 
   return (
     <div className="flex max-h-[600px] flex-col">
@@ -129,6 +167,43 @@ export function MainView({
         )}
         <SettingsButton />
       </div>
+      {(loading || sources.length > 0) && (
+        <div className="px-2 pb-2">
+          <div className="flex h-8 items-center gap-2 rounded-lg bg-muted px-2.5 text-muted-foreground">
+            <SearchIcon className="size-4 shrink-0" />
+            <input
+              type="search"
+              value={query}
+              onChange={(event) => onQuery(event.target.value)}
+              onKeyDown={(event) => {
+                // Escape clears a search before it closes the popup.
+                if (event.key === "Escape" && query) {
+                  event.preventDefault()
+                  onQuery("")
+                }
+              }}
+              placeholder={t("popup.main.search")}
+              aria-label={t("popup.main.search")}
+              autoComplete="off"
+              spellCheck={false}
+              // biome-ignore lint/a11y/noAutofocus: the popup opens to look a login up, so typing goes to the search.
+              autoFocus
+              className="h-full min-w-0 flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground [&::-webkit-search-cancel-button]:appearance-none"
+            />
+            {query && (
+              <button
+                type="button"
+                aria-label={t("popup.main.clearSearch")}
+                title={t("popup.main.clearSearch")}
+                onClick={() => onQuery("")}
+                className="flex size-5 shrink-0 items-center justify-center rounded-full outline-none hover:text-foreground focus-visible:text-foreground"
+              >
+                <XIcon className="size-3.5" />
+              </button>
+            )}
+          </div>
+        </div>
+      )}
       {kinds.size > 1 && (
         <div className="px-2 pb-2">
           <Tabs
@@ -152,16 +227,37 @@ export function MainView({
         {message && (
           <p className="px-3 pt-2 text-xs text-destructive">{message}</p>
         )}
-        {loading ? (
+        {loading || (search && results === null) ? (
           !message && <LoginListSkeleton compact={density === "compact"} />
         ) : !sources.length ? (
           <div className="flex flex-col items-center gap-3 px-3 py-12 text-center">
             <p className="text-sm text-muted-foreground">
               {t("popup.main.noBackend")}
             </p>
-            <Button onClick={() => openOptions("onboard")}>
-              {t("popup.main.connect")}
-            </Button>
+            <div className="flex flex-wrap justify-center gap-2">
+              <Button
+                variant="outline"
+                onClick={() => onNavigate({ name: "connect", kind: "apple" })}
+              >
+                <BrandIcon kind="apple" />
+                {t("popup.main.pairApple")}
+              </Button>
+              <Button variant="outline" onClick={() => openOptions("onboard")}>
+                <BrandIcon kind="bitwarden" />
+                {t("popup.main.signInBitwarden")}
+              </Button>
+            </div>
+          </div>
+        ) : search && !groups.length ? (
+          <div className="flex flex-col items-center gap-2 px-3 py-10 text-center">
+            <p className="text-sm text-muted-foreground">
+              {t("popup.main.noResults", { query: search })}
+            </p>
+            {appleSearchHint && (
+              <p className="text-xs text-muted-foreground">
+                {t("popup.main.appleSearchHint")}
+              </p>
+            )}
           </div>
         ) : !groups.length ? (
           <div className="flex flex-col items-center gap-3 px-3 py-10 text-center">
@@ -199,6 +295,11 @@ export function MainView({
                 onError={setMessage}
               />
             ))}
+            {appleSearchHint && (
+              <p className="px-3 pt-2 pb-1 text-xs text-muted-foreground">
+                {t("popup.main.appleSearchHint")}
+              </p>
+            )}
           </div>
         )}
       </div>
@@ -299,17 +400,12 @@ function SourceGroup({
           <LockIcon />
         </Button>
         {/* The label above is the keyboard's way to toggle; this is a second target for the pointer. */}
+        {/* Not a ghost Button: that one keeps a grey fill while it is expanded. */}
         <CollapsibleTrigger
           tabIndex={-1}
           aria-label={t("popup.main.toggleGroup")}
           title={t("popup.main.toggleGroup")}
-          render={
-            <Button
-              variant="ghost"
-              size="icon-xs"
-              className="text-muted-foreground"
-            />
-          }
+          className="flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground outline-none hover:bg-muted hover:text-foreground [&_svg]:size-3"
         >
           <ChevronDownIcon
             className={cn("transition-transform", !open && "-rotate-90")}
@@ -399,7 +495,13 @@ function LoginRow({
         />
         <LoginLabel
           username={login.username}
-          detail={confirming ? t("popup.main.confirmTouchId") : login.title}
+          detail={
+            confirming
+              ? t("popup.main.confirmTouchId")
+              : login.passkeyOnly
+                ? t("common.passkeyOnly", { site: login.title })
+                : login.title
+          }
           compact={compact}
         />
       </button>

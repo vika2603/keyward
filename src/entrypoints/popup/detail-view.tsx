@@ -4,8 +4,10 @@ import {
   ExternalLinkIcon,
   EyeIcon,
   EyeOffIcon,
+  PencilIcon,
   RefreshCwIcon,
   TimerIcon,
+  Trash2Icon,
 } from "lucide-react"
 import {
   type ReactNode,
@@ -249,10 +251,13 @@ export function DetailView({
   source,
   login,
   onBack,
+  onEdit,
 }: {
   source: SourceInfo
   login: LoginSummary
+  /** Also where the view goes once the login was deleted. */
   onBack: () => void
+  onEdit: () => void
 }) {
   const ids = useMemo(
     () => ({ sourceId: source.id, loginId: login.id }),
@@ -267,6 +272,8 @@ export function DetailView({
   /** What waits for Touch ID or the backend right now. */
   const [waiting, setWaiting] = useState<"password" | "code" | null>(null)
   const [now, setNow] = useState(Date.now)
+  /** Deleting asks twice: the first click arms the button. */
+  const [removing, setRemoving] = useState<"armed" | "busy" | null>(null)
   const passwordRef = useRef<HTMLDivElement>(null)
   const codeRef = useRef<HTMLDivElement>(null)
 
@@ -356,6 +363,20 @@ export function DetailView({
     useCallback(() => void copyCode(), [copyCode]),
   )
 
+  const remove = async () => {
+    if (removing !== "armed") {
+      setRemoving("armed")
+      return
+    }
+    setRemoving("busy")
+    const done = await run(async () => {
+      await callBackground("popup.removeLogin", ids)
+      return true
+    })
+    if (done) onBack()
+    else setRemoving(null)
+  }
+
   const name = details?.name || login.title
   const remaining =
     expiresAt === undefined
@@ -364,7 +385,13 @@ export function DetailView({
 
   return (
     <div className="flex max-h-[600px] flex-col">
-      <BackHeader title={t("popup.detail.title")} onBack={onBack} />
+      <BackHeader title={t("popup.detail.title")} onBack={onBack}>
+        {details?.editable && (
+          <IconButton label={t("popup.detail.edit")} onClick={onEdit}>
+            <PencilIcon />
+          </IconButton>
+        )}
+      </BackHeader>
       <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-3 pb-3">
         <div className="flex items-center gap-3 px-1">
           <SiteIcon host={login.host} text={name} className="size-10" />
@@ -599,6 +626,30 @@ export function DetailView({
                 <ExternalLinkIcon />
                 {t("popup.detail.openInPasswordsApp")}
               </Button>
+            )}
+            {details.editable && (
+              <div className="flex flex-col gap-1.5">
+                <Button
+                  variant={removing ? "destructive" : "outline"}
+                  disabled={removing === "busy"}
+                  onClick={() => void remove()}
+                  onBlur={() =>
+                    setRemoving((current) =>
+                      current === "armed" ? null : current,
+                    )
+                  }
+                >
+                  <Trash2Icon />
+                  {removing
+                    ? t("popup.detail.confirmDelete")
+                    : t("popup.detail.delete")}
+                </Button>
+                {removing && (
+                  <p className="px-1 text-xs text-muted-foreground">
+                    {t("popup.detail.deleteHint")}
+                  </p>
+                )}
+              </div>
             )}
           </div>
         )}

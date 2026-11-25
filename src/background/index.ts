@@ -112,10 +112,6 @@ export function startBackground(): void {
   })
 
   browser.runtime.onInstalled.addListener(({ reason }) => {
-    if (reason === "install")
-      void browser.tabs.create({
-        url: browser.runtime.getURL("/options.html#onboard"),
-      })
     // Tabs opened before an install or update have no working content script; after a browser
     // update they still have theirs.
     if (reason === "install" || reason === "update") void injectIntoOpenTabs()

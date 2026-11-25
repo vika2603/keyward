@@ -5,6 +5,7 @@ import { getSettings, type Settings } from "@/lib/settings"
 import { siteDomainOf } from "@/lib/site"
 import type { ContentConfig, FieldInfo } from "./api"
 import type { Backends } from "./backends"
+import { addHistory } from "./history"
 import { activeTab, frameUrl, sendToFrame } from "./page"
 import { rememberUsername } from "./save-flow"
 
@@ -147,6 +148,31 @@ export async function fillCode(
   })
 }
 
+/**
+ * Sends a generated password to the frame's new-password fields. It goes into the generator's
+ * history first, so it is not lost if the page keeps it but the login is never saved.
+ */
+export async function fillNewPassword(
+  tabId: number,
+  frameId: number,
+  password: string,
+): Promise<void> {
+  const settings = await getSettings()
+  const page = await frameUrl(tabId, frameId)
+  if (!page) throw new BackendError("The frame is not a web page", "notWebPage")
+  if (!(await frameAllowed(tabId, frameId, page, settings)))
+    throw new BackendError(
+      "Filling is turned off for this frame",
+      "fillDisabled",
+    )
+  await addHistory(password, page.hostname)
+  await sendToFrame(tabId, frameId, {
+    type: "fillNew",
+    origin: page.origin,
+    password,
+  })
+}
+
 /** Whether a ready source offers one-time codes for the frame's page. */
 export async function hasCodes(
   backends: Backends,
@@ -191,7 +217,7 @@ export async function fillFirst(
   if (!target) return "noField"
   const page = await frameUrl(tabId, target.frameId)
   if (!page) return "noField"
-  const views = await backends.loginsForPage(page)
+  const views = await backends.fillableForPage(page)
   for (const view of views) {
     const login = view.logins[0]
     if (login) {

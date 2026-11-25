@@ -60,10 +60,28 @@ export class Backends {
     )
   }
 
+  /** Logins that can fill the page; those known to have only a passkey give no password and are left out. */
+  async fillableForPage(
+    page: URL | null,
+    options?: ListOptions,
+  ): Promise<SourceView[]> {
+    return (await this.loginsForPage(page, options)).map((source) => ({
+      ...source,
+      logins: source.logins.filter((login) => !login.passkeyOnly),
+    }))
+  }
+
   /** Every source with the logins that give one-time codes for the page. */
   codeLoginsForPage(page: URL, tab: TabRef): Promise<SourceView[]> {
     return this.listForPage(page, (backend, sourceId, url) =>
       backend.codeLogins(sourceId, url, tab),
+    )
+  }
+
+  /** Every source with its logins that match a search of the whole vault, whatever the page. */
+  async search(query: string): Promise<SourceView[]> {
+    return this.listEach(await this.sources(), (backend, sourceId) =>
+      backend.search(sourceId, query),
     )
   }
 
@@ -75,16 +93,27 @@ export class Backends {
       page: URL,
     ) => Promise<LoginSummary[]>,
   ): Promise<SourceView[]> {
-    const sources = page
-      ? await this.sourcesForPage(page)
-      : await this.sources()
+    if (!page)
+      return (await this.sources()).map((source) => ({ ...source, logins: [] }))
+    return this.listEach(await this.sourcesForPage(page), (backend, sourceId) =>
+      list(backend, sourceId, page),
+    )
+  }
+
+  private listEach(
+    sources: SourceInfo[],
+    list: (
+      backend: PasswordBackend,
+      sourceId: string,
+    ) => Promise<LoginSummary[]>,
+  ): Promise<SourceView[]> {
     return Promise.all(
       sources.map(async (source) => {
-        if (source.status !== "ready" || !page) return { ...source, logins: [] }
+        if (source.status !== "ready") return { ...source, logins: [] }
         try {
           return {
             ...source,
-            logins: await list(this.backendOf(source.id), source.id, page),
+            logins: await list(this.backendOf(source.id), source.id),
           }
         } catch (error) {
           if (error instanceof BackendError && error.code === "locked") {

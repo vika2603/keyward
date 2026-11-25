@@ -47,7 +47,7 @@ export function watchToolbar(backends: Backends): () => void {
   let ready: boolean | null = null
   const update = async () => {
     const tab = await activeTab()
-    const sources = await backends.loginsForPage(webPage(tab?.url), {
+    const sources = await backends.fillableForPage(webPage(tab?.url), {
       passive: true,
     })
     const anyReady = sources.some((s) => s.status === "ready")
