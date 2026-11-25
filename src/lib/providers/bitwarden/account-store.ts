@@ -39,6 +39,8 @@ export const ACCOUNTS_KEY = "bitwarden.accounts"
 const DEVICE_KEY = "bitwarden.deviceId"
 const sessionKey = (accountId: string) => `bitwarden.session.${accountId}`
 const syncKey = (accountId: string) => `bitwarden.sync.${accountId}`
+/** When the account last synced, apart from the synced data, so it can be read without the data. */
+const syncedAtKey = (accountId: string) => `bitwarden.syncedAt.${accountId}`
 const activityKey = (accountId: string) => `bitwarden.activity.${accountId}`
 
 /** All accounts are one stored list; its changes run one at a time so none is lost. */
@@ -88,6 +90,7 @@ export async function removeAccount(accountId: string): Promise<void> {
   await browser.storage.session.remove([
     sessionKey(accountId),
     syncKey(accountId),
+    syncedAtKey(accountId),
     activityKey(accountId),
   ])
 }
@@ -114,6 +117,7 @@ export async function clearSession(accountId: string): Promise<void> {
   await browser.storage.session.remove([
     sessionKey(accountId),
     syncKey(accountId),
+    syncedAtKey(accountId),
   ])
 }
 
@@ -135,7 +139,16 @@ export async function saveSync(
   accountId: string,
   sync: StoredSync,
 ): Promise<void> {
-  await browser.storage.session.set({ [syncKey(accountId)]: sync })
+  await browser.storage.session.set({
+    [syncKey(accountId)]: sync,
+    [syncedAtKey(accountId)]: sync.syncedAt,
+  })
+}
+
+export async function loadSyncedAt(accountId: string): Promise<number | null> {
+  const key = syncedAtKey(accountId)
+  const syncedAt = (await browser.storage.session.get(key))[key]
+  return typeof syncedAt === "number" ? syncedAt : null
 }
 
 /** Notes that the account was just used, for locking accounts that sit idle. */

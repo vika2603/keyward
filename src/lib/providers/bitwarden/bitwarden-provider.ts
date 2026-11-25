@@ -25,75 +25,45 @@ import {
   type VaultInfo,
   type VaultProvider,
 } from "../types"
+import { AccountSessions, apiOf } from "./account-session"
 import {
-  type AccountSession,
-  accountIdOf,
-  clearSession,
-  deviceIdentifier,
-  lastActivity,
   loadAccounts,
   loadSession,
-  loadSync,
-  removeAccount,
+  loadSyncedAt,
   type StoredAccount,
-  saveAccount,
-  saveSession,
-  saveSync,
-  touchAccount,
   updateAccount,
 } from "./account-store"
-import { ApiError, BitwardenApi, type Device, prop } from "./api"
-import {
-  completeSecondStep,
-  type PendingLogin,
-  type SecondStepMethod,
-  type SignedIn,
-  signIn,
-  unwrapUserKey,
-  userIdOf,
-  wrappedUserKeyOf,
-} from "./auth"
-import { masterKeySalt, type VaultCrypto, WrongPasswordError } from "./crypto"
+import { type BitwardenApi, prop } from "./api"
+import type { VaultCrypto } from "./crypto"
 import {
   decryptDetails,
-  decryptGroups,
-  decryptLogin,
-  decryptNote,
   decryptPassword,
   decryptPasswordHistory,
   decryptTotp,
-  decryptTrashed,
   firstHostOf,
   type LoginItem,
-  loginCiphers,
   matchesQuery,
   type NoteItem,
-  noteCiphers,
   textMatchesQuery,
-  trashedCiphers,
 } from "./decrypt"
-import { VaultKeys } from "./keys"
+import type { VaultKeys } from "./keys"
+import { grantPass, type RepromptItem, withPass } from "./reprompt-passes"
 import {
   type ItemChange,
   itemUpdateRequest,
   newLoginRequest,
   newNoteRequest,
 } from "./requests"
-import { type CustomEndpoints, serverHost, serverUrls } from "./server"
+import { type CustomEndpoints, serverHost } from "./server"
+import {
+  type PendingSignInView,
+  SignInFlow,
+  type SignInOutcome,
+} from "./sign-in"
+import { type Vault, VaultCache } from "./vault-cache"
 import { accountIdOfVault, vaultIdOf } from "./vault-id"
 
-const PENDING_LOGIN_KEY = "bitwarden.pendingLogin"
-/** Items whose master password was entered again, by `vaultId|itemId`, with when the pass ends. */
-const REPROMPT_PASSES_KEY = "bitwarden.repromptPasses"
-/**
- * How long an item stays open after its master password was entered again, so viewing it and
- * copying from it do not each ask. Keyward's choice; Bitwarden's apps ask for each action.
- */
-const REPROMPT_PASS_MS = 5 * 60_000
-/** Refresh the access token this long before it expires. */
-const TOKEN_MARGIN_MS = 60_000
-/** Synced data older than this is refreshed in the background when it is used. */
-const SYNC_MAX_AGE_MS = 5 * 60_000
+export type { PendingSignInView, SignInOutcome }
 
 export interface AccountSummary {
   id: string
@@ -111,32 +81,11 @@ export interface AccountSummary {
   syncedAt?: number
 }
 
-export interface PendingSignInView {
-  server: string
-  endpoints?: CustomEndpoints
-  email: string
-  methods: SecondStepMethod[]
-}
-
-export type SignInOutcome =
-  | { kind: "signedIn"; accountId: string }
-  | { kind: "secondStep"; pending: PendingSignInView }
-
-interface PendingSignIn {
-  server: string
-  endpoints?: CustomEndpoints
-  login: PendingLogin
-}
-
-interface Vault {
-  syncedAt: number
-  keys: VaultKeys
-  groups: VaultGroups
-  trashed: TrashedItem[]
-  items: LoginItem[]
-  ciphers: Record<string, unknown>[]
-  notes: NoteItem[]
-  noteCiphers: Record<string, unknown>[]
+/** What a request that changes the vault gets: the account's API, a fresh token and the account. */
+interface WriteAccess {
+  api: BitwardenApi
+  accessToken: string
+  account: StoredAccount
 }
 
 /**
@@ -145,17 +94,22 @@ interface Vault {
  */
 export class BitwardenProvider implements VaultProvider {
   readonly kind = "bitwarden" as const
-  private readonly cache = new Map<string, Vault>()
-  private readonly syncing = new Map<string, Promise<void>>()
-  private readonly refreshing = new Map<string, Promise<string>>()
   private readonly listeners = new Set<() => void>()
-  /**
-   * How many times each account was locked or signed out in this worker. A sync or decryption that
-   * started before a change of the count must leave nothing behind.
-   */
-  private readonly accessEnds = new Map<string, number>()
+  private readonly sessions: AccountSessions
+  private readonly cache: VaultCache
+  private readonly signInFlow: SignInFlow
 
-  constructor(private readonly loadCrypto: () => Promise<VaultCrypto>) {}
+  constructor(loadCrypto: () => Promise<VaultCrypto>) {
+    this.sessions = new AccountSessions(loadCrypto, (accountId) =>
+      this.cache.forget(accountId),
+    )
+    this.cache = new VaultCache(this.sessions, loadCrypto, () => this.changed())
+    this.signInFlow = new SignInFlow(
+      loadCrypto,
+      (server, endpoints, signedIn) =>
+        this.finishSignIn(server, endpoints, signedIn),
+    )
+  }
 
   /** Calls `listener` after an account is unlocked, locked or synced. */
   onChange(listener: () => void): void {
@@ -178,7 +132,7 @@ export class BitwardenProvider implements VaultProvider {
         name: account.name ?? "",
         label: accountLabel(account, accounts),
         unlocked: (await loadSession(account.id)) !== null,
-        syncedAt: (await loadSync(account.id))?.syncedAt,
+        syncedAt: (await loadSyncedAt(account.id)) ?? undefined,
       })),
     )
   }
@@ -199,216 +153,79 @@ export class BitwardenProvider implements VaultProvider {
     this.changed()
   }
 
-  private async device(): Promise<Device> {
-    return { identifier: await deviceIdentifier(), name: "chrome" }
-  }
-
-  async signIn(
+  signIn(
     server: string,
     credentials: { email: string; password: string },
     endpoints?: CustomEndpoints,
   ): Promise<SignInOutcome> {
-    await browser.storage.session.remove(PENDING_LOGIN_KEY)
-    const api = new BitwardenApi(serverUrls(server, endpoints))
-    const step = await signIn(
-      api,
-      await this.loadCrypto(),
-      await this.device(),
-      credentials,
-    )
-    if (step.kind === "secondStep") {
-      const pending: PendingSignIn = { server, endpoints, login: step.pending }
-      await browser.storage.session.set({ [PENDING_LOGIN_KEY]: pending })
-      return { kind: "secondStep", pending: pendingView(pending) }
-    }
-    return {
-      kind: "signedIn",
-      accountId: await this.finishSignIn(server, endpoints, step.result),
-    }
+    return this.signInFlow.signIn(server, credentials, endpoints)
   }
 
-  private async storedPending(): Promise<PendingSignIn | null> {
-    const stored = (await browser.storage.session.get(PENDING_LOGIN_KEY))[
-      PENDING_LOGIN_KEY
-    ]
-    return (stored as PendingSignIn | undefined) ?? null
+  pendingSignIn(): Promise<PendingSignInView | null> {
+    return this.signInFlow.pendingSignIn()
   }
 
-  async pendingSignIn(): Promise<PendingSignInView | null> {
-    const pending = await this.storedPending()
-    return pending ? pendingView(pending) : null
+  cancelSignIn(): Promise<void> {
+    return this.signInFlow.cancelSignIn()
   }
 
-  async cancelSignIn(): Promise<void> {
-    await browser.storage.session.remove(PENDING_LOGIN_KEY)
+  sendEmailCode(): Promise<void> {
+    return this.signInFlow.sendEmailCode()
   }
 
-  private async requirePending(): Promise<PendingSignIn> {
-    const pending = await this.storedPending()
-    if (!pending)
-      throw new VaultError(
-        "No sign-in is waiting for a code",
-        "bitwarden.noPendingSignIn",
-      )
-    return pending
-  }
-
-  async sendEmailCode(): Promise<void> {
-    const { server, endpoints, login } = await this.requirePending()
-    await new BitwardenApi(serverUrls(server, endpoints)).sendEmailCode(
-      { email: login.email, passwordHash: login.passwordHash },
-      await this.device(),
-    )
-  }
-
-  async submitSecondStep(
-    method: SecondStepMethod,
-    code: string,
+  submitSecondStep(
+    ...step: Parameters<SignInFlow["submitSecondStep"]>
   ): Promise<string> {
-    const pending = await this.requirePending()
-    if (!pending.login.methods.includes(method))
-      throw new VaultError("Unsupported method", "bitwarden.method")
-    const api = new BitwardenApi(serverUrls(pending.server, pending.endpoints))
-    const result = await completeSecondStep(
-      api,
-      await this.device(),
-      pending.login,
-      method,
-      code,
-    )
-    await browser.storage.session.remove(PENDING_LOGIN_KEY)
-    return this.finishSignIn(pending.server, pending.endpoints, result)
+    return this.signInFlow.submitSecondStep(...step)
   }
 
   private async finishSignIn(
-    server: string,
-    endpoints: CustomEndpoints | undefined,
-    signedIn: SignedIn,
+    ...signedIn: Parameters<AccountSessions["establish"]>
   ): Promise<string> {
-    const crypto = await this.loadCrypto()
-    const { token } = signedIn
-    const accessToken = String(prop(token, "access_token"))
-    const refreshToken = String(prop(token, "refresh_token"))
-    const wrappedUserKey = wrappedUserKeyOf(token)
-    const userKey = await unwrapUserKey(
-      crypto,
-      wrappedUserKey,
-      signedIn.masterKey,
-    )
-    const userId = userIdOf(accessToken)
-    const id = accountIdOf(server, userId)
-    // Signing in again to an account keeps the name the user gave it.
-    const previous = (await loadAccounts()).find((stored) => stored.id === id)
-    const account: StoredAccount = {
-      id,
-      userId,
-      email: signedIn.email,
-      server,
-      endpoints,
-      name: previous?.name,
-      kdf: signedIn.kdf,
-      salt: signedIn.salt,
-      wrappedUserKey,
-      encryptedRefreshToken: crypto.encryptString(refreshToken, userKey),
-    }
-    await saveAccount(account)
-    await saveSession(account.id, {
-      userKey: userKey.toBase64(),
-      accessToken,
-      accessTokenExpiresAt: expiryOf(token),
-      refreshToken,
-    })
-    await touchAccount(account.id)
+    const accountId = await this.sessions.establish(...signedIn)
     this.changed()
-    await this.sync(account.id).catch(() => {})
-    return account.id
+    await this.cache.sync(accountId).catch(() => {})
+    return accountId
   }
 
   /** Unlocks one account with its master password; other accounts keep their state. */
   async unlock(accountId: string, password: string): Promise<void> {
-    const account = await this.account(accountId)
-    const crypto = await this.loadCrypto()
-    const masterKey = crypto.deriveMasterKey(
-      password,
-      masterKeySalt(account.email, account.salt),
-      account.kdf,
-    )
-    let userKey: Uint8Array
-    try {
-      userKey = await unwrapUserKey(crypto, account.wrappedUserKey, masterKey)
-    } catch (error) {
-      if (error instanceof WrongPasswordError) {
-        throw new VaultError("Wrong master password", "bitwarden.wrongPassword")
-      }
-      throw error
-    }
-    const refreshToken = crypto.decryptString(
-      account.encryptedRefreshToken,
-      userKey,
-    )
-    await saveSession(account.id, {
-      userKey: userKey.toBase64(),
-      accessToken: "",
-      accessTokenExpiresAt: 0,
-      refreshToken,
-    })
-    await touchAccount(account.id)
+    await this.sessions.unlock(accountId, password)
     this.changed()
-    void this.sync(account.id).catch(() => {})
+    void this.cache.sync(accountId).catch(() => {})
   }
 
   async lock(vaultId: string): Promise<void> {
-    await this.lockAccount(accountIdOfVault(vaultId))
-  }
-
-  async lockAll(): Promise<void> {
-    for (const account of await loadAccounts())
-      await this.lockAccount(account.id)
-  }
-
-  private async lockAccount(accountId: string): Promise<void> {
-    this.endAccess(accountId)
-    await clearSession(accountId)
-    await this.dropRepromptPasses(vaultIdOf(accountId))
+    await this.sessions.lock(accountIdOfVault(vaultId))
     this.changed()
   }
 
-  private endAccess(accountId: string): void {
-    this.accessEnds.set(accountId, this.accessEndsOf(accountId) + 1)
-    this.cache.delete(accountId)
+  async lockAll(): Promise<void> {
+    for (const account of await loadAccounts()) {
+      await this.sessions.lock(account.id)
+      this.changed()
+    }
   }
 
-  private accessEndsOf(accountId: string): number {
-    return this.accessEnds.get(accountId) ?? 0
+  async signOut(accountId: string): Promise<void> {
+    await this.sessions.signOut(accountId)
+    this.changed()
   }
 
-  private async repromptPasses(): Promise<Record<string, number>> {
-    const stored = (await browser.storage.session.get(REPROMPT_PASSES_KEY))[
-      REPROMPT_PASSES_KEY
-    ]
-    return stored && typeof stored === "object"
-      ? (stored as Record<string, number>)
-      : {}
+  /** Locks accounts that have not been used for `minutes`. */
+  async lockIdle(minutes: number): Promise<void> {
+    for (const accountId of await this.sessions.idleAccounts(minutes)) {
+      await this.sessions.lock(accountId)
+      this.changed()
+    }
   }
 
-  private async dropRepromptPasses(vaultId: string): Promise<void> {
-    const passes = await this.repromptPasses()
-    const kept = Object.fromEntries(
-      Object.entries(passes).filter(([key]) => !key.startsWith(`${vaultId}|`)),
-    )
-    await browser.storage.session.set({ [REPROMPT_PASSES_KEY]: kept })
+  sync(accountId: string): Promise<void> {
+    return this.cache.sync(accountId)
   }
 
-  /** The item as Keyward may treat it: one whose master password was entered again acts as open. */
-  private async withPass<T extends RepromptItem & { id: string }>(
-    vaultId: string,
-    item: T,
-  ): Promise<T> {
-    if (!item.reprompt) return item
-    const until = (await this.repromptPasses())[`${vaultId}|${item.id}`]
-    return until !== undefined && until > Date.now()
-      ? { ...item, reprompt: false }
-      : item
+  private vaultOf(vaultId: string, passive = false): Promise<Vault> {
+    return this.cache.vault(accountIdOfVault(vaultId), passive)
   }
 
   /**
@@ -421,202 +238,40 @@ export class BitwardenProvider implements VaultProvider {
     password: string,
   ): Promise<void> {
     const accountId = accountIdOfVault(vaultId)
-    const { items, notes } = await this.vault(accountId)
+    const { items, notes } = await this.vaultOf(vaultId)
     if (![...items, ...notes].some((item) => item.id === itemId))
       throw new VaultError("Unknown item", "notFound")
-    const account = await this.account(accountId)
-    const crypto = await this.loadCrypto()
-    const masterKey = crypto.deriveMasterKey(
+    await this.sessions.verifyMasterPassword(
+      await this.sessions.account(accountId),
       password,
-      masterKeySalt(account.email, account.salt),
-      account.kdf,
     )
-    try {
-      await unwrapUserKey(crypto, account.wrappedUserKey, masterKey)
-    } catch (error) {
-      if (error instanceof WrongPasswordError)
-        throw new VaultError("Wrong master password", "bitwarden.wrongPassword")
-      throw error
-    }
     // Deriving the key takes a moment; a lock in that time must not be followed by a pass.
-    await this.unlockedSession(accountId)
-    const now = Date.now()
-    const passes = Object.fromEntries(
-      Object.entries(await this.repromptPasses()).filter(
-        ([, until]) => until > now,
-      ),
-    )
-    passes[`${vaultId}|${itemId}`] = now + REPROMPT_PASS_MS
-    await browser.storage.session.set({ [REPROMPT_PASSES_KEY]: passes })
+    await this.sessions.unlockedSession(accountId)
+    await grantPass(vaultId, itemId)
   }
 
-  async signOut(accountId: string): Promise<void> {
-    this.endAccess(accountId)
-    await removeAccount(accountId)
-    await this.dropRepromptPasses(vaultIdOf(accountId))
-    this.changed()
-  }
-
-  /** Locks accounts that have not been used for `minutes`. */
-  async lockIdle(minutes: number): Promise<void> {
-    const accounts = await loadAccounts()
-    const activity = await lastActivity(accounts.map((account) => account.id))
-    const cutoff = Date.now() - minutes * 60_000
-    for (const account of accounts) {
-      const idle = (activity[account.id] ?? 0) < cutoff
-      if (idle && (await loadSession(account.id)))
-        await this.lockAccount(account.id)
-    }
-  }
-
-  private async account(accountId: string): Promise<StoredAccount> {
-    const account = (await loadAccounts()).find((a) => a.id === accountId)
-    if (!account) throw new VaultError("Unknown account", "unknownVault")
-    return account
-  }
-
-  private async unlockedSession(accountId: string): Promise<AccountSession> {
-    const session = await loadSession(accountId)
-    if (!session) throw new VaultError("The account is locked", "locked")
-    return session
-  }
-
-  /** A valid access token, refreshed when it is about to expire. */
-  private accessToken(account: StoredAccount): Promise<string> {
-    let running = this.refreshing.get(account.id)
-    if (!running) {
-      running = this.refreshAccessToken(account).finally(() =>
-        this.refreshing.delete(account.id),
-      )
-      this.refreshing.set(account.id, running)
-    }
-    return running
-  }
-
-  /**
-   * Refreshes the access token when it is about to expire. One refresh runs per account at a time,
-   * since a server that rotates refresh tokens rejects the second use of the old one.
-   */
-  private async refreshAccessToken(account: StoredAccount): Promise<string> {
-    const session = await this.unlockedSession(account.id)
-    if (
-      session.accessToken &&
-      session.accessTokenExpiresAt - TOKEN_MARGIN_MS > Date.now()
-    ) {
-      return session.accessToken
-    }
-    const api = new BitwardenApi(serverUrls(account.server, account.endpoints))
-    let token: Record<string, unknown>
-    try {
-      token = await api.refreshToken(session.refreshToken)
-    } catch (error) {
-      if (error instanceof ApiError && error.isAuthError) {
-        throw new VaultError(
-          "The server signed this account out; sign in again",
-          "bitwarden.signedOut",
-        )
-      }
-      throw error
-    }
-    const accessToken = String(prop(token, "access_token"))
-    const refreshed = prop(token, "refresh_token")
-    const refreshToken =
-      typeof refreshed === "string" ? refreshed : session.refreshToken
-    // The account may have been locked or signed out while the request was under way; writing
-    // the session back would undo that.
-    const current = await loadSession(account.id)
-    if (!current) throw new VaultError("The account is locked", "locked")
-    await saveSession(account.id, {
-      ...current,
-      accessToken,
-      accessTokenExpiresAt: expiryOf(token),
-      refreshToken,
+  /** Runs a request that changes the vault, then syncs so lists show the change. */
+  private async write(
+    vaultId: string,
+    send: (access: WriteAccess) => Promise<unknown>,
+  ): Promise<void> {
+    const accountId = accountIdOfVault(vaultId)
+    const account = await this.sessions.account(accountId)
+    await send({
+      api: apiOf(account),
+      accessToken: await this.sessions.accessToken(account),
+      account,
     })
-    if (refreshToken !== session.refreshToken) {
-      const crypto = await this.loadCrypto()
-      const userKey = Uint8Array.fromBase64(current.userKey)
-      const encryptedRefreshToken = crypto.encryptString(refreshToken, userKey)
-      await updateAccount(account.id, (stored) => ({
-        ...stored,
-        encryptedRefreshToken,
-      }))
-    }
-    return accessToken
+    await this.cache.sync(accountId)
   }
 
-  sync(accountId: string): Promise<void> {
-    let running = this.syncing.get(accountId)
-    if (!running) {
-      running = (async () => {
-        const accessEndsBefore = this.accessEndsOf(accountId)
-        const account = await this.account(accountId)
-        const api = new BitwardenApi(
-          serverUrls(account.server, account.endpoints),
-        )
-        const data = await api.sync(await this.accessToken(account))
-        // Saved right after the check, with no wait between, so a lock cannot slip in.
-        if (this.accessEndsOf(accountId) !== accessEndsBefore)
-          throw new VaultError("The account is locked", "locked")
-        await saveSync(accountId, { syncedAt: Date.now(), data })
-        this.cache.delete(accountId)
-        this.changed()
-      })().finally(() => this.syncing.delete(accountId))
-      this.syncing.set(accountId, running)
-    }
-    return running
-  }
-
-  /** Decrypted item summaries; synced first when there is no data yet, refreshed in the background when old. */
-  private async vault(accountId: string, passive = false): Promise<Vault> {
-    const accessEndsBefore = this.accessEndsOf(accountId)
-    const session = await this.unlockedSession(accountId)
-    if (!passive) await touchAccount(accountId)
-    let stored = await loadSync(accountId)
-    if (!stored) {
-      await this.sync(accountId)
-      stored = await loadSync(accountId)
-      if (!stored) throw new VaultError("No synced data", "bitwarden.noData")
-    } else if (Date.now() - stored.syncedAt > SYNC_MAX_AGE_MS) {
-      void this.sync(accountId).catch(() => {})
-    }
-    const cached = this.cache.get(accountId)
-    if (cached && cached.syncedAt === stored.syncedAt) return cached
-    const crypto = await this.loadCrypto()
-    const keys = VaultKeys.fromProfile(
-      crypto,
-      Uint8Array.fromBase64(session.userKey),
-      prop(stored.data, "Profile"),
-    )
-    const ciphers = loginCiphers(stored.data)
-    const items = decryptEach(ciphers, (cipher) => decryptLogin(cipher, keys))
-    const noteCiphersOfVault = noteCiphers(stored.data)
-    const notes = decryptEach(noteCiphersOfVault, (cipher) =>
-      decryptNote(cipher, keys),
-    )
-    const vault = {
-      syncedAt: stored.syncedAt,
-      keys,
-      groups: decryptGroups(stored.data, keys),
-      trashed: decryptEach(trashedCiphers(stored.data), (cipher) =>
-        decryptTrashed(cipher, keys),
-      ),
-      items,
-      ciphers,
-      notes,
-      noteCiphers: noteCiphersOfVault,
-    }
-    // A lock while decrypting must not leave the keys and items in memory.
-    if (this.accessEndsOf(accountId) === accessEndsBefore)
-      this.cache.set(accountId, vault)
-    return vault
-  }
-
+  /** The vault's logins for the page, by their saved addresses and the site's match rule. */
   private async matching(
-    accountId: string,
+    vaultId: string,
     page: URL,
     passive = false,
   ): Promise<{ vault: Vault; items: LoginItem[] }> {
-    const vault = await this.vault(accountId, passive)
+    const vault = await this.vaultOf(vaultId, passive)
     const settings = await getSettings()
     const rule = ruleForHost(settings.siteRules, page.hostname)
     const options = {
@@ -624,8 +279,8 @@ export class BitwardenProvider implements VaultProvider {
       equivalentDomains: settings.equivalentDomains,
     }
     const items = vault.items.filter((item) =>
-      item.uris.some((u) =>
-        uriMatches(u.uri, u.match ?? rule?.match ?? null, page, options),
+      item.uris.some(({ uri, match }) =>
+        uriMatches(uri, match ?? rule?.match ?? null, page, options),
       ),
     )
     return { vault, items }
@@ -636,16 +291,12 @@ export class BitwardenProvider implements VaultProvider {
     page: URL,
     options?: ListOptions,
   ): Promise<LoginSummary[]> {
-    const { items } = await this.matching(
-      accountIdOfVault(vaultId),
-      page,
-      options?.passive,
-    )
+    const { items } = await this.matching(vaultId, page, options?.passive)
     return items.map(summaryOf)
   }
 
   async search(vaultId: string, query: string): Promise<LoginSummary[]> {
-    const { items } = await this.vault(accountIdOfVault(vaultId))
+    const { items } = await this.vaultOf(vaultId)
     return items
       .filter((item) => matchesQuery(item, query))
       .sort((first, second) => first.name.localeCompare(second.name))
@@ -659,9 +310,7 @@ export class BitwardenProvider implements VaultProvider {
     groups: VaultGroups
     trashed: TrashedItem[]
   }> {
-    const { items, notes, groups, trashed } = await this.vault(
-      accountIdOfVault(vaultId),
-    )
+    const { items, notes, groups, trashed } = await this.vaultOf(vaultId)
     return {
       logins: items.map(summaryOf),
       notes: notes.map(noteSummaryOf),
@@ -671,7 +320,7 @@ export class BitwardenProvider implements VaultProvider {
   }
 
   async searchNotes(vaultId: string, query: string): Promise<NoteSummary[]> {
-    const { notes } = await this.vault(accountIdOfVault(vaultId))
+    const { notes } = await this.vaultOf(vaultId)
     return notes
       .filter((note) => textMatchesQuery(note.name, query))
       .sort((first, second) => first.name.localeCompare(second.name))
@@ -686,13 +335,13 @@ export class BitwardenProvider implements VaultProvider {
     note: NoteItem
     cipher: Record<string, unknown>
   }> {
-    const vault = await this.vault(accountIdOfVault(vaultId))
+    const vault = await this.vaultOf(vaultId)
     const note = vault.notes.find((candidate) => candidate.id === noteId)
     const cipher = vault.noteCiphers.find(
       (candidate) => prop(candidate, "Id") === noteId,
     )
     if (!note || !cipher) throw new VaultError("Unknown note", "notFound")
-    return { vault, note: await this.withPass(vaultId, note), cipher }
+    return { vault, note: await withPass(vaultId, note), cipher }
   }
 
   /** The login or note an item ID names. */
@@ -700,7 +349,7 @@ export class BitwardenProvider implements VaultProvider {
     vaultId: string,
     itemId: string,
   ): Promise<{ item: RepromptItem; cipher: Record<string, unknown> }> {
-    const { notes } = await this.vault(accountIdOfVault(vaultId))
+    const { notes } = await this.vaultOf(vaultId)
     const isNote = notes.some((note) => note.id === itemId)
     if (!isNote) return this.pageItem(vaultId, itemId, null)
     const { note, cipher } = await this.noteEntry(vaultId, itemId)
@@ -726,21 +375,14 @@ export class BitwardenProvider implements VaultProvider {
   async editableNote(vaultId: string, noteId: string): Promise<EditableNote> {
     const { vault, note, cipher } = await this.noteEntry(vaultId, noteId)
     refuseEdit(note, cipher)
-    const { notes, customFields } = decryptDetails(cipher, vault.keys)
-    return { name: note.name, text: notes, customFields }
+    return editableNoteOf(vault.keys, note, cipher)
   }
 
   async saveNote(vaultId: string, note: EditableNote): Promise<void> {
-    const accountId = accountIdOfVault(vaultId)
-    const account = await this.account(accountId)
-    const { keys } = await this.vault(accountId)
-    await new BitwardenApi(
-      serverUrls(account.server, account.endpoints),
-    ).createCipher(
-      await this.accessToken(account),
-      newNoteRequest(note, keys, account.userId),
+    const { keys } = await this.vaultOf(vaultId)
+    await this.write(vaultId, ({ api, accessToken, account }) =>
+      api.createCipher(accessToken, newNoteRequest(note, keys, account.userId)),
     )
-    await this.sync(accountId)
   }
 
   /** Saves the parts of the note that differ from what is saved. */
@@ -749,16 +391,15 @@ export class BitwardenProvider implements VaultProvider {
     noteId: string,
     next: EditableNote,
   ): Promise<void> {
-    const current = await this.editableNote(vaultId, noteId)
+    const { vault, note, cipher } = await this.noteEntry(vaultId, noteId)
+    refuseEdit(note, cipher)
+    const current = editableNoteOf(vault.keys, note, cipher)
     const changed: ItemChange = {}
     if (next.name !== current.name) changed.name = next.name
     if (next.text !== current.text) changed.notes = next.text
-    const fieldsChanged =
-      JSON.stringify(next.customFields) !== JSON.stringify(current.customFields)
-    if (fieldsChanged) changed.customFields = next.customFields
-    if (!Object.keys(changed).length) return
-    const { cipher } = await this.noteEntry(vaultId, noteId)
-    await this.change(vaultId, cipher, changed)
+    if (!sameValues(next.customFields, current.customFields))
+      changed.customFields = next.customFields
+    await this.change(vaultId, vault.keys, cipher, changed)
   }
 
   /**
@@ -774,15 +415,19 @@ export class BitwardenProvider implements VaultProvider {
     item: LoginItem
     cipher: Record<string, unknown>
   }> {
-    const accountId = accountIdOfVault(vaultId)
     const { vault, items } = page
-      ? await this.matching(accountId, page)
-      : await this.vault(accountId).then((v) => ({ vault: v, items: v.items }))
-    const item = items.find((i) => i.id === loginId)
-    const cipher = vault.ciphers.find((c) => prop(c, "Id") === loginId)
+      ? await this.matching(vaultId, page)
+      : await this.vaultOf(vaultId).then((whole) => ({
+          vault: whole,
+          items: whole.items,
+        }))
+    const item = items.find((candidate) => candidate.id === loginId)
+    const cipher = vault.ciphers.find(
+      (candidate) => prop(candidate, "Id") === loginId,
+    )
     if (!item || !cipher)
       throw new VaultError("The login does not match this page", "notFound")
-    return { vault, item: await this.withPass(vaultId, item), cipher }
+    return { vault, item: await withPass(vaultId, item), cipher }
   }
 
   async credential(
@@ -812,7 +457,7 @@ export class BitwardenProvider implements VaultProvider {
     return {
       username: item.username,
       name: item.name,
-      uris: item.uris.map((u) => u.uri).filter((uri) => uri !== ""),
+      uris: item.uris.map(({ uri }) => uri).filter((uri) => uri !== ""),
       // Notes, fields and earlier passwords may hold secrets too, so a re-prompted item keeps them back.
       notes: item.reprompt ? undefined : details.notes || undefined,
       customFields: item.reprompt ? undefined : details.customFields,
@@ -838,7 +483,7 @@ export class BitwardenProvider implements VaultProvider {
   }
 
   async codeLogins(vaultId: string, page: URL): Promise<LoginSummary[]> {
-    return (await this.logins(vaultId, page)).filter((l) => l.hasCode)
+    return (await this.logins(vaultId, page)).filter((login) => login.hasCode)
   }
 
   async oneTimeCode(
@@ -855,10 +500,7 @@ export class BitwardenProvider implements VaultProvider {
     try {
       return oneTimeCode(key)
     } catch {
-      throw new VaultError(
-        "The authenticator key cannot be read",
-        "invalidCodeKey",
-      )
+      throw unreadableCodeKey()
     }
   }
 
@@ -870,26 +512,15 @@ export class BitwardenProvider implements VaultProvider {
     key: string,
   ): Promise<void> {
     requireCodeKey(key)
-    const { item, cipher } = await this.pageItem(vaultId, loginId, page)
+    const { vault, item, cipher } = await this.pageItem(vaultId, loginId, page)
     refuseReprompt(item)
-    await this.change(vaultId, cipher, { totp: key })
+    await this.change(vaultId, vault.keys, cipher, { totp: key })
   }
 
   async editable(vaultId: string, loginId: string): Promise<EditableLogin> {
     const { vault, item, cipher } = await this.pageItem(vaultId, loginId, null)
     refuseEdit(item, cipher)
-    const { notes, customFields } = decryptDetails(cipher, vault.keys)
-    return {
-      name: item.name,
-      username: item.username,
-      password: decryptPassword(cipher, vault.keys),
-      uris: item.uris
-        .filter((website) => website.uri !== "")
-        .map(({ uri, match }) => ({ uri, match })),
-      notes,
-      totp: item.hasTotp ? decryptTotp(cipher, vault.keys) : "",
-      customFields,
-    }
+    return editableLoginOf(vault.keys, item, cipher)
   }
 
   /** Saves the fields that differ from the item's; an unchanged password stays out of the history. */
@@ -898,32 +529,13 @@ export class BitwardenProvider implements VaultProvider {
     loginId: string,
     change: LoginEdit,
   ): Promise<void> {
-    const current = await this.editable(vaultId, loginId)
-    const changed: ItemChange = {}
-    for (const key of ["name", "username", "password", "notes"] as const) {
-      const value = change[key]
-      if (value !== undefined && value !== current[key]) changed[key] = value
-    }
-    if (change.totp !== undefined && change.totp.trim() !== current.totp) {
-      if (change.totp.trim()) requireCodeKey(change.totp.trim())
-      changed.totp = change.totp.trim()
-    }
-    const uris = change.uris
-      ?.map((website) => ({ ...website, uri: website.uri.trim() }))
-      .filter((website) => website.uri !== "")
-    if (
-      uris !== undefined &&
-      JSON.stringify(uris) !== JSON.stringify(current.uris)
+    const { vault, item, cipher } = await this.pageItem(vaultId, loginId, null)
+    refuseEdit(item, cipher)
+    const changed = loginChanges(
+      editableLoginOf(vault.keys, item, cipher),
+      change,
     )
-      changed.uris = uris
-    const fieldsChanged =
-      change.customFields !== undefined &&
-      JSON.stringify(change.customFields) !==
-        JSON.stringify(current.customFields)
-    if (fieldsChanged) changed.customFields = change.customFields
-    if (!Object.keys(changed).length) return
-    const { cipher } = await this.pageItem(vaultId, loginId, null)
-    await this.change(vaultId, cipher, changed)
+    await this.change(vaultId, vault.keys, cipher, changed)
   }
 
   async setFavorite(
@@ -931,18 +543,15 @@ export class BitwardenProvider implements VaultProvider {
     itemId: string,
     favorite: boolean,
   ): Promise<void> {
-    const accountId = accountIdOfVault(vaultId)
-    const account = await this.account(accountId)
     const { cipher } = await this.anyItem(vaultId, itemId)
     // The request sets the folder as well, so the item's own goes with it.
     const folderId = prop(cipher, "FolderId")
-    await new BitwardenApi(
-      serverUrls(account.server, account.endpoints),
-    ).updateCipherPartial(await this.accessToken(account), itemId, {
-      folderId: typeof folderId === "string" && folderId ? folderId : null,
-      favorite,
-    })
-    await this.sync(accountId)
+    await this.write(vaultId, ({ api, accessToken }) =>
+      api.updateCipherPartial(accessToken, itemId, {
+        folderId: typeof folderId === "string" && folderId ? folderId : null,
+        favorite,
+      }),
+    )
   }
 
   /** A trashed item Keyward may restore or delete. */
@@ -950,7 +559,7 @@ export class BitwardenProvider implements VaultProvider {
     vaultId: string,
     itemId: string,
   ): Promise<TrashedItem> {
-    const { trashed } = await this.vault(accountIdOfVault(vaultId))
+    const { trashed } = await this.vaultOf(vaultId)
     const item = trashed.find((candidate) => candidate.id === itemId)
     if (!item) throw new VaultError("Not in the trash", "notFound")
     if (!item.editable) throw new VaultError("Read-only item", "notEditable")
@@ -959,51 +568,41 @@ export class BitwardenProvider implements VaultProvider {
 
   async restore(vaultId: string, itemId: string): Promise<void> {
     await this.trashedItem(vaultId, itemId)
-    const accountId = accountIdOfVault(vaultId)
-    const account = await this.account(accountId)
-    await new BitwardenApi(
-      serverUrls(account.server, account.endpoints),
-    ).restoreCipher(await this.accessToken(account), itemId)
-    await this.sync(accountId)
+    await this.write(vaultId, ({ api, accessToken }) =>
+      api.restoreCipher(accessToken, itemId),
+    )
   }
 
   async purge(vaultId: string, itemId: string): Promise<void> {
     await this.trashedItem(vaultId, itemId)
-    const accountId = accountIdOfVault(vaultId)
-    const account = await this.account(accountId)
-    await new BitwardenApi(
-      serverUrls(account.server, account.endpoints),
-    ).deleteCipher(await this.accessToken(account), itemId)
-    await this.sync(accountId)
+    await this.write(vaultId, ({ api, accessToken }) =>
+      api.deleteCipher(accessToken, itemId),
+    )
   }
 
   async remove(vaultId: string, itemId: string): Promise<void> {
-    const accountId = accountIdOfVault(vaultId)
-    const account = await this.account(accountId)
     const { item, cipher } = await this.anyItem(vaultId, itemId)
     refuseEdit(item, cipher)
-    await new BitwardenApi(
-      serverUrls(account.server, account.endpoints),
-    ).trashCipher(await this.accessToken(account), itemId)
-    await this.sync(accountId)
+    await this.write(vaultId, ({ api, accessToken }) =>
+      api.trashCipher(accessToken, itemId),
+    )
   }
 
+  /** Sends a change of an item; a change without fields sends nothing. */
   private async change(
     vaultId: string,
+    keys: VaultKeys,
     cipher: Record<string, unknown>,
     change: ItemChange,
   ): Promise<void> {
-    const accountId = accountIdOfVault(vaultId)
-    const account = await this.account(accountId)
-    const { keys } = await this.vault(accountId)
-    await new BitwardenApi(
-      serverUrls(account.server, account.endpoints),
-    ).updateCipher(
-      await this.accessToken(account),
-      String(prop(cipher, "Id")),
-      await itemUpdateRequest(cipher, change, keys, account.userId),
+    if (!Object.keys(change).length) return
+    await this.write(vaultId, async ({ api, accessToken, account }) =>
+      api.updateCipher(
+        accessToken,
+        String(prop(cipher, "Id")),
+        await itemUpdateRequest(cipher, change, keys, account.userId),
+      ),
     )
-    await this.sync(accountId)
   }
 
   canSave(): boolean {
@@ -1016,13 +615,10 @@ export class BitwardenProvider implements VaultProvider {
     username: string,
     password: string,
   ): Promise<ExistingLogin | null> {
-    const { vault, items } = await this.matching(
-      accountIdOfVault(vaultId),
-      page,
-    )
+    const { vault, items } = await this.matching(vaultId, page)
     const found = items.find((item) => item.username === username)
     if (!found) return null
-    const item = await this.withPass(vaultId, found)
+    const item = await withPass(vaultId, found)
     const cipher = vault.ciphers.find((saved) => prop(saved, "Id") === item.id)
     const savedPassword = cipher
       ? decryptPassword(cipher, vault.keys)
@@ -1036,39 +632,37 @@ export class BitwardenProvider implements VaultProvider {
   }
 
   async folders(vaultId: string): Promise<Folder[]> {
-    const { groups } = await this.vault(accountIdOfVault(vaultId))
+    const { groups } = await this.vaultOf(vaultId)
     return groups.folders
   }
 
   async save(vaultId: string, login: NewLogin, _tab: TabRef): Promise<void> {
-    const accountId = accountIdOfVault(vaultId)
-    const account = await this.account(accountId)
-    const { keys, groups } = await this.vault(accountId)
+    const { keys, groups } = await this.vaultOf(vaultId)
     const details = login.details
     const totp = details?.totp.trim() ?? ""
     if (totp) requireCodeKey(totp)
     const folderId = details?.folderId ?? null
     if (folderId && !groups.folders.some((folder) => folder.id === folderId))
       throw new VaultError("Unknown folder", "notFound")
-    const api = new BitwardenApi(serverUrls(account.server, account.endpoints))
-    await api.createCipher(
-      await this.accessToken(account),
-      newLoginRequest(
-        {
-          name: details?.name.trim() || login.url.hostname,
-          username: login.username,
-          password: login.password,
-          uri: login.url.origin,
-          notes: details?.notes,
-          totp,
-          customFields: details?.customFields,
-          folderId,
-        },
-        keys,
-        account.userId,
+    await this.write(vaultId, ({ api, accessToken, account }) =>
+      api.createCipher(
+        accessToken,
+        newLoginRequest(
+          {
+            name: details?.name.trim() || login.url.hostname,
+            username: login.username,
+            password: login.password,
+            uri: login.url.origin,
+            notes: details?.notes,
+            totp,
+            customFields: details?.customFields,
+            folderId,
+          },
+          keys,
+          account.userId,
+        ),
       ),
     )
-    await this.sync(accountId)
   }
 
   async update(
@@ -1077,9 +671,11 @@ export class BitwardenProvider implements VaultProvider {
     login: NewLogin,
     _tab: TabRef,
   ): Promise<void> {
-    const { item, cipher } = await this.pageItem(vaultId, loginId, null)
+    const { vault, item, cipher } = await this.pageItem(vaultId, loginId, null)
     refuseEdit(item, cipher)
-    await this.change(vaultId, cipher, { password: login.password })
+    await this.change(vaultId, vault.keys, cipher, {
+      password: login.password,
+    })
   }
 }
 
@@ -1100,22 +696,6 @@ function accountLabel(
   )
   if (!sharesEmail) return account.email
   return `${account.email} · ${serverHost(account.server)}`
-}
-
-/** Decrypts each cipher; one that cannot be decrypted is left out rather than failing the list. */
-function decryptEach<T>(
-  ciphers: Record<string, unknown>[],
-  decrypt: (cipher: Record<string, unknown>) => T,
-): T[] {
-  const decrypted: T[] = []
-  for (const cipher of ciphers) {
-    try {
-      decrypted.push(decrypt(cipher))
-    } catch {
-      // Left out, as above.
-    }
-  }
-  return decrypted
 }
 
 function summaryOf(item: LoginItem): LoginSummary {
@@ -1139,14 +719,75 @@ function noteSummaryOf(note: NoteItem): NoteSummary {
   }
 }
 
+function editableLoginOf(
+  keys: VaultKeys,
+  item: LoginItem,
+  cipher: Record<string, unknown>,
+): EditableLogin {
+  const { notes, customFields } = decryptDetails(cipher, keys)
+  return {
+    name: item.name,
+    username: item.username,
+    password: decryptPassword(cipher, keys),
+    uris: item.uris
+      .filter((website) => website.uri !== "")
+      .map(({ uri, match }) => ({ uri, match })),
+    notes,
+    totp: item.hasTotp ? decryptTotp(cipher, keys) : "",
+    customFields,
+  }
+}
+
+function editableNoteOf(
+  keys: VaultKeys,
+  note: NoteItem,
+  cipher: Record<string, unknown>,
+): EditableNote {
+  const { notes, customFields } = decryptDetails(cipher, keys)
+  return { name: note.name, text: notes, customFields }
+}
+
+/** Whether two lists of custom fields or websites hold the same values in the same order. */
+function sameValues(first: unknown, second: unknown): boolean {
+  return JSON.stringify(first) === JSON.stringify(second)
+}
+
+/** The fields of an edit that differ from the login as it is saved. */
+function loginChanges(current: EditableLogin, change: LoginEdit): ItemChange {
+  const changed: ItemChange = {}
+  for (const key of ["name", "username", "password", "notes"] as const) {
+    const value = change[key]
+    if (value !== undefined && value !== current[key]) changed[key] = value
+  }
+  const totp = change.totp?.trim()
+  if (totp !== undefined && totp !== current.totp) {
+    if (totp) requireCodeKey(totp)
+    changed.totp = totp
+  }
+  const uris = change.uris
+    ?.map((website) => ({ ...website, uri: website.uri.trim() }))
+    .filter((website) => website.uri !== "")
+  if (uris !== undefined && !sameValues(uris, current.uris)) changed.uris = uris
+  if (
+    change.customFields !== undefined &&
+    !sameValues(change.customFields, current.customFields)
+  )
+    changed.customFields = change.customFields
+  return changed
+}
+
+function unreadableCodeKey(): VaultError {
+  return new VaultError(
+    "The authenticator key cannot be read",
+    "invalidCodeKey",
+  )
+}
+
 function requireCodeKey(key: string): void {
   try {
     oneTimeCode(key)
   } catch {
-    throw new VaultError(
-      "The authenticator key cannot be read",
-      "invalidCodeKey",
-    )
+    throw unreadableCodeKey()
   }
 }
 
@@ -1154,20 +795,30 @@ function requireCodeKey(key: string): void {
  * Items that ask for the master password again stay with Bitwarden's own apps, and an
  * organization's read-only items, marked so by the server, cannot be changed.
  */
-/** What editing and re-prompt checks need of a login or a note. */
-type RepromptItem = { reprompt: boolean }
-
 function isEditable(
-  item: RepromptItem,
+  item: Pick<RepromptItem, "reprompt">,
   cipher: Record<string, unknown>,
 ): boolean {
   return !item.reprompt && prop(cipher, "Edit") !== false
 }
 
-function refuseEdit(item: RepromptItem, cipher: Record<string, unknown>): void {
+function refuseEdit(
+  item: Pick<RepromptItem, "reprompt">,
+  cipher: Record<string, unknown>,
+): void {
   refuseReprompt(item)
   if (!isEditable(item, cipher))
     throw new VaultError("The login cannot be changed", "notEditable")
+}
+
+/** Items marked for master password re-prompt are left to Bitwarden's own apps. */
+function refuseReprompt(item: Pick<RepromptItem, "reprompt">): void {
+  if (item.reprompt) {
+    throw new VaultError(
+      "The login asks for the master password again",
+      "bitwarden.reprompt",
+    )
+  }
 }
 
 /** What a fill puts into the page for a custom field; a linked field takes its login value. */
@@ -1193,28 +844,4 @@ function fillFields(
   return customFields
     .filter((field) => field.name !== "")
     .map((field) => fillFieldOf(field, login))
-}
-
-/** Items marked for master password re-prompt are left to Bitwarden's own apps. */
-function refuseReprompt(item: RepromptItem): void {
-  if (item.reprompt) {
-    throw new VaultError(
-      "The login asks for the master password again",
-      "bitwarden.reprompt",
-    )
-  }
-}
-
-function pendingView(pending: PendingSignIn): PendingSignInView {
-  return {
-    server: pending.server,
-    endpoints: pending.endpoints,
-    email: pending.login.email,
-    methods: pending.login.methods,
-  }
-}
-
-function expiryOf(token: Record<string, unknown>): number {
-  const seconds = prop(token, "expires_in")
-  return Date.now() + (typeof seconds === "number" ? seconds : 3600) * 1000
 }

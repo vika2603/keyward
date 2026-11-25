@@ -652,6 +652,23 @@ describe("logins Keyward may not change", () => {
   })
 })
 
+describe("reading an unlocked account", () => {
+  it("lists vaults and decrypted logins again without reading the synced data", async () => {
+    const bw = provider()
+    const page = new URL("https://example.com/")
+    await bw.logins(VAULT, page)
+    const read = vi.spyOn(fakeBrowser.storage.session, "get")
+    await bw.logins(VAULT, page)
+    await bw.vaults()
+    const keysRead = read.mock.calls.flatMap(([keys]) =>
+      typeof keys === "string" ? [keys] : Array.isArray(keys) ? keys : [],
+    )
+    expect(keysRead.some((key) => key.startsWith("bitwarden.sync."))).toBe(
+      false,
+    )
+  })
+})
+
 describe("signOut", () => {
   it("tells listeners, so the toolbar and pages follow", async () => {
     const bw = provider()
