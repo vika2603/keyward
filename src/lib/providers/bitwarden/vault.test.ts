@@ -19,6 +19,7 @@ import {
   decryptTotp,
   itemUpdateRequest,
   type LoginItem,
+  loginCiphers,
   matchesQuery,
   newNoteRequest,
   noteCiphers,
@@ -466,15 +467,23 @@ describe("secure notes", () => {
     RevisionDate: "2026-04-02T09:30:00.000Z",
   }
 
-  it("lists notes apart from logins and leaves out deleted ones", () => {
+  it("lists notes apart from logins and leaves out deleted and archived ones", () => {
     const sync = {
       Ciphers: [
         note,
         { ...note, Id: "note-2", DeletedDate: "2026-05-01T00:00:00.000Z" },
+        { ...note, Id: "note-3", ArchivedDate: "2026-05-01T00:00:00.000Z" },
         { Id: "login-1", Type: 1, Login: {} },
+        {
+          Id: "login-2",
+          Type: 1,
+          Login: {},
+          ArchivedDate: "2026-05-01T00:00:00.000Z",
+        },
       ],
     }
     expect(noteCiphers(sync).map((cipher) => cipher.Id)).toEqual(["note-1"])
+    expect(loginCiphers(sync).map((cipher) => cipher.Id)).toEqual(["login-1"])
     expect(decryptNote(note, keys)).toEqual({
       id: "note-1",
       name: "Wi-Fi",

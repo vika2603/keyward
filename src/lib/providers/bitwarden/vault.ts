@@ -92,13 +92,16 @@ export class VaultKeys {
   }
 }
 
+/** Items in the trash or the archive stay out of lists, search and filling, as in Bitwarden's apps. */
+function isListed(cipher: unknown): boolean {
+  return !prop(cipher, "DeletedDate") && !prop(cipher, "ArchivedDate")
+}
+
 export function loginCiphers(sync: unknown): Record<string, unknown>[] {
   const ciphers = prop(sync, "Ciphers")
   if (!Array.isArray(ciphers)) return []
   return ciphers.filter(
-    (cipher) =>
-      prop(cipher, "Type") === CIPHER_TYPE_LOGIN &&
-      !prop(cipher, "DeletedDate"),
+    (cipher) => prop(cipher, "Type") === CIPHER_TYPE_LOGIN && isListed(cipher),
   )
 }
 
@@ -116,8 +119,7 @@ export function noteCiphers(sync: unknown): Record<string, unknown>[] {
   if (!Array.isArray(ciphers)) return []
   return ciphers.filter(
     (cipher) =>
-      prop(cipher, "Type") === CIPHER_TYPE_SECURE_NOTE &&
-      !prop(cipher, "DeletedDate"),
+      prop(cipher, "Type") === CIPHER_TYPE_SECURE_NOTE && isListed(cipher),
   )
 }
 
