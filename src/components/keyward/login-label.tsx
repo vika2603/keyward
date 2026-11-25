@@ -2,15 +2,16 @@ import { t } from "@/lib/i18n"
 import { cn } from "@/lib/utils"
 
 /**
- * A login's username with its site or item name below it, or after it on the same line when the
- * list is compact.
+ * An item's two lines: the first, usually a login's username, with its site or name below it, or
+ * after it on the same line when the list is compact.
  */
 export function LoginLabel({
-  username,
+  primary,
   detail,
   compact,
 }: {
-  username: string
+  /** The first line; empty shows that the login has no username. */
+  primary: string
   detail: string
   compact: boolean
 }) {
@@ -22,7 +23,7 @@ export function LoginLabel({
       )}
     >
       <span className="truncate text-sm font-medium">
-        {username || t("common.noUsername")}
+        {primary || t("common.noUsername")}
       </span>
       <span
         className={cn(

@@ -181,7 +181,7 @@ export function TrashedRow({
       ) : (
         <NoteIcon className={rowIconClass(compact)} />
       )}
-      <LoginLabel username={item.name} detail={detail} compact={compact} />
+      <LoginLabel primary={item.name} detail={detail} compact={compact} />
       {item.editable && (
         <RowActions shown={armed} className="items-center">
           {!armed && (
@@ -253,7 +253,7 @@ export function NoteRow({
       <OpenItemButton onOpen={onOpen}>
         <NoteIcon className={rowIconClass(compact)} />
         <LoginLabel
-          username={note.name}
+          primary={note.name}
           detail={t("popup.note.title")}
           compact={compact}
         />
@@ -328,7 +328,7 @@ export function LoginRow({
           className={rowIconClass(compact)}
         />
         <LoginLabel
-          username={nameFirst ? login.title : login.username}
+          primary={nameFirst ? login.title : login.username}
           detail={confirming ? t("popup.main.confirmTouchId") : secondLine}
           compact={compact}
         />

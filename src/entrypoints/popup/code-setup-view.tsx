@@ -106,7 +106,7 @@ export function CodeSetupView({
         <div className="flex min-h-10 items-center gap-2.5">
           <SiteIcon host={login.host} text={login.title} />
           <LoginLabel
-            username={login.username}
+            primary={login.username}
             detail={replaces ? t("popup.codeSetup.hasCode") : login.title}
             compact={false}
           />

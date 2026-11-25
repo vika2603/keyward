@@ -225,7 +225,7 @@ export function App() {
                           )}
                         />
                         <LoginLabel
-                          username={login.username}
+                          primary={login.username}
                           detail={
                             login.recent
                               ? t("overlay.menu.recent", { site: login.title })
