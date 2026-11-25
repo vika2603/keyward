@@ -46,7 +46,7 @@ export interface CreatedMenu {
  */
 export function fakeContextMenus(): {
   created: CreatedMenu[]
-  click: (...click: Parameters<MenuClick>) => Promise<unknown>
+  click: MenuClick
 } {
   const created: CreatedMenu[] = []
   let listener: MenuClick = () => {}
@@ -64,7 +64,7 @@ export function fakeContextMenus(): {
   }
   return {
     created,
-    click: async (...click) => listener(...click),
+    click: (...click) => listener(...click),
   }
 }
 

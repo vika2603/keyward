@@ -109,6 +109,7 @@ export async function startContentScript({
   /** Delivers a message from the background and returns the content script's answer. */
   const send = async (message: ContentMessage): Promise<unknown> => {
     let answer: unknown
+    // biome-ignore lint/nursery/noFloatingPromises: trigger already waits for every listener; its type only says a listener may return a promise.
     await fakeBrowser.runtime.onMessage.trigger(
       { [CONTENT_MESSAGE]: 1, ...message },
       {},
