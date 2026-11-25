@@ -87,6 +87,29 @@ export function ApplePairing({ onPaired }: { onPaired: () => void }) {
     if (ready) input.current?.focus()
   }, [ready])
 
+  // The Mac's code window can take the keyboard from the browser. When the popup gets it back, from
+  // a click anywhere but on another control or from switching back, the code goes into the field.
+  useEffect(() => {
+    if (!ready) return
+    const focusCode = () => input.current?.focus()
+    const onMouseDown = (event: MouseEvent) => {
+      if (
+        event.target instanceof Element &&
+        event.target.closest("button, a, input, select, textarea, [tabindex]")
+      )
+        return
+      // Keeps the click from moving the focus to the page itself.
+      event.preventDefault()
+      focusCode()
+    }
+    window.addEventListener("focus", focusCode)
+    document.addEventListener("mousedown", onMouseDown)
+    return () => {
+      window.removeEventListener("focus", focusCode)
+      document.removeEventListener("mousedown", onMouseDown)
+    }
+  }, [ready])
+
   const paired = phase === "paired"
   const MacIcon = paired ? LaptopMinimalCheckIcon : LaptopMinimalIcon
 
