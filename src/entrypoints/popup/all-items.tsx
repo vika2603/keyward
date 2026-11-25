@@ -25,12 +25,13 @@ import type { Settings } from "@/lib/settings"
 import { cn } from "@/lib/utils"
 import { LoginRow, NoteRow } from "./item-rows"
 
-type ItemKind = "all" | "logins" | "notes"
+type ItemKind = "all" | "favorites" | "logins" | "notes"
 /** What the list shows: the site's items, or every item of a kind. */
 export type ItemFilter = "site" | ItemKind
 
 const KIND_LABELS: Record<ItemKind, MessageKey> = {
   all: "popup.main.itemKind.all",
+  favorites: "popup.main.itemKind.favorites",
   logins: "popup.main.itemKind.logins",
   notes: "popup.main.itemKind.notes",
 }
@@ -101,9 +102,13 @@ function rowsOf(
             note,
             name: note.name,
           }))
-    const items = [...logins, ...notes].sort((first, second) =>
-      collator.compare(first.name, second.name),
-    )
+    const items = [...logins, ...notes]
+      .filter(
+        (item) =>
+          kind !== "favorites" ||
+          (item.type === "login" ? item.login.favorite : item.note.favorite),
+      )
+      .sort((first, second) => collator.compare(first.name, second.name))
     itemCount += items.length
     const open = vaults.length === 1 || !foldedVaults.has(vault.id)
     if (vaults.length > 1)
@@ -301,9 +306,15 @@ export function ItemBrowser({
   onOpenNote: (vault: VaultView, note: NoteSummary) => void
 }) {
   const hasNotes = vaults.some((vault) => vault.notes?.length)
+  const hasFavorites = vaults.some(
+    (vault) =>
+      vault.logins.some((login) => login.favorite) ||
+      vault.notes?.some((note) => note.favorite),
+  )
   const filters: ItemFilter[] = [
     ...(host ? (["site"] as const) : []),
     "all",
+    ...(hasFavorites ? (["favorites"] as const) : []),
     ...(hasNotes ? (["logins", "notes"] as const) : []),
   ]
   const filter =

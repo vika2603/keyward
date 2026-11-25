@@ -55,6 +55,8 @@ export interface LoginSummary {
   /** The login this tab signed in with on the site moments ago, listed first for its code. */
   recent?: boolean
   grouping?: ItemGrouping
+  /** Left out by providers without favorites. */
+  favorite?: boolean
 }
 
 /** What the detail view shows of a login. The password and one-time code are read on request. */
@@ -72,6 +74,8 @@ export interface LoginDetails {
   editable: boolean
   /** Fields the user added to the login, in their saved order. */
   customFields?: CustomField[]
+  /** Whether the user starred the login; left out by providers without favorites. */
+  favorite?: boolean
   /** How many earlier passwords the provider keeps for the login; read with `passwordHistory`. */
   pastPasswordCount?: number
   /** Milliseconds since the epoch. */
@@ -92,6 +96,7 @@ export interface NoteSummary {
   id: string
   name: string
   grouping?: ItemGrouping
+  favorite?: boolean
 }
 
 export interface NoteDetails {
@@ -102,6 +107,7 @@ export interface NoteDetails {
   /** Whether the note's contents are left to the provider's own apps, as for logins. */
   withheld: boolean
   editable: boolean
+  favorite?: boolean
   /** Milliseconds since the epoch. */
   created?: number
   modified?: number
@@ -246,6 +252,12 @@ export interface VaultProvider {
   edit?(vaultId: string, loginId: string, change: LoginEdit): Promise<void>
   /** Moves a login or note to the trash, where the provider's own apps can restore it. */
   remove?(vaultId: string, loginId: string): Promise<void>
+  /** Stars a login or note, or takes its star away. */
+  setFavorite?(
+    vaultId: string,
+    itemId: string,
+    favorite: boolean,
+  ): Promise<void>
   /** Whether the provider can store a login for this address; a save prompt offers only those that can. */
   canSave(url: URL): boolean
   /** Whether the user told the provider never to save logins for the page's site; a save prompt leaves it out. */

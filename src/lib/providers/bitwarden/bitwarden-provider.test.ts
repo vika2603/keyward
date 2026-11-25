@@ -71,7 +71,7 @@ const ciphers = [
       password: "third-test-value",
       uri: "https://example.com",
     },
-    { Edit: false },
+    { Edit: false, FolderId: "folder-1" },
   ),
 ]
 
@@ -200,6 +200,27 @@ describe("edit", () => {
       provider().edit(VAULT, "item-1", { totp: "not-a-key!" }),
     ).rejects.toMatchObject({ code: "invalidCodeKey" })
     expect(writes()).toEqual([])
+  })
+})
+
+describe("setFavorite", () => {
+  it("stars a read-only item of an organization and keeps its folder", async () => {
+    const bw = provider()
+    expect((await bw.details(VAULT, "item-3", null)).favorite).toBe(false)
+    await bw.setFavorite(VAULT, "item-3", true)
+    expect(writes()).toEqual([
+      {
+        method: "PUT",
+        url: `${SERVER}/api/ciphers/item-3/partial`,
+        body: { folderId: "folder-1", favorite: true },
+        auth: `Bearer ${ACCESS_TOKEN}`,
+      },
+    ])
+  })
+
+  it("sends no folder for an item outside every folder", async () => {
+    await provider().setFavorite(VAULT, "item-1", false)
+    expect(writes()[0]?.body).toEqual({ folderId: null, favorite: false })
   })
 })
 

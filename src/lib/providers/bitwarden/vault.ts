@@ -17,6 +17,7 @@ export interface LoginItem {
   id: string
   organizationId: string | null
   grouping: ItemGrouping
+  favorite: boolean
   name: string
   username: string
   uris: { uri: string; match: MatchType | null }[]
@@ -113,6 +114,7 @@ export interface NoteItem {
   /** Whether the note asks for the master password before its text is shown. */
   reprompt: boolean
   grouping: ItemGrouping
+  favorite: boolean
 }
 
 export function noteCiphers(sync: unknown): Record<string, unknown>[] {
@@ -133,6 +135,7 @@ export function decryptNote(
     name: keys.decrypt(prop(cipher, "Name"), keys.forCipher(cipher)),
     reprompt: prop(cipher, "Reprompt") === 1,
     grouping: groupingOf(cipher),
+    favorite: prop(cipher, "Favorite") === true,
   }
 }
 
@@ -220,6 +223,7 @@ export function decryptLogin(
     id: String(prop(cipher, "Id")),
     organizationId: typeof orgId === "string" ? orgId : null,
     grouping: groupingOf(cipher),
+    favorite: prop(cipher, "Favorite") === true,
     name: keys.decrypt(prop(cipher, "Name"), key),
     username: keys.decrypt(prop(login, "Username"), key),
     uris: Array.isArray(uris)

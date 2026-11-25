@@ -113,6 +113,7 @@ describe("organization items", () => {
       id: "item-1",
       organizationId: "org-1",
       grouping: { organizationId: "org-1", folderId: null, collectionIds: [] },
+      favorite: false,
       name: "Example",
       username: "someone",
       uris: [{ uri: "https://example.com", match: 1 }],
@@ -256,6 +257,7 @@ describe("search", () => {
     id: "item-4",
     organizationId: null,
     grouping: { organizationId: null, folderId: null, collectionIds: [] },
+    favorite: false,
     name: "Work Mail",
     username: "someone@example.com",
     uris: [{ uri: "https://mail.example.org/login", match: null }],
@@ -493,6 +495,7 @@ describe("secure notes", () => {
       name: "Wi-Fi",
       reprompt: false,
       grouping: { organizationId: null, folderId: null, collectionIds: [] },
+      favorite: false,
     })
   })
 

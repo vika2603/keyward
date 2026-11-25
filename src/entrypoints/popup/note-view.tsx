@@ -13,6 +13,7 @@ import {
   CopyButton,
   CustomFieldRow,
   DeleteButton,
+  FavoriteButton,
   Field,
   formatDate,
   IconButton,
@@ -82,6 +83,16 @@ export function NoteView({
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <BackHeader title={t("popup.note.title")} onBack={onBack}>
+        {details?.favorite !== undefined && (
+          <FavoriteButton
+            vaultId={vault.id}
+            itemId={note.id}
+            favorite={details.favorite}
+            onChange={(favorite) =>
+              setDetails((current) => current && { ...current, favorite })
+            }
+          />
+        )}
         {details?.editable && (
           <IconButton label={t("popup.detail.edit")} onClick={onEdit}>
             <PencilIcon />

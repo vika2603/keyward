@@ -287,6 +287,28 @@ export class BitwardenApi {
     )
   }
 
+  /**
+   * Sets the parts of an item that belong to the user rather than to the item: its folder and
+   * whether it is a favorite. Read-only items of an organization take these too.
+   */
+  async updateCipherPartial(
+    accessToken: string,
+    id: string,
+    change: { folderId: string | null; favorite: boolean },
+  ): Promise<Record<string, unknown>> {
+    return this.expectJson(
+      await this.send(
+        `${this.urls.api}/ciphers/${encodeURIComponent(id)}/partial`,
+        {
+          method: "PUT",
+          accessToken,
+          headers: { "Content-Type": "application/json; charset=utf-8" },
+          body: JSON.stringify(change),
+        },
+      ),
+    )
+  }
+
   /** Moves an item to the trash; the server answers without a body. */
   async trashCipher(accessToken: string, id: string): Promise<void> {
     const response = await this.send(

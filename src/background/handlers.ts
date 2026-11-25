@@ -348,6 +348,21 @@ export function createHandlers(providers: Providers): Handlers<BackgroundApi> {
         return null
       },
     },
+    "popup.setFavorite": {
+      allow: popup,
+      handle: async ({ vaultId, itemId, favorite }) => {
+        const provider = providers.providerOf(vaultId)
+        if (!provider.setFavorite) throw notEditable()
+        if (typeof favorite !== "boolean")
+          throw new VaultError("Invalid favorite", "invalidInput")
+        await provider.setFavorite(
+          vaultId,
+          requireText(itemId, "itemId"),
+          favorite,
+        )
+        return null
+      },
+    },
     "popup.removeLogin": {
       allow: popup,
       handle: async ({ vaultId, loginId }) => {

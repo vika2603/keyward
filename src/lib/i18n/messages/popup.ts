@@ -89,6 +89,7 @@ export const en = {
   "popup.main.allItems": "All items",
   "popup.main.itemFilter": "Show",
   "popup.main.itemKind.all": "All",
+  "popup.main.itemKind.favorites": "Favorites",
   "popup.main.itemKind.logins": "Logins",
   "popup.main.itemKind.notes": "Secure notes",
   "popup.main.noItems": "No items",
@@ -108,6 +109,8 @@ export const en = {
   "popup.main.appleSearchHint":
     "Passwords can only be searched by website address, such as github.com.",
   "popup.detail.edit": "Edit",
+  "popup.detail.favorite": "Add to favorites",
+  "popup.detail.unfavorite": "Remove from favorites",
   "popup.detail.delete": "Delete",
   "popup.detail.confirmDelete": "Confirm delete",
   "popup.detail.deleteHint":
@@ -284,6 +287,7 @@ export const zhCN: Record<keyof typeof en, string> = {
   "popup.main.allItems": "全部条目",
   "popup.main.itemFilter": "显示",
   "popup.main.itemKind.all": "全部",
+  "popup.main.itemKind.favorites": "收藏",
   "popup.main.itemKind.logins": "登录",
   "popup.main.itemKind.notes": "安全笔记",
   "popup.main.noItems": "没有条目",
@@ -302,6 +306,8 @@ export const zhCN: Record<keyof typeof en, string> = {
   "popup.main.noResults": "没有与「{query}」匹配的条目",
   "popup.main.appleSearchHint": "Passwords 只能按网址搜索，例如 github.com。",
   "popup.detail.edit": "编辑",
+  "popup.detail.favorite": "加入收藏",
+  "popup.detail.unfavorite": "取消收藏",
   "popup.detail.delete": "删除",
   "popup.detail.confirmDelete": "确认删除",
   "popup.detail.deleteHint": "登录会移到回收站，可以在 Bitwarden 里恢复。",

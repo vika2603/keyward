@@ -611,6 +611,7 @@ export class BitwardenProvider implements VaultProvider {
       customFields: note.reprompt ? undefined : details.customFields,
       withheld: note.reprompt,
       editable: isEditable(note, cipher),
+      favorite: note.favorite,
       created: details.created,
       modified: details.modified,
     }
@@ -713,6 +714,7 @@ export class BitwardenProvider implements VaultProvider {
       hasCode: item.hasTotp,
       secretsWithheld: item.reprompt,
       editable: isEditable(item, cipher),
+      favorite: item.favorite,
       created: details.created,
       modified: details.modified,
       passwordModified: details.passwordModified,
@@ -815,6 +817,25 @@ export class BitwardenProvider implements VaultProvider {
     if (!Object.keys(changed).length) return
     const { cipher } = await this.pageItem(vaultId, loginId, null)
     await this.change(vaultId, cipher, changed)
+  }
+
+  async setFavorite(
+    vaultId: string,
+    itemId: string,
+    favorite: boolean,
+  ): Promise<void> {
+    const accountId = accountIdOfVault(vaultId)
+    const account = await this.account(accountId)
+    const { cipher } = await this.anyItem(vaultId, itemId)
+    // The request sets the folder as well, so the item's own goes with it.
+    const folderId = prop(cipher, "FolderId")
+    await new BitwardenApi(
+      serverUrls(account.server, account.endpoints),
+    ).updateCipherPartial(await this.accessToken(account), itemId, {
+      folderId: typeof folderId === "string" && folderId ? folderId : null,
+      favorite,
+    })
+    await this.sync(accountId)
   }
 
   async remove(vaultId: string, itemId: string): Promise<void> {
@@ -949,11 +970,17 @@ function summaryOf(item: LoginItem): LoginSummary {
       undefined,
     hasCode: item.hasTotp && !item.reprompt,
     grouping: item.grouping,
+    favorite: item.favorite,
   }
 }
 
 function noteSummaryOf(note: NoteItem): NoteSummary {
-  return { id: note.id, name: note.name, grouping: note.grouping }
+  return {
+    id: note.id,
+    name: note.name,
+    grouping: note.grouping,
+    favorite: note.favorite,
+  }
 }
 
 function requireCodeKey(key: string): void {

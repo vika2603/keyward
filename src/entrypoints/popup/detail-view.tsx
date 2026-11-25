@@ -25,6 +25,7 @@ import {
   CopyButton,
   CustomFieldRow,
   DeleteButton,
+  FavoriteButton,
   Field,
   formatDate,
   IconButton,
@@ -302,6 +303,16 @@ export function DetailView({
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <BackHeader title={t("popup.detail.title")} onBack={onBack}>
+        {details?.favorite !== undefined && (
+          <FavoriteButton
+            vaultId={vault.id}
+            itemId={login.id}
+            favorite={details.favorite}
+            onChange={(favorite) =>
+              setDetails((current) => current && { ...current, favorite })
+            }
+          />
+        )}
         {details?.editable && (
           <IconButton label={t("popup.detail.edit")} onClick={onEdit}>
             <PencilIcon />

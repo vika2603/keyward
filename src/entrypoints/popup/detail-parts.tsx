@@ -3,12 +3,16 @@ import {
   CopyIcon,
   EyeIcon,
   EyeOffIcon,
+  StarIcon,
   Trash2Icon,
 } from "lucide-react"
 import { type ReactNode, type RefObject, useEffect, useState } from "react"
+import { callBackground } from "@/background/api"
+import { notifyError } from "@/components/keyward/notify"
 import { Button } from "@/components/ui/button"
 import { currentLanguage, t } from "@/lib/i18n"
 import type { CustomField } from "@/lib/providers/types"
+import { cn } from "@/lib/utils"
 
 /** Shown in place of a secret that is not revealed; it does not tell the secret's length. */
 const MASK = "••••••••••••"
@@ -112,6 +116,56 @@ export function IconButton({
       onClick={onClick}
     >
       {children}
+    </Button>
+  )
+}
+
+/**
+ * The star in a detail view's header. It turns at once, and turns back when the vault refuses the
+ * change, whose toast says why.
+ */
+export function FavoriteButton({
+  vaultId,
+  itemId,
+  favorite,
+  onChange,
+}: {
+  vaultId: string
+  itemId: string
+  favorite: boolean
+  onChange: (favorite: boolean) => void
+}) {
+  const [busy, setBusy] = useState(false)
+  const label = favorite
+    ? t("popup.detail.unfavorite")
+    : t("popup.detail.favorite")
+  const toggle = async () => {
+    setBusy(true)
+    onChange(!favorite)
+    try {
+      await callBackground("popup.setFavorite", {
+        vaultId,
+        itemId,
+        favorite: !favorite,
+      })
+    } catch (error) {
+      onChange(favorite)
+      notifyError(error)
+    } finally {
+      setBusy(false)
+    }
+  }
+  return (
+    <Button
+      variant="ghost"
+      size="icon"
+      aria-label={label}
+      title={label}
+      aria-pressed={favorite}
+      disabled={busy}
+      onClick={() => void toggle()}
+    >
+      <StarIcon className={cn(favorite && "fill-current")} />
     </Button>
   )
 }

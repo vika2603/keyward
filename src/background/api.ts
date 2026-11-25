@@ -160,6 +160,11 @@ export type BackgroundApi = {
     payload: { vaultId: string; loginId: string; change: LoginEdit }
     result: null
   }
+  /** Stars a login or a note, or takes its star away. */
+  "popup.setFavorite": {
+    payload: { vaultId: string; itemId: string; favorite: boolean }
+    result: null
+  }
   /** Moves a login to the provider's trash. */
   "popup.removeLogin": {
     payload: { vaultId: string; loginId: string }
