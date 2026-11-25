@@ -1,3 +1,31 @@
 [tools]
 node = "26"
 pnpm = "12"
+
+[tasks.setup]
+description = "Install dependencies"
+run = "pnpm install"
+
+[tasks.build]
+description = "Build the extension into .output/chrome-mv3"
+run = "pnpm build"
+
+[tasks.lint]
+description = "Check formatting and lint rules with Biome"
+run = "pnpm lint"
+
+[tasks.format]
+description = "Fix formatting and safe lint issues with Biome"
+run = "pnpm format"
+
+[tasks.typecheck]
+description = "Type-check with TypeScript"
+run = "pnpm compile"
+
+[tasks.test]
+description = "Run the unit tests"
+run = "pnpm test"
+
+[tasks.check]
+description = "Run lint, type check and tests"
+depends = ["lint", "typecheck", "test"]

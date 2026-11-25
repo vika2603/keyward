@@ -18,13 +18,14 @@ A Chrome extension that fills, generates and saves passwords from two kinds of v
 
 ## Requirements
 
-- Node and pnpm, at the versions in `mise.toml` (`mise install`).
+- [mise](https://mise.jdx.dev), which installs the Node and pnpm versions in `mise.toml` and runs the development tasks.
 - For Passwords: macOS with the Passwords app. The system helper only accepts the extension ID of Apple's iCloud Passwords extension, so the build needs that extension's public key (see below).
 
 ## Setup
 
 ```sh
-pnpm install
+mise install     # Node and pnpm
+mise run setup   # dependencies
 ```
 
 To use Passwords, create `.env.local` with the `key` value from the `manifest.json` of the iCloud Passwords extension:
@@ -38,7 +39,7 @@ The built extension then has the same ID as iCloud Passwords, so the two cannot 
 ## Build and load
 
 ```sh
-pnpm build
+mise run build
 ```
 
 In `chrome://extensions`, turn on Developer mode, choose "Load unpacked" and select `.output/chrome-mv3`. After a rebuild, click the extension's reload button.
@@ -46,10 +47,11 @@ In `chrome://extensions`, turn on Developer mode, choose "Load unpacked" and sel
 ## Checks
 
 ```sh
-pnpm lint      # Biome
-pnpm compile   # TypeScript
-pnpm test      # Vitest
+mise run check   # lint, type check and tests together
+mise run format  # fix formatting
 ```
+
+`mise tasks` lists every task; each one runs the matching `pnpm` script.
 
 ## Project layout
 
