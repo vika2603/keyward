@@ -1,7 +1,7 @@
 import type { ContentScriptContext } from "wxt/utils/content-script-context"
 import LOGO_SVG from "@/assets/field-icon.svg?raw"
 import type { Language } from "@/lib/i18n/language"
-import { codeBoxes, isVisible } from "./fields"
+import { codeBoxes, deepActiveElement, isVisible } from "./fields"
 
 /** The icon's only text; kept here so the content script does not carry the whole catalog. */
 const ICON_LABELS: Record<Language, string> = {
@@ -70,7 +70,10 @@ function coveringElement(
   return null
 }
 
-/** The Keyward icon inside each login field; activating one opens the menu for that field. */
+/**
+ * The Keyward icon inside a login field, shown while the field has the focus or its menu is open;
+ * activating it opens the menu for that field.
+ */
 export class FieldIcons {
   private readonly host: HTMLElement
   private readonly root: ShadowRoot
@@ -106,6 +109,8 @@ export class FieldIcons {
       passive: true,
     })
     ctx.addEventListener(window, "resize", schedule, { passive: true })
+    ctx.addEventListener(document, "focusin", schedule)
+    ctx.addEventListener(document, "focusout", schedule)
     ctx.setInterval(schedule, 1000)
     ctx.onInvalidated(() => this.host.remove())
   }
@@ -142,6 +147,7 @@ export class FieldIcons {
     this.expanded = field
     for (const [f, icon] of this.icons)
       icon.setAttribute("aria-expanded", String(f === field))
+    this.schedule()
   }
 
   private createIcon(field: HTMLInputElement): HTMLButtonElement {
@@ -186,7 +192,13 @@ export class FieldIcons {
   }
 
   private position(): void {
+    const focusedField = deepActiveElement()
+    const focusedIcon = this.root.activeElement
     for (const [field, icon] of this.icons) {
+      const inUse =
+        field === focusedField ||
+        field === this.expanded ||
+        icon === focusedIcon
       // A code split over one-character boxes, or a field too narrow to share with the icon, gets
       // the icon just after it, so the icon never covers what is typed.
       const boxes = codeBoxes(field)
@@ -194,6 +206,7 @@ export class FieldIcons {
       const rect = last.getBoundingClientRect()
       const outside = boxes.length > 1 || rect.width < NARROW_WIDTH
       const shown =
+        inUse &&
         isVisible(field) &&
         rect.height >= SIZE - 4 &&
         rect.bottom > 0 &&
