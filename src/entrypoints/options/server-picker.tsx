@@ -183,6 +183,9 @@ function SelfHostedDialog({
           className="flex flex-col gap-4"
           onSubmit={(event) => {
             event.preventDefault()
+            // React passes the submit on to the sign-in form this dialog is rendered in, which
+            // would sign in with the fields as they are.
+            event.stopPropagation()
             if (!valid || !checked.address) return
             const endpoints: CustomEndpoints = {}
             if (checked.api) endpoints.api = checked.api
