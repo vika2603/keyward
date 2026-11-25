@@ -1,6 +1,10 @@
 import { CheckIcon, CopyIcon, EyeIcon, Trash2Icon } from "lucide-react"
 import { useCallback, useEffect, useRef, useState } from "react"
-import { callBackground, type HistoryEntry } from "@/background/api"
+import {
+  callBackground,
+  type HistoryEntry,
+  historyEntryOf,
+} from "@/background/api"
 import { useCopyThrough } from "@/components/keyward/copy-through"
 import { notifyError } from "@/components/keyward/notify"
 import { Button } from "@/components/ui/button"
@@ -42,7 +46,11 @@ export function HistoryView({ onBack }: { onBack: () => void }) {
   const [copied, setCopied] = useState<string | null>(null)
 
   useEffect(() => {
-    void callBackground("history.list", null).then(setEntries)
+    // A background from before the kinds still sends entries in its own form until it reloads.
+    void callBackground("history.list", null).then(
+      (received) => setEntries(received.map(historyEntryOf)),
+      () => setEntries([]),
+    )
   }, [])
 
   const copy = useCallback(async (id: string) => {

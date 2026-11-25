@@ -1,5 +1,9 @@
 import type { GeneratorKind } from "@/lib/generator"
-import type { HistoryEntry } from "./api"
+import {
+  type EarlierHistoryEntry,
+  type HistoryEntry,
+  historyEntryOf,
+} from "./api"
 
 /** Generated values, newest first, kept in storage.session so they end with the browser; storage.local is not encrypted. */
 const KEY = "generator.history"
@@ -7,13 +11,6 @@ const KEY = "generator.history"
 export const HISTORY_LIMIT = 100
 /** How long the generator must keep showing a value before it counts as settled. */
 export const SETTLE_DELAY_MS = 600
-
-/** Entries stored by versions that kept only passwords have no kind, and name the value `password`. */
-type StoredEntry = Omit<HistoryEntry, "value" | "kind"> & {
-  value?: string
-  password?: string
-  kind?: GeneratorKind
-}
 
 interface Unsettled {
   value: string
@@ -27,11 +24,7 @@ const unsettled = new Map<GeneratorKind, Unsettled>()
 export async function listHistory(): Promise<HistoryEntry[]> {
   const stored = (await browser.storage.session.get(KEY))[KEY]
   if (!Array.isArray(stored)) return []
-  return (stored as StoredEntry[]).map(({ password, ...entry }) => ({
-    ...entry,
-    value: entry.value ?? password ?? "",
-    kind: entry.kind ?? "password",
-  }))
+  return (stored as EarlierHistoryEntry[]).map(historyEntryOf)
 }
 
 /** The last change of the stored list; each waits for the one before, so none is lost. */

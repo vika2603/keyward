@@ -184,6 +184,7 @@ export interface TrashedItem {
   deletedAt?: number
   /** Whether Keyward may restore or delete it; read-only items of an organization stay as they are. */
   editable: boolean
+  grouping?: ItemGrouping
 }
 
 /** A folder an item can be filed in. */

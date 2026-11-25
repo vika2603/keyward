@@ -70,11 +70,13 @@ function fits(grouping: ItemGrouping | undefined, filter: GroupFilter) {
 /** A vault with only the items the filter lets through; other accounts keep none while it is on. */
 export function narrowed(vault: VaultView, filter: GroupFilter): VaultView {
   if (!isFiltering(filter)) return vault
-  if (vault.id !== filter.vaultId) return { ...vault, logins: [], notes: [] }
+  if (vault.id !== filter.vaultId)
+    return { ...vault, logins: [], notes: [], trashed: [] }
   return {
     ...vault,
     logins: vault.logins.filter((login) => fits(login.grouping, filter)),
     notes: vault.notes?.filter((note) => fits(note.grouping, filter)),
+    trashed: vault.trashed?.filter((item) => fits(item.grouping, filter)),
   }
 }
 

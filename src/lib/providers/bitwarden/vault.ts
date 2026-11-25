@@ -117,6 +117,7 @@ export function decryptTrashed(
     id: String(prop(cipher, "Id")),
     deletedAt: timeOf(prop(cipher, "DeletedDate")),
     editable: prop(cipher, "Edit") !== false,
+    grouping: groupingOf(cipher),
   }
   if (prop(cipher, "Type") === CIPHER_TYPE_SECURE_NOTE)
     return { ...common, kind: "note", name: decryptNote(cipher, keys).name }

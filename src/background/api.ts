@@ -69,6 +69,25 @@ export interface HistoryEntry {
   at: number
 }
 
+/** An entry as versions that kept only passwords store and send it: named `password`, with no kind. */
+export type EarlierHistoryEntry = Omit<HistoryEntry, "value" | "kind"> & {
+  value?: string
+  password?: string
+  kind?: GeneratorKind
+}
+
+/** An entry of any version, as the current one reads it. */
+export function historyEntryOf({
+  password,
+  ...entry
+}: EarlierHistoryEntry): HistoryEntry {
+  return {
+    ...entry,
+    value: entry.value ?? password ?? "",
+    kind: entry.kind ?? "password",
+  }
+}
+
 export interface ContentConfig {
   active: boolean
   /** Whether a vault can take an authenticator key, so QR codes under the pointer are read. */

@@ -40,6 +40,18 @@ export type View =
   | { name: "note"; vault: VaultInfo; note: NoteSummary }
   | { name: "editNote"; vault: VaultInfo; note: NoteSummary }
 
+/**
+ * Views that stay in the popup: their typed input is not handed to the new window, and closing the
+ * popup ends a pairing in progress.
+ */
+const STAYS_IN_POPUP: ReadonlySet<View["name"]> = new Set([
+  "add",
+  "edit",
+  "editNote",
+  "connect",
+  "codeSetup",
+])
+
 // Requested once per popup: the background hands out a pending view only to the first request. A
 // popped-out window opens on the view it was popped out from.
 const initialView: Promise<View> = isPoppedOut
@@ -70,7 +82,7 @@ export function App() {
     <Toaster closeLabel={t("common.close")}>
       <PopOutContext
         value={
-          isPoppedOut || !view
+          isPoppedOut || !view || STAYS_IN_POPUP.has(view.name)
             ? null
             : () => void popOut(view).catch(notifyError)
         }

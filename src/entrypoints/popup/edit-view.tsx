@@ -116,17 +116,30 @@ export function EditView({
   const [message, setMessage] = useState<string | null>(null)
   /** The password shows only when asked for, or once a new one was generated. */
   const [revealed, setRevealed] = useState(false)
+  /**
+   * Whether the background lists websites as bare addresses, as one from before per-website
+   * matching does until the extension reloads; it takes them back the same way.
+   */
+  const [bareAddresses, setBareAddresses] = useState(false)
 
   useEffect(() => {
     callBackground("popup.editable", {
       vaultId: vault.id,
       loginId: login.id,
     }).then(
-      (loaded) =>
+      (loaded) => {
+        const received = loaded.uris as (Website | string)[]
+        const uris = received.map((website) =>
+          typeof website === "string" ? { uri: website, match: null } : website,
+        )
+        setBareAddresses(
+          received.some((website) => typeof website === "string"),
+        )
         setForm({
           ...loaded,
-          uris: loaded.uris.length ? loaded.uris : [{ uri: "", match: null }],
-        }),
+          uris: uris.length ? uris : [{ uri: "", match: null }],
+        })
+      },
       (error) => setMessage(errorMessage(error)),
     )
   }, [vault.id, login.id])
@@ -155,11 +168,17 @@ export function EditView({
     if (!form) return
     setBusy(true)
     setMessage(null)
+    const uris = form.uris.filter((website) => website.uri.trim() !== "")
     try {
       await callBackground("popup.editLogin", {
         vaultId: vault.id,
         loginId: login.id,
-        change: form,
+        change: {
+          ...form,
+          uris: bareAddresses
+            ? (uris.map((website) => website.uri) as unknown as Website[])
+            : uris,
+        },
       })
       onDone()
     } catch (error) {
@@ -268,10 +287,12 @@ export function EditView({
                         autoComplete="off"
                         spellCheck={false}
                       />
-                      <MatchSelect
-                        value={website.match}
-                        onChange={(match) => setWebsite(index, { match })}
-                      />
+                      {!bareAddresses && (
+                        <MatchSelect
+                          value={website.match}
+                          onChange={(match) => setWebsite(index, { match })}
+                        />
+                      )}
                       <Button
                         type="button"
                         variant="ghost"

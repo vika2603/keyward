@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react"
 import type { PromptState } from "@/background/api"
 import { useAppearance } from "@/components/keyward/appearance"
 import { BrandIcon, vaultLabel } from "@/components/keyward/brand-icon"
-import { errorMessage } from "@/components/keyward/errors"
+import { errorMessage, isUnsupportedRequest } from "@/components/keyward/errors"
 import { useLanguage } from "@/components/keyward/language"
 import {
   callOverlay,
@@ -39,6 +39,8 @@ export function App() {
   const [name, setName] = useState("")
   const [folders, setFolders] = useState<Folder[]>([])
   const [folderId, setFolderId] = useState<string | null>(null)
+  /** A background from before names and folders does not know the folder request, and drops the name. */
+  const [named, setNamed] = useState(true)
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
 
@@ -97,8 +99,9 @@ export function App() {
     let current = true
     callOverlay("prompt.folders", { vaultId: target }).then(
       (found) => current && setFolders(found),
-      () => {
+      (error) => {
         // Without its folders the login is saved outside every folder.
+        if (current && isUnsupportedRequest(error)) setNamed(false)
       },
     )
     return () => {
@@ -159,7 +162,7 @@ export function App() {
               )
             ) : (
               <div className="flex flex-col gap-3">
-                {bitwardenTarget && (
+                {bitwardenTarget && named && (
                   <label className="flex flex-col gap-2">
                     <span className="text-xs font-medium text-muted-foreground">
                       {t("overlay.prompt.name")}

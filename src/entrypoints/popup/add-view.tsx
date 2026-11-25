@@ -1,7 +1,7 @@
 import { ExternalLinkIcon, RefreshCcwDotIcon } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
 import { callBackground } from "@/background/api"
-import { errorMessage } from "@/components/keyward/errors"
+import { errorMessage, isUnsupportedRequest } from "@/components/keyward/errors"
 import { VaultSelect } from "@/components/keyward/vault-select"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -46,16 +46,29 @@ function LoginDetailsFields({
   onChange: (change: Partial<NewLoginDetails>) => void
 }) {
   const [folders, setFolders] = useState<Folder[]>([])
+  /** A background from before these fields does not know the folder request, and drops the fields. */
+  const [stored, setStored] = useState(true)
   useEffect(() => {
+    let current = true
     setFolders([])
-    callBackground("popup.folders", { vaultId }).then(setFolders, () => {
-      // Without its folders the login is saved outside every folder.
-    })
+    callBackground("popup.folders", { vaultId }).then(
+      (loaded) => {
+        if (current) setFolders(loaded)
+      },
+      (error) => {
+        // Without its folders the login is saved outside every folder.
+        if (current && isUnsupportedRequest(error)) setStored(false)
+      },
+    )
+    return () => {
+      current = false
+    }
   }, [vaultId])
   const folderChoices = [
     { value: NO_FOLDER, label: t("popup.main.filter.noFolder") },
     ...folders.map((folder) => ({ value: folder.id, label: folder.name })),
   ]
+  if (!stored) return null
 
   return (
     <>
