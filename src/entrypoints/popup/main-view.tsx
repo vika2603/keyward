@@ -36,7 +36,6 @@ import {
 } from "@/components/ui/collapsible"
 import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
-import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import type {
   BackendKind,
@@ -165,13 +164,7 @@ export function MainView({
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="flex items-center gap-1 py-2 pr-2 pl-3">
-        <h1 className="min-w-0 flex-1 truncate text-sm font-medium">
-          {loading ? (
-            <Skeleton className="h-4 w-32" />
-          ) : (
-            (page?.host ?? "Keyward")
-          )}
-        </h1>
+        <h1 className="min-w-0 flex-1 truncate text-sm font-medium">Keyward</h1>
         <Button
           variant="ghost"
           size="icon"
