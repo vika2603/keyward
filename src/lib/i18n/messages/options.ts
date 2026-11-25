@@ -13,7 +13,7 @@ export const en = {
     "Items in the popup and the in-page menu come from the backends connected here.",
   "options.backends.apple.description":
     "The connection isn't kept for long. When needed, enter the six-digit code shown on your Mac in the popup.",
-  "options.backends.apple.toggle": "Use iCloud Passwords",
+  "options.backends.apple.toggle": "Use Passwords",
   "options.backends.apple.actions.name": "Available actions",
   "options.backends.apple.actions.description":
     "List accounts for the current site, fill, copy passwords and save new ones. Other management is done in the Passwords app.",
@@ -35,7 +35,7 @@ export const en = {
   "options.backends.autoLock.onQuit": "When the browser quits",
   "options.backends.lockOnSystemLock.name": "Lock with the computer",
   "options.backends.lockOnSystemLock.description":
-    "Lock Bitwarden accounts when the computer's screen locks. iCloud Passwords stays paired; it asks for Touch ID before each password anyway.",
+    "Lock Bitwarden accounts when the computer's screen locks. Passwords stays paired; it asks for Touch ID before each password anyway.",
   "options.backends.saveTarget.title": "Save location",
   "options.backends.saveTarget.name": "Save new logins to",
   "options.backends.saveTarget.description":
@@ -98,7 +98,7 @@ export const en = {
   "options.sites.behavior.disabled": "Don't fill or ask to save",
   "options.sites.defaultMatch.name": "Default match detection",
   "options.sites.defaultMatch.description":
-    "Applies to Bitwarden items. Matching for iCloud Passwords is decided by the system.",
+    "Applies to Bitwarden items. Matching for Passwords is decided by the system.",
   "options.sites.rules.title": "Per-site overrides",
   "options.sites.rules.add": "Add rule",
   "options.sites.rules.site": "Website",
@@ -114,10 +114,10 @@ export const en = {
   "options.sites.domains.add": "Add group",
   "options.sites.domains.separator": ", ",
   "options.sites.domains.description":
-    "Domains in the same group share items. iCloud Passwords isn't affected.",
+    "Domains in the same group share items. Passwords isn't affected.",
   "options.sites.domains.delete": "Delete this group of equivalent domains",
   "options.sites.domains.empty":
-    "No equivalent domains yet. Domains in the same group share Bitwarden items; iCloud Passwords isn't affected.",
+    "No equivalent domains yet. Domains in the same group share Bitwarden items; Passwords isn't affected.",
   "options.sites.domainDialog.title": "Add equivalent domains",
   "options.sites.domainDialog.description":
     "Enter two or more domains, separated by commas or spaces.",
@@ -164,7 +164,7 @@ export const en = {
 
   "options.onboard.title": "Connect a password backend",
   "options.onboard.description":
-    "Pair iCloud Passwords, or sign in to a Bitwarden account.",
+    "Pair Passwords, or sign in to a Bitwarden account.",
   "options.onboard.backendTabs": "Choose a backend to connect",
   "options.onboard.later": "Back",
   "options.onboard.method.authenticator": "Authenticator app",
@@ -207,11 +207,11 @@ export const zhCN: Record<keyof typeof en, string> = {
     "弹窗和页面内菜单里的条目来自这里连接的后端。",
   "options.backends.apple.description":
     "连接不会长期保留，需要时在弹窗里输入 Mac 上显示的六位验证码。",
-  "options.backends.apple.toggle": "使用 iCloud 密码",
+  "options.backends.apple.toggle": "使用 Passwords",
   "options.backends.apple.actions.name": "可用操作",
   "options.backends.apple.actions.description":
-    "按当前站点列出账号、填充、复制密码和保存新密码。其余管理操作在「密码」App 中完成。",
-  "options.backends.apple.openApp": "打开「密码」App",
+    "按当前站点列出账号、填充、复制密码和保存新密码。其余管理操作在 Passwords App 中完成。",
+  "options.backends.apple.openApp": "打开 Passwords App",
   "options.backends.bitwarden.signedInDescription":
     "可以同时登录多个账号，条目一起显示。锁定后在弹窗里逐个输入主密码解锁。",
   "options.backends.bitwarden.signedOutDescription":
@@ -229,7 +229,7 @@ export const zhCN: Record<keyof typeof en, string> = {
   "options.backends.autoLock.onQuit": "退出浏览器时",
   "options.backends.lockOnSystemLock.name": "电脑锁屏时锁定",
   "options.backends.lockOnSystemLock.description":
-    "电脑锁屏时锁定 Bitwarden 账号。iCloud 密码保持配对，它每次取密码都会要求触控 ID。",
+    "电脑锁屏时锁定 Bitwarden 账号。 Passwords 保持配对，它每次取密码都会要求触控 ID。",
   "options.backends.saveTarget.title": "保存位置",
   "options.backends.saveTarget.name": "新登录默认保存到",
   "options.backends.saveTarget.description": "保存提示里仍可临时改选。",
@@ -260,7 +260,7 @@ export const zhCN: Record<keyof typeof en, string> = {
   "options.fill.takeOverSaving.description":
     "关闭浏览器自带的「提示保存密码」，只由 Keyward 询问。浏览器设置里会显示这项由 Keyward 控制。",
   "options.fill.takeOverSaving.otherExtension":
-    "另一个插件（例如 iCloud 密码）正在控制这项设置，所以这里暂时不生效。停用那个插件后 Keyward 才能接管。",
+    "另一个插件（例如 Passwords）正在控制这项设置，所以这里暂时不生效。停用那个插件后 Keyward 才能接管。",
   "options.fill.takeOverSaving.policy": "这个浏览器不允许插件修改这项设置。",
   "options.fill.clipboard.title": "剪贴板",
   "options.fill.clipboardClear.name": "自动覆盖剪贴板",
@@ -288,7 +288,7 @@ export const zhCN: Record<keyof typeof en, string> = {
   "options.sites.behavior.disabled": "不填充，不询问保存",
   "options.sites.defaultMatch.name": "默认匹配方式",
   "options.sites.defaultMatch.description":
-    "对 Bitwarden 条目生效。iCloud 密码的匹配由系统决定。",
+    "对 Bitwarden 条目生效。 Passwords 的匹配由系统决定。",
   "options.sites.rules.title": "按站点覆盖",
   "options.sites.rules.add": "添加规则",
   "options.sites.rules.site": "网址",
@@ -303,10 +303,10 @@ export const zhCN: Record<keyof typeof en, string> = {
   "options.sites.domains.add": "添加一组",
   "options.sites.domains.separator": "、",
   "options.sites.domains.description":
-    "同一组里的域名共用条目。iCloud 密码不受影响。",
+    "同一组里的域名共用条目。 Passwords 不受影响。",
   "options.sites.domains.delete": "删除这一组等价域名",
   "options.sites.domains.empty":
-    "还没有等价域名。同一组里的域名共用 Bitwarden 条目，iCloud 密码不受影响。",
+    "还没有等价域名。同一组里的域名共用 Bitwarden 条目，Passwords 不受影响。",
   "options.sites.domainDialog.title": "添加等价域名",
   "options.sites.domainDialog.description":
     "输入两个或更多域名，用逗号或空格分隔。",
@@ -350,7 +350,7 @@ export const zhCN: Record<keyof typeof en, string> = {
   "options.keys.import.failed": "无法导入：文件不是 Keyward 导出的配置。",
 
   "options.onboard.title": "连接密码后端",
-  "options.onboard.description": "配对 iCloud 密码，或登录 Bitwarden 账号。",
+  "options.onboard.description": "配对 Passwords，或登录 Bitwarden 账号。",
   "options.onboard.backendTabs": "选择要连接的后端",
   "options.onboard.later": "返回",
   "options.onboard.method.authenticator": "验证器 App",

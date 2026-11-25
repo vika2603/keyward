@@ -136,6 +136,8 @@ export function MainView({
   // Sources to pair or unlock get a large button each; the others list their logins or say why
   // they cannot.
   const locked = shown.filter((s) => s.status === "locked")
+  // Whether the sources in view can say a site has no logins, or take a new one.
+  const shownReady = shown.some((s) => s.status === "ready")
   const listed = shown.filter(
     (s) =>
       s.status !== "locked" &&
@@ -315,7 +317,7 @@ export function MainView({
             text={
               search
                 ? t("popup.main.noResults", { query: search })
-                : !anyReady
+                : !shownReady
                   ? t("popup.main.connectHint")
                   : page
                     ? t("popup.main.noLogins", { host: page.host })
@@ -328,7 +330,7 @@ export function MainView({
                 {t("popup.main.appleSearchHint")}
               </p>
             )}
-            {anyReady && !search && (
+            {shownReady && !search && (
               <Button
                 variant="outline"
                 className="self-center"

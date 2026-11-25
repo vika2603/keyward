@@ -1,5 +1,5 @@
 export const en = {
-  "common.applePasswords": "iCloud Passwords",
+  "common.applePasswords": "Passwords",
   "common.bitwarden": "Bitwarden",
   "common.noUsername": "(no username)",
   "common.loading": "Loading…",
@@ -28,8 +28,8 @@ export const en = {
   "error.notEditable":
     "This login can't be changed here. Use the password manager's own app.",
   "error.apple.unavailable":
-    "Can't connect to iCloud Passwords. It needs Chrome on macOS and the system's password helper.",
-  "error.apple.disabled": "iCloud Passwords is turned off in settings.",
+    "Can't connect to Passwords. It needs Chrome on macOS and the system's password helper.",
+  "error.apple.disabled": "Passwords is turned off in settings.",
   "error.apple.wrongCode": "The code is not correct.",
   "error.apple.refused": "The Mac refused to pair.",
   "error.apple.protocol": "Pairing failed. Start again.",
@@ -37,13 +37,13 @@ export const en = {
     "This Mac's password helper version is not supported.",
   "error.apple.noPairing": "The pairing has expired. Start again.",
   "error.apple.notSaved":
-    "iCloud Passwords doesn't have this login. It may have been cancelled in the confirmation on the Mac.",
-  "error.apple.emptyUsername": "iCloud Passwords needs a username.",
+    "Passwords doesn't have this login. It may have been cancelled in the confirmation on the Mac.",
+  "error.apple.emptyUsername": "Passwords needs a username.",
   "error.apple.unsupportedSite":
-    "iCloud Passwords doesn't save logins for local or reserved addresses such as localhost, .local or .test.",
-  "error.apple.query": "The iCloud Passwords request failed.",
+    "Passwords doesn't save logins for local or reserved addresses such as localhost, .local or .test.",
+  "error.apple.query": "The Passwords request failed.",
   "error.apple.noPassword":
-    "This iCloud Passwords login has no password. It may have only a passkey.",
+    "This Passwords login has no password. It may have only a passkey.",
   "error.bitwarden.wrongPassword": "The master password is not correct.",
   "error.bitwarden.auth": "The email, master password or code is not correct.",
   "error.bitwarden.signedOut":
@@ -62,7 +62,7 @@ export const en = {
     "Start pairing, then enter the six-digit code shown on the Mac.",
   "pairing.title": "Pair with this Mac",
   "pairing.codeLabel": "Six-digit code",
-  "pairing.connecting": "Connecting to iCloud Passwords…",
+  "pairing.connecting": "Connecting to Passwords…",
   "pairing.paired": "Paired.",
   "pairing.newCode": "Get a new code",
   "pairing.start": "Start pairing",
@@ -79,7 +79,7 @@ export const en = {
 } as const
 
 export const zhCN: Record<keyof typeof en, string> = {
-  "common.applePasswords": "iCloud 密码",
+  "common.applePasswords": "Passwords",
   "common.bitwarden": "Bitwarden",
   "common.noUsername": "（无用户名）",
   "common.loading": "正在加载…",
@@ -107,20 +107,20 @@ export const zhCN: Record<keyof typeof en, string> = {
   "error.notEditable":
     "这条登录不能在这里修改，请到密码管理器自己的应用里修改。",
   "error.apple.unavailable":
-    "无法连接 iCloud 密码。需要 macOS 上的 Chrome 和系统自带的密码组件。",
-  "error.apple.disabled": "iCloud 密码已在设置中关闭。",
+    "无法连接 Passwords 。需要 macOS 上的 Chrome 和系统自带的密码组件。",
+  "error.apple.disabled": "Passwords 已在设置中关闭。",
   "error.apple.wrongCode": "验证码不正确。",
   "error.apple.refused": "Mac 拒绝了这次配对。",
   "error.apple.protocol": "配对失败，请重新开始。",
   "error.apple.unsupported": "这台 Mac 的密码组件版本不受支持。",
   "error.apple.noPairing": "配对已失效，请重新开始。",
   "error.apple.notSaved":
-    "iCloud 密码里没有找到这个登录，可能在 Mac 的确认窗口里取消了。",
-  "error.apple.emptyUsername": "iCloud 密码需要填写用户名。",
+    "Passwords 里没有找到这个登录，可能在 Mac 的确认窗口里取消了。",
+  "error.apple.emptyUsername": "Passwords 需要填写用户名。",
   "error.apple.unsupportedSite":
-    "iCloud 密码不保存 localhost、.local、.test 这类本地或保留地址的登录。",
-  "error.apple.query": "iCloud 密码请求失败。",
-  "error.apple.noPassword": "这个 iCloud 密码条目没有密码，可能只有通行密钥。",
+    "Passwords 不保存 localhost、.local、.test 这类本地或保留地址的登录。",
+  "error.apple.query": "Passwords 请求失败。",
+  "error.apple.noPassword": "这个 Passwords 条目没有密码，可能只有通行密钥。",
   "error.bitwarden.wrongPassword": "主密码不正确。",
   "error.bitwarden.auth": "邮箱、主密码或验证码不正确。",
   "error.bitwarden.signedOut": "服务器已让这个账号退出，请重新登录。",
@@ -137,7 +137,7 @@ export const zhCN: Record<keyof typeof en, string> = {
   "pairing.startThenEnter": "点击开始配对后，输入 Mac 上显示的六位验证码。",
   "pairing.title": "与这台 Mac 配对",
   "pairing.codeLabel": "六位验证码",
-  "pairing.connecting": "正在连接 iCloud 密码…",
+  "pairing.connecting": "正在连接 Passwords…",
   "pairing.paired": "已配对。",
   "pairing.newCode": "重新获取验证码",
   "pairing.start": "开始配对",

@@ -32,7 +32,7 @@ export const en = {
   "popup.codeSetup.noLogins":
     "There's no login for {host} in this account. Save the login first.",
   "popup.codeSetup.noTarget":
-    "Pair iCloud Passwords or unlock a Bitwarden account to add the code.",
+    "Pair Passwords or unlock a Bitwarden account to add the code.",
   "popup.codeSetup.added": "Added to {name}.",
   "popup.codeSetup.appleOpened":
     "The Passwords app is open on your Mac. Finish adding the code there.",
@@ -59,7 +59,7 @@ export const en = {
   "popup.detail.passwordModified": "Password updated: {date}",
   "popup.main.all": "All",
   "popup.main.noBackend": "No password backend is connected yet",
-  "popup.main.pairApple": "Pair iCloud Passwords",
+  "popup.main.pairApple": "Pair Passwords",
   "popup.main.signInBitwarden": "Sign in to Bitwarden",
   "popup.main.pairAppleDetail": "Enter the six-digit code your Mac shows",
   "popup.main.unlockBitwarden": "Unlock Bitwarden",
@@ -69,10 +69,10 @@ export const en = {
   "popup.main.search": "Search all logins",
   "popup.main.clearSearch": "Clear search",
   "popup.main.passkeyOnly":
-    "That iCloud Passwords login has only a passkey. It's now at the end of the list and no longer offered for filling.",
+    "That Passwords login has only a passkey. It's now at the end of the list and no longer offered for filling.",
   "popup.main.noResults": "No logins match “{query}”",
   "popup.main.appleSearchHint":
-    "iCloud Passwords can only be searched by website address, such as github.com.",
+    "Passwords can only be searched by website address, such as github.com.",
   "popup.detail.edit": "Edit",
   "popup.detail.delete": "Delete",
   "popup.detail.confirmDelete": "Confirm delete",
@@ -93,7 +93,7 @@ export const en = {
   "popup.add.generate": "Generate password",
   "popup.add.saveTo": "Save to",
   "popup.add.noTarget":
-    "Connect iCloud Passwords or unlock a Bitwarden account from the main view first.",
+    "Connect Passwords or unlock a Bitwarden account from the main view first.",
   "popup.add.confirmOnMac": "Confirm saving in the window on your Mac.",
   "popup.add.save": "Save",
   "popup.generator.title": "Generator",
@@ -154,8 +154,8 @@ export const zhCN: Record<keyof typeof en, string> = {
   "popup.main.lock": "锁定",
   "popup.main.lockApple": "锁定（再用时需重新配对）",
   "popup.main.toggleGroup": "展开或收起",
-  "popup.main.openPasswordsApp": "打开「密码」App",
-  "popup.detail.openInPasswordsApp": "在「密码」App 中打开",
+  "popup.main.openPasswordsApp": "打开 Passwords App",
+  "popup.detail.openInPasswordsApp": "在 Passwords App 中打开",
   "popup.detail.markPasskeyOnly": "标为仅通行密钥",
   "popup.detail.unmarkPasskeyOnly": "取消仅通行密钥标记",
   "popup.detail.passkeyOnlyHint":
@@ -165,7 +165,7 @@ export const zhCN: Record<keyof typeof en, string> = {
   "popup.codeSetup.title": "设置验证码",
   "popup.codeSetup.from": "来自 {host}",
   "popup.codeSetup.addTo": "添加到",
-  "popup.codeSetup.apple": "在 Mac 上的「密码」App 里选择要添加到哪个登录。",
+  "popup.codeSetup.apple": "在 Mac 上的 Passwords App 里选择要添加到哪个登录。",
   "popup.codeSetup.add": "添加",
   "popup.codeSetup.replace": "替换",
   "popup.codeSetup.confirmReplace": "确认替换",
@@ -173,10 +173,10 @@ export const zhCN: Record<keyof typeof en, string> = {
   "popup.codeSetup.replaceHint": "会替换这个登录现有的验证码。",
   "popup.codeSetup.noLogins": "这个账号里没有 {host} 的登录，请先保存登录。",
   "popup.codeSetup.noTarget":
-    "配对 iCloud 密码或解锁 Bitwarden 账号后才能添加。",
+    "配对 Passwords 或解锁 Bitwarden 账号后才能添加。",
   "popup.codeSetup.added": "已添加到 {name}。",
   "popup.codeSetup.appleOpened":
-    "「密码」App 已在 Mac 上打开，请在那里完成添加。",
+    "Passwords App 已在 Mac 上打开，请在那里完成添加。",
   "popup.codeSetup.done": "完成",
   "popup.detail.title": "登录详情",
   "popup.detail.credentials": "登录凭据",
@@ -200,7 +200,7 @@ export const zhCN: Record<keyof typeof en, string> = {
   "popup.detail.passwordModified": "密码更新于：{date}",
   "popup.main.all": "全部",
   "popup.main.noBackend": "还没有连接密码后端",
-  "popup.main.pairApple": "配对 iCloud 密码",
+  "popup.main.pairApple": "配对 Passwords",
   "popup.main.signInBitwarden": "登录 Bitwarden",
   "popup.main.pairAppleDetail": "输入 Mac 上显示的六位验证码",
   "popup.main.unlockBitwarden": "解锁 Bitwarden",
@@ -210,9 +210,9 @@ export const zhCN: Record<keyof typeof en, string> = {
   "popup.main.search": "搜索全部登录",
   "popup.main.clearSearch": "清除搜索",
   "popup.main.passkeyOnly":
-    "这条 iCloud 密码登录只有通行密钥，已移到列表末尾，填充时不再列出。",
+    "这条 Passwords 登录只有通行密钥，已移到列表末尾，填充时不再列出。",
   "popup.main.noResults": "没有与「{query}」匹配的登录",
-  "popup.main.appleSearchHint": "iCloud 密码只能按网址搜索，例如 github.com。",
+  "popup.main.appleSearchHint": "Passwords 只能按网址搜索，例如 github.com。",
   "popup.detail.edit": "编辑",
   "popup.detail.delete": "删除",
   "popup.detail.confirmDelete": "确认删除",
@@ -231,7 +231,7 @@ export const zhCN: Record<keyof typeof en, string> = {
   "popup.add.password": "密码",
   "popup.add.generate": "生成密码",
   "popup.add.saveTo": "保存到",
-  "popup.add.noTarget": "需要先在主界面连接 iCloud 密码或解锁 Bitwarden 账户。",
+  "popup.add.noTarget": "需要先在主界面连接 Passwords 或解锁 Bitwarden 账户。",
   "popup.add.confirmOnMac": "在 Mac 弹出的窗口中确认保存。",
   "popup.add.save": "保存",
   "popup.generator.title": "生成器",
