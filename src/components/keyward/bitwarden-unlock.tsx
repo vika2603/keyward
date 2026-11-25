@@ -5,8 +5,10 @@ import { Input } from "@/components/ui/input"
 import type { AccountSummary } from "@/lib/backends/bitwarden/bitwarden-backend"
 import { t } from "@/lib/i18n"
 import { cn } from "@/lib/utils"
+import { BrandIcon } from "./brand-icon"
 import { errorMessage } from "./errors"
 import { FADE_IN, FieldsSkeleton } from "./loading"
+import { SourceSelect } from "./source-select"
 
 /**
  * Unlocks signed-in accounts one at a time with their master passwords. An unlocked account stays
@@ -41,16 +43,25 @@ export function BitwardenUnlock({
   if (!accounts) return <FieldsSkeleton rows={2} />
   if (!accounts.length) {
     return (
-      <div className="flex flex-col items-start gap-3">
+      <div className="flex flex-col items-center gap-4 text-center">
+        <div className="flex size-11 items-center justify-center rounded-xl bg-muted">
+          <BrandIcon kind="bitwarden" className="size-6" />
+        </div>
         <p className="text-sm text-muted-foreground">{t("unlock.noAccount")}</p>
-        <Button onClick={onSignIn}>{t("unlock.signIn")}</Button>
+        <Button size="lg" className="w-full" onClick={onSignIn}>
+          {t("unlock.signIn")}
+        </Button>
       </div>
     )
   }
 
   const account = accounts.find((a) => a.id === selected)
   const unlock = async () => {
-    if (!account || !password) return
+    if (!account || busy) return
+    if (!password) {
+      setMessage(t("unlock.enterPassword"))
+      return
+    }
     setBusy(true)
     setMessage(null)
     try {
@@ -68,74 +79,66 @@ export function BitwardenUnlock({
   }
 
   return (
-    <div className={cn("flex flex-col gap-3", FADE_IN)}>
-      <div className="flex flex-col gap-2">
-        <span className="text-sm leading-none font-medium">
-          {t("unlock.account")}
-        </span>
-        <fieldset
-          aria-label={t("unlock.accountLabel")}
-          className="flex min-w-0 flex-col gap-0.5"
-        >
-          {accounts.map((a) => (
-            <label
-              key={a.id}
-              className={cn(
-                "flex min-h-9 w-full cursor-pointer items-center gap-2.5 rounded-lg px-2 py-1.5 hover:bg-muted has-focus-visible:ring-3 has-focus-visible:ring-ring/50",
-                a.id === selected && "bg-muted",
-              )}
-            >
-              <input
-                type="radio"
-                name="account"
-                className="sr-only"
-                checked={a.id === selected}
-                onChange={() => {
-                  setSelected(a.id)
-                  setMessage(null)
-                }}
-              />
-              <span className="min-w-0 flex-1 truncate text-sm font-medium">
-                {a.email}
-              </span>
-              <span className="shrink-0 text-xs text-muted-foreground">
-                {a.unlocked ? t("unlock.unlocked") : t("unlock.locked")}
-              </span>
-            </label>
-          ))}
-        </fieldset>
+    <div
+      className={cn("flex flex-col items-center gap-4 text-center", FADE_IN)}
+    >
+      <div className="flex min-w-0 flex-col items-center gap-2">
+        <div className="mb-1 flex size-11 items-center justify-center rounded-xl bg-muted">
+          <BrandIcon kind="bitwarden" className="size-6" />
+        </div>
+        <h2 className="text-base font-medium">{t("unlock.title")}</h2>
+        {accounts.length === 1 && account && (
+          <p className="max-w-full truncate text-sm text-muted-foreground">
+            {account.email}
+          </p>
+        )}
       </div>
+      {accounts.length > 1 && (
+        <SourceSelect
+          sources={accounts.map((a) => ({
+            id: a.id,
+            kind: "bitwarden",
+            label: a.email,
+            status: a.unlocked ? "ready" : "locked",
+          }))}
+          value={selected ?? null}
+          onChange={(id) => {
+            setSelected(id)
+            setPassword("")
+            setMessage(null)
+          }}
+          label={t("unlock.accountLabel")}
+        />
+      )}
       {account && !account.unlocked && (
         <form
-          className="flex items-end gap-2"
+          className="flex w-full flex-col gap-3"
           onSubmit={(event) => {
             event.preventDefault()
             void unlock()
           }}
         >
-          <label className="flex min-w-0 flex-1 flex-col gap-2">
-            <span className="text-sm leading-none font-medium">
-              {t("unlock.masterPassword")}
-            </span>
-            <Input
-              type="password"
-              autoComplete="current-password"
-              autoFocus
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-            />
-          </label>
-          <Button type="submit" disabled={busy || !password}>
-            {t("unlock.unlock")}
+          <Input
+            type="password"
+            autoComplete="current-password"
+            placeholder={t("unlock.masterPassword")}
+            aria-label={t("unlock.masterPassword")}
+            autoFocus
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
+            className="h-9"
+          />
+          {message && <p className="text-xs text-destructive">{message}</p>}
+          <Button type="submit" size="lg" className="w-full" disabled={busy}>
+            {busy ? t("unlock.busy") : t("unlock.unlock")}
           </Button>
         </form>
       )}
       {account?.unlocked && (
-        <p className="text-xs text-muted-foreground">
+        <p className="text-sm text-muted-foreground">
           {t("unlock.alreadyUnlocked")}
         </p>
       )}
-      {message && <p className="text-xs text-destructive">{message}</p>}
     </div>
   )
 }
