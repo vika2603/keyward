@@ -31,8 +31,8 @@ import { t } from "@/lib/i18n"
 import {
   type CustomEndpoints,
   EU_SERVER,
-  normalizeServerAddress,
   serverHost,
+  tryNormalizeServerAddress,
 } from "@/lib/providers/bitwarden/server"
 import { cn } from "@/lib/utils"
 import { useDialogOpening } from "./parts"
@@ -163,15 +163,6 @@ export function ServerPicker({
       />
     </div>
   )
-}
-
-/** A server address, normalized; empty for empty text, null for text that is not an address. */
-export function tryNormalizeServerAddress(text: string): string | null {
-  try {
-    return normalizeServerAddress(text)
-  } catch {
-    return null
-  }
 }
 
 function SelfHostedDialog({

@@ -10,7 +10,10 @@ import { Label } from "@/components/ui/label"
 import { t } from "@/lib/i18n"
 import type { SecondStepMethod } from "@/lib/providers/bitwarden/auth"
 import type { PendingSignInView } from "@/lib/providers/bitwarden/bitwarden-provider"
-import { isCloudServer } from "@/lib/providers/bitwarden/server"
+import {
+  isCloudServer,
+  tryNormalizeServerAddress,
+} from "@/lib/providers/bitwarden/server"
 import { navigate } from "./navigation"
 import { ChoiceSelect } from "./parts"
 import {
@@ -24,7 +27,6 @@ import {
   ServerPicker,
   serverAddressOf,
   serverChoiceOf,
-  tryNormalizeServerAddress,
 } from "./server-picker"
 
 function methodTexts(): Record<

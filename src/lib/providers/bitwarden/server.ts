@@ -65,6 +65,15 @@ export function isCloudServer(address: string): boolean {
   return normalizeServerAddress(address) in CLOUDS
 }
 
+/** A server address, normalized; empty for empty text, null for text that is not an address. */
+export function tryNormalizeServerAddress(text: string): string | null {
+  try {
+    return normalizeServerAddress(text)
+  } catch {
+    return null
+  }
+}
+
 export function normalizeServerAddress(address: string): string {
   const trimmed = address.trim()
   if (!trimmed) return ""
