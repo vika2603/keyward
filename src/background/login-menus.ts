@@ -1,7 +1,7 @@
 import { storage } from "wxt/utils/storage"
 import { generatePassword, getGeneratorOptions } from "@/lib/generator"
 import { type Language, resolveLanguage } from "@/lib/i18n/language"
-import type { TabRef } from "@/lib/providers/types"
+import type { ProviderKind, TabRef } from "@/lib/providers/types"
 import { serialQueue } from "@/lib/serial-queue"
 import { getSettings } from "@/lib/settings"
 import type { VaultView } from "./api"
@@ -83,8 +83,9 @@ interface Entry {
 }
 
 /** A vault's heading over its logins, named as the interface names it. */
-function vaultTitle(vault: VaultView): string {
-  return vault.kind === "apple" ? "Passwords" : `Bitwarden · ${vault.label}`
+const VAULT_TITLES: Record<ProviderKind, (vault: VaultView) => string> = {
+  apple: () => "Passwords",
+  bitwarden: (vault) => `Bitwarden · ${vault.label}`,
 }
 
 /** What a login's submenu offers: copying a username or a code only when it has one. */
@@ -319,7 +320,7 @@ async function createMenus(
       })
     await add({
       id: `loginMenus.${renderId}.vault.${vaultIndex}`,
-      title: vaultTitle(vault),
+      title: VAULT_TITLES[vault.kind](vault),
       enabled: false,
     })
     for (const [index, entry] of entries.entries()) {
