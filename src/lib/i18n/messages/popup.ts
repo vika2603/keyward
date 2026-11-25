@@ -13,6 +13,12 @@ export const en = {
   "popup.main.toggleGroup": "Show or hide",
   "popup.main.openPasswordsApp": "Open the Passwords app",
   "popup.detail.openInPasswordsApp": "Open in the Passwords app",
+  "popup.detail.markPasskeyOnly": "Mark as passkey only",
+  "popup.detail.unmarkPasskeyOnly": "Remove passkey-only mark",
+  "popup.detail.passkeyOnlyHint":
+    "For a login with only a passkey: pages stop offering it and it moves to the end of this list.",
+  "popup.detail.passkeyOnlyMarked":
+    "Pages don't offer this login, and it sits at the end of this list.",
   "popup.codeSetup.title": "Set up verification code",
   "popup.codeSetup.from": "From {host}",
   "popup.codeSetup.addTo": "Add to",
@@ -148,6 +154,12 @@ export const zhCN: Record<keyof typeof en, string> = {
   "popup.main.toggleGroup": "展开或收起",
   "popup.main.openPasswordsApp": "打开「密码」App",
   "popup.detail.openInPasswordsApp": "在「密码」App 中打开",
+  "popup.detail.markPasskeyOnly": "标为仅通行密钥",
+  "popup.detail.unmarkPasskeyOnly": "取消仅通行密钥标记",
+  "popup.detail.passkeyOnlyHint":
+    "适用于只有通行密钥的登录：网页上不再列出它，在这里排到最后。",
+  "popup.detail.passkeyOnlyMarked":
+    "网页上不再列出这条登录，它在这里排在最后。",
   "popup.codeSetup.title": "设置验证码",
   "popup.codeSetup.from": "来自 {host}",
   "popup.codeSetup.addTo": "添加到",

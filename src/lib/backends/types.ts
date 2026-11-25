@@ -54,6 +54,8 @@ export interface LoginDetails {
   secretsWithheld: boolean
   /** Whether Keyward can edit and delete the login. */
   editable: boolean
+  /** Whether the login is marked as having only a passkey, so pages are not offered it. */
+  passkeyOnly?: boolean
   /** Milliseconds since the epoch. */
   created?: number
   modified?: number

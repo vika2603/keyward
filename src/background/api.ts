@@ -155,6 +155,11 @@ export type BackgroundApi = {
   "apple.submitCode": { payload: { code: string }; result: AppleState }
   /** Opens the Passwords app, searching for a site when one is given. */
   "apple.openPasswordsApp": { payload: { site?: string }; result: null }
+  /** Marks an Apple login as having only a passkey, or clears the mark. */
+  "apple.setPasskeyOnly": {
+    payload: { loginId: string; passkeyOnly: boolean }
+    result: null
+  }
   "bitwarden.accounts": { payload: null; result: AccountSummary[] }
   "bitwarden.unlock": {
     payload: { accountId: string; password: string }

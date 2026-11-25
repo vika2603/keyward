@@ -527,7 +527,19 @@ export class AppleBackend implements PasswordBackend {
       secretsWithheld: false,
       // The helper has no command to change or delete a login; the Passwords app does that.
       editable: false,
+      passkeyOnly: (await passkeyOnlyIds()).has(id),
     }
+  }
+
+  /**
+   * Marks a login as having only a passkey, or clears the mark, without reading its password;
+   * the mark is Keyward's own and leaves the Passwords app alone.
+   */
+  async setPasskeyOnly(id: string, passkeyOnly: boolean): Promise<void> {
+    const { site } = parseLoginId(id)
+    if (!isHostName(site))
+      throw new BackendError("The login has no site", "unknownLogin")
+    await markPasskeyOnly(id, passkeyOnly)
   }
 
   /** Authenticator entries for a page, when the helper can give codes. */
