@@ -75,9 +75,14 @@ export function HistoryView({ onBack }: { onBack: () => void }) {
   )
 
   const clear = async () => {
-    await callBackground("history.clear", null)
-    setEntries([])
-    setConfirming(false)
+    try {
+      await callBackground("history.clear", null)
+      setEntries([])
+    } catch (error) {
+      notifyError(error)
+    } finally {
+      setConfirming(false)
+    }
   }
 
   return (
