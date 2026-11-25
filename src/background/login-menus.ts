@@ -143,7 +143,15 @@ export class LoginMenus {
   ): Promise<void> {
     if (menuItemId === GENERATE_FILL_ID) {
       const password = generatePassword(await getGeneratorOptions())
-      await fillNewPassword(tabId, frameId, password)
+      const filled = await fillNewPassword(tabId, frameId, password).catch(
+        () => false,
+      )
+      // Without a field to take it, or where filling is turned off, the password is copied instead,
+      // so choosing the entry is never lost.
+      if (!filled) {
+        await copyText(password, true)
+        await addHistory(password, webPage(tabUrl)?.hostname ?? null)
+      }
       return
     }
     if (menuItemId === GENERATE_ID) {

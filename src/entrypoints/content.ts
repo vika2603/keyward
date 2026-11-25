@@ -112,7 +112,7 @@ export default defineContentScript({
       browser.runtime.onMessage.removeListener(onMessage),
     )
 
-    function handle(message: ContentMessage): FieldInfo | undefined {
+    function handle(message: ContentMessage): FieldInfo | boolean | undefined {
       switch (message.type) {
         case "fill":
           fill(message)
@@ -121,8 +121,7 @@ export default defineContentScript({
           fillCode(message)
           return
         case "fillNew":
-          fillNew(message)
-          return
+          return fillNew(message)
         case "usePasskey":
           controlPasskeys("use")
           return
@@ -208,11 +207,12 @@ export default defineContentScript({
      * confirmation beside it. From the right-click menu the right-clicked field has the focus; a
      * password field there gets the password even when it does not look new, as it was chosen, and
      * another field, such as a sign-up form's email, passes it to its form's new-password fields.
+     * Returns whether any field got it.
      */
     function fillNew(
       message: Extract<ContentMessage, { type: "fillNew" }>,
-    ): void {
-      if (location.origin !== message.origin) return
+    ): boolean {
+      if (location.origin !== message.origin) return false
       const focused = deepActiveElement()
       const anchor =
         (menu.openFor && newPasswords.includes(menu.openFor)
@@ -223,7 +223,7 @@ export default defineContentScript({
           ? lastField
           : null)
       menu.close()
-      if (!anchor) return
+      if (!anchor) return false
       const targets =
         isPasswordField(anchor) && !newPasswords.includes(anchor)
           ? [anchor]
@@ -234,6 +234,7 @@ export default defineContentScript({
       } finally {
         filling = false
       }
+      return targets.length > 0
     }
 
     let active = false

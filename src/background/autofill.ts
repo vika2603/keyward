@@ -161,24 +161,26 @@ export async function fillCode(
 
 /**
  * Sends a generated password to the frame's new-password fields. It goes into the generator's
- * history first, so it is not lost if the page keeps it but the login is never saved.
+ * history first, so it is not lost if the page keeps it but the login is never saved. Resolves to
+ * whether the frame found a field for it.
  */
 export async function fillNewPassword(
   tabId: number,
   frameId: number,
   password: string,
-): Promise<void> {
+): Promise<boolean> {
   const settings = await getSettings()
   const page = await frameUrl(tabId, frameId)
   if (!page) throw new VaultError("The frame is not a web page", "notWebPage")
   if (!(await frameAllowed(tabId, frameId, page, settings)))
     throw new VaultError("Filling is turned off for this frame", "fillDisabled")
   await addHistory(password, page.hostname)
-  await sendToFrame(tabId, frameId, {
+  const filled = await sendToFrame<boolean | null>(tabId, frameId, {
     type: "fillNew",
     origin: page.origin,
     password,
   })
+  return filled === true
 }
 
 /**

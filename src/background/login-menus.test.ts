@@ -174,6 +174,7 @@ describe("LoginMenus", () => {
       (item) => item.id === "loginMenus.generateFill",
     )
     expect(generateFill?.contexts).toEqual(["editable"])
+    vi.mocked(fillNewPassword).mockResolvedValueOnce(true)
     clicked({ menuItemId: "loginMenus.generateFill", frameId: 2 }, tab)
     await vi.waitFor(() =>
       expect(fillNewPassword).toHaveBeenCalledWith(TAB, 2, expect.any(String)),
@@ -181,6 +182,23 @@ describe("LoginMenus", () => {
     const password = vi.mocked(fillNewPassword).mock.calls[0]?.[2] ?? ""
     expect(password.length).toBeGreaterThanOrEqual(8)
     expect(copyText).not.toHaveBeenCalled()
+  })
+
+  it("copies the generated password when the page has no field for it, or filling fails", async () => {
+    const { menus } = setUp()
+    await menus.show([], tab)
+    vi.mocked(fillNewPassword).mockResolvedValueOnce(false)
+    clicked({ menuItemId: "loginMenus.generateFill", frameId: 0 }, tab)
+    await vi.waitFor(() => expect(copyText).toHaveBeenCalledTimes(1))
+    const unfilled = vi.mocked(fillNewPassword).mock.calls[0]?.[2]
+    expect(copyText).toHaveBeenLastCalledWith(unfilled, true)
+    vi.mocked(fillNewPassword).mockRejectedValueOnce(new Error("turned off"))
+    clicked({ menuItemId: "loginMenus.generateFill", frameId: 0 }, tab)
+    await vi.waitFor(() => expect(copyText).toHaveBeenCalledTimes(2))
+    expect(copyText).toHaveBeenLastCalledWith(
+      vi.mocked(fillNewPassword).mock.calls[1]?.[2],
+      true,
+    )
   })
 
   it("ignores clicks on another tab or page, and on menus from an earlier listing", async () => {
