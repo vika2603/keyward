@@ -1,5 +1,3 @@
-import { createRequire } from "node:module"
-import type { PureCrypto } from "@bitwarden/sdk-internal"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { fakeBrowser } from "wxt/testing/fake-browser"
 import {
@@ -11,14 +9,11 @@ import {
   saveSync,
 } from "./account-store"
 import { BitwardenProvider } from "./bitwarden-provider"
-import { KdfType, pureCryptoAdapter } from "./crypto"
+import { KdfType } from "./crypto"
+import { sdk, testVaultCrypto } from "./test-sdk"
 import { vaultIdOf } from "./vault-id"
 
 // The SDK's Node build runs the same WebAssembly as the extension.
-const sdk = createRequire(import.meta.url)(
-  "@bitwarden/sdk-internal/node/bitwarden_wasm_internal.js",
-).PureCrypto as typeof PureCrypto
-const crypto = pureCryptoAdapter(sdk)
 
 const SERVER = "https://vault.example.test"
 const ACCOUNT_ID = accountIdOf(SERVER, "user-1")
@@ -156,7 +151,7 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-const provider = () => new BitwardenProvider(async () => crypto)
+const provider = () => new BitwardenProvider(async () => testVaultCrypto)
 const writes = () => requests.filter((r) => r.method !== "GET")
 
 describe("search", () => {

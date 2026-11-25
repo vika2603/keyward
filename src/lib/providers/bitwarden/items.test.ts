@@ -1,11 +1,8 @@
 import { createHash } from "node:crypto"
-import { createRequire } from "node:module"
-import type { PureCrypto } from "@bitwarden/sdk-internal"
 import { describe, expect, it } from "vitest"
 import {
   KdfType,
   masterKeySalt,
-  pureCryptoAdapter,
   stretchMasterKey,
   WrongPasswordError,
 } from "./crypto"
@@ -17,20 +14,16 @@ import {
   decryptPassword,
   decryptPasswordHistory,
   decryptTotp,
-  itemUpdateRequest,
   type LoginItem,
   loginCiphers,
   matchesQuery,
-  newNoteRequest,
   noteCiphers,
-  VaultKeys,
-} from "./vault"
+} from "./decrypt"
+import { VaultKeys } from "./keys"
+import { itemUpdateRequest, newNoteRequest } from "./requests"
+import { sdk, testVaultCrypto } from "./test-sdk"
 
-// The SDK's Node build runs the same WebAssembly as the extension.
-const sdk = createRequire(import.meta.url)(
-  "@bitwarden/sdk-internal/node/bitwarden_wasm_internal.js",
-).PureCrypto as typeof PureCrypto
-const crypto = pureCryptoAdapter(sdk)
+const crypto = testVaultCrypto
 
 // The SDK refuses PBKDF2 below 5000 iterations; real accounts use more.
 const kdf = { type: KdfType.Pbkdf2Sha256, iterations: 5000 }
@@ -111,7 +104,6 @@ describe("organization items", () => {
   it("decrypts an item that has its own key through the organization key", () => {
     expect(decryptLogin(cipher, keys)).toEqual({
       id: "item-1",
-      organizationId: "org-1",
       grouping: { organizationId: "org-1", folderId: null, collectionIds: [] },
       favorite: false,
       name: "Example",
@@ -255,7 +247,6 @@ describe("organization items", () => {
 describe("search", () => {
   const item: LoginItem = {
     id: "item-4",
-    organizationId: null,
     grouping: { organizationId: null, folderId: null, collectionIds: [] },
     favorite: false,
     name: "Work Mail",

@@ -1,6 +1,5 @@
 import { ruleForHost, uriMatches } from "@/lib/matching"
 import { getSettings } from "@/lib/settings"
-import { hostOfSavedUri } from "@/lib/site"
 import { oneTimeCode } from "@/lib/totp"
 import {
   type Credential,
@@ -55,7 +54,6 @@ import {
   wrappedUserKeyOf,
 } from "./auth"
 import { masterKeySalt, type VaultCrypto, WrongPasswordError } from "./crypto"
-import { type CustomEndpoints, serverHost, serverUrls } from "./server"
 import {
   decryptDetails,
   decryptGroups,
@@ -65,19 +63,23 @@ import {
   decryptPasswordHistory,
   decryptTotp,
   decryptTrashed,
-  type ItemChange,
-  itemUpdateRequest,
+  firstHostOf,
   type LoginItem,
   loginCiphers,
   matchesQuery,
   type NoteItem,
-  newLoginRequest,
-  newNoteRequest,
   noteCiphers,
   textMatchesQuery,
   trashedCiphers,
-  VaultKeys,
-} from "./vault"
+} from "./decrypt"
+import { VaultKeys } from "./keys"
+import {
+  type ItemChange,
+  itemUpdateRequest,
+  newLoginRequest,
+  newNoteRequest,
+} from "./requests"
+import { type CustomEndpoints, serverHost, serverUrls } from "./server"
 import { accountIdOfVault, vaultIdOf } from "./vault-id"
 
 const PENDING_LOGIN_KEY = "bitwarden.pendingLogin"
@@ -1121,9 +1123,7 @@ function summaryOf(item: LoginItem): LoginSummary {
     id: item.id,
     username: item.username,
     title: item.name,
-    host:
-      item.uris.map((u) => hostOfSavedUri(u.uri)).find((h) => h !== null) ??
-      undefined,
+    host: firstHostOf(item),
     hasCode: item.hasTotp && !item.reprompt,
     grouping: item.grouping,
     favorite: item.favorite,

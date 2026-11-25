@@ -54,6 +54,11 @@ export function prop(object: unknown, name: string): unknown {
   return key === undefined ? undefined : record[key]
 }
 
+/** A list in a response, or an empty one when the response has none there. */
+export function listOf(value: unknown): unknown[] {
+  return Array.isArray(value) ? value : []
+}
+
 export function pick(
   object: unknown,
   name: string,
