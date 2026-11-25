@@ -511,6 +511,11 @@ export function DetailView({
               </Section>
             )}
             <Section title={t("popup.detail.info")}>
+              {details.hasPasskey && (
+                <InfoRow label={t("popup.detail.passkey")}>
+                  {t("popup.detail.passkeySaved")}
+                </InfoRow>
+              )}
               <InfoRow label={t("popup.detail.vault")}>
                 <BrandIcon kind={vault.kind} className="size-3.5 shrink-0" />
                 <span className="truncate">{vaultLabel(vault)}</span>

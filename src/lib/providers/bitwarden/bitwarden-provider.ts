@@ -807,6 +807,7 @@ export class BitwardenProvider implements VaultProvider {
       created: details.created,
       modified: details.modified,
       passwordModified: details.passwordModified,
+      hasPasskey: details.hasPasskey,
     }
   }
 

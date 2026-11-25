@@ -76,6 +76,8 @@ export interface LoginDetails {
   customFields?: CustomField[]
   /** Whether the user starred the login; left out by providers without favorites. */
   favorite?: boolean
+  /** Whether the login keeps a passkey; left out when the provider cannot tell. */
+  hasPasskey?: boolean
   /** How many earlier passwords the provider keeps for the login; read with `passwordHistory`. */
   pastPasswordCount?: number
   /** Milliseconds since the epoch. */

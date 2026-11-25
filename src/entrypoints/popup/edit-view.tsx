@@ -32,6 +32,7 @@ import type {
 } from "@/lib/providers/types"
 import { MatchType } from "@/lib/settings"
 import { cn } from "@/lib/utils"
+import { CodeKeyInput } from "./code-key-input"
 import { CustomFieldsEditor } from "./custom-fields-editor"
 import { BackHeader } from "./header"
 
@@ -308,14 +309,10 @@ export function EditView({
               </div>
             </Field>
             <Field label={t("popup.edit.codeKey")} htmlFor="edit-totp">
-              <Input
+              <CodeKeyInput
                 id="edit-totp"
-                className="font-mono"
                 value={form.totp}
-                placeholder={t("popup.edit.codeKeyHint")}
-                onChange={(event) => update({ totp: event.target.value })}
-                autoComplete="off"
-                spellCheck={false}
+                onChange={(totp) => update({ totp })}
               />
             </Field>
             <Field label={t("popup.detail.notes")} htmlFor="edit-notes">

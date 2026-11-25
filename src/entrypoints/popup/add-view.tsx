@@ -23,6 +23,7 @@ import type {
   NewLoginDetails,
   VaultInfo,
 } from "@/lib/providers/types"
+import { CodeKeyInput } from "./code-key-input"
 import { CustomFieldsEditor } from "./custom-fields-editor"
 import { BackHeader } from "./header"
 import { NoteForm } from "./note-form"
@@ -99,19 +100,16 @@ function LoginDetailsFields({
           </Select>
         </div>
       )}
-      <label className="flex flex-col gap-2">
-        <span className="text-sm leading-none font-medium">
+      <div className="flex flex-col gap-2">
+        <label htmlFor="add-totp" className="text-sm leading-none font-medium">
           {t("popup.edit.codeKey")}
-        </span>
-        <Input
-          className="font-mono"
+        </label>
+        <CodeKeyInput
+          id="add-totp"
           value={details.totp}
-          placeholder={t("popup.edit.codeKeyHint")}
-          onChange={(event) => onChange({ totp: event.target.value })}
-          autoComplete="off"
-          spellCheck={false}
+          onChange={(totp) => onChange({ totp })}
         />
-      </label>
+      </div>
       <label className="flex flex-col gap-2">
         <span className="text-sm leading-none font-medium">
           {t("popup.detail.notes")}

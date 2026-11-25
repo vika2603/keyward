@@ -300,16 +300,18 @@ export function LoginRow({
           confirming && "opacity-100",
         )}
       >
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          className="hover:bg-background"
-          aria-label={t("popup.copyUsername")}
-          title={t("popup.copyUsername")}
-          onClick={() => void copy("username")}
-        >
-          {copied === "username" ? <CheckIcon /> : <UserIcon />}
-        </Button>
+        {login.username && (
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            className="hover:bg-background"
+            aria-label={t("popup.copyUsername")}
+            title={t("popup.copyUsername")}
+            onClick={() => void copy("username")}
+          >
+            {copied === "username" ? <CheckIcon /> : <UserIcon />}
+          </Button>
+        )}
         <Button
           variant="ghost"
           size="icon-sm"

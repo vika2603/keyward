@@ -300,6 +300,8 @@ export interface ItemDetails {
   created?: number
   modified?: number
   passwordModified?: number
+  /** Whether the login keeps a passkey besides its password. */
+  hasPasskey: boolean
 }
 
 /** Bitwarden's field types and the login fields a linked field can stand for. */
@@ -453,6 +455,8 @@ export function decryptDetails(
     passwordModified: timeOf(
       prop(pick(cipher, "Login"), "PasswordRevisionDate"),
     ),
+    hasPasskey:
+      savedList(pick(cipher, "Login") ?? {}, "Fido2Credentials").length > 0,
   }
 }
 

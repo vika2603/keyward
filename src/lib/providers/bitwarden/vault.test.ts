@@ -316,7 +316,16 @@ describe("item details", () => {
       created: Date.parse("2026-03-01T08:00:00.000Z"),
       modified: Date.parse("2026-04-02T09:30:00.000Z"),
       passwordModified: Date.parse("2026-04-01T12:00:00.000Z"),
+      hasPasskey: false,
     })
+  })
+
+  it("tells a login that keeps a passkey", () => {
+    const withPasskey = {
+      ...cipher,
+      Login: { ...cipher.Login, Fido2Credentials: [{ CredentialId: "x" }] },
+    }
+    expect(decryptDetails(withPasskey, keys).hasPasskey).toBe(true)
   })
 
   it("decrypts the authenticator key", () => {
@@ -452,6 +461,7 @@ describe("item details", () => {
       created: undefined,
       modified: undefined,
       passwordModified: undefined,
+      hasPasskey: false,
     })
   })
 })
