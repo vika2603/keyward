@@ -212,7 +212,7 @@ export function GroupFilterBar({
   }
 
   return (
-    <div className="flex gap-1.5 px-2 pb-2">
+    <div className="flex gap-1.5 pt-2 pr-3 pb-2 pl-2">
       {parts.map(({ part, sections }) => {
         const id = filter[part]
         const value = id && filter.vaultId ? encode(filter.vaultId, id) : ALL
