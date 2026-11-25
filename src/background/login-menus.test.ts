@@ -27,7 +27,13 @@ const someone = {
 }
 const shared = { id: "item-2", username: "", title: "Shared account" }
 
-let created: { id: string; parentId?: string; title: string }[]
+let created: {
+  id: string
+  parentId?: string
+  title?: string
+  type?: string
+  enabled?: boolean
+}[]
 let clicked: Clicked
 
 beforeEach(() => {
@@ -50,11 +56,21 @@ beforeEach(() => {
   }
 })
 
+/** The login's menu, found by the line it shows. */
+function loginMenu(title: string) {
+  return created.find(
+    (item) => item.parentId === undefined && item.title === title,
+  )
+}
+
+/** The ID of an action in a login's submenu. */
 function id(action: string, title: string): string {
+  const login = loginMenu(title)
   return (
     created.find(
       (item) =>
-        item.parentId === `loginMenus.${action}` && item.title === title,
+        item.parentId === login?.id &&
+        item.id.startsWith(`loginMenus.${action}.`),
     )?.id ?? ""
   )
 }
@@ -68,17 +84,65 @@ function setUp() {
 }
 
 describe("LoginMenus", () => {
-  it("lists the page's logins under each action, leaving out what a login lacks", async () => {
+  it("lists each login once under its vault's heading, with only the actions it has", async () => {
     const { menus, vaults } = setUp()
     await menus.show(vaults, tab)
-    const under = (parent: string) =>
+    const topLevel = created
+      .filter((item) => item.parentId === undefined)
+      .map((item) => (item.type === "separator" ? "---" : item.title))
+    expect(topLevel).toEqual([
+      "Bitwarden · someone@example.com",
+      "someone",
+      "Shared account",
+      "---",
+      expect.any(String),
+    ])
+    expect(created[0]?.enabled).toBe(false)
+    const actions = (title: string) =>
       created
-        .filter((item) => item.parentId === parent)
-        .map((item) => item.title)
-    expect(under("loginMenus.fill")).toEqual(["someone", "Shared account"])
-    expect(under("loginMenus.copyUsername")).toEqual(["someone"])
-    expect(under("loginMenus.copyCode")).toEqual(["someone"])
-    expect(created.map((item) => item.id)).toContain("loginMenus.generate")
+        .filter((item) => item.parentId === loginMenu(title)?.id)
+        .map((item) => item.id.split(".")[1])
+    expect(actions("someone")).toEqual([
+      "fill",
+      "copyUsername",
+      "copyPassword",
+      "copyCode",
+    ])
+    expect(actions("Shared account")).toEqual(["fill", "copyPassword"])
+    expect(created.at(-1)?.id).toBe("loginMenus.generate")
+  })
+
+  it("puts each vault's logins under its own heading, and removes the earlier menus first", async () => {
+    const apple: VaultView = {
+      id: "apple",
+      kind: "apple",
+      label: "Apple Passwords",
+      status: "ready",
+      logins: [{ id: "a-1", username: "someone", title: "Example" }],
+    }
+    const { menus, vaults } = setUp()
+    await menus.show(vaults, tab)
+    const earlier = created
+      .filter((item) => item.parentId === undefined)
+      .map((item) => item.id)
+    created = []
+    await menus.show([apple, ...vaults], tab)
+    expect(
+      created
+        .filter((item) => item.parentId === undefined)
+        .map((item) => (item.type === "separator" ? "---" : item.title))
+        .slice(0, 5),
+    ).toEqual([
+      "Passwords",
+      "someone",
+      "---",
+      "Bitwarden · someone@example.com",
+      "someone",
+    ])
+    const removed = vi
+      .mocked(fakeBrowser.contextMenus.remove)
+      .mock.calls.map(([menuId]) => menuId)
+    expect(removed).toEqual(expect.arrayContaining(earlier))
   })
 
   it("fills into the frame that was right-clicked, and copies a password as a secret", async () => {

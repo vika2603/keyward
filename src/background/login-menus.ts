@@ -17,6 +17,8 @@ const ACTIONS: readonly Action[] = [
   "copyCode",
 ]
 const GENERATE_ID = "loginMenus.generate"
+/** The IDs of the top-level menus the last rendering made; removing them removes their submenus. */
+const MENUS_KEY = "loginMenus.topLevel"
 /**
  * The logins the submenus list and the page they were listed for. Kept in storage.session rather
  * than in memory: the menus outlive the service worker, and a click can start a new one.
@@ -50,15 +52,30 @@ const TITLES: Record<Language, Record<Action | "generate", string>> = {
   },
 }
 
-/** A submenu lists at most this many logins; a site rarely has more. */
+/** The menu lists at most this many logins; a site rarely has more. */
 const MAX_LOGINS = 20
 
 interface Entry {
   vaultId: string
   loginId: string
   username: string
-  label: string
+  /** The login's line in the menu: its username, or its name without one. */
+  name: string
   hasCode: boolean
+}
+
+/** A vault's heading over its logins, named as the interface names it. */
+function vaultTitle(vault: VaultView): string {
+  return vault.kind === "apple" ? "Passwords" : `Bitwarden · ${vault.label}`
+}
+
+/** What a login's submenu offers: copying a username or a code only when it has one. */
+function actionsOf(entry: Entry): Action[] {
+  return ACTIONS.filter(
+    (action) =>
+      (action !== "copyUsername" || entry.username) &&
+      (action !== "copyCode" || entry.hasCode),
+  )
 }
 
 interface Listing {
@@ -83,9 +100,10 @@ function itemId(action: Action, renderId: string, index: number): string {
 }
 
 /**
- * The browser's context menu for the active page: submenus that fill a login or copy its username,
- * password or verification code, and an entry that generates a password and copies it. The login
- * submenus follow the active page's logins, which the toolbar recomputes as tabs change.
+ * The browser's context menu for the active page: the page's logins under a heading for each vault,
+ * each with a submenu that fills it or copies its username, password or verification code, and an
+ * entry that generates a password and copies it. The logins follow the active page, which the
+ * toolbar recomputes as tabs change.
  */
 export class LoginMenus {
   /** The last change of the menus; each waits for the one before, so no ID is made twice. */
@@ -185,16 +203,13 @@ async function render(
   const entries: Entry[] = listing
     ? ready
         .flatMap((vault) =>
-          vault.logins.map((login) => {
-            const name = login.username || login.title
-            return {
-              vaultId: vault.id,
-              loginId: login.id,
-              username: login.username,
-              label: ready.length > 1 ? `${name} · ${vault.label}` : name,
-              hasCode: login.hasCode === true,
-            }
-          }),
+          vault.logins.map((login) => ({
+            vaultId: vault.id,
+            loginId: login.id,
+            username: login.username,
+            name: login.username || login.title,
+            hasCode: login.hasCode === true,
+          })),
         )
         .slice(0, MAX_LOGINS)
     : []
@@ -208,29 +223,44 @@ async function render(
     await browser.storage.session.remove(LISTING_KEY)
   }
   if (!settings.contextMenu) return
-  for (const action of ACTIONS) {
-    const shown = entries
-      .map((entry, index) => ({ entry, index }))
-      .filter(
-        ({ entry }) =>
-          (action !== "copyUsername" || entry.username) &&
-          (action !== "copyCode" || entry.hasCode),
-      )
-    if (!shown.length) continue
-    await create({
-      id: `loginMenus.${action}`,
-      title: titles[action],
-      contexts: CONTEXTS,
-    })
-    for (const { entry, index } of shown)
-      await create({
-        id: itemId(action, renderId, index),
-        parentId: `loginMenus.${action}`,
-        title: entry.label,
-        contexts: CONTEXTS,
-      })
+
+  const made: string[] = []
+  const add = async (
+    properties: Browser.contextMenus.CreateProperties & { id: string },
+  ) => {
+    await create({ ...properties, contexts: CONTEXTS })
+    if (properties.parentId === undefined) made.push(properties.id)
   }
-  await create({ id: GENERATE_ID, title: titles.generate, contexts: CONTEXTS })
+  const listed = ready.filter((vault) =>
+    entries.some((entry) => entry.vaultId === vault.id),
+  )
+  for (const [vaultIndex, vault] of listed.entries()) {
+    if (vaultIndex > 0)
+      await add({
+        id: `loginMenus.${renderId}.separator.${vaultIndex}`,
+        type: "separator",
+      })
+    await add({
+      id: `loginMenus.${renderId}.vault.${vaultIndex}`,
+      title: vaultTitle(vault),
+      enabled: false,
+    })
+    for (const [index, entry] of entries.entries()) {
+      if (entry.vaultId !== vault.id) continue
+      const loginMenuId = `loginMenus.${renderId}.login.${index}`
+      await add({ id: loginMenuId, title: entry.name })
+      for (const action of actionsOf(entry))
+        await add({
+          id: itemId(action, renderId, index),
+          parentId: loginMenuId,
+          title: titles[action],
+        })
+    }
+  }
+  if (listed.length)
+    await add({ id: `loginMenus.${renderId}.separator.end`, type: "separator" })
+  await add({ id: GENERATE_ID, title: titles.generate })
+  await browser.storage.session.set({ [MENUS_KEY]: made })
 }
 
 function create(
@@ -247,8 +277,13 @@ function create(
 
 /** Takes away the menus made here, which removes their submenus too; the extension's others stay. */
 async function removeOwn(): Promise<void> {
-  const ids = [GENERATE_ID, ...ACTIONS.map((action) => `loginMenus.${action}`)]
+  const made = (await browser.storage.session.get(MENUS_KEY))[MENUS_KEY] as
+    | string[]
+    | undefined
   await Promise.all(
-    ids.map((id) => browser.contextMenus.remove(id).catch(() => {})),
+    [GENERATE_ID, ...(made ?? [])].map((id) =>
+      browser.contextMenus.remove(id).catch(() => {}),
+    ),
   )
+  await browser.storage.session.remove(MENUS_KEY)
 }

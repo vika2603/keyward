@@ -30,7 +30,7 @@ export const en = {
   "error.notEditable":
     "This login can't be changed here. Use the password manager's own app.",
   "error.apple.unavailable":
-    "Can't connect to Passwords. It needs Chrome on macOS and the system's password helper.",
+    'Can\'t connect to Passwords. On macOS, run "mise run install-apple-host" in the Keyward project, then try again.',
   "error.apple.disabled": "Passwords is turned off in settings.",
   "error.apple.wrongCode": "The code is not correct.",
   "error.apple.refused": "The Mac refused to pair.",
@@ -107,7 +107,7 @@ export const zhCN: Record<keyof typeof en, string> = {
   "error.notEditable":
     "这条登录不能在这里修改，请到密码管理器自己的应用里修改。",
   "error.apple.unavailable":
-    "无法连接 Passwords 。需要 macOS 上的 Chrome 和系统自带的密码组件。",
+    "无法连接 Passwords 。请在 macOS 上到 Keyward 项目里运行 mise run install-apple-host，然后重试。",
   "error.apple.disabled": "Passwords 已在设置中关闭。",
   "error.apple.wrongCode": "验证码不正确。",
   "error.apple.refused": "Mac 拒绝了这次配对。",

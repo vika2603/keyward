@@ -33,7 +33,7 @@ import { APPLE_VAULT_ID } from "./vault-id"
 
 export type ApplePhase =
   | "disabled"
-  /** The helper cannot be reached: not macOS, wrong extension ID, or the browser may not launch it. */
+  /** The helper cannot be reached: not macOS, the host is not registered, or the browser may not launch it. */
   | "unavailable"
   | "connecting"
   /** Connected to the helper without a session. */
