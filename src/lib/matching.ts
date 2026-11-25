@@ -12,19 +12,33 @@ export interface MatchOptions {
 }
 
 /**
- * Registrable domains treated as the same site as `domain`, including itself. A group entry may be
- * any host of its site, such as www.example.com; it stands for the whole site.
+ * Equivalence groups as registrable domains, parsed once per groups array, since a listing matches
+ * every saved address against the same groups. Settings are replaced, never changed in place, so
+ * an array's groups stay the same.
  */
+const siteGroupsCache = new WeakMap<string[][], string[][]>()
+
+/** A group entry may be any host of its site, such as www.example.com; it stands for the whole site. */
+function siteGroupsOf(groups: string[][]): string[][] {
+  let siteGroups = siteGroupsCache.get(groups)
+  if (!siteGroups) {
+    siteGroups = groups.map((group) =>
+      group
+        .map((entry) => entry.trim().toLowerCase())
+        .filter(Boolean)
+        .map(siteDomainOf),
+    )
+    siteGroupsCache.set(groups, siteGroups)
+  }
+  return siteGroups
+}
+
+/** Registrable domains treated as the same site as `domain`, including itself. */
 function equivalentsOf(domain: string, groups: string[][]): Set<string> {
   const result = new Set([domain])
-  for (const group of groups) {
-    const domains = group
-      .map((entry) => entry.trim().toLowerCase())
-      .filter(Boolean)
-      .map(siteDomainOf)
-    if (domains.includes(domain))
-      for (const member of domains) result.add(member)
-  }
+  for (const siteGroup of siteGroupsOf(groups))
+    if (siteGroup.includes(domain))
+      for (const member of siteGroup) result.add(member)
   return result
 }
 
