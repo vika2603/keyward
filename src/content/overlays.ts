@@ -1,6 +1,6 @@
 import type { ContentScriptContext } from "wxt/utils/content-script-context"
 import { createIframeUi } from "wxt/utils/content-script-ui/iframe"
-import { eventOrigin } from "./fields"
+import { eventOrigin } from "./deep-dom"
 
 /** Room around the overlay's card for its shadow, inside the iframe. */
 const SHADOW_MARGIN = 8

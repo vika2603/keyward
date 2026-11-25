@@ -2,26 +2,17 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import {
   codeBoxes,
-  codeFields,
-  credentialsAround,
-  fillCodeField,
-  fillCustomFields,
   fillTargets,
-  loginFields,
-  newPasswordFields,
+  findFields,
   newPasswordTargets,
-} from "./fields"
+} from "./field-finder"
+import { fillCodeField, fillCustomFields } from "./fill-dom"
+import { credentialsAround } from "./submitted-login"
 import { stubLayout } from "./test-support"
 
 /** The fields a scan of the page finds, by the part they play. */
 function scan() {
-  const login = loginFields(document)
-  const newPassword = newPasswordFields(document)
-  return {
-    login,
-    newPassword,
-    code: codeFields(document, [...login, ...newPassword]),
-  }
+  return findFields(document)
 }
 
 /** The fields' names; the order a scan lists them in plays no part. */

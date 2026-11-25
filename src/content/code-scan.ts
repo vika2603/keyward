@@ -1,5 +1,5 @@
 import type { ContentScriptContext } from "wxt/utils/content-script-context"
-import { eventOrigin } from "./fields"
+import { eventOrigin } from "./deep-dom"
 
 const SVG_NS = "http://www.w3.org/2000/svg"
 /** QR codes on setup pages are shown at roughly this size range, and square. */

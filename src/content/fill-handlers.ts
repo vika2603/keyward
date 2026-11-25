@@ -1,15 +1,14 @@
 import type { ContentMessage } from "@/background/api"
+import { deepActiveElement } from "./deep-dom"
+import { fillTargets, newPasswordTargets } from "./field-finder"
+import { isPasswordField } from "./field-hints"
 import type { FieldTracker } from "./field-tracker"
 import {
-  deepActiveElement,
   fillCodeField,
   fillCustomFields,
-  fillTargets,
-  isPasswordField,
-  newPasswordTargets,
   setFieldValue,
   submitFor,
-} from "./fields"
+} from "./fill-dom"
 import type { InlineMenu } from "./overlays"
 
 type Message<T extends ContentMessage["type"]> = Extract<

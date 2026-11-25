@@ -1,5 +1,6 @@
 import type { ContentScriptContext } from "wxt/utils/content-script-context"
-import { credentialsAround, eventOrigin, type SubmittedLogin } from "./fields"
+import { eventOrigin } from "./deep-dom"
+import { credentialsAround, type SubmittedLogin } from "./submitted-login"
 
 const DEDUPE_MS = 3000
 const SUBMIT_LIKE =

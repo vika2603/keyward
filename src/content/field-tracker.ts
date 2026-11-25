@@ -1,23 +1,17 @@
 import type { ContentScriptContext } from "wxt/utils/content-script-context"
-import { codeFields, loginFields, newPasswordFields } from "./fields"
+import { type FoundFields, findFields } from "./field-finder"
 
 /** How long a scan waits after a change to the page, so that a burst of changes scans once. */
 const SCAN_DELAY_MS = 300
 /** Changes inside shadow roots do not reach the page observer; a slow rescan picks them up. */
 const RESCAN_MS = 2000
 
-export interface TrackedFields {
-  /** Fields that get the menu of logins. */
-  login: HTMLInputElement[]
-  /** Fields for a new password; their menu offers a generated one above the logins. */
-  newPassword: HTMLInputElement[]
-  /** One-time code fields; they are tracked only while a ready vault has codes for the page. */
-  code: HTMLInputElement[]
-}
+const NO_FIELDS: FoundFields = { login: [], newPassword: [], code: [] }
 
-const NO_FIELDS: TrackedFields = { login: [], newPassword: [], code: [] }
-
-/** Keeps the page's login, new-password and code fields up to date while the page changes. */
+/**
+ * Keeps the page's login, new-password and code fields up to date while the page changes. Code
+ * fields count only while a ready vault has one-time codes for the page.
+ */
 export class FieldTracker {
   private fields = NO_FIELDS
   /** Whether code fields count; null until the background was asked. */
@@ -36,7 +30,7 @@ export class FieldTracker {
       /** Whether a ready vault has one-time codes for the frame; null when the answer no longer counts. */
       askCodes: () => Promise<boolean | null>
       /** Called after every scan, and with no fields once tracking stops. */
-      onScan: (fields: TrackedFields) => void
+      onScan: (fields: FoundFields) => void
     },
   ) {
     ctx.onInvalidated(() => {
@@ -106,15 +100,10 @@ export class FieldTracker {
   }
 
   scan(): void {
-    const login = loginFields(document)
-    const newPassword = newPasswordFields(document)
-    const code = codeFields(document, [...login, ...newPassword])
-    if (code.length && this.codesAvailable === null) void this.checkCodes()
-    this.fields = {
-      login,
-      newPassword,
-      code: this.codesAvailable ? code : [],
-    }
+    const found = findFields(document)
+    if (found.code.length && this.codesAvailable === null)
+      void this.checkCodes()
+    this.fields = { ...found, code: this.codesAvailable ? found.code : [] }
     this.options.onScan(this.fields)
   }
 

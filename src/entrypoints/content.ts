@@ -7,12 +7,12 @@ import {
 } from "@/background/api"
 import { watchCodeImages } from "@/content/code-scan"
 import { ContentConfiguration } from "@/content/content-config"
+import { deepActiveElement, eventOrigin } from "@/content/deep-dom"
 import {
   listenToExtension,
   notifyBackground,
 } from "@/content/extension-messages"
 import { FieldTracker } from "@/content/field-tracker"
-import { deepActiveElement, eventOrigin } from "@/content/fields"
 import { FillHandlers } from "@/content/fill-handlers"
 import { FieldIcons } from "@/content/icons"
 import { InlineMenu, SavePrompt } from "@/content/overlays"

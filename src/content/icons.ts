@@ -1,7 +1,8 @@
 import type { ContentScriptContext } from "wxt/utils/content-script-context"
 import LOGO_SVG from "@/assets/field-icon.svg?raw"
 import type { Language } from "@/lib/i18n/language"
-import { codeBoxes, deepActiveElement, isVisible } from "./fields"
+import { deepActiveElement } from "./deep-dom"
+import { codeBoxes, isVisible } from "./field-finder"
 
 /** The icon's only text; kept here so the content script does not carry the whole catalog. */
 const ICON_LABELS: Record<Language, string> = {
