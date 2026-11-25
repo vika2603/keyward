@@ -71,6 +71,8 @@ export function MainView({
   const [results, setResults] = useState<VaultView[] | null>(null)
   /** Every item of the vaults that can list themselves whole, for browsing below the site's logins. */
   const [everything, setEverything] = useState<VaultView[] | null>(null)
+  /** Why the vaults could not be listed whole; shown only where the list would be. */
+  const [everythingError, setEverythingError] = useState<string | null>(null)
   /** Changes after a lock, so the search runs again. */
   const [version, setVersion] = useState(0)
   const [filter, setFilter] = useState<Filter>("all")
@@ -87,10 +89,16 @@ export function MainView({
     callBackground("popup.state", null).then(setState, (error) =>
       setMessage(errorMessage(error)),
     )
-    callBackground("popup.allItems", null).then(setEverything, (error) => {
-      setEverything([])
-      setMessage(errorMessage(error))
-    })
+    callBackground("popup.allItems", null).then(
+      (found) => {
+        setEverything(found)
+        setEverythingError(null)
+      },
+      (error) => {
+        setEverything([])
+        setEverythingError(errorMessage(error))
+      },
+    )
     setVersion((v) => v + 1)
   }, [])
   useEffect(load, [load])
@@ -295,6 +303,11 @@ export function MainView({
       >
         {message && (
           <p className="px-3 pt-2 text-xs text-destructive">{message}</p>
+        )}
+        {browsing && everythingError && (
+          <p className="px-3 pt-2 text-xs text-destructive">
+            {everythingError}
+          </p>
         )}
         {loading || (search && results === null) || waitingForItems ? (
           !message && <LoginListSkeleton compact={density === "compact"} />
