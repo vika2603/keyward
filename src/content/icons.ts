@@ -3,9 +3,9 @@ import { isVisible } from "./fields"
 
 const SIZE = 24
 const INSET = 6
-/** lucide "key", drawn at 16 px. */
-const KEY_SVG =
-  '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m2 21 9.6-9.6"/><path d="m7.5 15.5 2.3 2.3a1 1 0 0 1 0 1.4l-2.1 2.1a1 1 0 0 1-1.4 0L4 19"/><circle cx="15.5" cy="7.5" r="5.5"/></svg>'
+/** The Keyward logo (src/assets/icon.svg) without the gradient and shadow, which vanish at 18 px. */
+const LOGO_SVG =
+  '<svg viewBox="0 0 128 128" width="18" height="18" aria-hidden="true"><rect width="128" height="128" rx="29" fill="#171717"/><rect x="2" y="2" width="124" height="124" rx="27" fill="none" stroke="#fff" stroke-opacity=".18" stroke-width="4"/><path fill="#fafafa" stroke="#fafafa" stroke-width="6" stroke-linejoin="round" fill-rule="evenodd" d="M64 27 94 38V62C94 82 81 96 64 104 47 96 34 82 34 62V38ZM57 64.5A11 11 0 1 1 71 64.5L75 86H53Z"/></svg>'
 
 /*
  * Plain px values: the icons sit in the page, where rem units and the page's own styles would
@@ -27,7 +27,7 @@ button {
   border-radius: 6px;
   background: transparent;
   color: #737373;
-  opacity: 0.6;
+  opacity: 0.85;
   cursor: pointer;
 }
 button:hover, button[aria-expanded="true"] {
@@ -62,7 +62,7 @@ function coveringElement(
   return null
 }
 
-/** The key icon inside each login field; activating one opens the menu for that field. */
+/** The Keyward icon inside each login field; activating one opens the menu for that field. */
 export class FieldIcons {
   private readonly host: HTMLElement
   private readonly root: ShadowRoot
@@ -135,7 +135,7 @@ export class FieldIcons {
     icon.title = "Keyward"
     icon.setAttribute("aria-label", "打开密码菜单")
     icon.setAttribute("aria-expanded", String(this.expanded === field))
-    icon.innerHTML = KEY_SVG
+    icon.innerHTML = LOGO_SVG
     // Keeps the focus in the field while the icon is pressed.
     icon.addEventListener("mousedown", (event) => event.preventDefault())
     icon.addEventListener("click", (event) => {
