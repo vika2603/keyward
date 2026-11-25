@@ -54,8 +54,8 @@ export function App() {
             href={`#${p.hash}`}
             aria-current={p === page ? "page" : undefined}
             className={cn(
-              "flex h-8 items-center gap-2 rounded-md p-2 text-sm hover:bg-sidebar-accent",
-              p === page && "bg-sidebar-accent font-medium",
+              "flex h-8 items-center gap-2 rounded-md p-2 text-sm hover:bg-foreground/5",
+              p === page && "bg-foreground/8 font-medium hover:bg-foreground/8",
             )}
           >
             {t(p.titleKey)}

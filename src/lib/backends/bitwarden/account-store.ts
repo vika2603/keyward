@@ -1,3 +1,4 @@
+import { storage } from "wxt/utils/storage"
 import type { KdfConfig } from "./crypto"
 
 /**
@@ -26,6 +27,11 @@ export interface AccountSession {
 }
 
 export const ACCOUNTS_KEY = "bitwarden.accounts"
+/** The server of the last sign-in, offered again for the next account; empty for the official service. */
+export const lastServerItem = storage.defineItem<string>(
+  "local:bitwarden.lastServer",
+  { fallback: "" },
+)
 const DEVICE_KEY = "bitwarden.deviceId"
 const sessionKey = (accountId: string) => `bitwarden.session.${accountId}`
 const syncKey = (accountId: string) => `bitwarden.sync.${accountId}`

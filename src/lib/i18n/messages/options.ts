@@ -162,10 +162,9 @@ export const en = {
   "options.keys.import.failed":
     "Couldn't import: the file isn't a Keyward settings export.",
 
-  "options.onboard.title": "Connect a password backend",
+  "options.onboard.title": "Sign in to Bitwarden",
   "options.onboard.description":
-    "Pair Passwords, or sign in to a Bitwarden account.",
-  "options.onboard.backendTabs": "Choose a backend to connect",
+    "After signing in, the account is unlocked with its master password.",
   "options.onboard.later": "Back",
   "options.onboard.method.authenticator": "Authenticator app",
   "options.onboard.method.authenticatorHint":
@@ -349,9 +348,8 @@ export const zhCN: Record<keyof typeof en, string> = {
   "options.keys.import.done": "已导入。",
   "options.keys.import.failed": "无法导入：文件不是 Keyward 导出的配置。",
 
-  "options.onboard.title": "连接密码后端",
-  "options.onboard.description": "配对 Passwords，或登录 Bitwarden 账号。",
-  "options.onboard.backendTabs": "选择要连接的后端",
+  "options.onboard.title": "登录 Bitwarden",
+  "options.onboard.description": "登录后，这个账号用主密码就能解锁。",
   "options.onboard.later": "返回",
   "options.onboard.method.authenticator": "验证器 App",
   "options.onboard.method.authenticatorHint": "输入验证器 App 里显示的验证码。",

@@ -2,7 +2,6 @@ import { REGEXP_ONLY_DIGITS } from "input-otp"
 import { LaptopMinimalCheckIcon, LaptopMinimalIcon } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
 import { callBackground } from "@/background/api"
-import { Button } from "@/components/ui/button"
 import {
   InputOTP,
   InputOTPGroup,
@@ -16,14 +15,7 @@ import { errorCodeOf, errorMessage } from "./errors"
  * Pairs with Apple Passwords: the helper shows a six-digit code on the Mac, which the user types
  * here. A wrong code ends the attempt, so one new attempt starts and the Mac shows a new code.
  */
-export function ApplePairing({
-  autoStart,
-  onPaired,
-}: {
-  /** Starts pairing when shown; otherwise a button starts it. */
-  autoStart: boolean
-  onPaired: () => void
-}) {
+export function ApplePairing({ onPaired }: { onPaired: () => void }) {
   const [state, setState] = useState<AppleState | null>(null)
   const [code, setCode] = useState("")
   const [busy, setBusy] = useState(false)
@@ -49,8 +41,7 @@ export function ApplePairing({
   useEffect(() => {
     if (started.current) return
     started.current = true
-    if (autoStart) void start(false)
-    else void callBackground("apple.state", null).then(setState, () => {})
+    void start(false)
   }, [])
 
   const submit = async (value: string) => {
@@ -78,8 +69,6 @@ export function ApplePairing({
   const phase = state?.phase
   const waiting = phase === "awaitingCode"
   const ready = waiting && !busy
-  const hint =
-    waiting || autoStart ? t("pairing.enterCode") : t("pairing.startThenEnter")
 
   // The field is disabled until the Mac shows a code, so focusing it on mount would do nothing.
   useEffect(() => {
@@ -101,7 +90,7 @@ export function ApplePairing({
             ? t("pairing.connecting")
             : paired
               ? t("pairing.paired")
-              : hint}
+              : t("pairing.enterCode")}
         </p>
       </div>
       <InputOTP
@@ -129,15 +118,6 @@ export function ApplePairing({
         <p className="text-xs text-destructive">
           {message ?? t("error.apple.unavailable")}
         </p>
-      )}
-      {!autoStart && !paired && (
-        <Button
-          className="w-full"
-          disabled={busy}
-          onClick={() => void start(waiting)}
-        >
-          {waiting ? t("pairing.newCode") : t("pairing.start")}
-        </Button>
       )}
     </div>
   )

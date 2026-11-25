@@ -58,14 +58,10 @@ export const en = {
   "pairing.wrongCodeRestarted":
     "The code is not correct. The Mac now shows a new code; enter that one.",
   "pairing.enterCode": "Enter the six-digit code shown on the Mac.",
-  "pairing.startThenEnter":
-    "Start pairing, then enter the six-digit code shown on the Mac.",
   "pairing.title": "Pair with this Mac",
   "pairing.codeLabel": "Six-digit code",
   "pairing.connecting": "Connecting to Passwords…",
   "pairing.paired": "Paired.",
-  "pairing.newCode": "Get a new code",
-  "pairing.start": "Start pairing",
   "unlock.noAccount": "No Bitwarden account is signed in yet.",
   "unlock.signIn": "Sign in",
   "unlock.title": "Unlock Bitwarden",
@@ -134,13 +130,10 @@ export const zhCN: Record<keyof typeof en, string> = {
   "pairing.wrongCodeRestarted":
     "验证码不正确。Mac 上已显示新的验证码，请重新输入。",
   "pairing.enterCode": "输入 Mac 上显示的六位验证码。",
-  "pairing.startThenEnter": "点击开始配对后，输入 Mac 上显示的六位验证码。",
   "pairing.title": "与这台 Mac 配对",
   "pairing.codeLabel": "六位验证码",
   "pairing.connecting": "正在连接 Passwords…",
   "pairing.paired": "已配对。",
-  "pairing.newCode": "重新获取验证码",
-  "pairing.start": "开始配对",
   "unlock.noAccount": "还没有登录 Bitwarden 账号。",
   "unlock.signIn": "登录",
   "unlock.title": "解锁 Bitwarden",

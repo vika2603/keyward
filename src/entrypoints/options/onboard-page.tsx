@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react"
 import { callBackground } from "@/background/api"
-import { ApplePairing } from "@/components/keyward/apple-pairing"
-import { BrandIcon, backendName } from "@/components/keyward/brand-icon"
+import { BrandIcon } from "@/components/keyward/brand-icon"
 import { errorMessage } from "@/components/keyward/errors"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -12,10 +11,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { lastServerItem } from "@/lib/backends/bitwarden/account-store"
 import type { SecondStepMethod } from "@/lib/backends/bitwarden/auth"
 import type { PendingSignInView } from "@/lib/backends/bitwarden/bitwarden-backend"
-import type { BackendKind } from "@/lib/backends/types"
 import { t } from "@/lib/i18n"
 import { navigate } from "./App"
 
@@ -43,15 +41,17 @@ function methodTexts(): Record<
   }
 }
 
-/** Connects one backend at a time: pairs Apple Passwords or signs in to a Bitwarden account. */
+/** Signs in to a Bitwarden account; Passwords is paired from the popup when it is used. */
 export function OnboardPage() {
-  const [kind, setKind] = useState<BackendKind>("bitwarden")
   const done = () => navigate("backends")
 
   return (
     <div className="flex min-h-screen flex-col items-center bg-muted px-4 pt-12 pb-16">
       <main className="flex w-full max-w-[440px] flex-col gap-4">
-        <header className="flex flex-col gap-1.5 pb-2 text-center">
+        <header className="flex flex-col items-center gap-1.5 pb-2 text-center">
+          <div className="mb-2 flex size-12 items-center justify-center rounded-xl bg-card ring-1 ring-foreground/10">
+            <BrandIcon kind="bitwarden" className="size-6" />
+          </div>
           <h1 className="text-2xl leading-8 font-semibold tracking-tight">
             {t("options.onboard.title")}
           </h1>
@@ -59,28 +59,8 @@ export function OnboardPage() {
             {t("options.onboard.description")}
           </p>
         </header>
-        <section className="flex flex-col gap-4 rounded-xl bg-card p-4 ring-1 ring-foreground/10">
-          <Tabs
-            value={kind}
-            onValueChange={(value) => setKind(value as BackendKind)}
-          >
-            <TabsList
-              className="w-full"
-              aria-label={t("options.onboard.backendTabs")}
-            >
-              {(["apple", "bitwarden"] as const).map((k) => (
-                <TabsTrigger key={k} value={k}>
-                  <BrandIcon kind={k} />
-                  {backendName(k)}
-                </TabsTrigger>
-              ))}
-            </TabsList>
-          </Tabs>
-          {kind === "apple" ? (
-            <ApplePairing autoStart={false} onPaired={done} />
-          ) : (
-            <SignIn onSignedIn={done} />
-          )}
+        <section className="rounded-xl bg-card p-4 ring-1 ring-foreground/10">
+          <SignIn onSignedIn={done} />
         </section>
         <div className="flex justify-end">
           <Button variant="ghost" onClick={done}>
@@ -120,7 +100,11 @@ function SignIn({ onSignedIn }: { onSignedIn: () => void }) {
   }
 
   useEffect(() => {
-    void callBackground("bitwarden.pendingSignIn", null).then((view) => {
+    void Promise.all([
+      callBackground("bitwarden.pendingSignIn", null),
+      lastServerItem.getValue(),
+    ]).then(([view, lastServer]) => {
+      setServer((typed) => typed || lastServer)
       if (view) {
         setServer(view.server)
         setEmail(view.email)
@@ -236,6 +220,7 @@ function SignIn({ onSignedIn }: { onSignedIn: () => void }) {
             password,
           })
           setPassword("")
+          await lastServerItem.setValue(server.trim())
           if (outcome.kind === "signedIn") onSignedIn()
           else showSecondStep(outcome.pending)
         })
