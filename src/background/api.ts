@@ -48,6 +48,8 @@ export interface ContentConfig {
   /** Whether a source can take an authenticator key, so QR codes under the pointer are read. */
   scanCodes: boolean
   menuTrigger: "click" | "focus"
+  /** Whether the frame keeps a page's passkey request for the menu while it has login fields. */
+  takeOverPasskeys: boolean
   theme: "system" | "light" | "dark"
   language: Language
 }
@@ -189,6 +191,8 @@ export type BackgroundApi = {
       sources: SourceView[]
       /** A generated password offered for a field that takes a new one. */
       suggestion?: string
+      /** Whether the page waits for a passkey sign-in, which the menu offers. */
+      passkey?: boolean
     }
   }
   "menu.fill": {
@@ -197,6 +201,8 @@ export type BackgroundApi = {
   }
   /** Fills the offered password into the new-password fields of the menu's form. */
   "menu.fillSuggestion": { payload: { token: string }; result: null }
+  /** Has the page sign in with a passkey, through the browser's passkey dialog. */
+  "menu.usePasskey": { payload: { token: string }; result: null }
   "menu.resize": { payload: { token: string; height: number }; result: null }
   "menu.close": { payload: { token: string }; result: null }
   "menu.connect": { payload: { token: string; sourceId: string }; result: null }
@@ -215,8 +221,11 @@ export type BackgroundApi = {
     result: boolean
   }
   "content.openMenu": {
-    /** `newPassword` for a field that takes a new password, which gets a generated one offered. */
-    payload: { kind: FieldKind; newPassword?: boolean }
+    /**
+     * `newPassword` for a field that takes a new password, which gets a generated one offered;
+     * `passkey` when the page waits for a passkey sign-in.
+     */
+    payload: { kind: FieldKind; newPassword?: boolean; passkey?: boolean }
     result: { token: string }
   }
   /** Whether a ready source has one-time codes for the frame, asked once the frame has a code field. */
@@ -249,6 +258,7 @@ export type ContentMessage =
   | { type: "fillCode"; origin: string; code: string }
   /** A generated password for the new-password fields of the menu's form. */
   | { type: "fillNew"; origin: string; password: string }
+  | { type: "usePasskey" }
   | { type: "menu.resize"; height: number }
   | { type: "menu.close" }
   | { type: "prompt.show"; token: string }

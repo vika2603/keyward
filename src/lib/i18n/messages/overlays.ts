@@ -6,6 +6,7 @@ export const en = {
   "overlay.menu.code": "Verification code",
   "overlay.menu.recent": "Just used · {site}",
   "overlay.menu.suggest": "Use a strong password",
+  "overlay.menu.passkey": "Sign in with a passkey",
   "overlay.menu.confirmTouchId": "Confirm with Touch ID or your Mac password.",
   "overlay.prompt.guard":
     "The prompt had just appeared, moved or was covered by the page. Click again.",
@@ -28,6 +29,7 @@ export const zhCN: Record<keyof typeof en, string> = {
   "overlay.menu.code": "验证码",
   "overlay.menu.recent": "刚才使用 · {site}",
   "overlay.menu.suggest": "使用强密码",
+  "overlay.menu.passkey": "使用通行密钥登录",
   "overlay.menu.confirmTouchId": "用触控 ID 或 Mac 密码确认。",
   "overlay.prompt.guard": "提示刚出现、移动过或被页面遮挡，请再点一次。",
   "overlay.prompt.updateTitle": "更新已保存的密码？",

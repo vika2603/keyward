@@ -39,6 +39,8 @@ export interface Settings {
   askUpdate: boolean
   /** Whether the browser's own offer to save passwords is turned off while Keyward asks instead. */
   takeOverSaving: boolean
+  /** Whether a page's passkey sign-in is offered in Keyward's menu instead of the browser's list. */
+  takeOverPasskeys: boolean
   /** Seconds after copying a password before the clipboard is overwritten; null never. */
   clipboardClearSeconds: number | null
   defaultMatch: MatchType
@@ -64,6 +66,7 @@ export const defaultSettings: Settings = {
   askSave: true,
   askUpdate: true,
   takeOverSaving: true,
+  takeOverPasskeys: true,
   clipboardClearSeconds: 30,
   defaultMatch: MatchType.Domain,
   defaultSaveTarget: null,
@@ -100,6 +103,7 @@ export const exportableKeys = [
   "askSave",
   "askUpdate",
   "takeOverSaving",
+  "takeOverPasskeys",
   "clipboardClearSeconds",
   "defaultMatch",
   "siteRules",

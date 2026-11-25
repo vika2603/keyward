@@ -474,6 +474,7 @@ export function createHandlers(backends: Backends): Handlers<BackgroundApi> {
             kind,
             sources: markRecent(await backends.loginsForPage(page), recent),
             ...(suggestion ? { suggestion } : {}),
+            ...(session.passkey ? { passkey: true } : {}),
           }
         }
         const sources = await backends.codeLoginsForPage(page, {
@@ -508,6 +509,22 @@ export function createHandlers(backends: Backends): Handlers<BackgroundApi> {
           session.frameId,
           session.suggestion,
         )
+        await closeMenu(session.tabId)
+        return null
+      },
+    },
+    "menu.usePasskey": {
+      allow: ["menu"],
+      handle: async ({ token }, sender) => {
+        const session = await menus.claim(sender, token)
+        if (!session.passkey)
+          throw new BackendError(
+            "No passkey sign-in is offered",
+            "invalidInput",
+          )
+        await sendToFrame(session.tabId, session.frameId, {
+          type: "usePasskey",
+        })
         await closeMenu(session.tabId)
         return null
       },
@@ -599,7 +616,7 @@ export function createHandlers(backends: Backends): Handlers<BackgroundApi> {
     },
     "content.openMenu": {
       allow: ["contentScript"],
-      handle: async ({ kind, newPassword }, sender) => {
+      handle: async ({ kind, newPassword, passkey }, sender) => {
         const { tabId, frameId } = tabFrame(sender)
         const open = await menus.get(tabId)
         if (open && open.frameId !== frameId) await closeMenu(tabId)
@@ -611,6 +628,7 @@ export function createHandlers(backends: Backends): Handlers<BackgroundApi> {
           overlayFrameId: null,
           kind: fieldKind(kind),
           newPassword: newPassword === true,
+          passkey: passkey === true && fieldKind(kind) === "login",
         })
         return { token }
       },

@@ -22,6 +22,11 @@ import {
 } from "@/content/fields"
 import { FieldIcons } from "@/content/icons"
 import { InlineMenu, SavePrompt } from "@/content/overlays"
+import {
+  PASSKEY_CONTROL_EVENT,
+  PASSKEY_STATE_EVENT,
+  type PasskeyControl,
+} from "@/content/passkey-events"
 import { watchSubmissions } from "@/content/submit"
 import { ACCOUNTS_KEY } from "@/lib/backends/bitwarden/account-store"
 import { isDarkTheme } from "@/lib/theme"
@@ -77,6 +82,7 @@ export default defineContentScript({
       const { token } = await callBackground("content.openMenu", {
         kind: codes.includes(field) ? "code" : "login",
         newPassword: newPasswords.includes(field),
+        passkey: passkeyWaiting && fields.includes(field),
       })
       // The page may have stopped offering logins while the session was requested.
       if (!active || !isOurs(field)) return
@@ -114,6 +120,9 @@ export default defineContentScript({
           return
         case "fillNew":
           fillNew(message)
+          return
+        case "usePasskey":
+          controlPasskeys("use")
           return
         case "menu.resize":
           menu.resize(message.height)
@@ -210,6 +219,25 @@ export default defineContentScript({
 
     let active = false
     let scanCodes = false
+    let takeOverPasskeys = false
+    /** Whether the page-world script holds a passkey request for the menu. */
+    let passkeyWaiting = false
+    let passkeyMode: PasskeyControl | null = null
+    const controlPasskeys = (control: PasskeyControl) =>
+      document.dispatchEvent(
+        new CustomEvent(PASSKEY_CONTROL_EVENT, { detail: control }),
+      )
+    /**
+     * Keeps the page's passkey request for the menu while this frame shows the menu on login
+     * fields; otherwise the browser lists passkeys itself.
+     */
+    const steerPasskeys = () => {
+      const next =
+        active && takeOverPasskeys && fields.length > 0 ? "hold" : "release"
+      if (next === passkeyMode) return
+      passkeyMode = next
+      controlPasskeys(next)
+    }
     let menuTrigger: ContentConfig["menuTrigger"] = "click"
     let observer: MutationObserver | null = null
     let rescan = 0
@@ -222,6 +250,7 @@ export default defineContentScript({
       if (found.length && codesAvailable === null) void checkCodes()
       codes = codesAvailable ? found : []
       icons.update([...fields, ...newPasswords, ...codes])
+      steerPasskeys()
     }
     /**
      * Asks once per configuration whether code fields should get the icon. A configuration follows
@@ -268,10 +297,13 @@ export default defineContentScript({
       newPasswords = []
       codes = []
       icons.update([])
+      steerPasskeys()
     }
     ctx.onInvalidated(() => {
       observer?.disconnect()
       clearTimeout(pending)
+      // The menu of this copy is gone; a newer copy of the script takes over in new pages only.
+      controlPasskeys("release")
     })
 
     let requested = 0
@@ -286,9 +318,11 @@ export default defineContentScript({
       icons.setLanguage(config.language)
       menuTrigger = config.menuTrigger
       scanCodes = config.scanCodes
+      takeOverPasskeys = config.takeOverPasskeys
       codesAvailable = null
       if (config.active === active) {
         if (active) scan()
+        else steerPasskeys()
         return
       }
       active = config.active
@@ -305,6 +339,17 @@ export default defineContentScript({
       )
         void configure()
     }
+    ctx.addEventListener(document, PASSKEY_STATE_EVENT, (event) => {
+      const waiting = (event as CustomEvent<unknown>).detail === "waiting"
+      if (waiting === passkeyWaiting) return
+      passkeyWaiting = waiting
+      // An open menu learned about the request when it opened, so it opens again to match.
+      const field = menu.openFor
+      if (field && fields.includes(field)) {
+        menu.close()
+        void openMenu(field).catch(() => {})
+      }
+    })
     browser.storage.local.onChanged.addListener(onStorage)
     onInvalidatedRemove(() =>
       browser.storage.local.onChanged.removeListener(onStorage),

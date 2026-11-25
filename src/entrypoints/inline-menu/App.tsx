@@ -1,4 +1,4 @@
-import { KeyRoundIcon, TimerIcon } from "lucide-react"
+import { FingerprintPatternIcon, KeyRoundIcon, TimerIcon } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
 import type { FieldKind, SourceView } from "@/background/api"
 import { useAppearance } from "@/components/keyward/appearance"
@@ -30,6 +30,7 @@ export function App() {
     kind: FieldKind
     sources: SourceView[]
     suggestion?: string
+    passkey?: boolean
   } | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
@@ -96,6 +97,8 @@ export function App() {
     run(loginId, () => callOverlay("menu.fill", { sourceId, loginId }))
   const fillSuggestion = () =>
     run(SUGGESTION_ID, () => callOverlay("menu.fillSuggestion", {}))
+  const signInWithPasskey = () =>
+    run(PASSKEY_ID, () => callOverlay("menu.usePasskey", {}))
 
   if (!language) return null
   const allSources = state?.sources ?? []
@@ -247,6 +250,34 @@ export function App() {
                 </section>
               ),
             )}
+            {state.passkey && (
+              <div className="border-t p-1 first:border-t-0">
+                <button
+                  type="button"
+                  role="menuitem"
+                  data-login
+                  disabled={busy !== null}
+                  onClick={() => void signInWithPasskey()}
+                  className={cn(
+                    "group/row flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left outline-none hover:bg-muted focus-visible:bg-muted disabled:cursor-wait",
+                    compact ? "min-h-9" : "min-h-12",
+                    busy === PASSKEY_ID && "bg-muted",
+                  )}
+                >
+                  <span
+                    className={cn(
+                      "flex shrink-0 items-center justify-center rounded-lg bg-muted group-hover/row:bg-background group-focus-visible/row:bg-background",
+                      compact ? "size-6" : "size-8",
+                    )}
+                  >
+                    <FingerprintPatternIcon className="size-4" />
+                  </span>
+                  <span className="truncate text-sm font-medium">
+                    {t("overlay.menu.passkey")}
+                  </span>
+                </button>
+              </div>
+            )}
             {busy && source(sources, busy)?.kind === "apple" && (
               <p className="px-3 pb-2 text-xs text-muted-foreground">
                 {t("overlay.menu.confirmTouchId")}
@@ -264,8 +295,9 @@ export function App() {
   )
 }
 
-/** The busy marker of the suggested password's row; login IDs never take this form. */
+/** The busy markers of the suggested password's and the passkey's rows; login IDs never take this form. */
 const SUGGESTION_ID = "\nsuggestion"
+const PASSKEY_ID = "\npasskey"
 
 function source(
   sources: SourceView[],

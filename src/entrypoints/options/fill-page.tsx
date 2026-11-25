@@ -86,6 +86,18 @@ export function FillPage() {
               }
             />
           </Option>
+          <Option
+            name={t("options.fill.takeOverPasskeys.name")}
+            description={t("options.fill.takeOverPasskeys.description")}
+          >
+            <Switch
+              aria-label={t("options.fill.takeOverPasskeys.name")}
+              checked={settings.takeOverPasskeys}
+              onCheckedChange={(checked) =>
+                update({ takeOverPasskeys: checked })
+              }
+            />
+          </Option>
         </Card>
       </Section>
       <Section title={t("options.fill.autofill.title")}>

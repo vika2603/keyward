@@ -70,6 +70,8 @@ export interface MenuSession extends OverlayBase {
   newPassword?: boolean
   /** The generated password the menu offers, kept so the fill uses the one shown. */
   suggestion?: string
+  /** Whether the page waits for a passkey sign-in, which the menu offers. */
+  passkey?: boolean
 }
 
 export interface PromptSession extends OverlayBase {
