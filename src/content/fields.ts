@@ -7,9 +7,9 @@ import type { FillField } from "@/lib/providers/types"
 
 const TEXT_TYPES = new Set(["text", "email", "tel", ""])
 const USERNAME_HINT =
-  /user|email|e-mail|login|account|identifier|phone|mobile|账号|帳號|用户|手机|邮箱/i
+  /user|email|e-mail|login|account|identifier|phone|mobile|账号|帳號|用户|手机|邮箱|邮件|郵件/i
 const EXCLUDED_HINT =
-  /search|captcha|otp|one-time|verification|code|coupon|promo|card|cvv|zip|postal|address/i
+  /search|captcha|otp|one-time|verification|code|coupon|promo|card|cvv|zip|postal|address|验证码|驗證碼/i
 const CODE_TYPES = new Set(["text", "tel", "number", "password", ""])
 const CODE_HINT =
   /one-?time|otp|2fa|mfa|two-?factor|totp|authenticator|verif\w*[\s_-]*code|auth\w*[\s_-]*code|passcode|验证码|驗證碼|动态码|動態碼|校验码/i
@@ -36,6 +36,10 @@ const CONFIRM_PASSWORD_HINT =
   /\b(confirm|confirmation|repeat|retype|again|verify)\b|确认|確認|重复|重複|再次/i
 const CURRENT_PASSWORD_HINT =
   /\b(current|old|existing|previous)\b|当前|目前|旧密码|舊密碼|原密码|原密碼/i
+/** A link sign-in forms have and sign-up forms do not. */
+const FORGOT_PASSWORD_HINT = /\bforgot\b|忘记密码|忘記密碼|找回密码|找回密碼/i
+/** Text beyond this length belongs to more of the page than a form and its own links. */
+const SURROUNDING_TEXT_MAX = 2000
 
 export function isVisible(element: HTMLElement): boolean {
   if (!element.isConnected) return false
@@ -160,6 +164,28 @@ function composedClosest(element: Element, selector: string): Element | null {
   return null
 }
 
+function composedParent(element: Element): Element | null {
+  if (element.parentElement) return element.parentElement
+  const root = element.getRootNode()
+  return root instanceof ShadowRoot ? root.host : null
+}
+
+/**
+ * Whether a forgot-password link sits around a password field, with no other password field closer:
+ * the field is a sign-in form's, though the page may mark it `new-password` to keep the browser's
+ * own autofill away. The link is often outside the `<form>`, so the search climbs past it.
+ */
+function nearForgotPassword(password: HTMLInputElement): boolean {
+  for (let node = composedParent(password); node; node = composedParent(node)) {
+    const others = node.querySelectorAll('input[type="password"]')
+    if ([...others].some((field) => field !== password)) return false
+    const text = node.textContent ?? ""
+    if (text.length > SURROUNDING_TEXT_MAX) return false
+    if (FORGOT_PASSWORD_HINT.test(text)) return true
+  }
+  return false
+}
+
 function formOf(element: Element): HTMLFormElement | null {
   if (element instanceof HTMLInputElement && element.form) return element.form
   const form = composedClosest(element, "form")
@@ -218,7 +244,8 @@ class Scopes {
 
   /**
    * Whether a password field takes a new password: the page or the field's name says so, or its
-   * form has more password fields. Three fields are the current password, a new one and its
+   * form has more password fields. A page's `new-password` mark is overruled by a forgot-password
+   * link around the field. Three fields are the current password, a new one and its
    * confirmation. Two are either a new password and its confirmation, as on sign-up, or the current
    * password and a new one; the first field counts as new only when the second asks to confirm it
    * or a username comes before it. Taking a current password for a new one would let a suggested
@@ -226,7 +253,10 @@ class Scopes {
    */
   isNewPassword(input: HTMLInputElement): boolean {
     if (hasAutocomplete(input, "current-password")) return false
-    if (isNewPassword(input)) return true
+    if (isNewPassword(input))
+      return (
+        NEW_PASSWORD_HINT.test(hintWords(input)) || !nearForgotPassword(input)
+      )
     const text = hintWords(input)
     if (CURRENT_PASSWORD_HINT.test(text)) return false
     if (NEW_PASSWORD_HINT.test(text)) return true
