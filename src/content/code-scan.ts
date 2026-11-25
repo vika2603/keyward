@@ -1,4 +1,5 @@
 import type { ContentScriptContext } from "wxt/utils/content-script-context"
+import type { BackgroundApi } from "@/background/api"
 import { eventOrigin } from "./deep-dom"
 
 const SVG_NS = "http://www.w3.org/2000/svg"
@@ -10,7 +11,8 @@ const HOVER_DELAY_MS = 120
 /** How far width and height may differ, as a share of the longer side, for a square picture. */
 const SQUARE_TOLERANCE = 0.2
 
-type CodeCandidate = { uri: string } | { image: string } | null
+/** What the pointer rests on, as the background takes it; null when it offers nothing. */
+type CodeCandidate = BackgroundApi["content.codeCandidate"]["payload"] | null
 
 function isSquarish(width: number, height: number): boolean {
   return (
