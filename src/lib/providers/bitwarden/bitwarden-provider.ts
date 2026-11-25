@@ -20,6 +20,7 @@ import {
   type OneTimeCode,
   type PastPassword,
   type TabRef,
+  type TrashedItem,
   VaultError,
   type VaultGroups,
   type VaultInfo,
@@ -61,6 +62,7 @@ import {
   decryptPassword,
   decryptPasswordHistory,
   decryptTotp,
+  decryptTrashed,
   type ItemChange,
   itemUpdateRequest,
   type LoginItem,
@@ -71,6 +73,7 @@ import {
   newNoteRequest,
   noteCiphers,
   textMatchesQuery,
+  trashedCiphers,
   VaultKeys,
 } from "./vault"
 import { accountIdOfVault, vaultIdOf } from "./vault-id"
@@ -117,6 +120,7 @@ interface Vault {
   syncedAt: number
   keys: VaultKeys
   groups: VaultGroups
+  trashed: TrashedItem[]
   items: LoginItem[]
   ciphers: Record<string, unknown>[]
   notes: NoteItem[]
@@ -504,6 +508,9 @@ export class BitwardenProvider implements VaultProvider {
       syncedAt: stored.syncedAt,
       keys,
       groups: decryptGroups(stored.data, keys),
+      trashed: decryptEach(trashedCiphers(stored.data), (cipher) =>
+        decryptTrashed(cipher, keys),
+      ),
       items,
       ciphers,
       notes,
@@ -559,12 +566,16 @@ export class BitwardenProvider implements VaultProvider {
     logins: LoginSummary[]
     notes: NoteSummary[]
     groups: VaultGroups
+    trashed: TrashedItem[]
   }> {
-    const { items, notes, groups } = await this.vault(accountIdOfVault(vaultId))
+    const { items, notes, groups, trashed } = await this.vault(
+      accountIdOfVault(vaultId),
+    )
     return {
       logins: items.map(summaryOf),
       notes: notes.map(noteSummaryOf),
       groups,
+      trashed,
     }
   }
 
@@ -839,6 +850,38 @@ export class BitwardenProvider implements VaultProvider {
       folderId: typeof folderId === "string" && folderId ? folderId : null,
       favorite,
     })
+    await this.sync(accountId)
+  }
+
+  /** A trashed item Keyward may restore or delete. */
+  private async trashedItem(
+    vaultId: string,
+    itemId: string,
+  ): Promise<TrashedItem> {
+    const { trashed } = await this.vault(accountIdOfVault(vaultId))
+    const item = trashed.find((candidate) => candidate.id === itemId)
+    if (!item) throw new VaultError("Not in the trash", "notFound")
+    if (!item.editable) throw new VaultError("Read-only item", "notEditable")
+    return item
+  }
+
+  async restore(vaultId: string, itemId: string): Promise<void> {
+    await this.trashedItem(vaultId, itemId)
+    const accountId = accountIdOfVault(vaultId)
+    const account = await this.account(accountId)
+    await new BitwardenApi(
+      serverUrls(account.server, account.endpoints),
+    ).restoreCipher(await this.accessToken(account), itemId)
+    await this.sync(accountId)
+  }
+
+  async purge(vaultId: string, itemId: string): Promise<void> {
+    await this.trashedItem(vaultId, itemId)
+    const accountId = accountIdOfVault(vaultId)
+    const account = await this.account(accountId)
+    await new BitwardenApi(
+      serverUrls(account.server, account.endpoints),
+    ).deleteCipher(await this.accessToken(account), itemId)
     await this.sync(accountId)
   }
 

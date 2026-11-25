@@ -170,6 +170,20 @@ export interface NewLoginDetails {
   folderId: string | null
 }
 
+/** A login or note in the provider's trash. */
+export interface TrashedItem {
+  id: string
+  kind: "login" | "note"
+  name: string
+  username?: string
+  /** The host of a login's site, for its icon. */
+  host?: string
+  /** Milliseconds since the epoch. */
+  deletedAt?: number
+  /** Whether Keyward may restore or delete it; read-only items of an organization stay as they are. */
+  editable: boolean
+}
+
 /** A folder an item can be filed in. */
 export interface Folder {
   id: string
@@ -258,6 +272,7 @@ export interface VaultProvider {
     logins: LoginSummary[]
     notes: NoteSummary[]
     groups?: VaultGroups
+    trashed?: TrashedItem[]
   }>
   /** Secure notes whose name contains every word of the query; only providers with notes have these. */
   searchNotes?(vaultId: string, query: string): Promise<NoteSummary[]>
@@ -272,6 +287,10 @@ export interface VaultProvider {
   remove?(vaultId: string, loginId: string): Promise<void>
   /** The folders new items can be filed in; only providers with folders have these. */
   folders?(vaultId: string): Promise<Folder[]>
+  /** Takes a login or note out of the trash. */
+  restore?(vaultId: string, itemId: string): Promise<void>
+  /** Deletes a login or note in the trash for good. */
+  purge?(vaultId: string, itemId: string): Promise<void>
   /** Stars a login or note, or takes its star away. */
   setFavorite?(
     vaultId: string,

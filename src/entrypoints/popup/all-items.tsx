@@ -20,12 +20,16 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { currentLanguage, type MessageKey, t } from "@/lib/i18n"
-import type { LoginSummary, NoteSummary } from "@/lib/providers/types"
+import type {
+  LoginSummary,
+  NoteSummary,
+  TrashedItem,
+} from "@/lib/providers/types"
 import type { Settings } from "@/lib/settings"
 import { cn } from "@/lib/utils"
-import { LoginRow, NoteRow } from "./item-rows"
+import { LoginRow, NoteRow, TrashedRow } from "./item-rows"
 
-type ItemKind = "all" | "favorites" | "logins" | "notes"
+type ItemKind = "all" | "favorites" | "logins" | "notes" | "trash"
 /** What the list shows: the site's items, or every item of a kind. */
 export type ItemFilter = "site" | ItemKind
 
@@ -34,11 +38,13 @@ const KIND_LABELS: Record<ItemKind, MessageKey> = {
   favorites: "popup.main.itemKind.favorites",
   logins: "popup.main.itemKind.logins",
   notes: "popup.main.itemKind.notes",
+  trash: "popup.main.itemKind.trash",
 }
 
 type ItemRow =
   | { type: "login"; vault: VaultView; login: LoginSummary; name: string }
   | { type: "note"; vault: VaultView; note: NoteSummary; name: string }
+  | { type: "trashed"; vault: VaultView; item: TrashedItem; name: string }
 
 export type Row =
   | ItemRow
@@ -102,13 +108,24 @@ function rowsOf(
             note,
             name: note.name,
           }))
-    const items = [...logins, ...notes]
-      .filter(
-        (item) =>
-          kind !== "favorites" ||
-          (item.type === "login" ? item.login.favorite : item.note.favorite),
-      )
-      .sort((first, second) => collator.compare(first.name, second.name))
+    const items: ItemRow[] =
+      kind === "trash"
+        ? // The trash lists what was deleted last first.
+          (vault.trashed ?? [])
+            .toSorted(
+              (first, second) =>
+                (second.deletedAt ?? 0) - (first.deletedAt ?? 0),
+            )
+            .map((item) => ({ type: "trashed", vault, item, name: item.name }))
+        : [...logins, ...notes]
+            .filter(
+              (item) =>
+                kind !== "favorites" ||
+                (item.type === "login"
+                  ? item.login.favorite
+                  : item.type === "note" && item.note.favorite),
+            )
+            .sort((first, second) => collator.compare(first.name, second.name))
     itemCount += items.length
     const open = vaults.length === 1 || !foldedVaults.has(vault.id)
     if (vaults.length > 1)
@@ -143,6 +160,8 @@ function keyOf(row: Row): string {
       return `login:${row.vault.id}:${row.login.id}`
     case "note":
       return `note:${row.vault.id}:${row.note.id}`
+    case "trashed":
+      return `trashed:${row.vault.id}:${row.item.id}`
   }
 }
 
@@ -159,6 +178,7 @@ export function VirtualRows({
   onToggleVault,
   onOpenLogin,
   onOpenNote,
+  onChanged,
 }: {
   rows: readonly Row[]
   density: Settings["density"]
@@ -170,6 +190,8 @@ export function VirtualRows({
   onToggleVault?: (vaultId: string) => void
   onOpenLogin: (vault: VaultView, login: LoginSummary) => void
   onOpenNote: (vault: VaultView, note: NoteSummary) => void
+  /** An item left the trash; the list loads again. */
+  onChanged?: () => void
 }) {
   const listRef = useRef<HTMLDivElement>(null)
   /** How far the rows start below the top of the scrolled content. */
@@ -260,6 +282,14 @@ export function VirtualRows({
                 onOpen={() => onOpenLogin(row.vault, row.login)}
               />
             )}
+            {row.type === "trashed" && (
+              <TrashedRow
+                vault={row.vault}
+                item={row.item}
+                density={density}
+                onChanged={() => onChanged?.()}
+              />
+            )}
             {row.type === "note" && (
               <NoteRow
                 vault={row.vault}
@@ -290,6 +320,7 @@ export function ItemBrowser({
   scrollElement,
   onOpenLogin,
   onOpenNote,
+  onChanged,
 }: {
   vaults: readonly VaultView[]
   /** The page's host; the filter offers the site's items only when there is one. */
@@ -304,8 +335,11 @@ export function ItemBrowser({
   scrollElement: RefObject<HTMLDivElement | null>
   onOpenLogin: (vault: VaultView, login: LoginSummary) => void
   onOpenNote: (vault: VaultView, note: NoteSummary) => void
+  /** Something in the vaults changed from the list, as a restore from the trash. */
+  onChanged: () => void
 }) {
   const hasNotes = vaults.some((vault) => vault.notes?.length)
+  const hasTrash = vaults.some((vault) => vault.trashed?.length)
   const hasFavorites = vaults.some(
     (vault) =>
       vault.logins.some((login) => login.favorite) ||
@@ -316,6 +350,7 @@ export function ItemBrowser({
     "all",
     ...(hasFavorites ? (["favorites"] as const) : []),
     ...(hasNotes ? (["logins", "notes"] as const) : []),
+    ...(hasTrash ? (["trash"] as const) : []),
   ]
   const filter =
     chosen && filters.includes(chosen)
@@ -398,6 +433,7 @@ export function ItemBrowser({
           onToggleVault={toggleVault}
           onOpenLogin={onOpenLogin}
           onOpenNote={onOpenNote}
+          onChanged={onChanged}
         />
       )}
     </section>

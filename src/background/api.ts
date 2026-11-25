@@ -23,6 +23,7 @@ import type {
   OneTimeCode,
   PastPassword,
   ProviderKind,
+  TrashedItem,
   VaultGroups,
   VaultInfo,
 } from "@/lib/providers/types"
@@ -33,6 +34,8 @@ export interface VaultView extends VaultInfo {
   notes?: NoteSummary[]
   /** Given with the whole vault, by providers that group their items. */
   groups?: VaultGroups
+  /** Given with the whole vault, by providers with a trash. */
+  trashed?: TrashedItem[]
 }
 
 export type PopupView =
@@ -160,6 +163,16 @@ export type BackgroundApi = {
   }
   "popup.editLogin": {
     payload: { vaultId: string; loginId: string; change: LoginEdit }
+    result: null
+  }
+  /** Takes a login or note out of the trash. */
+  "popup.restoreItem": {
+    payload: { vaultId: string; itemId: string }
+    result: null
+  }
+  /** Deletes a login or note in the trash for good. */
+  "popup.purgeItem": {
+    payload: { vaultId: string; itemId: string }
     result: null
   }
   /** Stars a login or a note, or takes its star away. */

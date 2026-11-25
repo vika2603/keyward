@@ -1,8 +1,10 @@
 import {
+  ArchiveRestoreIcon,
   CheckIcon,
   CopyIcon,
   KeyRoundIcon,
   TimerIcon,
+  Trash2Icon,
   UserIcon,
 } from "lucide-react"
 import { useState } from "react"
@@ -12,14 +14,129 @@ import { NoteIcon } from "@/components/keyward/note-icon"
 import { notify, notifyError } from "@/components/keyward/notify"
 import { SiteIcon } from "@/components/keyward/site-icon"
 import { Button } from "@/components/ui/button"
-import { t } from "@/lib/i18n"
+import { currentLanguage, t } from "@/lib/i18n"
 import type {
   LoginSummary,
   NoteSummary,
+  TrashedItem,
   VaultInfo,
 } from "@/lib/providers/types"
 import type { Settings } from "@/lib/settings"
 import { cn } from "@/lib/utils"
+
+/**
+ * A login or note in the trash: restored from one button, deleted for good from another that asks
+ * for a second click. Read-only items of an organization only say why they stay.
+ */
+export function TrashedRow({
+  vault,
+  item,
+  density,
+  onChanged,
+}: {
+  vault: VaultInfo
+  item: TrashedItem
+  density: Settings["density"]
+  /** The item left the trash; the list loads again. */
+  onChanged: () => void
+}) {
+  const [busy, setBusy] = useState(false)
+  /** The delete button was clicked once and waits for the second click. */
+  const [armed, setArmed] = useState(false)
+  const compact = density === "compact"
+  const ids = { vaultId: vault.id, itemId: item.id }
+  const detail = !item.editable
+    ? t("popup.trash.readOnly")
+    : item.deletedAt === undefined
+      ? (item.username ?? "")
+      : t("popup.trash.deletedOn", {
+          date: new Intl.DateTimeFormat(currentLanguage(), {
+            dateStyle: "medium",
+          }).format(item.deletedAt),
+        })
+
+  const run = async (action: "restore" | "purge") => {
+    setBusy(true)
+    try {
+      if (action === "restore") await callBackground("popup.restoreItem", ids)
+      else await callBackground("popup.purgeItem", ids)
+      notify(
+        action === "restore"
+          ? t("popup.trash.restored", { name: item.name })
+          : t("popup.trash.purged", { name: item.name }),
+      )
+      onChanged()
+    } catch (error) {
+      notifyError(error)
+    } finally {
+      setBusy(false)
+      setArmed(false)
+    }
+  }
+
+  return (
+    <div
+      className={cn(
+        "group/row flex items-center gap-2.5 rounded-lg px-2 py-1.5 hover:bg-muted focus-within:bg-muted",
+        compact ? "min-h-9" : "min-h-12",
+      )}
+    >
+      {item.kind === "login" ? (
+        <SiteIcon
+          host={item.host}
+          text={item.name}
+          className={cn(
+            "group-hover/row:bg-background group-focus-within/row:bg-background",
+            compact && "size-6",
+          )}
+        />
+      ) : (
+        <NoteIcon
+          className={cn(
+            "group-hover/row:bg-background group-focus-within/row:bg-background",
+            compact && "size-6",
+          )}
+        />
+      )}
+      <LoginLabel username={item.name} detail={detail} compact={compact} />
+      {item.editable && (
+        <div
+          className={cn(
+            "flex shrink-0 items-center gap-0.5 opacity-0 group-hover/row:opacity-100 group-focus-within/row:opacity-100",
+            armed && "opacity-100",
+          )}
+        >
+          {!armed && (
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              className="hover:bg-background"
+              aria-label={t("popup.trash.restore")}
+              title={t("popup.trash.restore")}
+              disabled={busy}
+              onClick={() => void run("restore")}
+            >
+              <ArchiveRestoreIcon />
+            </Button>
+          )}
+          <Button
+            variant={armed ? "destructive" : "ghost"}
+            size={armed ? "sm" : "icon-sm"}
+            className={cn(!armed && "hover:bg-background")}
+            aria-label={t("popup.trash.purge")}
+            title={t("popup.trash.purge")}
+            disabled={busy}
+            onClick={() => (armed ? void run("purge") : setArmed(true))}
+            onBlur={() => setArmed(false)}
+          >
+            <Trash2Icon />
+            {armed && t("popup.trash.confirmPurge")}
+          </Button>
+        </div>
+      )}
+    </div>
+  )
+}
 
 /** A secure note in a list: opens on click, and copies its text from a button. */
 export function NoteRow({

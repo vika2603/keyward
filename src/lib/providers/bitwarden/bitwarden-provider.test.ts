@@ -73,6 +73,26 @@ const ciphers = [
     },
     { Edit: false, FolderId: "folder-1" },
   ),
+  cipher(
+    "item-4",
+    {
+      name: "Thrown Away",
+      username: "former",
+      password: "not-a-real-password",
+      uri: "https://old.example.com",
+    },
+    { DeletedDate: "2026-11-01T08:00:00.000Z" },
+  ),
+  cipher(
+    "item-5",
+    {
+      name: "Shared Thrown Away",
+      username: "reader",
+      password: "not-a-real-password",
+      uri: "https://old.example.com",
+    },
+    { DeletedDate: "2026-11-01T08:00:00.000Z", Edit: false },
+  ),
 ]
 
 /** Requests the provider sent, with JSON bodies parsed. */
@@ -269,6 +289,46 @@ describe("save", () => {
         tab,
       ),
     ).rejects.toMatchObject({ code: "notFound" })
+    expect(writes()).toEqual([])
+  })
+})
+
+describe("trash", () => {
+  it("lists trashed items apart from the vault's items", async () => {
+    const { logins, trashed } = await provider().allItems(VAULT)
+    expect(logins.map((login) => login.id)).not.toContain("item-4")
+    expect(trashed).toEqual([
+      expect.objectContaining({
+        id: "item-4",
+        kind: "login",
+        name: "Thrown Away",
+        username: "former",
+        host: "old.example.com",
+        deletedAt: Date.parse("2026-11-01T08:00:00.000Z"),
+        editable: true,
+      }),
+      expect.objectContaining({ id: "item-5", editable: false }),
+    ])
+  })
+
+  it("restores an item and deletes one for good", async () => {
+    const bw = provider()
+    await bw.restore(VAULT, "item-4")
+    await bw.purge(VAULT, "item-4")
+    expect(writes().map((write) => [write.method, write.url])).toEqual([
+      ["PUT", `${SERVER}/api/ciphers/item-4/restore`],
+      ["DELETE", `${SERVER}/api/ciphers/item-4`],
+    ])
+  })
+
+  it("leaves read-only items and items outside the trash alone", async () => {
+    const bw = provider()
+    await expect(bw.purge(VAULT, "item-5")).rejects.toMatchObject({
+      code: "notEditable",
+    })
+    await expect(bw.purge(VAULT, "item-1")).rejects.toMatchObject({
+      code: "notFound",
+    })
     expect(writes()).toEqual([])
   })
 })

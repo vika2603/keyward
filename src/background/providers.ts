@@ -106,6 +106,7 @@ export class Providers {
             logins: items?.logins ?? [],
             notes: items?.notes,
             groups: items?.groups,
+            trashed: items?.trashed,
           }
         } catch (error) {
           if (error instanceof VaultError && error.code === "locked")

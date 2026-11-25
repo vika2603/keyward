@@ -309,6 +309,32 @@ export class BitwardenApi {
     )
   }
 
+  /** Takes an item out of the trash. */
+  async restoreCipher(
+    accessToken: string,
+    id: string,
+  ): Promise<Record<string, unknown>> {
+    return this.expectJson(
+      await this.send(
+        `${this.urls.api}/ciphers/${encodeURIComponent(id)}/restore`,
+        { method: "PUT", accessToken },
+      ),
+    )
+  }
+
+  /** Deletes an item for good; the server answers without a body. */
+  async deleteCipher(accessToken: string, id: string): Promise<void> {
+    const response = await this.send(
+      `${this.urls.api}/ciphers/${encodeURIComponent(id)}`,
+      { method: "DELETE", accessToken },
+    )
+    if (!response.ok)
+      throw new ApiError(
+        response.status,
+        await this.json(response).catch(() => null),
+      )
+  }
+
   /** Moves an item to the trash; the server answers without a body. */
   async trashCipher(accessToken: string, id: string): Promise<void> {
     const response = await this.send(

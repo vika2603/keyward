@@ -373,6 +373,24 @@ export function createHandlers(providers: Providers): Handlers<BackgroundApi> {
         return provider.folders ? provider.folders(vaultId) : []
       },
     },
+    "popup.restoreItem": {
+      allow: popup,
+      handle: async ({ vaultId, itemId }) => {
+        const provider = providers.providerOf(vaultId)
+        if (!provider.restore) throw notEditable()
+        await provider.restore(vaultId, requireText(itemId, "itemId"))
+        return null
+      },
+    },
+    "popup.purgeItem": {
+      allow: popup,
+      handle: async ({ vaultId, itemId }) => {
+        const provider = providers.providerOf(vaultId)
+        if (!provider.purge) throw notEditable()
+        await provider.purge(vaultId, requireText(itemId, "itemId"))
+        return null
+      },
+    },
     "popup.setFavorite": {
       allow: popup,
       handle: async ({ vaultId, itemId, favorite }) => {

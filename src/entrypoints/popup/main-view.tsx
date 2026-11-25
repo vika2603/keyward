@@ -472,6 +472,7 @@ export function MainView({
               siteItemCount={siteItemCount}
               chosen={itemFilter}
               onChoose={chooseItemFilter}
+              onChanged={load}
               site={
                 listed.length ? (
                   listed.map((vault) => (

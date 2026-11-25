@@ -3,10 +3,12 @@ import type {
   EditableNote,
   ItemGrouping,
   PastPassword,
+  TrashedItem,
   VaultGroups,
   Website,
 } from "@/lib/providers/types"
 import { MatchType } from "@/lib/settings"
+import { hostOfSavedUri } from "@/lib/site"
 import { pick, prop } from "./api"
 import type { VaultCrypto } from "./crypto"
 
@@ -91,6 +93,42 @@ export class VaultKeys {
 
   encrypt(value: string, key: Uint8Array): string | null {
     return value ? this.crypto.encryptString(value, key) : null
+  }
+}
+
+/** Logins and notes in the trash, archived or not. */
+export function trashedCiphers(sync: unknown): Record<string, unknown>[] {
+  const ciphers = prop(sync, "Ciphers")
+  if (!Array.isArray(ciphers)) return []
+  return ciphers.filter(
+    (cipher) =>
+      (prop(cipher, "Type") === CIPHER_TYPE_LOGIN ||
+        prop(cipher, "Type") === CIPHER_TYPE_SECURE_NOTE) &&
+      Boolean(prop(cipher, "DeletedDate")),
+  )
+}
+
+/** A trashed login or note as the trash lists it; its secrets stay encrypted. */
+export function decryptTrashed(
+  cipher: Record<string, unknown>,
+  keys: VaultKeys,
+): TrashedItem {
+  const common = {
+    id: String(prop(cipher, "Id")),
+    deletedAt: timeOf(prop(cipher, "DeletedDate")),
+    editable: prop(cipher, "Edit") !== false,
+  }
+  if (prop(cipher, "Type") === CIPHER_TYPE_SECURE_NOTE)
+    return { ...common, kind: "note", name: decryptNote(cipher, keys).name }
+  const login = decryptLogin(cipher, keys)
+  return {
+    ...common,
+    kind: "login",
+    name: login.name,
+    username: login.username,
+    host:
+      login.uris.map((u) => hostOfSavedUri(u.uri)).find((h) => h !== null) ??
+      undefined,
   }
 }
 
