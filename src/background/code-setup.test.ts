@@ -25,7 +25,7 @@ beforeEach(() => {
   const menus = fakeBrowser.contextMenus as unknown as Record<string, unknown>
   menus.create = vi.fn()
   menus.update = vi.fn(async () => {})
-  menus.removeAll = vi.fn(async () => {})
+  menus.remove = vi.fn(async () => {})
   menus.onClicked = {
     addListener: (listener: Clicked) => {
       clicked = listener

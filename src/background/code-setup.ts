@@ -116,7 +116,8 @@ export async function finishSetup(): Promise<void> {
 export function watchCodeSetup(openPopup: (view: PopupView) => void): void {
   const create = async () => {
     const { language } = await getSettings()
-    await browser.contextMenus.removeAll()
+    // Menus outlive the service worker; this one is made again, and the extension's others stay.
+    await browser.contextMenus.remove(MENU_ID).catch(() => {})
     browser.contextMenus.create({
       id: MENU_ID,
       title: MENU_TITLES[resolveLanguage(language)],

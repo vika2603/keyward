@@ -62,6 +62,9 @@ export const en = {
   "options.fill.crossOriginFrames.name": "Show in cross-origin frames",
   "options.fill.crossOriginFrames.description":
     "Also offer suggestions when a login form is embedded in a frame from another domain.",
+  "options.fill.contextMenu.name": "Right-click menu",
+  "options.fill.contextMenu.description":
+    "Fill the page's logins, copy their usernames, passwords and verification codes, or generate a password from the browser's right-click menu.",
   "options.fill.takeOverPasskeys.name": "Offer passkeys in the menu",
   "options.fill.takeOverPasskeys.description":
     "On sites where you have signed in with a passkey in this browser, Chrome's passkey list under the field is replaced by \"Sign in with a passkey\" in the menu, which opens Chrome's passkey dialog. Other sites keep Chrome's list, which appears only when you have a passkey there.",
@@ -283,6 +286,9 @@ export const zhCN: Record<keyof typeof en, string> = {
   "options.fill.crossOriginFrames.name": "在跨域框架中显示",
   "options.fill.crossOriginFrames.description":
     "登录框嵌在其他域名的框架里时也提供候选。",
+  "options.fill.contextMenu.name": "右键菜单",
+  "options.fill.contextMenu.description":
+    "在浏览器的右键菜单里填充当前页面的登录，复制用户名、密码和验证码，或生成密码。",
   "options.fill.takeOverPasskeys.name": "在菜单里提供通行密钥",
   "options.fill.takeOverPasskeys.description":
     "在这个浏览器里用通行密钥登录过的网站，Chrome 不再在输入框下列出通行密钥，改为在菜单里点「使用通行密钥登录」，再由 Chrome 的通行密钥窗口验证。其他网站仍用 Chrome 的列表，它只在你有通行密钥时出现。",

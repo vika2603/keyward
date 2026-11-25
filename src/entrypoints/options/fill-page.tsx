@@ -98,6 +98,16 @@ export function FillPage() {
               }
             />
           </Option>
+          <Option
+            name={t("options.fill.contextMenu.name")}
+            description={t("options.fill.contextMenu.description")}
+          >
+            <Switch
+              aria-label={t("options.fill.contextMenu.name")}
+              checked={settings.contextMenu}
+              onCheckedChange={(checked) => update({ contextMenu: checked })}
+            />
+          </Option>
         </Card>
       </Section>
       <Section title={t("options.fill.autofill.title")}>

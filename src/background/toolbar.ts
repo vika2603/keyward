@@ -1,3 +1,4 @@
+import type { VaultView } from "./api"
 import { activeTab, webPage } from "./page"
 import type { Providers } from "./providers"
 
@@ -39,7 +40,11 @@ function fadedIcon(): Promise<Record<number, ImageData>> {
  * tab's number of logins on its badge. Returns a function that asks for a refresh, for changes the
  * tab events do not cover, such as an unlock.
  */
-export function watchToolbar(providers: Providers): () => void {
+export function watchToolbar(
+  providers: Providers,
+  /** Told the active page's logins after each refresh. */
+  onLogins?: (vaults: VaultView[]) => unknown,
+): () => void {
   void browser.action.setBadgeBackgroundColor({ color: BADGE_COLOR })
   void browser.action.setBadgeTextColor?.({ color: "#ffffff" })
 
@@ -50,6 +55,7 @@ export function watchToolbar(providers: Providers): () => void {
     const vaults = await providers.loginsForPage(webPage(tab?.url), {
       passive: true,
     })
+    void Promise.resolve(onLogins?.(vaults)).catch(() => {})
     const anyReady = vaults.some((vault) => vault.status === "ready")
     if (anyReady !== ready) {
       ready = anyReady

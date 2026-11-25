@@ -12,6 +12,7 @@ import { fillFirst } from "./autofill"
 import { CLEAR_CLIPBOARD_ALARM, clearClipboard } from "./clipboard"
 import { watchCodeSetup } from "./code-setup"
 import { createHandlers, openPopup } from "./handlers"
+import { LoginMenus } from "./login-menus"
 import { menus } from "./overlays"
 import { Providers } from "./providers"
 import { forgetTab } from "./save-flow"
@@ -57,7 +58,10 @@ export function startBackground(): void {
   const providers = new Providers(apple, bitwarden)
 
   serveRequests(createHandlers(providers), errorCode)
-  const refreshToolbar = watchToolbar(providers)
+  const loginMenus = new LoginMenus(providers)
+  const refreshToolbar = watchToolbar(providers, (vaults) =>
+    loginMenus.show(vaults),
+  )
   watchCodeSetup((view) => void openPopup(view).catch(() => {}))
 
   let announcing: ReturnType<typeof setTimeout> | undefined
