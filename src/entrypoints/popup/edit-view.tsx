@@ -1,4 +1,10 @@
-import { PlusIcon, RefreshCcwDotIcon, XIcon } from "lucide-react"
+import {
+  EyeIcon,
+  EyeOffIcon,
+  PlusIcon,
+  RefreshCcwDotIcon,
+  XIcon,
+} from "lucide-react"
 import { type ReactNode, useEffect, useState } from "react"
 import { callBackground } from "@/background/api"
 import { errorMessage } from "@/components/keyward/errors"
@@ -49,6 +55,8 @@ export function EditView({
   const [form, setForm] = useState<EditableLogin | null>(null)
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
+  /** The password shows only when asked for, or once a new one was generated. */
+  const [revealed, setRevealed] = useState(false)
 
   useEffect(() => {
     callBackground("popup.editable", {
@@ -69,6 +77,7 @@ export function EditView({
   const generate = async () => {
     const generated = generatePassword(await generatorOptionsItem.getValue())
     update({ password: generated })
+    setRevealed(true)
     await callBackground("generator.record", {
       password: generated,
       site: login.host ?? "",
@@ -137,23 +146,43 @@ export function EditView({
               <div className="relative">
                 <Input
                   id="edit-password"
-                  className="pr-9 font-mono"
+                  type={revealed ? "text" : "password"}
+                  className="pr-16 font-mono"
                   value={form.password}
                   onChange={(event) => update({ password: event.target.value })}
                   autoComplete="off"
                   spellCheck={false}
                 />
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-sm"
-                  className="absolute top-0.5 right-0.5"
-                  aria-label={t("popup.add.generate")}
-                  title={t("popup.add.generate")}
-                  onClick={() => void generate()}
-                >
-                  <RefreshCcwDotIcon />
-                </Button>
+                <div className="absolute top-0.5 right-0.5 flex">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label={
+                      revealed
+                        ? t("popup.detail.hidePassword")
+                        : t("popup.detail.showPassword")
+                    }
+                    title={
+                      revealed
+                        ? t("popup.detail.hidePassword")
+                        : t("popup.detail.showPassword")
+                    }
+                    onClick={() => setRevealed((value) => !value)}
+                  >
+                    {revealed ? <EyeOffIcon /> : <EyeIcon />}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label={t("popup.add.generate")}
+                    title={t("popup.add.generate")}
+                    onClick={() => void generate()}
+                  >
+                    <RefreshCcwDotIcon />
+                  </Button>
+                </div>
               </div>
             </Field>
             <Field label={t("popup.detail.websites")}>
@@ -214,7 +243,7 @@ export function EditView({
                 rows={3}
                 value={form.notes}
                 onChange={(event) => update({ notes: event.target.value })}
-                className="w-full min-w-0 resize-y rounded-lg border border-input bg-transparent px-2.5 py-1.5 text-sm outline-none placeholder:text-muted-foreground focus-visible:border-ring dark:bg-input/30"
+                className="w-full min-w-0 resize-y rounded-lg border border-input bg-transparent px-2.5 py-1.5 text-sm outline-none placeholder:text-muted-foreground focus-visible:border-foreground/35 focus-visible:ring-3 focus-visible:ring-foreground/6 dark:bg-input/30"
               />
             </Field>
           </div>

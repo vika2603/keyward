@@ -7,7 +7,7 @@ import type { ContentConfig, FieldInfo } from "./api"
 import type { Backends } from "./backends"
 import { addHistory } from "./history"
 import { activeTab, frameUrl, sendToFrame } from "./page"
-import { rememberUsername } from "./save-flow"
+import { markRecent, recallUsername, rememberUsername } from "./save-flow"
 
 /** Whether a frame may show the field icon and receive logins, given its URL and the settings. */
 async function frameAllowed(
@@ -217,7 +217,11 @@ export async function fillFirst(
   if (!target) return "noField"
   const page = await frameUrl(tabId, target.frameId)
   if (!page) return "noField"
-  const views = await backends.fillableForPage(page)
+  // On the password step of a two-step login, the account typed on the first step is the one.
+  const views = markRecent(
+    await backends.fillableForPage(page),
+    await recallUsername(tabId, siteDomainOf(page.hostname)),
+  )
   for (const view of views) {
     const login = view.logins[0]
     if (login) {

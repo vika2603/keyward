@@ -8,9 +8,8 @@ import {
   fillNewPassword,
   hasCodes,
 } from "./autofill"
-import { markRecent } from "./handlers"
 import { listHistory } from "./history"
-import { recallUsername } from "./save-flow"
+import { markRecent, recallUsername, rememberUsername } from "./save-flow"
 import {
   accountSource,
   appleSource,
@@ -177,6 +176,21 @@ describe("fillFirst", () => {
       TAB,
       0,
       expect.objectContaining({ type: "fill", username: "someone" }),
+    )
+  })
+
+  it("fills the account typed on the first step of a two-step login", async () => {
+    const other = { id: "item-2", username: "another", title: "Example" }
+    const { backends, calls } = fakeBackends([
+      { info: accountSource, credential, logins: [login, other] },
+    ])
+    await rememberUsername(TAB, "example.com", "another")
+    await fillFirst(backends)
+    expect(calls.credential).toHaveBeenCalledWith(
+      accountSource.id,
+      "item-2",
+      expect.any(URL),
+      expect.anything(),
     )
   })
 

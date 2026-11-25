@@ -46,6 +46,8 @@ export interface Settings {
   defaultSaveTarget: string | null
   /** Minutes without use before Bitwarden accounts lock; null only when the browser quits. */
   autoLockMinutes: number | null
+  /** Whether Bitwarden accounts lock when the computer's screen locks. */
+  lockOnSystemLock: boolean
   theme: "system" | "light" | "dark"
   density: "standard" | "compact"
   /** Interface language; "system" follows the browser. */
@@ -66,6 +68,7 @@ export const defaultSettings: Settings = {
   defaultMatch: MatchType.Domain,
   defaultSaveTarget: null,
   autoLockMinutes: 15,
+  lockOnSystemLock: true,
   theme: "system",
   density: "standard",
   language: "system",

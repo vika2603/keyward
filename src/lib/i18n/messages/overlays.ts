@@ -4,7 +4,7 @@ export const en = {
   "overlay.menu.noLogins": "No passwords for {host}",
   "overlay.menu.noCodes": "No verification codes for {host}",
   "overlay.menu.code": "Verification code",
-  "overlay.menu.recent": "Just signed in · {site}",
+  "overlay.menu.recent": "Just used · {site}",
   "overlay.menu.suggest": "Use a strong password",
   "overlay.menu.confirmTouchId": "Confirm with Touch ID or your Mac password.",
   "overlay.prompt.guard":
@@ -26,7 +26,7 @@ export const zhCN: Record<keyof typeof en, string> = {
   "overlay.menu.noLogins": "没有 {host} 的密码",
   "overlay.menu.noCodes": "没有 {host} 的验证码",
   "overlay.menu.code": "验证码",
-  "overlay.menu.recent": "刚才登录 · {site}",
+  "overlay.menu.recent": "刚才使用 · {site}",
   "overlay.menu.suggest": "使用强密码",
   "overlay.menu.confirmTouchId": "用触控 ID 或 Mac 密码确认。",
   "overlay.prompt.guard": "提示刚出现、移动过或被页面遮挡，请再点一次。",

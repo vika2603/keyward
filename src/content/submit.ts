@@ -1,5 +1,5 @@
 import type { ContentScriptContext } from "wxt/utils/content-script-context"
-import { credentialsAround, eventOrigin } from "./fields"
+import { credentialsAround, eventOrigin, type SubmittedLogin } from "./fields"
 
 const DEDUPE_MS = 3000
 const SUBMIT_LIKE =
@@ -27,7 +27,7 @@ function isSubmitControl(element: Element | null): element is HTMLElement {
 export function watchSubmissions(
   ctx: ContentScriptContext,
   active: () => boolean,
-  report: (credentials: { username: string; password: string }) => void,
+  report: (credentials: SubmittedLogin) => void,
 ): void {
   let last = { key: "", at: 0 }
   const capture = (element: Element) => {

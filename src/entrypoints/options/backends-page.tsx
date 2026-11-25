@@ -200,6 +200,20 @@ export function BackendsPage() {
             </Select>
           </Option>
         )}
+        {accounts.length > 0 && (
+          <Option
+            name={t("options.backends.lockOnSystemLock.name")}
+            description={t("options.backends.lockOnSystemLock.description")}
+          >
+            <Switch
+              aria-label={t("options.backends.lockOnSystemLock.name")}
+              checked={settings.lockOnSystemLock}
+              onCheckedChange={(checked) =>
+                update({ lockOnSystemLock: checked })
+              }
+            />
+          </Option>
+        )}
       </Card>
       {targets.length > 0 && (
         <Section title={t("options.backends.saveTarget.title")}>

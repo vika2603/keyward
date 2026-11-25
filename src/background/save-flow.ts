@@ -2,7 +2,7 @@ import { BackendError, type SourceInfo } from "@/lib/backends/types"
 import { ruleForHost } from "@/lib/matching"
 import { getSettings, updateSettings } from "@/lib/settings"
 import { siteDomainOf } from "@/lib/site"
-import type { PromptState } from "./api"
+import type { PromptState, SourceView } from "./api"
 import type { Backends } from "./backends"
 import { prompts } from "./overlays"
 import { frameUrl, sendToFrame } from "./page"
@@ -49,22 +49,62 @@ export async function recallUsername(
   return entry.username
 }
 
+/**
+ * Puts the login this tab used on the site moments ago first, in its source and among the sources,
+ * so it is the first one offered for the next step.
+ */
+export function markRecent(
+  sources: SourceView[],
+  username: string | null,
+): SourceView[] {
+  const name = username?.trim().toLowerCase()
+  if (!name) return sources
+  const marked = sources.map((source) => {
+    const logins = source.logins.map((login) =>
+      login.username.trim().toLowerCase() === name
+        ? { ...login, recent: true }
+        : login,
+    )
+    return {
+      ...source,
+      logins: [
+        ...logins.filter((l) => l.recent),
+        ...logins.filter((l) => !l.recent),
+      ],
+    }
+  })
+  return [
+    ...marked.filter((s) => s.logins.some((l) => l.recent)),
+    ...marked.filter((s) => !s.logins.some((l) => l.recent)),
+  ]
+}
+
 export async function forgetTab(tabId: number): Promise<void> {
   const { [tabId]: _removed, ...rest } = await rememberedUsernames()
   await browser.storage.session.set({ [USERNAMES_KEY]: rest })
   await prompts.remove(tabId)
 }
 
+/** The username of the site's only saved account, for a change-password form that does not name it. */
+async function onlyUsername(backends: Backends, page: URL): Promise<string> {
+  const names = new Set(
+    (await backends.fillableForPage(page))
+      .flatMap((source) => source.logins.map((login) => login.username))
+      .filter(Boolean),
+  )
+  return names.size === 1 ? ([...names][0] ?? "") : ""
+}
+
 /**
- * Handles a login form the user submitted. Offers to save a login no source has, or to update a
- * Bitwarden login whose password differs. Apple Passwords does not reveal saved passwords without
- * Touch ID, so a username it already has counts as saved.
+ * Handles a login form the user submitted. Offers to save a login no source has, or to update one
+ * whose password differs. Apple Passwords does not reveal saved passwords without Touch ID, so a
+ * username it already has counts as saved, unless the password was typed as a new one.
  */
 export async function onSubmitted(
   backends: Backends,
   tabId: number,
   frameId: number,
-  submitted: { username: string; password: string },
+  submitted: { username: string; password: string; newPassword?: boolean },
 ): Promise<void> {
   if (
     submitted.username.length > MAX_FIELD_LENGTH ||
@@ -83,7 +123,10 @@ export async function onSubmitted(
     if (username) await rememberUsername(tabId, site, username)
     return
   }
-  if (!username) return
+  const account =
+    username ||
+    (submitted.newPassword ? await onlyUsername(backends, page) : "")
+  if (!account) return
 
   const sources = (await backends.sourcesForPage(page)).filter(
     (s) => s.status === "ready",
@@ -93,10 +136,11 @@ export async function onSubmitted(
   for (const source of sources) {
     const existing = await backends
       .backendOf(source.id)
-      .findExisting(source.id, page, username, submitted.password)
+      .findExisting(source.id, page, account, submitted.password)
       .catch(() => null)
     if (!existing) continue
-    if (existing.samePassword !== false) return
+    if (existing.samePassword === true) return
+    if (existing.samePassword === undefined && !submitted.newPassword) return
     update ??= { sourceId: source.id, loginId: existing.loginId }
   }
   if (update ? !settings.askUpdate : !settings.askSave) return
@@ -109,7 +153,7 @@ export async function onSubmitted(
     overlayFrameId: null,
     mode: update ? "update" : "save",
     url: page.href,
-    username,
+    username: account,
     password: submitted.password,
     update,
     createdAt: Date.now(),

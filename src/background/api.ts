@@ -223,7 +223,8 @@ export type BackgroundApi = {
   "content.hasCodes": { payload: null; result: boolean }
   "content.closeMenu": { payload: null; result: null }
   "content.submitted": {
-    payload: { username: string; password: string }
+    /** `newPassword` when the password was typed into a field for a new one. */
+    payload: { username: string; password: string; newPassword?: boolean }
     result: null
   }
   "content.ready": { payload: null; result: null }

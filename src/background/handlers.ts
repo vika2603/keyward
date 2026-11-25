@@ -6,7 +6,7 @@ import type { Handlers, Sender } from "@/lib/messaging"
 import { getSettings, updateSettings } from "@/lib/settings"
 import { normalizeSiteInput, siteDomainOf } from "@/lib/site"
 import { keyLabel } from "@/lib/totp"
-import type { BackgroundApi, FieldKind, PopupView, SourceView } from "./api"
+import type { BackgroundApi, FieldKind, PopupView } from "./api"
 import {
   contentConfig,
   fillCode,
@@ -24,6 +24,7 @@ import {
   closePrompt,
   confirmPrompt,
   defaultTarget,
+  markRecent,
   neverForSite,
   onSubmitted,
   promptState,
@@ -40,36 +41,6 @@ function tabFrame(sender: Sender): { tabId: number; frameId: number } {
     throw new BackendError("The request has no tab", "forbidden")
   }
   return { tabId: sender.tab.id, frameId: sender.frameId }
-}
-
-/**
- * Puts the login signed in with moments ago first, in its source and among the sources, so its
- * code is the first one offered.
- */
-export function markRecent(
-  sources: SourceView[],
-  username: string | null,
-): SourceView[] {
-  const name = username?.trim().toLowerCase()
-  if (!name) return sources
-  const marked = sources.map((source) => {
-    const logins = source.logins.map((login) =>
-      login.username.trim().toLowerCase() === name
-        ? { ...login, recent: true }
-        : login,
-    )
-    return {
-      ...source,
-      logins: [
-        ...logins.filter((l) => l.recent),
-        ...logins.filter((l) => !l.recent),
-      ],
-    }
-  })
-  return [
-    ...marked.filter((s) => s.logins.some((l) => l.recent)),
-    ...marked.filter((s) => !s.logins.some((l) => l.recent)),
-  ]
 }
 
 function requireText(value: unknown, name: string, maxLength = 1024): string {
@@ -486,6 +457,12 @@ export function createHandlers(backends: Backends): Handlers<BackgroundApi> {
         if (!page)
           throw new BackendError("The frame is not a web page", "notWebPage")
         const kind = session.kind ?? "login"
+        // The account this tab used on the site moments ago comes first: the password step of a
+        // two-step login, or the code step after a password.
+        const recent = await recallUsername(
+          session.tabId,
+          siteDomainOf(page.hostname),
+        )
         if (kind === "login") {
           let suggestion = session.suggestion
           if (session.newPassword && !suggestion) {
@@ -495,7 +472,7 @@ export function createHandlers(backends: Backends): Handlers<BackgroundApi> {
           return {
             host: page.hostname,
             kind,
-            sources: await backends.fillableForPage(page),
+            sources: markRecent(await backends.fillableForPage(page), recent),
             ...(suggestion ? { suggestion } : {}),
           }
         }
@@ -503,10 +480,6 @@ export function createHandlers(backends: Backends): Handlers<BackgroundApi> {
           tabId: session.tabId,
           frameId: session.frameId,
         })
-        const recent = await recallUsername(
-          session.tabId,
-          siteDomainOf(page.hostname),
-        )
         return {
           host: page.hostname,
           kind,
@@ -660,11 +633,12 @@ export function createHandlers(backends: Backends): Handlers<BackgroundApi> {
     },
     "content.submitted": {
       allow: ["contentScript"],
-      handle: async ({ username, password }, sender) => {
+      handle: async ({ username, password, newPassword }, sender) => {
         const { tabId, frameId } = tabFrame(sender)
         await onSubmitted(backends, tabId, frameId, {
           username: requireText(username, "username"),
           password: requireText(password, "password"),
+          newPassword: newPassword === true,
         })
         return null
       },

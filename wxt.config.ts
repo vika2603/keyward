@@ -26,6 +26,8 @@ export default defineConfig({
       "privacy",
       // "Set up verification code" on QR codes and links that carry an authenticator key.
       "contextMenus",
+      // Locks Bitwarden accounts when the screen locks.
+      "idle",
     ],
     // The field icons work on every site, and a self-hosted vault can live at any address.
     host_permissions: ["http://*/*", "https://*/*"],

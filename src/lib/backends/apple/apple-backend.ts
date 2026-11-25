@@ -45,6 +45,7 @@ export interface AppleState {
   error?: string
 }
 
+/** The name the Mac shows when it asks to pair. Apple's own extension for Chrome sends "Chrome" in every language. */
 const BROWSER_NAME = "Chrome"
 const PROTOCOL_VERSION = "1.0"
 const SRP_WITH_RFC_VERIFICATION = 1

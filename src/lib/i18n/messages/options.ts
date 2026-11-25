@@ -33,6 +33,9 @@ export const en = {
     "Lock when the extension hasn't been used for this long; you'll then need your master password again. You also need to unlock again after quitting the browser.",
   "options.backends.autoLock.label": "Auto-lock timeout",
   "options.backends.autoLock.onQuit": "When the browser quits",
+  "options.backends.lockOnSystemLock.name": "Lock with the computer",
+  "options.backends.lockOnSystemLock.description":
+    "Lock Bitwarden accounts when the computer's screen locks. Apple Passwords stays paired; it asks for Touch ID before each password anyway.",
   "options.backends.saveTarget.title": "Save location",
   "options.backends.saveTarget.name": "Save new logins to",
   "options.backends.saveTarget.description":
@@ -224,6 +227,9 @@ export const zhCN: Record<keyof typeof en, string> = {
     "超过这段时间没有使用插件就锁定，之后需要再次输入主密码。退出浏览器后也要重新解锁。",
   "options.backends.autoLock.label": "自动锁定时间",
   "options.backends.autoLock.onQuit": "退出浏览器时",
+  "options.backends.lockOnSystemLock.name": "电脑锁屏时锁定",
+  "options.backends.lockOnSystemLock.description":
+    "电脑锁屏时锁定 Bitwarden 账号。Apple 密码保持配对，它每次取密码都会要求触控 ID。",
   "options.backends.saveTarget.title": "保存位置",
   "options.backends.saveTarget.name": "新登录默认保存到",
   "options.backends.saveTarget.description": "保存提示里仍可临时改选。",

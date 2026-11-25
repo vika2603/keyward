@@ -89,6 +89,11 @@ export function startBackground(): void {
     refreshToolbar()
   })
 
+  browser.idle.onStateChanged.addListener(async (state) => {
+    if (state === "locked" && (await getSettings()).lockOnSystemLock)
+      await bitwarden.lockAll()
+  })
+
   void browser.alarms.create(AUTO_LOCK_ALARM, { periodInMinutes: 1 })
   browser.alarms.onAlarm.addListener(async (alarm) => {
     if (alarm.name === AUTO_LOCK_ALARM) {

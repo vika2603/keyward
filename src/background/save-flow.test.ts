@@ -69,6 +69,51 @@ describe("onSubmitted", () => {
     }
   })
 
+  it("offers to update an Apple login when a new password was typed for it", async () => {
+    const { backends } = fakeBackends([
+      {
+        info: appleSource,
+        existing: { loginId: "apple-1", samePassword: undefined },
+      },
+    ])
+    await onSubmitted(backends, TAB, 0, { ...login, newPassword: true })
+    expect(await prompts.get(TAB)).toMatchObject({
+      mode: "update",
+      update: { sourceId: appleSource.id, loginId: "apple-1" },
+    })
+  })
+
+  it("names the site's only account when a change-password form does not", async () => {
+    const saved = { id: "item-1", username: "someone", title: "Example" }
+    const changed = {
+      username: "",
+      password: "typed-password",
+      newPassword: true,
+    }
+    const { backends } = fakeBackends([
+      {
+        info: accountSource,
+        logins: [saved],
+        existing: { loginId: "item-1", samePassword: false },
+      },
+    ])
+    await onSubmitted(backends, TAB, 0, changed)
+    expect(await prompts.get(TAB)).toMatchObject({
+      mode: "update",
+      username: "someone",
+    })
+
+    await prompts.remove(TAB)
+    const two = fakeBackends([
+      {
+        info: accountSource,
+        logins: [saved, { ...saved, id: "item-2", username: "another" }],
+      },
+    ])
+    await onSubmitted(two.backends, TAB, 0, changed)
+    expect(await prompts.get(TAB)).toBeNull()
+  })
+
   it("does not offer to save when no ready source can store a login for the site", async () => {
     const { backends } = fakeBackends([
       { info: appleSource, canSave: false },

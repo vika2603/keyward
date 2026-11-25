@@ -11,7 +11,7 @@ import {
   UserIcon,
   XIcon,
 } from "lucide-react"
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import {
   callBackground,
   type PageInfo,
@@ -32,6 +32,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible"
+import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -72,6 +73,13 @@ export function MainView({
   const [version, setVersion] = useState(0)
   const [filter, setFilter] = useState<Filter>("all")
   const [message, setMessage] = useState<string | null>(null)
+  const searchRef = useRef<HTMLInputElement>(null)
+  const listRef = useRef<HTMLDivElement>(null)
+  /** The rows' buttons that open a login, in list order; arrow keys move between them. */
+  const rows = () => [
+    ...(listRef.current?.querySelectorAll<HTMLButtonElement>("[data-row]") ??
+      []),
+  ]
 
   const load = useCallback(() => {
     callBackground("popup.state", null).then(setState, (error) =>
@@ -168,40 +176,47 @@ export function MainView({
         <SettingsButton />
       </div>
       {(loading || sources.length > 0) && (
-        <div className="px-2 pb-2">
-          <div className="flex h-8 items-center gap-2 rounded-lg bg-muted px-2.5 text-muted-foreground">
-            <SearchIcon className="size-4 shrink-0" />
-            <input
-              type="search"
-              value={query}
-              onChange={(event) => onQuery(event.target.value)}
-              onKeyDown={(event) => {
-                // Escape clears a search before it closes the popup.
-                if (event.key === "Escape" && query) {
-                  event.preventDefault()
-                  onQuery("")
-                }
+        <div className="relative px-2 pb-2">
+          <SearchIcon className="pointer-events-none absolute top-2 left-4.5 size-4 text-muted-foreground" />
+          <Input
+            ref={searchRef}
+            type="search"
+            value={query}
+            onChange={(event) => onQuery(event.target.value)}
+            onKeyDown={(event) => {
+              // Escape clears a search before it closes the popup.
+              if (event.key === "Escape" && query) {
+                event.preventDefault()
+                onQuery("")
+              } else if (event.key === "ArrowDown") {
+                event.preventDefault()
+                rows()[0]?.focus()
+              } else if (event.key === "Enter") {
+                rows()[0]?.click()
+              }
+            }}
+            placeholder={t("popup.main.search")}
+            aria-label={t("popup.main.search")}
+            autoComplete="off"
+            spellCheck={false}
+            autoFocus
+            className="pr-8 pl-8 [&::-webkit-search-cancel-button]:appearance-none"
+          />
+          {query && (
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              className="absolute top-1 right-3.5 text-muted-foreground"
+              aria-label={t("popup.main.clearSearch")}
+              title={t("popup.main.clearSearch")}
+              onClick={() => {
+                onQuery("")
+                searchRef.current?.focus()
               }}
-              placeholder={t("popup.main.search")}
-              aria-label={t("popup.main.search")}
-              autoComplete="off"
-              spellCheck={false}
-              // biome-ignore lint/a11y/noAutofocus: the popup opens to look a login up, so typing goes to the search.
-              autoFocus
-              className="h-full min-w-0 flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground [&::-webkit-search-cancel-button]:appearance-none"
-            />
-            {query && (
-              <button
-                type="button"
-                aria-label={t("popup.main.clearSearch")}
-                title={t("popup.main.clearSearch")}
-                onClick={() => onQuery("")}
-                className="flex size-5 shrink-0 items-center justify-center rounded-full outline-none hover:text-foreground focus-visible:text-foreground"
-              >
-                <XIcon className="size-3.5" />
-              </button>
-            )}
-          </div>
+            >
+              <XIcon />
+            </Button>
+          )}
         </div>
       )}
       {kinds.size > 1 && (
@@ -223,7 +238,21 @@ export function MainView({
         </div>
       )}
       <Separator />
-      <div className="min-h-0 flex-1 overflow-y-auto pb-1">
+      {/* biome-ignore lint/a11y/noStaticElementInteractions: arrow keys move between the rows' buttons, which take the focus. */}
+      <div
+        ref={listRef}
+        className="min-h-0 flex-1 overflow-y-auto pb-1"
+        onKeyDown={(event) => {
+          if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return
+          const list = rows()
+          const index = list.indexOf(event.target as HTMLButtonElement)
+          if (index < 0) return
+          event.preventDefault()
+          const next = index + (event.key === "ArrowDown" ? 1 : -1)
+          if (next < 0) searchRef.current?.focus()
+          else list[Math.min(next, list.length - 1)]?.focus()
+        }}
+      >
         {message && (
           <p className="px-3 pt-2 text-xs text-destructive">{message}</p>
         )}
@@ -482,6 +511,7 @@ function LoginRow({
       <button
         type="button"
         title={t("popup.main.viewDetails")}
+        data-row
         onClick={onOpen}
         className="flex min-w-0 flex-1 items-center gap-2.5 self-stretch text-left outline-none"
       >
