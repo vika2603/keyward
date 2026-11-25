@@ -288,9 +288,16 @@ export default defineContentScript({
       codesAvailable = available
       if (available) scan()
     }
+    const isKeywardNode = (node: Node) =>
+      icons.owns(node) || menu.owns(node) || (prompt?.owns(node) ?? false)
+    /** Keyward's icons and overlays change with every move of the menu; they hold no fields. */
+    const isKeywardChange = (record: MutationRecord) =>
+      record.type === "childList"
+        ? [...record.addedNodes, ...record.removedNodes].every(isKeywardNode)
+        : isKeywardNode(record.target)
     const start = () => {
-      observer = new MutationObserver(() => {
-        if (pending) return
+      observer = new MutationObserver((records) => {
+        if (pending || records.every(isKeywardChange)) return
         pending = window.setTimeout(() => {
           pending = 0
           scan()

@@ -40,6 +40,8 @@ class Overlay {
   private watchFrame = 0
   private lastRect = ""
   private expected = ""
+  /** Every wrapper this overlay put in the page, including removed ones whose removal is still reported. */
+  private readonly wrappers = new WeakSet<Node>()
 
   constructor(
     private readonly ctx: ContentScriptContext,
@@ -90,9 +92,17 @@ class Overlay {
         )
       },
     })
+    this.wrappers.add(ui.wrapper)
     ui.mount()
     this.ui = ui
     this.guard(ui)
+  }
+
+  /** Whether a node is the overlay's wrapper or inside it. */
+  owns(node: Node): boolean {
+    for (let current: Node | null = node; current; current = current.parentNode)
+      if (this.wrappers.has(current)) return true
+    return false
   }
 
   hide(): void {
@@ -268,6 +278,10 @@ export class InlineMenu {
     return this.field
   }
 
+  owns(node: Node): boolean {
+    return this.overlay.owns(node)
+  }
+
   show(field: HTMLInputElement, token: string): void {
     this.field = field
     this.overlay.show(token)
@@ -303,6 +317,10 @@ export class SavePrompt {
   show(token: string): void {
     this.overlay.show(token)
     this.overlay.placeTopRight()
+  }
+
+  owns(node: Node): boolean {
+    return this.overlay.owns(node)
   }
 
   resize(height: number): void {
