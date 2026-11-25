@@ -536,18 +536,13 @@ export function GeneratorView({
                 >
                   {t("popup.generator.words")}
                 </label>
-                <Input
+                <NumberInput
                   id="gen-words"
-                  type="number"
                   className="w-20"
                   min={WORDS_MIN}
                   max={WORDS_MAX}
                   value={choices.passphrase.words}
-                  onChange={(event) => {
-                    const count = Number(event.target.value)
-                    if (count >= WORDS_MIN && count <= WORDS_MAX)
-                      updatePassphrase({ words: count })
-                  }}
+                  onValueChange={(words) => updatePassphrase({ words })}
                 />
               </div>
               <p className="pl-[92px] text-xs text-muted-foreground">
