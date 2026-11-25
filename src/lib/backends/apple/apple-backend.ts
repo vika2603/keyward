@@ -14,7 +14,6 @@ import {
   type TabRef,
 } from "../types"
 import { type HelperMessage, HelperPort, SupersededError } from "./helper-port"
-import { markPasskeyOnly, passkeyOnlyIds } from "./passkey-marks"
 import {
   Action,
   Cmd,
@@ -396,25 +395,15 @@ export class AppleBackend implements PasswordBackend {
     ]
   }
 
-  /** Logins listed for the host; those known to have only a passkey come last, marked. */
   async logins(_sourceId: string, page: URL): Promise<LoginSummary[]> {
     const host = page.hostname
     const entries = await this.listEntries(host, { tabId: 0, frameId: 0 })
-    const marks = await passkeyOnlyIds()
-    const logins = entries.map((entry) => {
-      const id = loginId(entry.username, entry.site)
-      return {
-        id,
-        username: entry.username,
-        title: entry.customTitle || entry.site,
-        host: entry.site,
-        ...(marks.has(id) ? { passkeyOnly: true } : {}),
-      }
-    })
-    return [
-      ...logins.filter((l) => !l.passkeyOnly),
-      ...logins.filter((l) => l.passkeyOnly),
-    ]
+    return entries.map((entry) => ({
+      id: loginId(entry.username, entry.site),
+      username: entry.username,
+      title: entry.customTitle || entry.site,
+      host: entry.site,
+    }))
   }
 
   /** The helper looks logins up by site only, so a search must be a site's address. */
@@ -498,7 +487,6 @@ export class AppleBackend implements PasswordBackend {
       throw error
     }
     const password = passwordIn(reply, username, site)
-    if (password !== undefined) await markPasskeyOnly(id, password === null)
     if (password) return { username, password }
     if (password === null)
       throw new BackendError(
@@ -532,19 +520,7 @@ export class AppleBackend implements PasswordBackend {
       secretsWithheld: false,
       // The helper has no command to change or delete a login; the Passwords app does that.
       editable: false,
-      passkeyOnly: (await passkeyOnlyIds()).has(id),
     }
-  }
-
-  /**
-   * Marks a login as having only a passkey, or clears the mark, without reading its password;
-   * the mark is Keyward's own and leaves the Passwords app alone.
-   */
-  async setPasskeyOnly(id: string, passkeyOnly: boolean): Promise<void> {
-    const { site } = parseLoginId(id)
-    if (!isHostName(site))
-      throw new BackendError("The login has no site", "unknownLogin")
-    await markPasskeyOnly(id, passkeyOnly)
   }
 
   /** Authenticator entries for a page, when the helper can give codes. */

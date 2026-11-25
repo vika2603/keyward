@@ -90,7 +90,6 @@ export function fakeBackends(sources: FakeSource[]) {
   const backends = {
     sourcesForPage: async () => sources.map((s) => s.info),
     loginsForPage,
-    fillableForPage: loginsForPage,
     codeLoginsForPage: async () =>
       sources.map((s) => ({
         ...s.info,

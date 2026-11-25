@@ -13,12 +13,6 @@ export const en = {
   "popup.main.toggleGroup": "Show or hide",
   "popup.main.openPasswordsApp": "Open the Passwords app",
   "popup.detail.openInPasswordsApp": "Open in the Passwords app",
-  "popup.detail.markPasskeyOnly": "Mark as passkey only",
-  "popup.detail.unmarkPasskeyOnly": "Remove passkey-only mark",
-  "popup.detail.passkeyOnlyHint":
-    "For a login with only a passkey: pages stop offering it and it moves to the end of this list.",
-  "popup.detail.passkeyOnlyMarked":
-    "Pages don't offer this login, and it sits at the end of this list.",
   "popup.codeSetup.title": "Set up verification code",
   "popup.codeSetup.from": "From {host}",
   "popup.codeSetup.addTo": "Add to",
@@ -68,8 +62,6 @@ export const en = {
   "popup.main.notWebPage": "This page is not a web page",
   "popup.main.search": "Search all logins",
   "popup.main.clearSearch": "Clear search",
-  "popup.main.passkeyOnly":
-    "That Passwords login has only a passkey. It's now at the end of the list and no longer offered for filling.",
   "popup.main.noResults": "No logins match “{query}”",
   "popup.main.appleSearchHint":
     "Passwords can only be searched by website address, such as github.com.",
@@ -156,12 +148,6 @@ export const zhCN: Record<keyof typeof en, string> = {
   "popup.main.toggleGroup": "展开或收起",
   "popup.main.openPasswordsApp": "打开 Passwords App",
   "popup.detail.openInPasswordsApp": "在 Passwords App 中打开",
-  "popup.detail.markPasskeyOnly": "标为仅通行密钥",
-  "popup.detail.unmarkPasskeyOnly": "取消仅通行密钥标记",
-  "popup.detail.passkeyOnlyHint":
-    "适用于只有通行密钥的登录：网页上不再列出它，在这里排到最后。",
-  "popup.detail.passkeyOnlyMarked":
-    "网页上不再列出这条登录，它在这里排在最后。",
   "popup.codeSetup.title": "设置验证码",
   "popup.codeSetup.from": "来自 {host}",
   "popup.codeSetup.addTo": "添加到",
@@ -209,8 +195,6 @@ export const zhCN: Record<keyof typeof en, string> = {
   "popup.main.notWebPage": "当前页面不是网页",
   "popup.main.search": "搜索全部登录",
   "popup.main.clearSearch": "清除搜索",
-  "popup.main.passkeyOnly":
-    "这条 Passwords 登录只有通行密钥，已移到列表末尾，填充时不再列出。",
   "popup.main.noResults": "没有与「{query}」匹配的登录",
   "popup.main.appleSearchHint": "Passwords 只能按网址搜索，例如 github.com。",
   "popup.detail.edit": "编辑",

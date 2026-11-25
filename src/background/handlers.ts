@@ -345,16 +345,6 @@ export function createHandlers(backends: Backends): Handlers<BackgroundApi> {
         return apple.getState()
       },
     },
-    "apple.setPasskeyOnly": {
-      allow: popup,
-      handle: async ({ loginId, passkeyOnly }) => {
-        await apple.setPasskeyOnly(
-          requireText(loginId, "loginId"),
-          passkeyOnly === true,
-        )
-        return null
-      },
-    },
     "apple.openPasswordsApp": {
       allow: connectPages,
       handle: async ({ site }) => {
@@ -482,7 +472,7 @@ export function createHandlers(backends: Backends): Handlers<BackgroundApi> {
           return {
             host: page.hostname,
             kind,
-            sources: markRecent(await backends.fillableForPage(page), recent),
+            sources: markRecent(await backends.loginsForPage(page), recent),
             ...(suggestion ? { suggestion } : {}),
           }
         }

@@ -37,8 +37,6 @@ export interface LoginSummary {
   hasCode?: boolean
   /** The login this tab signed in with on the site moments ago, listed first for its code. */
   recent?: boolean
-  /** A login that gave no password when it was read, as one with only a passkey does. */
-  passkeyOnly?: boolean
 }
 
 /** What the detail view shows of a login. The password and one-time code are read on request. */
@@ -54,8 +52,6 @@ export interface LoginDetails {
   secretsWithheld: boolean
   /** Whether Keyward can edit and delete the login. */
   editable: boolean
-  /** Whether the login is marked as having only a passkey, so pages are not offered it. */
-  passkeyOnly?: boolean
   /** Milliseconds since the epoch. */
   created?: number
   modified?: number

@@ -88,7 +88,7 @@ export async function forgetTab(tabId: number): Promise<void> {
 /** The username of the site's only saved account, for a change-password form that does not name it. */
 async function onlyUsername(backends: Backends, page: URL): Promise<string> {
   const names = new Set(
-    (await backends.fillableForPage(page))
+    (await backends.loginsForPage(page))
       .flatMap((source) => source.logins.map((login) => login.username))
       .filter(Boolean),
   )

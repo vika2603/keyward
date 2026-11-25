@@ -219,7 +219,7 @@ export async function fillFirst(
   if (!page) return "noField"
   // On the password step of a two-step login, the account typed on the first step is the one.
   const views = markRecent(
-    await backends.fillableForPage(page),
+    await backends.loginsForPage(page),
     await recallUsername(tabId, siteDomainOf(page.hostname)),
   )
   for (const view of views) {

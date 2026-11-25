@@ -4,7 +4,6 @@ import {
   ExternalLinkIcon,
   EyeIcon,
   EyeOffIcon,
-  FingerprintIcon,
   PencilIcon,
   RefreshCwIcon,
   TimerIcon,
@@ -364,19 +363,6 @@ export function DetailView({
     useCallback(() => void copyCode(), [copyCode]),
   )
 
-  const togglePasskeyOnly = async () => {
-    if (!details) return
-    const passkeyOnly = !details.passkeyOnly
-    const done = await run(async () => {
-      await callBackground("apple.setPasskeyOnly", {
-        loginId: login.id,
-        passkeyOnly,
-      })
-      return true
-    })
-    if (done) setDetails({ ...details, passkeyOnly })
-  }
-
   const remove = async () => {
     if (removing !== "armed") {
       setRemoving("armed")
@@ -640,24 +626,6 @@ export function DetailView({
                 <ExternalLinkIcon />
                 {t("popup.detail.openInPasswordsApp")}
               </Button>
-            )}
-            {apple && (
-              <div className="flex flex-col gap-1.5">
-                <Button
-                  variant="outline"
-                  onClick={() => void togglePasskeyOnly()}
-                >
-                  <FingerprintIcon />
-                  {details.passkeyOnly
-                    ? t("popup.detail.unmarkPasskeyOnly")
-                    : t("popup.detail.markPasskeyOnly")}
-                </Button>
-                <p className="px-1 text-xs text-muted-foreground">
-                  {details.passkeyOnly
-                    ? t("popup.detail.passkeyOnlyMarked")
-                    : t("popup.detail.passkeyOnlyHint")}
-                </p>
-              </div>
             )}
             {details.editable && (
               <div className="flex flex-col gap-1.5">

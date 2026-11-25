@@ -24,7 +24,7 @@ import {
   backendName,
   sourceLabel,
 } from "@/components/keyward/brand-icon"
-import { errorCodeOf, errorMessage } from "@/components/keyward/errors"
+import { errorMessage } from "@/components/keyward/errors"
 import { FADE_IN, LoginListSkeleton } from "@/components/keyward/loading"
 import { LoginLabel } from "@/components/keyward/login-label"
 import { SiteIcon } from "@/components/keyward/site-icon"
@@ -75,12 +75,6 @@ export function MainView({
   const [version, setVersion] = useState(0)
   const [filter, setFilter] = useState<Filter>("all")
   const [message, setMessage] = useState<string | null>(null)
-  /** A note that is not an error, such as why a login moved to the end of the list. */
-  const [notice, setNotice] = useState<string | null>(null)
-  const report = (next: string | null) => {
-    setMessage(next)
-    if (next === null) setNotice(null)
-  }
   const searchRef = useRef<HTMLInputElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
   /** The rows' buttons that open a login, in list order; arrow keys move between them. */
@@ -291,9 +285,6 @@ export function MainView({
           else list[Math.min(next, list.length - 1)]?.focus()
         }}
       >
-        {notice && (
-          <p className="px-3 pt-2 text-xs text-muted-foreground">{notice}</p>
-        )}
         {message && (
           <p className="px-3 pt-2 text-xs text-destructive">{message}</p>
         )}
@@ -354,11 +345,7 @@ export function MainView({
                 onOpen={(login) =>
                   onNavigate({ name: "detail", source, login })
                 }
-                onPasskeyOnly={() => {
-                  setNotice(t("popup.main.passkeyOnly"))
-                  load()
-                }}
-                onError={report}
+                onError={setMessage}
               />
             ))}
             {appleSearchHint && (
@@ -445,14 +432,12 @@ function SourceGroup({
   density,
   onLocked,
   onOpen,
-  onPasskeyOnly,
   onError,
 }: {
   source: SourceView
   density: Settings["density"]
   onLocked: () => void
   onOpen: (login: LoginSummary) => void
-  onPasskeyOnly: () => void
   onError: (message: string | null) => void
 }) {
   const [open, setOpen] = useState(true)
@@ -548,7 +533,6 @@ function SourceGroup({
               login={login}
               density={density}
               onOpen={() => onOpen(login)}
-              onPasskeyOnly={onPasskeyOnly}
               onError={onError}
             />
           ))}
@@ -565,15 +549,12 @@ function LoginRow({
   login,
   density,
   onOpen,
-  onPasskeyOnly,
   onError,
 }: {
   source: SourceInfo
   login: LoginSummary
   density: Settings["density"]
   onOpen: () => void
-  /** Apple gave no password for the login; it is now marked and the list reloads. */
-  onPasskeyOnly: () => void
   onError: (message: string | null) => void
 }) {
   const [copied, setCopied] = useState<Copyable | null>(null)
@@ -597,8 +578,7 @@ function LoginRow({
       setCopied(what)
       setTimeout(() => setCopied(null), 1500)
     } catch (error) {
-      if (errorCodeOf(error) === "apple.noPassword") onPasskeyOnly()
-      else onError(errorMessage(error))
+      onError(errorMessage(error))
     } finally {
       setConfirming(false)
     }
@@ -628,13 +608,7 @@ function LoginRow({
         />
         <LoginLabel
           username={login.username}
-          detail={
-            confirming
-              ? t("popup.main.confirmTouchId")
-              : login.passkeyOnly
-                ? t("common.passkeyOnly", { site: login.title })
-                : login.title
-          }
+          detail={confirming ? t("popup.main.confirmTouchId") : login.title}
           compact={compact}
         />
       </button>

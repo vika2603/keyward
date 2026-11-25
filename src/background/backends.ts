@@ -60,17 +60,6 @@ export class Backends {
     )
   }
 
-  /** Logins that can fill the page; those known to have only a passkey give no password and are left out. */
-  async fillableForPage(
-    page: URL | null,
-    options?: ListOptions,
-  ): Promise<SourceView[]> {
-    return (await this.loginsForPage(page, options)).map((source) => ({
-      ...source,
-      logins: source.logins.filter((login) => !login.passkeyOnly),
-    }))
-  }
-
   /** Every source with the logins that give one-time codes for the page. */
   codeLoginsForPage(page: URL, tab: TabRef): Promise<SourceView[]> {
     return this.listForPage(page, (backend, sourceId, url) =>
