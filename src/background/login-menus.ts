@@ -1,6 +1,7 @@
 import { storage } from "wxt/utils/storage"
 import { generatePassword, getGeneratorOptions } from "@/lib/generator"
 import { type Language, resolveLanguage } from "@/lib/i18n/language"
+import { serialQueue } from "@/lib/serial-queue"
 import { getSettings } from "@/lib/settings"
 import type { VaultView } from "./api"
 import { fillLogin, fillNewPassword } from "./autofill"
@@ -34,7 +35,7 @@ const madeMenusItem = storage.defineItem<string[]>(
  * The logins the submenus list and the page they were listed for. Kept in storage.session rather
  * than in memory: the menus outlive the service worker, and a click can start a new one.
  */
-const LISTING_KEY = "loginMenus.listing"
+const listingItem = storage.defineItem<Listing>("session:loginMenus.listing")
 /** Web pages only; "all" would also fill the toolbar button's own menu. */
 const CONTEXTS: Browser.contextMenus.CreateProperties["contexts"] = [
   "page",
@@ -122,8 +123,8 @@ function itemId(action: Action, renderId: string, index: number): string {
  * toolbar recomputes as tabs change.
  */
 export class LoginMenus {
-  /** The last change of the menus; each waits for the one before, so no ID is made twice. */
-  private changing: Promise<void> = Promise.resolve()
+  /** Changes of the menus run one after another, so no ID is made twice. */
+  private readonly changes = serialQueue()
 
   constructor(private readonly providers: Providers) {
     browser.contextMenus.onClicked.addListener((info, tab) => {
@@ -139,10 +140,7 @@ export class LoginMenus {
 
   /** Lists the logins of the active tab's page in the submenus, or leaves them out when it has none. */
   show(vaults: VaultView[], tab: ListedTab | undefined): Promise<void> {
-    this.changing = this.changing
-      .then(() => render(vaults, tab))
-      .catch(() => {})
-    return this.changing
+    return this.changes(() => render(vaults, tab).catch(() => {}))
   }
 
   private async clicked(
@@ -173,9 +171,7 @@ export class LoginMenus {
     const match = ITEM_ID.exec(menuItemId)
     const action = match?.[1] as Action | undefined
     if (!match || !action || !ACTIONS.includes(action)) return
-    const listing = (await browser.storage.session.get(LISTING_KEY))[
-      LISTING_KEY
-    ] as Listing | undefined
+    const listing = await listingItem.getValue()
     const page = webPage(tabUrl)
     // The menus are shared by every tab and window; they only act on the page they were listed for.
     if (
@@ -247,9 +243,9 @@ async function render(
   await removeOwn()
   if (listing && entries.length) {
     const stored: Listing = { renderId, tabId, origin: page.origin, entries }
-    await browser.storage.session.set({ [LISTING_KEY]: stored })
+    await listingItem.setValue(stored)
   } else {
-    await browser.storage.session.remove(LISTING_KEY)
+    await listingItem.removeValue()
   }
   if (!settings.contextMenu) return
 

@@ -24,6 +24,6 @@ export async function rememberPasskeySite(page: URL): Promise<void> {
   const sites = await passkeySitesItem.getValue()
   if (sites[0] === site) return
   await passkeySitesItem.setValue(
-    [site, ...sites.filter((s) => s !== site)].slice(0, MAX_SITES),
+    [site, ...sites.filter((known) => known !== site)].slice(0, MAX_SITES),
   )
 }

@@ -1,6 +1,8 @@
+import { storage } from "wxt/utils/storage"
 import { resolveLanguage } from "@/lib/i18n/language"
 import { ruleForHost } from "@/lib/matching"
 import { VaultError } from "@/lib/providers/types"
+import { serialQueue } from "@/lib/serial-queue"
 import { getSettings, type Settings } from "@/lib/settings"
 import { siteDomainOf } from "@/lib/site"
 import type { ContentConfig, FieldInfo } from "./api"
@@ -206,7 +208,7 @@ export async function hasCodes(
 }
 
 /** The fill shortcut's last press, so the next press on the same page fills the next login. */
-const FILL_CYCLE_KEY = "autofill.cycle"
+const fillCycleItem = storage.defineItem<FillCycle>("session:autofill.cycle")
 /**
  * Presses further apart than this start again from the first login, so coming back to a login
  * page later does not pick up where an earlier visit left off. Keyward's choice.
@@ -217,7 +219,7 @@ interface FillCycle {
   tabId: number
   /** The page's origin and path; another page starts again. */
   page: string
-  /** The logins in the order the first press found them, as `vaultId|loginId`. */
+  /** The logins in the order the first press found them, as keys from `cycleKeyOf`. */
   order: string[]
   /** The position in `order` of the login filled last. */
   index: number
@@ -228,8 +230,8 @@ function cycleKeyOf(vaultId: string, loginId: string): string {
   return JSON.stringify([vaultId, loginId])
 }
 
-/** The last step of the fill cycle; each waits for the one before, so quick presses each advance. */
-let cycleTurn: Promise<unknown> = Promise.resolve()
+/** Steps of the fill cycle run one after another, so quick presses each advance. */
+const cycleTurn = serialQueue()
 
 /**
  * The login the shortcut fills: the first one, or the one after the last press's while the same
@@ -241,9 +243,7 @@ function nextInCycle(
   page: URL,
   available: string[],
 ): Promise<string | undefined> {
-  const next = cycleTurn.then(() => advanceCycle(tabId, page, available))
-  cycleTurn = next.catch(() => {})
-  return next
+  return cycleTurn(() => advanceCycle(tabId, page, available))
 }
 
 async function advanceCycle(
@@ -252,12 +252,10 @@ async function advanceCycle(
   available: string[],
 ): Promise<string | undefined> {
   const pageKey = `${page.origin}${page.pathname}`
-  const stored = (await browser.storage.session.get(FILL_CYCLE_KEY))[
-    FILL_CYCLE_KEY
-  ] as FillCycle | undefined
+  const stored = await fillCycleItem.getValue()
   const now = Date.now()
   const continues =
-    stored &&
+    stored !== null &&
     stored.tabId === tabId &&
     stored.page === pageKey &&
     now - stored.at < FILL_CYCLE_MS
@@ -272,7 +270,7 @@ async function advanceCycle(
   const next = order[index]
   if (next !== undefined) {
     const cycle: FillCycle = { tabId, page: pageKey, order, index, at: now }
-    await browser.storage.session.set({ [FILL_CYCLE_KEY]: cycle })
+    await fillCycleItem.setValue(cycle)
   }
   return next
 }

@@ -1,4 +1,5 @@
 import jsQR from "jsqr"
+import { storage } from "wxt/utils/storage"
 import { type Language, resolveLanguage } from "@/lib/i18n/language"
 import { VaultError } from "@/lib/providers/types"
 import { getSettings, settingsItem } from "@/lib/settings"
@@ -12,7 +13,9 @@ const MENU_TITLES: Record<Language, string> = {
   "zh-CN": "用 Keyward 设置验证码",
   en: "Set Up Verification Code with Keyward",
 }
-const PENDING_KEY = "codeSetup.pending"
+const pendingItem = storage.defineItem<PendingSetup>(
+  "session:codeSetup.pending",
+)
 /** A key picked from a page is set up within this time, or picked again. */
 const PENDING_MAX_AGE_MS = 10 * 60_000
 const MAX_URI_LENGTH = 4096
@@ -24,15 +27,15 @@ const IMAGE_PREFIX = "data:image/png;base64,"
 const candidates = new Map<number, { uri: string; frameId: number }>()
 
 /** An authenticator key picked from a page, waiting for the popup to say where it goes. */
-export interface PendingSetup {
+interface PendingSetup {
   uri: string
   /** The page of the frame the key was picked in, which may be an embedded one of another site. */
-  site: string
+  pageUrl: string
   at: number
 }
 
 /** The URI if text is an `otpauth://totp/` key that codes can be made from. */
-export function setupUri(text: string): string | null {
+function setupUri(text: string): string | null {
   const uri = text.trim()
   if (!/^otpauth:\/\/totp\//i.test(uri) || uri.length > MAX_URI_LENGTH)
     return null
@@ -94,10 +97,8 @@ export async function pendingSetup(): Promise<{
   uri: string
   page: URL
 }> {
-  const pending = (await browser.storage.session.get(PENDING_KEY))[
-    PENDING_KEY
-  ] as PendingSetup | undefined
-  const page = pending ? webPage(pending.site) : null
+  const pending = await pendingItem.getValue()
+  const page = pending ? webPage(pending.pageUrl) : null
   if (!pending || !page || Date.now() - pending.at > PENDING_MAX_AGE_MS) {
     throw new VaultError("No verification code to set up", "noSetup")
   }
@@ -105,7 +106,7 @@ export async function pendingSetup(): Promise<{
 }
 
 export async function finishSetup(): Promise<void> {
-  await browser.storage.session.remove(PENDING_KEY)
+  await pendingItem.removeValue()
 }
 
 /**
@@ -141,12 +142,11 @@ export function watchCodeSetup(openPopup: (view: PopupView) => void): void {
     if (!candidate || candidate.frameId !== info.frameId) return
     const page = await frameUrl(tab.id, candidate.frameId).catch(() => null)
     if (!page) return
-    const pending: PendingSetup = {
+    await pendingItem.setValue({
       uri: candidate.uri,
-      site: page.href,
+      pageUrl: page.href,
       at: Date.now(),
-    }
-    await browser.storage.session.set({ [PENDING_KEY]: pending })
+    })
     openPopup({ name: "codeSetup" })
   })
   // The item belongs to what the pointer is on in one tab.

@@ -1,4 +1,6 @@
+import { storage } from "wxt/utils/storage"
 import type { GeneratorKind } from "@/lib/generator"
+import { serialQueue } from "@/lib/serial-queue"
 import {
   type EarlierHistoryEntry,
   type HistoryEntry,
@@ -6,7 +8,10 @@ import {
 } from "./api"
 
 /** Generated values, newest first, kept in storage.session so they end with the browser; storage.local is not encrypted. */
-const KEY = "generator.history"
+const historyItem = storage.defineItem<EarlierHistoryEntry[]>(
+  "session:generator.history",
+  { fallback: [] },
+)
 /** The most entries kept, a cap Keyward chose; the oldest entries are dropped first. */
 export const HISTORY_LIMIT = 100
 /** How long the generator must keep showing a value before it counts as settled. */
@@ -22,22 +27,19 @@ interface Unsettled {
 const unsettled = new Map<GeneratorKind, Unsettled>()
 
 export async function listHistory(): Promise<HistoryEntry[]> {
-  const stored = (await browser.storage.session.get(KEY))[KEY]
-  if (!Array.isArray(stored)) return []
-  return (stored as EarlierHistoryEntry[]).map(historyEntryOf)
+  const stored = await historyItem.getValue()
+  return Array.isArray(stored) ? stored.map(historyEntryOf) : []
 }
 
-/** The last change of the stored list; each waits for the one before, so none is lost. */
-let changing: Promise<unknown> = Promise.resolve()
+/** Changes to the stored list run one after another, so none is lost. */
+const historyChange = serialQueue()
 
 export function addHistory(
   value: string,
   host: string | null,
   kind: GeneratorKind = "password",
 ): Promise<void> {
-  const added = changing.then(() => prepend(value, host, kind))
-  changing = added.catch(() => {})
-  return added
+  return historyChange(() => prepend(value, host, kind))
 }
 
 async function prepend(
@@ -54,9 +56,7 @@ async function prepend(
     host,
     at: Date.now(),
   }
-  await browser.storage.session.set({
-    [KEY]: [entry, ...entries].slice(0, HISTORY_LIMIT),
-  })
+  await historyItem.setValue([entry, ...entries].slice(0, HISTORY_LIMIT))
 }
 
 /**
@@ -109,7 +109,5 @@ export async function settleNow(): Promise<void> {
 export function clearHistory(): Promise<void> {
   for (const { timer } of unsettled.values()) clearTimeout(timer)
   unsettled.clear()
-  const cleared = changing.then(() => browser.storage.session.remove(KEY))
-  changing = cleared.catch(() => {})
-  return cleared
+  return historyChange(() => historyItem.removeValue())
 }

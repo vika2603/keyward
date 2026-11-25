@@ -8,6 +8,7 @@ import { createHandlers } from "./handlers"
 import {
   addHistory,
   clearHistory,
+  HISTORY_LIMIT,
   listHistory,
   SETTLE_DELAY_MS,
 } from "./history"
@@ -133,12 +134,12 @@ describe("the history", () => {
     )
   })
 
-  it("keeps the newest 100 entries", async () => {
+  it("keeps the newest entries up to the limit", async () => {
     for (let index = 1; index <= 105; index++) {
       await addHistory(`password-${index}`, null)
     }
     const values = (await listHistory()).map((entry) => entry.value)
-    expect(values).toHaveLength(100)
+    expect(values).toHaveLength(HISTORY_LIMIT)
     expect(values[0]).toBe("password-105")
     expect(values.at(-1)).toBe("password-6")
   })

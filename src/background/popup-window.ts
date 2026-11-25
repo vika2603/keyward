@@ -1,10 +1,12 @@
+import { storage } from "wxt/utils/storage"
 import type { PopupView } from "./api"
 
-const POPUP_VIEW_KEY = "popup.view"
+/** The view the popup opens on next, set by a command or the in-page menu. */
+const requestedViewItem = storage.defineItem<PopupView>("session:popup.view")
 
 /** Opens the toolbar popup on a given view, in a popup window when the browser refuses. */
 export async function openPopup(view: PopupView): Promise<void> {
-  await browser.storage.session.set({ [POPUP_VIEW_KEY]: view })
+  await requestedViewItem.setValue(view)
   try {
     await browser.action.openPopup()
   } catch {
@@ -19,9 +21,7 @@ export async function openPopup(view: PopupView): Promise<void> {
 
 /** The view the popup was last asked to open on, which it takes once. */
 export async function takeRequestedView(): Promise<PopupView | null> {
-  const stored = (await browser.storage.session.get(POPUP_VIEW_KEY))[
-    POPUP_VIEW_KEY
-  ]
-  await browser.storage.session.remove(POPUP_VIEW_KEY)
-  return (stored as PopupView | undefined) ?? null
+  const requested = await requestedViewItem.getValue()
+  await requestedViewItem.removeValue()
+  return requested
 }

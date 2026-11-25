@@ -1,3 +1,4 @@
+import { storage } from "wxt/utils/storage"
 import type { Sender } from "@/lib/messaging"
 import { VaultError } from "@/lib/providers/types"
 import type { FieldKind } from "./api"
@@ -18,26 +19,23 @@ interface OverlayBase {
  * them too; they hold no data of their own and must present the session's token, which reaches
  * only the frame the content script created. The first frame to present it claims the session.
  */
-export class OverlaySessions<T extends OverlayBase> {
+class OverlaySessions<T extends OverlayBase> {
   constructor(private readonly kind: string) {}
 
-  private key(tabId: number): string {
-    return `overlay.${this.kind}.${tabId}`
+  private key(tabId: number): `session:${string}` {
+    return `session:overlay.${this.kind}.${tabId}`
   }
 
-  async get(tabId: number): Promise<T | null> {
-    const key = this.key(tabId)
-    return (
-      ((await browser.storage.session.get(key))[key] as T | undefined) ?? null
-    )
+  get(tabId: number): Promise<T | null> {
+    return storage.getItem<T>(this.key(tabId))
   }
 
   async set(session: T): Promise<void> {
-    await browser.storage.session.set({ [this.key(session.tabId)]: session })
+    await storage.setItem(this.key(session.tabId), session)
   }
 
   async remove(tabId: number): Promise<void> {
-    await browser.storage.session.remove(this.key(tabId))
+    await storage.removeItem(this.key(tabId))
   }
 
   /** The session of the overlay frame that sent a request; claims an unclaimed one. */
@@ -64,7 +62,7 @@ function forbidden(): VaultError {
   )
 }
 
-export interface MenuSession extends OverlayBase {
+interface MenuSession extends OverlayBase {
   kind: FieldKind
   /** Whether the field takes a new password. */
   newPassword?: boolean
