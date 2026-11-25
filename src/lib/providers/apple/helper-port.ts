@@ -1,3 +1,5 @@
+import { Cmd } from "./protocol"
+
 const HOST_NAME = "com.apple.passwordmanager"
 
 export interface HelperMessage {
@@ -80,7 +82,7 @@ export class HelperPort {
     if (!port) return
     this.port = null
     try {
-      port.postMessage({ cmd: 0 })
+      port.postMessage({ cmd: Cmd.End })
     } catch {
       // The port may already be closing.
     }

@@ -1,8 +1,10 @@
 import { HOTP, Secret, TOTP } from "otpauth"
 import type { OneTimeCode } from "@/lib/providers/types"
 
-/** Steam Guard's code alphabet; its codes are five of these characters. */
+/** Steam Guard's code alphabet. */
 const STEAM_CHARS = "23456789BCDFGHJKMNPQRTVWXY"
+const STEAM_CODE_LENGTH = 5
+const STEAM_PERIOD_SECONDS = 30
 
 function secretOf(base32: string): Secret {
   return Secret.fromBase32(base32.replace(/[\s=-]/g, "").toUpperCase())
@@ -32,14 +34,10 @@ function totpOfUri(uri: string): TOTP {
 }
 
 function expiry(period: number, now: number): number {
-  const ms = period * 1000
-  return (Math.floor(now / ms) + 1) * ms
+  const periodMs = period * 1000
+  return (Math.floor(now / periodMs) + 1) * periodMs
 }
 
-/**
- * The current code for a saved authenticator key, which Bitwarden stores as an `otpauth://`
- * URI, a `steam://` key or a bare base32 secret.
- */
 /** Who an `otpauth://` key is for, as its label and issuer say; empty for other keys. */
 export function keyLabel(key: string): { issuer?: string; account?: string } {
   let url: URL
@@ -62,13 +60,17 @@ export function keyLabel(key: string): { issuer?: string; account?: string } {
   }
 }
 
+/**
+ * The current code for a saved authenticator key, which Bitwarden stores as an `otpauth://`
+ * URI, a `steam://` key or a bare base32 secret.
+ */
 export function oneTimeCode(
   key: string,
   now = Date.now(),
 ): Required<OneTimeCode> {
   const trimmed = key.trim()
   if (/^steam:\/\//i.test(trimmed)) {
-    const period = 30
+    const period = STEAM_PERIOD_SECONDS
     // Ten digits keep the whole 31-bit value that Steam spells out in its own alphabet.
     let value = Number(
       HOTP.generate({
@@ -78,7 +80,7 @@ export function oneTimeCode(
       }),
     )
     let code = ""
-    for (let i = 0; i < 5; i++) {
+    for (let position = 0; position < STEAM_CODE_LENGTH; position++) {
       code += STEAM_CHARS[value % STEAM_CHARS.length]
       value = Math.floor(value / STEAM_CHARS.length)
     }

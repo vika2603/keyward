@@ -12,18 +12,20 @@ export type IconTone = "dark" | "light" | null
 const ONE_TONE_SHARE = 0.9
 const LIGHT_LUMINANCE = 0.75
 const DARK_LUMINANCE = 0.3
+/** The least alpha, out of 255, of a pixel that counts; clearer ones are skipped. */
+const MINIMUM_ALPHA = 128
 
 /** The tone of an icon from its RGBA pixels, as a canvas reads them; mostly clear pixels are skipped. */
 export function iconToneOf(pixels: ArrayLike<number>): IconTone {
   let opaque = 0
   let light = 0
   let dark = 0
-  for (let i = 0; i + 3 < pixels.length; i += 4) {
-    if ((pixels[i + 3] ?? 0) < 128) continue
+  for (let offset = 0; offset + 3 < pixels.length; offset += 4) {
+    if ((pixels[offset + 3] ?? 0) < MINIMUM_ALPHA) continue
     const luminance =
-      (0.2126 * (pixels[i] ?? 0) +
-        0.7152 * (pixels[i + 1] ?? 0) +
-        0.0722 * (pixels[i + 2] ?? 0)) /
+      (0.2126 * (pixels[offset] ?? 0) +
+        0.7152 * (pixels[offset + 1] ?? 0) +
+        0.0722 * (pixels[offset + 2] ?? 0)) /
       255
     opaque++
     if (luminance > LIGHT_LUMINANCE) light++

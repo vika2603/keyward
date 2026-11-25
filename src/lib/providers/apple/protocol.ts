@@ -65,6 +65,8 @@ export function decodePake(pake: unknown): Record<string, unknown> {
   return JSON.parse(fromUtf8(Uint8Array.fromBase64(pake)))
 }
 
+// Lengths in bytes.
+const AES_128_KEY_LENGTH = 16
 const IV_LENGTH = 16
 
 /** An established session: AES-128-GCM with the first 16 bytes of the SRP session key. */
@@ -76,7 +78,7 @@ export class SecureSession {
   ) {}
 
   static async create(id: string, codec: BinaryCodec, sessionKey: Uint8Array) {
-    const rawKey = sessionKey.slice(0, 16)
+    const rawKey = sessionKey.slice(0, AES_128_KEY_LENGTH)
     const key = await crypto.subtle.importKey("raw", rawKey, "AES-GCM", false, [
       "encrypt",
       "decrypt",
