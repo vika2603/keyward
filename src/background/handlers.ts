@@ -13,6 +13,7 @@ import {
   fillLogin,
   fillNewPassword,
   hasCodes,
+  notePasskeyUsed,
 } from "./autofill"
 import type { Backends } from "./backends"
 import { copyText } from "./clipboard"
@@ -638,6 +639,14 @@ export function createHandlers(backends: Backends): Handlers<BackgroundApi> {
       handle: (_, sender) => {
         const { tabId, frameId } = tabFrame(sender)
         return hasCodes(backends, tabId, frameId)
+      },
+    },
+    "content.passkeyUsed": {
+      allow: ["contentScript"],
+      handle: async (_, sender) => {
+        const { tabId, frameId } = tabFrame(sender)
+        await notePasskeyUsed(tabId, frameId)
+        return null
       },
     },
     "content.closeMenu": {

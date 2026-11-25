@@ -25,6 +25,7 @@ import { InlineMenu, SavePrompt } from "@/content/overlays"
 import {
   PASSKEY_CONTROL_EVENT,
   PASSKEY_STATE_EVENT,
+  PASSKEY_USED_EVENT,
   type PasskeyControl,
 } from "@/content/passkey-events"
 import { watchSubmissions } from "@/content/submit"
@@ -349,6 +350,9 @@ export default defineContentScript({
         menu.close()
         void openMenu(field).catch(() => {})
       }
+    })
+    ctx.addEventListener(document, PASSKEY_USED_EVENT, () => {
+      void callBackground("content.passkeyUsed", null).catch(() => {})
     })
     browser.storage.local.onChanged.addListener(onStorage)
     onInvalidatedRemove(() =>

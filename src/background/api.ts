@@ -48,7 +48,10 @@ export interface ContentConfig {
   /** Whether a source can take an authenticator key, so QR codes under the pointer are read. */
   scanCodes: boolean
   menuTrigger: "click" | "focus"
-  /** Whether the frame keeps a page's passkey request for the menu while it has login fields. */
+  /**
+   * Whether the frame keeps a page's passkey request for the menu while it has login fields: when
+   * the setting is on and a passkey sign-in succeeded on the site before.
+   */
   takeOverPasskeys: boolean
   theme: "system" | "light" | "dark"
   language: Language
@@ -230,6 +233,8 @@ export type BackgroundApi = {
   }
   /** Whether a ready source has one-time codes for the frame, asked once the frame has a code field. */
   "content.hasCodes": { payload: null; result: boolean }
+  /** The page got a passkey credential; the site's passkey requests go to the menu from now on. */
+  "content.passkeyUsed": { payload: null; result: null }
   "content.closeMenu": { payload: null; result: null }
   "content.submitted": {
     /** `newPassword` when the password was typed into a field for a new one. */

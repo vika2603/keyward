@@ -55,7 +55,7 @@ export const en = {
     "Also offer suggestions when a login form is embedded in a frame from another domain.",
   "options.fill.takeOverPasskeys.name": "Offer passkeys in the menu",
   "options.fill.takeOverPasskeys.description":
-    "When a site offers passkey sign-in, Chrome's passkey list under the field is replaced by \"Sign in with a passkey\" in the menu, which opens Chrome's passkey dialog. Turn this off to keep Chrome's list.",
+    "On sites where you have signed in with a passkey in this browser, Chrome's passkey list under the field is replaced by \"Sign in with a passkey\" in the menu, which opens Chrome's passkey dialog. Other sites keep Chrome's list, which appears only when you have a passkey there.",
   "options.fill.autofill.title": "Autofill",
   "options.fill.autoSubmit.name": "Submit after filling",
   "options.fill.autoSubmit.description":
@@ -249,7 +249,7 @@ export const zhCN: Record<keyof typeof en, string> = {
     "登录框嵌在其他域名的框架里时也提供候选。",
   "options.fill.takeOverPasskeys.name": "在菜单里提供通行密钥",
   "options.fill.takeOverPasskeys.description":
-    "网站支持通行密钥登录时，Chrome 不再在输入框下列出通行密钥，改为在菜单里点「使用通行密钥登录」，再由 Chrome 的通行密钥窗口验证。关闭后恢复 Chrome 自己的列表。",
+    "在这个浏览器里用通行密钥登录过的网站，Chrome 不再在输入框下列出通行密钥，改为在菜单里点「使用通行密钥登录」，再由 Chrome 的通行密钥窗口验证。其他网站仍用 Chrome 的列表，它只在你有通行密钥时出现。",
   "options.fill.autofill.title": "自动填充",
   "options.fill.autoSubmit.name": "填充后自动提交",
   "options.fill.autoSubmit.description":

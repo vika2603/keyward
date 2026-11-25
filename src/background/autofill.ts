@@ -7,6 +7,7 @@ import type { ContentConfig, FieldInfo } from "./api"
 import type { Backends } from "./backends"
 import { addHistory } from "./history"
 import { activeTab, frameUrl, sendToFrame } from "./page"
+import { hasPasskeySite, rememberPasskeySite } from "./passkey-sites"
 import { markRecent, recallUsername, rememberUsername } from "./save-flow"
 
 /** Whether a frame may show the field icon and receive logins, given its URL and the settings. */
@@ -34,7 +35,7 @@ export async function contentConfig(
     active: false,
     scanCodes: false,
     menuTrigger: settings.menuTrigger,
-    takeOverPasskeys: settings.takeOverPasskeys,
+    takeOverPasskeys: false,
     theme: settings.theme,
     language: resolveLanguage(settings.language),
   }
@@ -52,7 +53,19 @@ export async function contentConfig(
       s.status === "ready" &&
       (s.kind === "bitwarden" || backends.apple.canSetUpCodes()),
   )
-  return { ...off, active: true, menuTrigger, scanCodes }
+  const takeOverPasskeys =
+    settings.takeOverPasskeys && (await hasPasskeySite(page))
+  return { ...off, active: true, menuTrigger, scanCodes, takeOverPasskeys }
+}
+
+/** Notes that the frame's site has a passkey, once the frame may show the menu at all. */
+export async function notePasskeyUsed(
+  tabId: number,
+  frameId: number,
+): Promise<void> {
+  const page = await frameUrl(tabId, frameId)
+  if (page && (await frameAllowed(tabId, frameId, page, await getSettings())))
+    await rememberPasskeySite(page)
 }
 
 /** The frame's page, once it is known that the frame may be filled from the source. */

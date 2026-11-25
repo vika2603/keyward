@@ -1,6 +1,7 @@
 import {
   PASSKEY_CONTROL_EVENT,
   PASSKEY_STATE_EVENT,
+  PASSKEY_USED_EVENT,
 } from "@/content/passkey-events"
 
 /** How long a request waits for the content script before the browser gets it after all. */
@@ -41,6 +42,11 @@ export default defineContentScript({
         }),
       )
 
+    const noteUsed = (credential: Credential | null) => {
+      if (credential)
+        document.dispatchEvent(new CustomEvent(PASSKEY_USED_EVENT))
+    }
+
     const finish = (request: Held, settle: () => void) => {
       if (held !== request) return
       held = null
@@ -57,8 +63,9 @@ export default defineContentScript({
         signal: controller.signal,
       }).then(
         (credential) => {
-          if (request.attempt?.controller === controller)
-            finish(request, () => request.resolve(credential))
+          if (request.attempt?.controller !== controller) return
+          noteUsed(credential)
+          finish(request, () => request.resolve(credential))
         },
         (error: unknown) => {
           if (request.attempt?.controller !== controller) return
@@ -93,8 +100,11 @@ export default defineContentScript({
     container.get = function get(
       options?: CredentialRequestOptions,
     ): Promise<Credential | null> {
-      if (options?.mediation !== "conditional" || !options.publicKey)
-        return browserGet(options)
+      if (options?.mediation !== "conditional" || !options.publicKey) {
+        const request = browserGet(options)
+        if (options?.publicKey) request.then(noteUsed, () => {})
+        return request
+      }
       const signal = options.signal
       if (signal?.aborted) return Promise.reject(signal.reason)
       if (held)

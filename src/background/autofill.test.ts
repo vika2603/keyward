@@ -2,11 +2,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 import { fakeBrowser } from "wxt/testing/fake-browser"
 import { updateSettings } from "@/lib/settings"
 import {
+  contentConfig,
   fillCode,
   fillFirst,
   fillLogin,
   fillNewPassword,
   hasCodes,
+  notePasskeyUsed,
 } from "./autofill"
 import { listHistory } from "./history"
 import { markRecent, recallUsername, rememberUsername } from "./save-flow"
@@ -276,6 +278,30 @@ describe("fillCode", () => {
     expect(await hasCodes(locked.backends, TAB, 0)).toBe(true)
     const none = fakeBackends([])
     expect(await hasCodes(none.backends, TAB, 0)).toBe(false)
+  })
+})
+
+describe("passkey sites", () => {
+  const takesOver = async (url: string, frameId = 0) => {
+    setFrame(TAB, frameId, url)
+    const { backends } = fakeBackends([{ info: accountSource }])
+    return (await contentConfig(backends, TAB, frameId)).takeOverPasskeys
+  }
+
+  it("offers passkeys in the menu only on sites where one was used", async () => {
+    expect(await takesOver("https://accounts.example.com/login")).toBe(false)
+    await notePasskeyUsed(TAB, 0)
+    expect(await takesOver("https://login.example.com/")).toBe(true)
+    expect(await takesOver("https://example.org/login")).toBe(false)
+    await updateSettings({ takeOverPasskeys: false })
+    expect(await takesOver("https://accounts.example.com/login")).toBe(false)
+  })
+
+  it("does not learn from a frame that may not show the menu", async () => {
+    setFrame(TAB, 3, "https://widget.example.net/")
+    await notePasskeyUsed(TAB, 3)
+    await updateSettings({ crossOriginFrames: true })
+    expect(await takesOver("https://widget.example.net/", 3)).toBe(false)
   })
 })
 
