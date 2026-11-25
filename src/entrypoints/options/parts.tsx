@@ -121,10 +121,11 @@ export function Segmented<T extends string>({
       className="inline-flex h-8 max-w-full min-w-0 gap-0 bg-muted p-[3px]"
     >
       {options.map(([optionValue, text]) => (
+        // The toggle clips its background to the padding box; a pressed option fills under its border too.
         <ToggleGroupItem
           key={optionValue}
           value={optionValue}
-          className="h-full shrink rounded-md border border-transparent text-foreground/60 hover:bg-transparent aria-pressed:bg-background aria-pressed:text-foreground aria-pressed:shadow-sm dark:text-muted-foreground dark:aria-pressed:border-input dark:aria-pressed:bg-input/30 dark:aria-pressed:text-foreground"
+          className="h-full shrink rounded-md border border-transparent bg-clip-border text-foreground/60 hover:bg-transparent aria-pressed:bg-background aria-pressed:text-foreground aria-pressed:shadow-sm dark:text-muted-foreground dark:aria-pressed:border-input dark:aria-pressed:bg-input/30 dark:aria-pressed:text-foreground"
         >
           {text}
         </ToggleGroupItem>
