@@ -1,4 +1,4 @@
-import { APPLE_HOST_NAME } from "./host-name"
+const HOST_NAME = "com.apple.passwordmanager"
 
 export interface HelperMessage {
   cmd: number
@@ -57,7 +57,7 @@ export class HelperPort {
 
   connect(): void {
     if (this.port) return
-    const port = browser.runtime.connectNative(APPLE_HOST_NAME)
+    const port = browser.runtime.connectNative(HOST_NAME)
     this.port = port
     port.onMessage.addListener((message: HelperMessage) =>
       this.dispatch(message),
