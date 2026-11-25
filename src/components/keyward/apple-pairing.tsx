@@ -134,7 +134,7 @@ export function ApplePairing({ onPaired }: { onPaired: () => void }) {
           onClick={() => {
             setCode("")
             setMessage(null)
-            void start(waiting)
+            void start(true)
           }}
         >
           <RotateCwIcon />

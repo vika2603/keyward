@@ -235,6 +235,12 @@ export class AppleBackend implements PasswordBackend {
       if (!restart && this.state.phase === "awaitingCode" && this.pairing)
         return
       if (this.state.phase === "paired" && this.session) return
+      // A helper process shows the same code for every handshake, so a new code takes a new process.
+      if (restart && this.port.connected) {
+        this.port.disconnect()
+        this.capabilities = null
+        this.pairing = null
+      }
       await this.ensureConnected()
       const version = this.capabilities?.secretSessionVersion
       if (version !== undefined && version !== SRP_WITH_RFC_VERIFICATION) {
