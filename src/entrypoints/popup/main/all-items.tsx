@@ -371,12 +371,11 @@ export function ItemBrowser({
     ...(hasNotes ? (["logins", "notes"] as const) : []),
     ...(hasTrash ? (["trash"] as const) : []),
   ]
-  const filter =
-    chosen && filters.includes(chosen)
-      ? chosen
-      : host && siteItemCount > 0
-        ? "site"
-        : "all"
+  const filter = shownFilter(
+    chosen,
+    filters,
+    host !== null && siteItemCount > 0,
+  )
   const [foldedVaults, setFoldedVaults] = useState(savedFoldedVaults)
   const filtersShown = useContext(GroupFilterContext)?.filters.shown
   const { rows, itemCount } = useMemo(
@@ -401,6 +400,24 @@ export function ItemBrowser({
     value === "site"
       ? t("popup.main.currentSite", { host: host ?? "" })
       : t(KIND_LABELS[value])
+
+  const listedItems =
+    itemCount === 0 ? (
+      <p className="px-3 py-2 text-xs text-muted-foreground">
+        {t("popup.main.noItems")}
+      </p>
+    ) : (
+      <VirtualRows
+        rows={rows}
+        density={density}
+        scrollElement={scrollElement}
+        nameFirst
+        onToggleVault={toggleVault}
+        onOpenLogin={onOpenLogin}
+        onOpenNote={onOpenNote}
+        onChanged={onChanged}
+      />
+    )
 
   return (
     <section>
@@ -448,24 +465,17 @@ export function ItemBrowser({
         </span>
       </div>
       {onlyVault && <GroupFilterBar vaultId={onlyVault.id} />}
-      {filter === "site" ? (
-        site
-      ) : itemCount === 0 ? (
-        <p className="px-3 py-2 text-xs text-muted-foreground">
-          {t("popup.main.noItems")}
-        </p>
-      ) : (
-        <VirtualRows
-          rows={rows}
-          density={density}
-          scrollElement={scrollElement}
-          nameFirst
-          onToggleVault={toggleVault}
-          onOpenLogin={onOpenLogin}
-          onOpenNote={onOpenNote}
-          onChanged={onChanged}
-        />
-      )}
+      {filter === "site" ? site : listedItems}
     </section>
   )
+}
+
+/** The filter shown: the chosen one while it is offered, else the site's items when it has some, else all. */
+function shownFilter(
+  chosen: ItemFilter | null,
+  offered: ItemFilter[],
+  siteHasItems: boolean,
+): ItemFilter {
+  if (chosen && offered.includes(chosen)) return chosen
+  return siteHasItems ? "site" : "all"
 }

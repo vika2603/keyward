@@ -660,9 +660,9 @@ describe("reading an unlocked account", () => {
     const read = vi.spyOn(fakeBrowser.storage.session, "get")
     await bw.logins(VAULT, page)
     await bw.vaults()
-    const keysRead = read.mock.calls.flatMap(([keys]) =>
-      typeof keys === "string" ? [keys] : Array.isArray(keys) ? keys : [],
-    )
+    const keysRead = read.mock.calls
+      .flatMap(([keys]) => (Array.isArray(keys) ? keys : [keys]))
+      .filter((key): key is string => typeof key === "string")
     expect(keysRead.some((key) => key.startsWith("bitwarden.sync."))).toBe(
       false,
     )

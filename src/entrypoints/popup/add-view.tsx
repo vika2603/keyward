@@ -321,19 +321,13 @@ function AddLoginForm({ onDone }: { onDone: () => void }) {
               </Button>
             </div>
           )}
-          {targetsError ? (
-            <FormError>{targetsError}</FormError>
-          ) : unsupported.some((vault) => vault.kind === "apple") ? (
-            <p className="text-xs text-muted-foreground">
-              {t("error.apple.unsupportedSite")}
-            </p>
-          ) : (
-            targets?.length === 0 && (
-              <p className="text-xs text-muted-foreground">
-                {t("popup.add.noTarget")}
-              </p>
-            )
-          )}
+          <TargetsNote
+            error={targetsError}
+            appleRefusesSite={unsupported.some(
+              (vault) => vault.kind === "apple",
+            )}
+            noTarget={targets?.length === 0}
+          />
         </FormField>
         {bitwarden && target && (
           <LoginDetailsFields
@@ -408,4 +402,28 @@ export function AddView({ onBack }: { onBack: () => void }) {
       )}
     </div>
   )
+}
+
+/** Why the login has fewer places to go, or none: the targets' error, Apple refusing the site, or no place. */
+function TargetsNote({
+  error,
+  appleRefusesSite,
+  noTarget,
+}: {
+  error: string | null
+  appleRefusesSite: boolean
+  noTarget: boolean
+}) {
+  if (error) return <FormError>{error}</FormError>
+  if (appleRefusesSite)
+    return (
+      <p className="text-xs text-muted-foreground">
+        {t("error.apple.unsupportedSite")}
+      </p>
+    )
+  if (noTarget)
+    return (
+      <p className="text-xs text-muted-foreground">{t("popup.add.noTarget")}</p>
+    )
+  return null
 }

@@ -21,6 +21,12 @@ import { FormError } from "./form-field"
 const CODE_LENGTH = 6
 const CODE_SLOTS = Array.from({ length: CODE_LENGTH }, (_, slot) => slot)
 
+function pairingStatus(phase: AppleState["phase"] | undefined): string {
+  if (phase === "connecting") return t("pairing.connecting")
+  if (phase === "paired") return t("pairing.paired")
+  return t("pairing.enterCode")
+}
+
 /**
  * Pairs with Apple Passwords: the helper shows a six-digit code on the Mac, which the user types
  * here. A wrong code ends the attempt, so one new attempt starts and the Mac shows a new code.
@@ -125,13 +131,7 @@ export function ApplePairing({ onPaired }: { onPaired: () => void }) {
           <MacIcon className="size-6" aria-hidden="true" />
         </div>
         <h2 className="text-base font-medium">{t("pairing.title")}</h2>
-        <p className="text-sm text-muted-foreground">
-          {phase === "connecting"
-            ? t("pairing.connecting")
-            : paired
-              ? t("pairing.paired")
-              : t("pairing.enterCode")}
-        </p>
+        <p className="text-sm text-muted-foreground">{pairingStatus(phase)}</p>
       </div>
       <InputOTP
         ref={codeInputRef}

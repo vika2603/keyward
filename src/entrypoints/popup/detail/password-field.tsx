@@ -85,15 +85,27 @@ export function PasswordField({
         </>
       }
     >
-      {pending && apple ? (
-        <span className="text-xs text-muted-foreground">
-          {t("popup.main.confirmTouchId")}
-        </span>
-      ) : revealed && password !== null ? (
-        <SecretText value={password} />
-      ) : (
-        <MaskText />
-      )}
+      <PasswordValue
+        password={revealed ? password : null}
+        awaitingTouchId={pending && apple}
+      />
     </DetailRow>
   )
+}
+
+/** The password while it is shown, a mask otherwise, or the Touch ID request it waits for. */
+function PasswordValue({
+  password,
+  awaitingTouchId,
+}: {
+  password: string | null
+  awaitingTouchId: boolean
+}) {
+  if (awaitingTouchId)
+    return (
+      <span className="text-xs text-muted-foreground">
+        {t("popup.main.confirmTouchId")}
+      </span>
+    )
+  return password === null ? <MaskText /> : <SecretText value={password} />
 }

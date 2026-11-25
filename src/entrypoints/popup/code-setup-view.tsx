@@ -116,11 +116,7 @@ export function CodeSetupView({
             disabled={busy}
             onClick={() => void choose(choice, replaces)}
           >
-            {confirmingChoiceId === id
-              ? t("popup.codeSetup.confirmReplace")
-              : replaces
-                ? t("popup.codeSetup.replace")
-                : t("popup.codeSetup.add")}
+            {choiceLabel(confirmingChoiceId === id, replaces)}
           </Button>
         </div>
         {/* Lined up with the login's name: past the icon (size-8) and the gap after it (2.5). */}
@@ -244,4 +240,10 @@ export function CodeSetupView({
       </div>
     </div>
   )
+}
+
+/** A choice's button: asking to confirm a replacement, or saying whether it replaces or adds a code. */
+function choiceLabel(confirming: boolean, replaces: boolean): string {
+  if (confirming) return t("popup.codeSetup.confirmReplace")
+  return replaces ? t("popup.codeSetup.replace") : t("popup.codeSetup.add")
 }

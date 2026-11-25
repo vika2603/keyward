@@ -149,11 +149,7 @@ export function TrashedRow({
   const [armed, setArmed] = useState(false)
   const compact = density === "compact"
   const ids = { vaultId: vault.id, itemId: item.id }
-  const detail = !item.editable
-    ? t("popup.trash.readOnly")
-    : item.deletedAt === undefined
-      ? (item.username ?? "")
-      : t("popup.trash.deletedOn", { date: formatDay(item.deletedAt) })
+  const detail = trashDetail(item)
 
   const run = async (action: "restore" | "purge") => {
     setBusy(true)
@@ -363,4 +359,11 @@ export function LoginRow({
       </RowActions>
     </RowShell>
   )
+}
+
+/** The line under a trashed item's name: that it is read-only, else when it was deleted. */
+function trashDetail(item: TrashedItem): string {
+  if (!item.editable) return t("popup.trash.readOnly")
+  if (item.deletedAt === undefined) return item.username ?? ""
+  return t("popup.trash.deletedOn", { date: formatDay(item.deletedAt) })
 }
