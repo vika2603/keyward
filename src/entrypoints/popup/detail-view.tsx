@@ -174,8 +174,9 @@ export function DetailView({
   const [shownFields, setShownFields] = useState<ReadonlySet<number>>(
     () => new Set(),
   )
-  /** What waits for Touch ID or the provider right now. */
-  const [waiting, setWaiting] = useState<"password" | "code" | null>(null)
+  /** Whether the password or the code waits for Touch ID or the provider right now. */
+  const [passwordPending, setPasswordPending] = useState(false)
+  const [codePending, setCodePending] = useState(false)
   const [now, setNow] = useState(Date.now)
   const passwordRef = useRef<HTMLDivElement>(null)
   const codeRef = useRef<HTMLDivElement>(null)
@@ -214,10 +215,10 @@ export function DetailView({
 
   const readPassword = useCallback(async (): Promise<string | null> => {
     if (password !== null) return password
-    setWaiting("password")
+    setPasswordPending(true)
     const result = await run(() =>
       callBackground("popup.revealPassword", ids),
-    ).finally(() => setWaiting(null))
+    ).finally(() => setPasswordPending(false))
     if (result) setPassword(result.password)
     return result?.password ?? null
   }, [password, run, ids])
@@ -228,10 +229,10 @@ export function DetailView({
   }, [readPassword, copyText])
 
   const loadCode = useCallback(async (): Promise<OneTimeCode | null> => {
-    setWaiting("code")
+    setCodePending(true)
     const result = await run(() =>
       callBackground("popup.oneTimeCode", ids),
-    ).finally(() => setWaiting(null))
+    ).finally(() => setCodePending(false))
     setCode(result)
     setNow(Date.now())
     return result
@@ -273,11 +274,16 @@ export function DetailView({
     const timer = setInterval(() => setNow(Date.now()), 1000)
     return () => clearInterval(timer)
   }, [expiresAt])
-  // A code that ran out is replaced by the next one.
+  // A code that ran out is replaced by the next one, once nothing else waits for Touch ID.
   useEffect(() => {
-    if (expiresAt !== undefined && now >= expiresAt && waiting === null)
+    if (
+      expiresAt !== undefined &&
+      now >= expiresAt &&
+      !passwordPending &&
+      !codePending
+    )
       void loadCode()
-  }, [expiresAt, now, waiting, loadCode])
+  }, [expiresAt, now, passwordPending, codePending, loadCode])
 
   useCopyThrough(
     passwordRef,
@@ -369,18 +375,18 @@ export function DetailView({
                           shown={revealed}
                           showLabel={t("popup.detail.showPassword")}
                           hideLabel={t("popup.detail.hidePassword")}
-                          disabled={waiting === "password"}
+                          disabled={passwordPending}
                           onClick={() => void togglePassword()}
                         />
                         <CopyButton
                           label={t("popup.copyPassword")}
-                          disabled={waiting === "password"}
+                          disabled={passwordPending}
                           copy={copyPassword}
                         />
                       </>
                     }
                   >
-                    {waiting === "password" && apple ? (
+                    {passwordPending && apple ? (
                       <span className="text-xs text-muted-foreground">
                         {t("popup.main.confirmTouchId")}
                       </span>
@@ -407,7 +413,7 @@ export function DetailView({
                             ) : (
                               <IconButton
                                 label={t("popup.detail.refreshCode")}
-                                disabled={waiting === "code"}
+                                disabled={codePending}
                                 onClick={() => void loadCode()}
                               >
                                 <RefreshCwIcon />
@@ -417,18 +423,18 @@ export function DetailView({
                             shown={codeShown}
                             showLabel={t("popup.detail.showCode")}
                             hideLabel={t("popup.detail.hideCode")}
-                            disabled={waiting === "code"}
+                            disabled={codePending}
                             onClick={() => void toggleCode()}
                           />
                           <CopyButton
                             label={t("popup.copyCode")}
-                            disabled={waiting === "code"}
+                            disabled={codePending}
                             copy={copyCode}
                           />
                         </>
                       }
                     >
-                      {waiting === "code" && apple ? (
+                      {codePending && apple ? (
                         <span className="text-xs text-muted-foreground">
                           {t("popup.main.confirmTouchId")}
                         </span>
