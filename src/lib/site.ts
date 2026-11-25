@@ -18,6 +18,18 @@ export function siteDomainOf(host: string): string {
   return getDomain(host, { allowPrivateDomains: true }) ?? host.toLowerCase()
 }
 
+/**
+ * Hosts whose icon can stand for `host`, best first: the host itself, then its registrable domain
+ * and that domain's www form. The browser keeps icons by the host it visited, and a bare domain
+ * that redirects to its www form, as google.com does, has none of its own.
+ */
+export function iconHostsOf(host: string): string[] {
+  const own = host.toLowerCase()
+  const domain = getDomain(own, { allowPrivateDomains: true })
+  if (!domain) return [own]
+  return [...new Set([own, domain, `www.${domain}`])]
+}
+
 /** True when `host` equals `parent` or is one of its subdomains. */
 export function isHostOrSubdomain(host: string, parent: string): boolean {
   const h = host.toLowerCase().replace(/\.$/, "")

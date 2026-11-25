@@ -1,4 +1,5 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
+import { iconHostsOf } from "@/lib/site"
 import { cn } from "@/lib/utils"
 
 /** Whether an icon is drawn in mostly dark or mostly light pixels; `null` for coloured ones. */
@@ -34,10 +35,81 @@ function toneOf(image: HTMLImageElement): Tone {
   }
 }
 
+function faviconUrl(host: string): string {
+  return `/_favicon/?pageUrl=${encodeURIComponent(`https://${host}/`)}&size=32`
+}
+
+/** A host no site has, whose icon is the browser's default globe. */
+const UNKNOWN_HOST = "keyward.invalid"
+
+async function faviconBytes(host: string): Promise<Uint8Array> {
+  const response = await fetch(faviconUrl(host))
+  return new Uint8Array(await response.arrayBuffer())
+}
+
+function sameBytes(first: Uint8Array, second: Uint8Array): boolean {
+  return (
+    first.length === second.length &&
+    first.every((byte, index) => byte === second[index])
+  )
+}
+
+let defaultIcon: Promise<Uint8Array> | undefined
+/** Each host's icon address once looked up, or null when the browser has none for it. */
+const foundIcons = new Map<string, string | null>()
+const lookups = new Map<string, Promise<string | null>>()
+
+/**
+ * The address of the first icon the browser has for the host or the hosts that can stand for it.
+ * The browser answers a host it has no icon for with its default globe rather than an error, so
+ * each answer is compared with the globe it gives an unknown host.
+ */
+function iconOf(host: string): Promise<string | null> {
+  let lookup = lookups.get(host)
+  if (!lookup) {
+    lookup = (async () => {
+      try {
+        defaultIcon ??= faviconBytes(UNKNOWN_HOST)
+        const fallback = await defaultIcon
+        for (const candidate of iconHostsOf(host))
+          if (!sameBytes(await faviconBytes(candidate), fallback))
+            return faviconUrl(candidate)
+      } catch {}
+      return null
+    })().then((found) => {
+      foundIcons.set(host, found)
+      return found
+    })
+    lookups.set(host, lookup)
+  }
+  return lookup
+}
+
+/** The host's icon address; null when there is none, undefined while it is being looked up. */
+function useFavicon(host: string | undefined): string | null | undefined {
+  const [looked, setLooked] = useState<{
+    host: string
+    found: string | null
+  } | null>(null)
+  useEffect(() => {
+    if (!host || foundIcons.has(host)) return
+    let current = true
+    void iconOf(host).then((found) => {
+      if (current) setLooked({ host, found })
+    })
+    return () => {
+      current = false
+    }
+  }, [host])
+  if (!host) return null
+  if (foundIcons.has(host)) return foundIcons.get(host)
+  return looked?.host === host ? looked.found : undefined
+}
+
 /**
  * A site's icon from the browser's own favicon cache, so no other server learns which sites the
- * logins are for, or the first letter of the site or title when there is no host or no icon. A
- * site the browser has no icon for shows its default globe.
+ * logins are for, or the first letter of the site or title when there is no host or the browser
+ * has no icon for it.
  */
 export function SiteIcon({
   host,
@@ -48,11 +120,12 @@ export function SiteIcon({
   text: string
   className?: string
 }) {
+  const icon = useFavicon(host)
   const [failed, setFailed] = useState(false)
   const [tone, setTone] = useState<Tone>(null)
   const letter =
     [...text.replace(/^www\./i, "").trim()][0]?.toUpperCase() ?? "?"
-  const favicon = Boolean(host) && !failed
+  const favicon = Boolean(icon) && !failed
   return (
     <span
       aria-hidden="true"
@@ -68,12 +141,13 @@ export function SiteIcon({
         <img
           alt=""
           className="size-4"
-          src={`/_favicon/?pageUrl=${encodeURIComponent(`https://${host}/`)}&size=32`}
+          src={icon ?? undefined}
           onLoad={(event) => setTone(toneOf(event.currentTarget))}
           onError={() => setFailed(true)}
         />
       ) : (
-        letter
+        // Nothing while the cache is asked, so a found icon does not replace a letter.
+        icon !== undefined && letter
       )}
     </span>
   )
