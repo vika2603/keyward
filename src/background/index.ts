@@ -1,16 +1,14 @@
 import { controlBrowserSaving } from "@/lib/browser-saving"
 import { senderKind, serveRequests } from "@/lib/messaging"
 import { AppleProvider } from "@/lib/providers/apple/apple-provider"
-import { ApiError } from "@/lib/providers/bitwarden/api"
 import { BitwardenProvider } from "@/lib/providers/bitwarden/bitwarden-provider"
-import { WrongPasswordError } from "@/lib/providers/bitwarden/crypto"
 import { loadVaultCrypto } from "@/lib/providers/bitwarden/sdk-loader"
-import { VaultError } from "@/lib/providers/types"
 import { getSettings, settingsItem } from "@/lib/settings"
 import { APPLE_PAIRING_PORT, VAULTS_CHANGED_KEY } from "./api"
 import { fillFirst } from "./autofill"
 import { CLEAR_CLIPBOARD_ALARM, clearClipboard } from "./clipboard"
 import { watchCodeSetup } from "./code-setup"
+import { errorCode } from "./error-code"
 import { createHandlers } from "./handlers"
 import { LoginMenus } from "./login-menus"
 import { menuSessions, promptSessions } from "./overlays"
@@ -43,13 +41,42 @@ async function injectIntoOpenTabs(): Promise<void> {
   )
 }
 
-function errorCode(error: unknown): string {
-  if (error instanceof VaultError) return error.code
-  if (error instanceof WrongPasswordError) return "bitwarden.wrongPassword"
-  if (error instanceof ApiError)
-    return error.isAuthError ? "bitwarden.auth" : "bitwarden.api"
-  if (error instanceof TypeError) return "network"
-  return "internal"
+async function lockWhenSystemLocks(
+  bitwarden: BitwardenProvider,
+): Promise<void> {
+  if ((await getSettings()).lockOnSystemLock) await bitwarden.lockAll()
+}
+
+async function runAlarm(
+  name: string,
+  bitwarden: BitwardenProvider,
+): Promise<void> {
+  if (name === AUTO_LOCK_ALARM) {
+    const { autoLockMinutes } = await getSettings()
+    if (autoLockMinutes !== null) await bitwarden.lockIdle(autoLockMinutes)
+  } else if (name === CLEAR_CLIPBOARD_ALARM) {
+    await clearClipboard()
+  }
+}
+
+async function runCommand(
+  command: string,
+  providers: Providers,
+): Promise<void> {
+  switch (command) {
+    case "fill-first": {
+      // With nothing to fill, the popup shows why: vaults to unlock or pair, or no login for the site.
+      if ((await fillFirst(providers)) === "noLogin")
+        await openPopup({ name: "main" })
+      return
+    }
+    case "open-generator":
+      await openPopup({ name: "generator" })
+      return
+    case "lock-all":
+      await providers.lockAll()
+      return
+  }
 }
 
 /** Wires the providers to messages, alarms and commands. Listeners are registered synchronously. */
@@ -112,31 +139,17 @@ export function startBackground(): void {
     refreshToolbar()
   })
 
-  browser.idle.onStateChanged.addListener(async (state) => {
-    if (state === "locked" && (await getSettings()).lockOnSystemLock)
-      await bitwarden.lockAll()
+  browser.idle.onStateChanged.addListener((state) => {
+    if (state === "locked") void lockWhenSystemLocks(bitwarden).catch(() => {})
   })
 
   void browser.alarms.create(AUTO_LOCK_ALARM, { periodInMinutes: 1 })
-  browser.alarms.onAlarm.addListener(async (alarm) => {
-    if (alarm.name === AUTO_LOCK_ALARM) {
-      const { autoLockMinutes } = await getSettings()
-      if (autoLockMinutes !== null) await bitwarden.lockIdle(autoLockMinutes)
-    } else if (alarm.name === CLEAR_CLIPBOARD_ALARM) {
-      await clearClipboard()
-    }
+  browser.alarms.onAlarm.addListener((alarm) => {
+    void runAlarm(alarm.name, bitwarden).catch(() => {})
   })
 
   browser.commands.onCommand.addListener((command) => {
-    if (command === "fill-first")
-      // With nothing to fill, the popup shows why: vaults to unlock or pair, or no login for the site.
-      void fillFirst(providers)
-        .then((result) =>
-          result === "noLogin" ? openPopup({ name: "main" }) : undefined,
-        )
-        .catch(() => {})
-    else if (command === "open-generator") void openPopup({ name: "generator" })
-    else if (command === "lock-all") void providers.lockAll()
+    void runCommand(command, providers).catch(() => {})
   })
 
   browser.runtime.onInstalled.addListener(({ reason }) => {

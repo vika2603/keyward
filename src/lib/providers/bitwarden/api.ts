@@ -27,6 +27,9 @@ export class ApiError extends Error {
   }
 }
 
+/** The server could not be reached: no network, a refused connection or an address that does not answer. */
+export class NetworkError extends Error {}
+
 function apiErrorMessage(
   status: number,
   body: Record<string, unknown> | null,
@@ -95,12 +98,18 @@ export class BitwardenApi {
     if (init.accessToken)
       headers.set("Authorization", `Bearer ${init.accessToken}`)
     const { accessToken: _token, ...rest } = init
-    return fetch(url, {
-      ...rest,
-      headers,
-      cache: "no-store",
-      credentials: "omit",
-    })
+    try {
+      return await fetch(url, {
+        ...rest,
+        headers,
+        cache: "no-store",
+        credentials: "omit",
+      })
+    } catch (error) {
+      throw new NetworkError("The server could not be reached", {
+        cause: error,
+      })
+    }
   }
 
   private async json(
