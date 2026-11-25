@@ -11,6 +11,8 @@ export interface StoredAccount {
   email: string
   /** Server address as entered; empty for the official service. */
   server: string
+  /** A name the user gave the account; empty or missing to show the email address. */
+  name?: string
   kdf: KdfConfig
   salt: string
   wrappedUserKey: string
@@ -53,6 +55,16 @@ export async function loadAccounts(): Promise<StoredAccount[]> {
 export async function saveAccount(account: StoredAccount): Promise<void> {
   const accounts = (await loadAccounts()).filter((a) => a.id !== account.id)
   await browser.storage.local.set({ [ACCOUNTS_KEY]: [...accounts, account] })
+}
+
+export async function setAccountName(
+  accountId: string,
+  name: string,
+): Promise<void> {
+  const accounts = (await loadAccounts()).map((account) =>
+    account.id === accountId ? { ...account, name } : account,
+  )
+  await browser.storage.local.set({ [ACCOUNTS_KEY]: accounts })
 }
 
 export async function removeAccount(accountId: string): Promise<void> {

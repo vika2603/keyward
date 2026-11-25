@@ -210,6 +210,11 @@ export type BackgroundApi = {
     result: null
   }
   "bitwarden.signOut": { payload: { accountId: string }; result: null }
+  /** Names an account in the interface; an empty name shows its email address again. */
+  "bitwarden.renameAccount": {
+    payload: { accountId: string; name: string }
+    result: null
+  }
   "bitwarden.signIn": {
     payload: { server: string; email: string; password: string }
     result: SignInOutcome

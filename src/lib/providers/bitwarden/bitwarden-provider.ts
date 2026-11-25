@@ -36,6 +36,7 @@ import {
   saveAccount,
   saveSession,
   saveSync,
+  setAccountName,
 } from "./account-store"
 import { ApiError, BitwardenApi, type Device, prop } from "./api"
 import {
@@ -49,7 +50,7 @@ import {
   wrappedUserKeyOf,
 } from "./auth"
 import { masterKeySalt, type VaultCrypto, WrongPasswordError } from "./crypto"
-import { serverUrls } from "./server"
+import { serverHost, serverUrls } from "./server"
 import {
   decryptDetails,
   decryptLogin,
@@ -85,6 +86,10 @@ export interface AccountSummary {
   vaultId: string
   email: string
   server: string
+  /** The name the user gave the account; empty when there is none. */
+  name: string
+  /** What the interface calls the account: its name, else its email address. */
+  label: string
   unlocked: boolean
 }
 
@@ -137,23 +142,31 @@ export class BitwardenProvider implements VaultProvider {
   async accounts(): Promise<AccountSummary[]> {
     const accounts = await loadAccounts()
     return Promise.all(
-      accounts.map(async (a) => ({
-        id: a.id,
-        vaultId: vaultIdOf(a.id),
-        email: a.email,
-        server: a.server,
-        unlocked: (await loadSession(a.id)) !== null,
+      accounts.map(async (account) => ({
+        id: account.id,
+        vaultId: vaultIdOf(account.id),
+        email: account.email,
+        server: account.server,
+        name: account.name ?? "",
+        label: accountLabel(account, accounts),
+        unlocked: (await loadSession(account.id)) !== null,
       })),
     )
   }
 
   async vaults(): Promise<VaultInfo[]> {
-    return (await this.accounts()).map((a) => ({
-      id: a.vaultId,
+    return (await this.accounts()).map((account) => ({
+      id: account.vaultId,
       kind: "bitwarden",
-      label: a.email,
-      status: a.unlocked ? "ready" : "locked",
+      label: account.label,
+      status: account.unlocked ? "ready" : "locked",
     }))
+  }
+
+  /** Gives an account the name the interface shows for it; an empty name goes back to the email. */
+  async renameAccount(accountId: string, name: string): Promise<void> {
+    await setAccountName(accountId, name.trim())
+    this.changed()
   }
 
   private async device(): Promise<Device> {
@@ -251,11 +264,15 @@ export class BitwardenProvider implements VaultProvider {
       signedIn.masterKey,
     )
     const userId = userIdOf(accessToken)
+    const id = accountIdOf(server, userId)
+    // Signing in again to an account keeps the name the user gave it.
+    const previous = (await loadAccounts()).find((stored) => stored.id === id)
     const account: StoredAccount = {
-      id: accountIdOf(server, userId),
+      id,
       userId,
       email: signedIn.email,
       server,
+      name: previous?.name,
       kdf: signedIn.kdf,
       salt: signedIn.salt,
       wrappedUserKey,
@@ -854,6 +871,25 @@ export class BitwardenProvider implements VaultProvider {
     if (!cipher) throw new VaultError("Unknown login", "notFound")
     await this.change(vaultId, cipher, { password: login.password })
   }
+}
+
+/**
+ * The account's name, or its email address. Two accounts with the same address on different
+ * servers are told apart by the server's host.
+ */
+function accountLabel(
+  account: StoredAccount,
+  accounts: readonly StoredAccount[],
+): string {
+  const name = account.name?.trim()
+  if (name) return name
+  const sharesEmail = accounts.some(
+    (other) =>
+      other.id !== account.id &&
+      other.email.toLowerCase() === account.email.toLowerCase(),
+  )
+  if (!sharesEmail) return account.email
+  return `${account.email} · ${serverHost(account.server)}`
 }
 
 /** Decrypts each cipher; one that cannot be decrypted is left out rather than failing the list. */

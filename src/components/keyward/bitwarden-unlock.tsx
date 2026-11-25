@@ -89,7 +89,7 @@ export function BitwardenUnlock({
         <h2 className="text-base font-medium">{t("unlock.title")}</h2>
         {accounts.length === 1 && account && (
           <p className="max-w-full truncate text-sm text-muted-foreground">
-            {account.email}
+            {account.label}
           </p>
         )}
       </div>
@@ -98,7 +98,7 @@ export function BitwardenUnlock({
           vaults={accounts.map((a) => ({
             id: a.id,
             kind: "bitwarden",
-            label: a.email,
+            label: a.label,
             status: a.unlocked ? "ready" : "locked",
           }))}
           value={selected ?? null}

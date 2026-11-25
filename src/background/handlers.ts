@@ -515,6 +515,18 @@ export function createHandlers(providers: Providers): Handlers<BackgroundApi> {
         return null
       },
     },
+    "bitwarden.renameAccount": {
+      allow: ["options"],
+      handle: async ({ accountId, name }) => {
+        const id = requireText(accountId, "accountId")
+        const known = (await bitwarden.accounts()).some(
+          (account) => account.id === id,
+        )
+        if (!known) throw new VaultError("Unknown account", "unknownVault")
+        await bitwarden.renameAccount(id, requireText(name, "name", 100))
+        return null
+      },
+    },
     "bitwarden.signIn": {
       allow: connectPages,
       handle: ({ server, email, password }) =>

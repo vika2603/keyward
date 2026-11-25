@@ -26,6 +26,13 @@ export const en = {
   "options.vaults.bitwarden.signIn": "Sign in",
   "options.vaults.bitwarden.officialServer": "Official service",
   "options.vaults.bitwarden.signOut": "Sign out",
+  "options.vaults.bitwarden.rename": "Rename",
+  "options.vaults.bitwarden.renameTitle": "Account name",
+  "options.vaults.bitwarden.renameDescription":
+    "The popup and menus show this name instead of the email address. Leave it empty to show the email address.",
+  "options.vaults.bitwarden.nameLabel": "Name",
+  "options.vaults.bitwarden.cancel": "Cancel",
+  "options.vaults.bitwarden.save": "Save",
   "options.vaults.bitwarden.signOutConfirm":
     "Sign out of {email}? You'll need your master password and two-step login code to sign in again.",
   "options.vaults.autoLock.name": "Auto-lock",
@@ -223,6 +230,13 @@ export const zhCN: Record<keyof typeof en, string> = {
   "options.vaults.bitwarden.signIn": "登录",
   "options.vaults.bitwarden.officialServer": "官方服务",
   "options.vaults.bitwarden.signOut": "退出登录",
+  "options.vaults.bitwarden.rename": "重命名",
+  "options.vaults.bitwarden.renameTitle": "账号名称",
+  "options.vaults.bitwarden.renameDescription":
+    "弹窗和菜单里用这个名称代替邮箱显示。留空则显示邮箱。",
+  "options.vaults.bitwarden.nameLabel": "名称",
+  "options.vaults.bitwarden.cancel": "取消",
+  "options.vaults.bitwarden.save": "保存",
   "options.vaults.bitwarden.signOutConfirm":
     "退出 {email}？之后需要重新输入主密码和两步验证码登录。",
   "options.vaults.autoLock.name": "自动锁定",

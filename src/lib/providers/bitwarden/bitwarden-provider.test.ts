@@ -222,3 +222,43 @@ describe("remove", () => {
     expect(writes()).toEqual([])
   })
 })
+
+describe("account labels", () => {
+  it("tells accounts with the same email apart by server, and shows a given name instead", async () => {
+    const official = accountIdOf("", "user-2")
+    await saveAccount({
+      id: official,
+      userId: "user-2",
+      email: "Someone@example.com",
+      server: "",
+      kdf: { type: KdfType.Pbkdf2Sha256, iterations: 5000 },
+      salt: "",
+      wrappedUserKey: "unused",
+      encryptedRefreshToken: "unused",
+    })
+    const bitwarden = provider()
+    const labels = async () =>
+      Object.fromEntries(
+        (await bitwarden.accounts()).map((account) => [
+          account.id,
+          account.label,
+        ]),
+      )
+    expect(await labels()).toEqual({
+      [ACCOUNT_ID]: "someone@example.com · vault.example.test",
+      [official]: "Someone@example.com · bitwarden.com",
+    })
+    await bitwarden.renameAccount(ACCOUNT_ID, "  Home server  ")
+    expect(await labels()).toEqual({
+      [ACCOUNT_ID]: "Home server",
+      [official]: "Someone@example.com · bitwarden.com",
+    })
+    expect(
+      (await bitwarden.vaults()).find((vault) => vault.id === VAULT)?.label,
+    ).toBe("Home server")
+    await bitwarden.renameAccount(ACCOUNT_ID, "")
+    expect((await labels())[ACCOUNT_ID]).toBe(
+      "someone@example.com · vault.example.test",
+    )
+  })
+})

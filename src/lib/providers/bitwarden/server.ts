@@ -18,6 +18,14 @@ export function serverUrls(address: string): ServerUrls {
   return { base, api: `${base}/api`, identity: `${base}/identity` }
 }
 
+/** The host an account's server is known by: the official service's or the one entered. */
+export function serverHost(address: string): string {
+  const base = normalizeServerAddress(address)
+  return base
+    ? new URL(base).host
+    : new URL(OFFICIAL.api).host.replace(/^api\./, "")
+}
+
 export function normalizeServerAddress(address: string): string {
   const trimmed = address.trim()
   if (!trimmed) return ""

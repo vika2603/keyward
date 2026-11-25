@@ -1,10 +1,19 @@
-import { ExternalLinkIcon, PlusIcon } from "lucide-react"
+import { ExternalLinkIcon, PencilIcon, PlusIcon } from "lucide-react"
 import { useCallback, useEffect, useState } from "react"
 import { callBackground } from "@/background/api"
 import { BrandIcon, providerName } from "@/components/keyward/brand-icon"
 import { errorMessage } from "@/components/keyward/errors"
 import { VaultSelect } from "@/components/keyward/vault-select"
 import { Button } from "@/components/ui/button"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
 import {
   Select,
   SelectContent,
@@ -37,6 +46,7 @@ export function VaultsPage() {
   const [settings, update] = useSettings()
   const [accounts, setAccounts] = useState<AccountSummary[]>([])
   const [message, setMessage] = useState<string | null>(null)
+  const [renaming, setRenaming] = useState<AccountSummary | null>(null)
 
   const load = useCallback(() => {
     void callBackground("bitwarden.accounts", null).then(setAccounts)
@@ -49,7 +59,7 @@ export function VaultsPage() {
     if (
       !confirm(
         t("options.vaults.bitwarden.signOutConfirm", {
-          email: account.email,
+          email: account.label,
         }),
       )
     )
@@ -78,10 +88,10 @@ export function VaultsPage() {
           },
         ]
       : []),
-    ...accounts.map((a) => ({
-      id: a.vaultId,
+    ...accounts.map((account) => ({
+      id: account.vaultId,
       kind: "bitwarden" as const,
-      label: a.email,
+      label: account.label,
       status: "ready" as const,
     })),
   ]
@@ -159,14 +169,23 @@ export function VaultsPage() {
         {accounts.map((account) => (
           <Option
             key={account.id}
-            name={account.email}
-            description={
-              account.server || t("options.vaults.bitwarden.officialServer")
-            }
+            name={account.label}
+            description={accountDetail(account)}
           >
-            <Button variant="outline" onClick={() => void signOut(account)}>
-              {t("options.vaults.bitwarden.signOut")}
-            </Button>
+            <div className="flex gap-1.5">
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label={t("options.vaults.bitwarden.rename")}
+                title={t("options.vaults.bitwarden.rename")}
+                onClick={() => setRenaming(account)}
+              >
+                <PencilIcon />
+              </Button>
+              <Button variant="outline" onClick={() => void signOut(account)}>
+                {t("options.vaults.bitwarden.signOut")}
+              </Button>
+            </div>
           </Option>
         ))}
         {accounts.length > 0 && (
@@ -234,6 +253,87 @@ export function VaultsPage() {
           </Card>
         </Section>
       )}
+      <RenameDialog
+        account={renaming}
+        onClose={() => setRenaming(null)}
+        onRenamed={load}
+      />
     </>
+  )
+}
+
+/** Under an account's name: its server, and its email address once the account has a name. */
+function accountDetail(account: AccountSummary): string {
+  const server = account.server || t("options.vaults.bitwarden.officialServer")
+  return account.name ? `${account.email} · ${server}` : server
+}
+
+function RenameDialog({
+  account,
+  onClose,
+  onRenamed,
+}: {
+  account: AccountSummary | null
+  onClose: () => void
+  onRenamed: () => void
+}) {
+  const [name, setName] = useState("")
+  const [message, setMessage] = useState<string | null>(null)
+
+  useEffect(() => {
+    setName(account?.name ?? "")
+    setMessage(null)
+  }, [account])
+
+  const save = async () => {
+    if (!account) return
+    try {
+      await callBackground("bitwarden.renameAccount", {
+        accountId: account.id,
+        name,
+      })
+      onRenamed()
+      onClose()
+    } catch (error) {
+      setMessage(errorMessage(error))
+    }
+  }
+
+  return (
+    <Dialog open={account !== null} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent>
+        <form
+          className="flex flex-col gap-4"
+          onSubmit={(event) => {
+            event.preventDefault()
+            void save()
+          }}
+        >
+          <DialogHeader>
+            <DialogTitle>
+              {t("options.vaults.bitwarden.renameTitle")}
+            </DialogTitle>
+            <DialogDescription>
+              {t("options.vaults.bitwarden.renameDescription")}
+            </DialogDescription>
+          </DialogHeader>
+          <Input
+            value={name}
+            onChange={(event) => setName(event.target.value)}
+            placeholder={account?.email}
+            aria-label={t("options.vaults.bitwarden.nameLabel")}
+            maxLength={100}
+            autoFocus
+          />
+          {message && <p className="text-sm text-destructive">{message}</p>}
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={onClose}>
+              {t("options.vaults.bitwarden.cancel")}
+            </Button>
+            <Button type="submit">{t("options.vaults.bitwarden.save")}</Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   )
 }
