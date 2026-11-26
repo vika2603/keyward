@@ -6,6 +6,19 @@ import {
   siteDomainOf,
   withScheme,
 } from "./site"
+import appleSharedLogins from "./site-data/apple-shared-credentials.json"
+
+/**
+ * An entry of Apple's list of sites that share accounts: its domains share logins with each
+ * other, or logins saved for its `from` domains also serve its `to` domains, as after a site
+ * moved. A domain covers itself and its subdomains, so a host such as id.atlassian.com leaves out
+ * the rest of its site.
+ */
+type SharedLogins =
+  | { shared: string[] }
+  | { from: string[]; to: string[]; fromDomainsAreObsoleted?: boolean }
+
+const SHARED_LOGINS: readonly SharedLogins[] = appleSharedLogins
 
 interface MatchOptions {
   defaultMatch: MatchType
@@ -43,21 +56,51 @@ function equivalentsOf(domain: string, groups: string[][]): Set<string> {
   return result
 }
 
-/** The other sites the settings make equivalent to `host`'s site, as registrable domains. */
+function covers(domains: readonly string[], host: string): boolean {
+  return domains.some((domain) => isHostOrSubdomain(host, domain))
+}
+
+/** The page host `sharedSourcesOf` last answered for, as a listing asks for one page many times. */
+let lastSharedSources = { host: "", sources: [] as string[] }
+
+/** The domains of Apple's list whose logins a page on `host` may use, its own included. */
+function sharedSourcesOf(host: string): string[] {
+  if (lastSharedSources.host === host) return lastSharedSources.sources
+  const sources: string[] = []
+  for (const entry of SHARED_LOGINS) {
+    if ("shared" in entry) {
+      if (covers(entry.shared, host)) sources.push(...entry.shared)
+    } else if (covers(entry.to, host)) {
+      sources.push(...entry.from)
+    }
+  }
+  lastSharedSources = { host, sources }
+  return sources
+}
+
+/**
+ * The other sites whose logins a page on `host` may use: those the settings make equivalent to its
+ * site, as registrable domains, and those Apple's list shares logins with, as the list names them.
+ */
 export function equivalentDomainsOf(
   host: string,
   groups: string[][],
 ): string[] {
   const domain = siteDomainOf(host)
-  return [...equivalentsOf(domain, groups)].filter(
+  const fromSettings = [...equivalentsOf(domain, groups)].filter(
     (member) => member !== domain,
   )
+  const fromList = sharedSourcesOf(host).filter(
+    (source) => !isHostOrSubdomain(host, source),
+  )
+  return [...new Set([...fromSettings, ...fromList])]
 }
 
 /**
  * Whether a saved address matches a page, using the entry's own match type or the default.
  * Follows Bitwarden's rules: a domain match compares registrable domains, a host match
- * compares host and port, and an address without a scheme is read as http.
+ * compares host and port, and an address without a scheme is read as http. A domain match also
+ * takes the sites the settings make equivalent and those Apple's list shares logins with.
  */
 export function uriMatches(
   saved: string,
@@ -74,8 +117,10 @@ export function uriMatches(
       const host = hostOfSavedUri(saved)
       if (!host) return false
       const pageDomain = siteDomainOf(page.hostname)
-      return equivalentsOf(pageDomain, options.equivalentDomains).has(
-        siteDomainOf(host),
+      return (
+        equivalentsOf(pageDomain, options.equivalentDomains).has(
+          siteDomainOf(host),
+        ) || covers(sharedSourcesOf(page.hostname), host)
       )
     }
     case MatchType.Host: {

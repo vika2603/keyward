@@ -43,6 +43,57 @@ describe("uriMatches", () => {
     ).toEqual(["example.org"])
   })
 
+  it("shares logins among the sites Apple's list groups, both ways", () => {
+    const aliexpress = new URL("https://www.aliexpress.com/")
+    expect(
+      uriMatches("https://login.alibaba.com", null, aliexpress, options),
+    ).toBe(true)
+    expect(
+      uriMatches(
+        "https://aliexpress.com",
+        null,
+        new URL("https://alibaba.com/"),
+        options,
+      ),
+    ).toBe(true)
+    // A host match compares hosts only.
+    expect(
+      uriMatches("https://alibaba.com", MatchType.Host, aliexpress, options),
+    ).toBe(false)
+  })
+
+  it("lets a moved site use the logins saved for its old domain, not the other way", () => {
+    const newSite = new URL("https://account.mi.com/")
+    const oldSite = new URL("https://account.xiaomi.com/")
+    expect(uriMatches("https://xiaomi.com", null, newSite, options)).toBe(true)
+    expect(uriMatches("https://mi.com", null, oldSite, options)).toBe(false)
+  })
+
+  it("takes a host in Apple's list as that host, not its whole site", () => {
+    const atlassianId = new URL("https://id.atlassian.com/login")
+    expect(uriMatches("https://trello.com", null, atlassianId, options)).toBe(
+      true,
+    )
+    expect(
+      uriMatches(
+        "https://trello.com",
+        null,
+        new URL("https://status.atlassian.com/"),
+        options,
+      ),
+    ).toBe(false)
+  })
+
+  it("names the sites a page may use logins of, from the settings and from Apple's list", () => {
+    expect(
+      equivalentDomainsOf("www.aliexpress.com", [
+        ["aliexpress.com", "example.org"],
+      ]),
+    ).toEqual(["example.org", "alibaba.com", "aliexpress.us"])
+    expect(equivalentDomainsOf("account.mi.com", [])).toEqual(["xiaomi.com"])
+    expect(equivalentDomainsOf("xiaomi.com", [])).toEqual([])
+  })
+
   it("compares host and port for a host match", () => {
     expect(
       uriMatches(

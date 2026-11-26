@@ -8,6 +8,7 @@ A Chrome extension that fills, generates and saves passwords from two kinds of v
 ## Features
 
 - An icon in login fields opens a menu of the site's logins; a login is sent to the page only after you pick it.
+- A site's logins include those of sites that share its accounts: the equivalent domains set in the settings, and the sites Apple's password-manager-resources lists, such as alibaba.com and aliexpress.com.
 - One-time codes (TOTP), filled into code fields or copied.
 - Takes over the page's conditional passkey requests on sites where you signed in with a passkey; can be turned off in settings.
 - Offers to save or update a login after you sign in.
