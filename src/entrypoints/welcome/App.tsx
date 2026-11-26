@@ -10,6 +10,7 @@ import {
   usePasswordsSupported,
 } from "@/components/keyward/passwords-setup"
 import { Button } from "@/components/ui/button"
+import { Toaster } from "@/components/ui/toast"
 import { SignIn } from "@/entrypoints/options/onboard-page"
 import { useSettings } from "@/hooks/use-settings"
 import { openConnectPasswords } from "@/lib/connect-passwords"
@@ -22,7 +23,12 @@ export function App() {
   useEffect(() => {
     if (language) document.title = t("welcome.title")
   }, [language])
-  return language ? <Welcome /> : null
+  if (!language) return null
+  return (
+    <Toaster closeLabel={t("common.close")}>
+      <Welcome />
+    </Toaster>
+  )
 }
 
 /**

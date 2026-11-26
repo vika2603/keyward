@@ -27,6 +27,10 @@ import {
   useClickGuard,
   useReportHeight,
 } from "@/components/keyward/overlay-frame"
+import {
+  OverlayNotice,
+  useOverlayNotice,
+} from "@/components/keyward/overlay-notice"
 import { SiteIcon } from "@/components/keyward/site-icon"
 import { openConnectPasswords } from "@/lib/connect-passwords"
 import { t } from "@/lib/i18n"
@@ -44,7 +48,11 @@ export function App() {
   const card = useRef<HTMLDivElement>(null)
   const [state, setState] = useState<MenuState | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
-  const [message, setMessage] = useState<string | null>(null)
+  const {
+    notice,
+    show: showNotice,
+    dismiss: dismissNotice,
+  } = useOverlayNotice()
   const ids = useId()
   const headingId = (vault: VaultView) => `${ids}-${vault.id}`
 
@@ -62,22 +70,22 @@ export function App() {
   useEffect(() => {
     callOverlay("menu.state", {}).then(setState, (error) => {
       setState({ host: "", kind: "login", vaults: [] })
-      setMessage(errorMessage(error))
+      showNotice(errorMessage(error))
     })
-  }, [])
+  }, [showNotice])
 
   /** Runs a fill after a click the page could not have faked; `id` marks the row as busy. */
   const run = async (id: string, task: () => Promise<unknown>) => {
     if (!clickCounts()) {
-      setMessage(t("overlay.menu.guard"))
+      showNotice(t("overlay.menu.guard"))
       return
     }
     setBusy(id)
-    setMessage(null)
+    dismissNotice()
     try {
       await task()
     } catch (error) {
-      setMessage(errorMessage(error))
+      showNotice(errorMessage(error))
     } finally {
       setBusy(null)
     }
@@ -102,7 +110,7 @@ export function App() {
   const compact = density === "compact"
   // A lone list of logins needs no heading saying where they come from.
   const headed = shownVaults.length > 1 || Boolean(state?.suggestion)
-  const isEmpty = !shownVaults.length && !message && !state?.suggestion
+  const isEmpty = !shownVaults.length && !notice && !state?.suggestion
   const rowProps = { compact, disabled: busy !== null }
 
   return (
@@ -154,7 +162,7 @@ export function App() {
                   data-login
                   onClick={() =>
                     void callOverlay("menu.newLogin", {}).catch((error) =>
-                      setMessage(errorMessage(error)),
+                      showNotice(errorMessage(error)),
                     )
                   }
                   className="flex min-h-9 w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left text-sm outline-none hover:bg-muted focus-visible:bg-muted"
@@ -268,11 +276,9 @@ export function App() {
                 {t("overlay.menu.confirmTouchId")}
               </p>
             )}
-            {message && (
-              <p className="px-3 pt-2 pb-2 text-xs text-destructive">
-                {message}
-              </p>
-            )}
+            <div className="px-1 pt-1 empty:hidden">
+              <OverlayNotice notice={notice} onDismiss={dismissNotice} />
+            </div>
           </div>
         )}
       </div>

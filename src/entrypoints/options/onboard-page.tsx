@@ -2,7 +2,7 @@ import { ChevronLeftIcon } from "lucide-react"
 import { useEffect, useId, useRef, useState } from "react"
 import { callBackground } from "@/background/api"
 import { BrandIcon } from "@/components/keyward/brand-icon"
-import { errorMessage } from "@/components/keyward/errors"
+import { notifyError } from "@/components/keyward/notify"
 import { SecretInput } from "@/components/keyward/secret-input"
 import { Button } from "@/components/ui/button"
 import { Field } from "@/components/ui/field"
@@ -111,18 +111,14 @@ export function SignIn({ onSignedIn }: { onSignedIn: () => void }) {
   const [method, setMethod] = useState<SecondStepMethod | null>(null)
   const [code, setCode] = useState("")
   const [busy, setBusy] = useState(false)
-  const [message, setMessage] = useState<string | null>(null)
   const passwordRef = useRef<HTMLInputElement>(null)
   const codeRef = useRef<HTMLInputElement>(null)
   const ids = useId()
 
   const choose = (next: SecondStepMethod) => {
     setMethod(next)
-    setMessage(null)
     if (next === "email") {
-      callBackground("bitwarden.sendEmailCode", null).catch((error) =>
-        setMessage(errorMessage(error)),
-      )
+      callBackground("bitwarden.sendEmailCode", null).catch(notifyError)
     }
   }
 
@@ -173,7 +169,7 @@ export function SignIn({ onSignedIn }: { onSignedIn: () => void }) {
           setMethod(view.methods[0] ?? null)
         }
       })
-      .catch((error) => setMessage(errorMessage(error)))
+      .catch(notifyError)
   }, [])
 
   const run = async (
@@ -181,11 +177,10 @@ export function SignIn({ onSignedIn }: { onSignedIn: () => void }) {
     onErrorField?: HTMLInputElement | null,
   ) => {
     setBusy(true)
-    setMessage(null)
     try {
       await task()
     } catch (error) {
-      setMessage(errorMessage(error))
+      notifyError(error)
       onErrorField?.focus()
       onErrorField?.select()
     } finally {
@@ -239,7 +234,6 @@ export function SignIn({ onSignedIn }: { onSignedIn: () => void }) {
             {methods[method].hint}
           </span>
         </Field>
-        {message && <p className="text-xs text-destructive">{message}</p>}
         <div className="flex flex-col gap-2">
           <Button
             type="submit"
@@ -253,12 +247,9 @@ export function SignIn({ onSignedIn }: { onSignedIn: () => void }) {
             variant="ghost"
             className="w-full"
             onClick={() => {
-              callBackground("bitwarden.cancelSignIn", null).catch((error) =>
-                setMessage(errorMessage(error)),
-              )
+              callBackground("bitwarden.cancelSignIn", null).catch(notifyError)
               setPending(null)
               setMethod(null)
-              setMessage(null)
             }}
           >
             {t("options.onboard.secondStep.startOver")}
@@ -317,7 +308,6 @@ export function SignIn({ onSignedIn }: { onSignedIn: () => void }) {
           required
         />
       </Field>
-      {message && <p className="text-xs text-destructive">{message}</p>}
       <Button
         type="submit"
         className="w-full"

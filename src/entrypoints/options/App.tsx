@@ -8,6 +8,7 @@ import { useEffect, useState } from "react"
 import keywardIcon from "@/assets/icon.svg"
 import { useAppearance } from "@/components/keyward/appearance"
 import { useLanguage } from "@/components/keyward/language"
+import { Toaster } from "@/components/ui/toast"
 import { t } from "@/lib/i18n"
 import { cn } from "@/lib/utils"
 import { FillPage } from "./fill-page"
@@ -56,8 +57,14 @@ export function App() {
   }, [])
 
   if (!language) return null
-  if (hash === "onboard") return <OnboardPage />
+  return (
+    <Toaster closeLabel={t("common.close")}>
+      {hash === "onboard" ? <OnboardPage /> : <Settings hash={hash} />}
+    </Toaster>
+  )
+}
 
+function Settings({ hash }: { hash: string }) {
   const page = PAGES.find((candidate) => candidate.hash === hash) ?? PAGES[0]
   return (
     <div className="flex min-h-screen flex-col bg-canvas md:flex-row">

@@ -2,7 +2,7 @@ import { CheckIcon, PencilIcon, PlusIcon, RefreshCwIcon } from "lucide-react"
 import { useCallback, useEffect, useState } from "react"
 import { callBackground } from "@/background/api"
 import { BrandIcon, providerName } from "@/components/keyward/brand-icon"
-import { errorMessage } from "@/components/keyward/errors"
+import { notifyError } from "@/components/keyward/notify"
 import {
   RemovalDetails,
   usePasswordsAvailability,
@@ -77,13 +77,9 @@ export function VaultsPage() {
   /** The account being synced now. */
   const [syncing, setSyncing] = useState<string | null>(null)
   const [syncedId, showSynced] = useTransientValue<string>(COPIED_FEEDBACK_MS)
-  /** Why loading, syncing or signing out the Bitwarden accounts failed. */
-  const [accountsMessage, setAccountsMessage] = useState<string | null>(null)
 
   const load = useCallback(() => {
-    callBackground("bitwarden.accounts", null).then(setAccounts, (error) =>
-      setAccountsMessage(errorMessage(error)),
-    )
+    callBackground("bitwarden.accounts", null).then(setAccounts, notifyError)
   }, [])
   useEffect(load, [load])
 
@@ -104,23 +100,21 @@ export function VaultsPage() {
   )
 
   const signOut = async (account: AccountSummary) => {
-    setAccountsMessage(null)
     try {
       await callBackground("bitwarden.signOut", { accountId: account.id })
     } catch (error) {
-      setAccountsMessage(errorMessage(error))
+      notifyError(error)
     }
     load()
   }
 
   const syncNow = async (account: AccountSummary) => {
     setSyncing(account.id)
-    setAccountsMessage(null)
     try {
       await callBackground("bitwarden.sync", { accountId: account.id })
       showSynced(account.id)
     } catch (error) {
-      setAccountsMessage(errorMessage(error))
+      notifyError(error)
     } finally {
       setSyncing(null)
       load()
@@ -275,11 +269,6 @@ export function VaultsPage() {
             </Option>
           )
         })}
-        {accountsMessage && (
-          <p className="px-4 pb-3 text-sm text-destructive">
-            {accountsMessage}
-          </p>
-        )}
         {accounts.length > 0 && (
           <Option
             name={t("options.vaults.autoLock.name")}
@@ -382,10 +371,8 @@ function RenameDialog({
   onRenamed: () => void
 }) {
   const [name, setName] = useState("")
-  const [message, setMessage] = useState<string | null>(null)
   const opened = useDialogOpening(account, (opening) => {
     setName(opening.name ?? "")
-    setMessage(null)
   })
 
   const save = async () => {
@@ -398,7 +385,7 @@ function RenameDialog({
       onRenamed()
       onClose()
     } catch (error) {
-      setMessage(errorMessage(error))
+      notifyError(error)
     }
   }
 
@@ -428,7 +415,6 @@ function RenameDialog({
             maxLength={100}
             autoFocus
           />
-          {message && <p className="text-sm text-destructive">{message}</p>}
           <DialogFooter>
             <Button type="button" variant="outline" onClick={onClose}>
               {t("options.vaults.bitwarden.cancel")}

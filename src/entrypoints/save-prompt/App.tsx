@@ -10,6 +10,10 @@ import {
   useClickGuard,
   useReportHeight,
 } from "@/components/keyward/overlay-frame"
+import {
+  OverlayNotice,
+  useOverlayNotice,
+} from "@/components/keyward/overlay-notice"
 import { SiteIcon } from "@/components/keyward/site-icon"
 import { VaultSelect } from "@/components/keyward/vault-select"
 import { Button } from "@/components/ui/button"
@@ -46,7 +50,11 @@ export function App() {
   const [vaultSelectOpen, setVaultSelectOpen] = useState(false)
   const [folderSelectOpen, setFolderSelectOpen] = useState(false)
   const [busy, setBusy] = useState(false)
-  const [message, setMessage] = useState<string | null>(null)
+  const {
+    notice,
+    show: showNotice,
+    dismiss: dismissNotice,
+  } = useOverlayNotice()
 
   const selectOpen = vaultSelectOpen || folderSelectOpen
   useReportHeight(
@@ -58,7 +66,7 @@ export function App() {
   const clickCounts = useClickGuard(card, state !== null && language !== null)
   const guarded = (action: () => void) => () => {
     if (clickCounts()) action()
-    else setMessage(t("overlay.prompt.guard"))
+    else showNotice(t("overlay.prompt.guard"))
   }
 
   useEffect(() => {
@@ -84,7 +92,7 @@ export function App() {
 
   const confirm = async () => {
     setBusy(true)
-    setMessage(null)
+    dismissNotice()
     try {
       await callOverlay("prompt.confirm", {
         targetId: target,
@@ -92,7 +100,7 @@ export function App() {
         folderId: bitwardenTarget ? folderId : null,
       })
     } catch (error) {
-      setMessage(errorMessage(error))
+      showNotice(errorMessage(error))
       setBusy(false)
     }
   }
@@ -250,7 +258,6 @@ export function App() {
                 {t("overlay.prompt.confirmOnMac")}
               </p>
             )}
-            {message && <p className="text-xs text-destructive">{message}</p>}
             <div className="flex items-center gap-1.5">
               <Button
                 type="button"
@@ -279,6 +286,7 @@ export function App() {
                 {update ? t("overlay.prompt.update") : t("overlay.prompt.save")}
               </Button>
             </div>
+            <OverlayNotice notice={notice} onDismiss={dismissNotice} />
           </>
         )}
       </form>
