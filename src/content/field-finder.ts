@@ -3,8 +3,6 @@
 import type { FieldRules } from "@/lib/password-rules"
 import { composedParent, deepInputs, formOf, scopeOf } from "./deep-dom"
 import {
-  CONFIRM_PASSWORD_HINT,
-  CURRENT_PASSWORD_HINT,
   hasAutocomplete,
   hintWords,
   isCodeField,
@@ -15,7 +13,9 @@ import {
   marksNewPassword,
   marksOtherData,
   NAME_PART_HINT,
-  NEW_PASSWORD_HINT,
+  namesConfirmation,
+  namesCurrentPassword,
+  namesNewPassword,
   suggestsOnlyPhone,
 } from "./field-hints"
 
@@ -213,12 +213,9 @@ export class FieldIndex {
   isNewPassword(input: HTMLInputElement): boolean {
     if (hasAutocomplete(input, "current-password")) return false
     if (marksNewPassword(input))
-      return (
-        NEW_PASSWORD_HINT.test(hintWords(input)) || !nearForgotPassword(input)
-      )
-    const text = hintWords(input)
-    if (CURRENT_PASSWORD_HINT.test(text)) return false
-    if (NEW_PASSWORD_HINT.test(text)) return true
+      return namesNewPassword(input) || !nearForgotPassword(input)
+    if (namesCurrentPassword(input)) return false
+    if (namesNewPassword(input)) return true
     const passwords = this.inputs(scopeOf(input)).filter(isPasswordField)
     const index = passwords.indexOf(input)
     if (index < 0) return false
@@ -227,12 +224,8 @@ export class FieldIndex {
     if (index > 0) return true
     if (passwords.length > 2) return false
     const second = passwords[1] as HTMLInputElement
-    if (marksNewPassword(second) || NEW_PASSWORD_HINT.test(hintWords(second)))
-      return false
-    return (
-      CONFIRM_PASSWORD_HINT.test(hintWords(second)) ||
-      this.usernameFor(input) !== null
-    )
+    if (marksNewPassword(second) || namesNewPassword(second)) return false
+    return namesConfirmation(second) || this.usernameFor(input) !== null
   }
 
   loginFields(root: Document): HTMLInputElement[] {

@@ -169,6 +169,29 @@ describe("a sign-up form", () => {
     expect(scan().login).toEqual([])
   })
 
+  it("takes a password field as new when its label or placeholder says so, in several languages", () => {
+    document.body.innerHTML = `
+      <form><label>Create password <input type="password" name="create"></label></form>
+      <form><label for="nuova">Nuova password</label><input type="password" id="nuova" name="nuova"></form>
+      <form><input type="password" name="choose" placeholder="Choose a password"></form>`
+    expect(names(scan().newPassword)).toEqual(
+      new Set(["create", "nuova", "choose"]),
+    )
+  })
+
+  it("keeps a sign-in password whose label mentions signing up the login's", () => {
+    document.body.innerHTML = `
+      <form>
+        <input type="email" name="email">
+        <label>Password <input type="password" name="password"></label>
+        <small>Enter the password used to sign up</small>
+      </form>
+      <form>
+        <label>Enter the password used to sign up <input type="password" name="described"></label>
+      </form>`
+    expect(scan().newPassword).toEqual([])
+  })
+
   it("takes a form's only password field as new when the form submits with a sign-up button", () => {
     document.body.innerHTML = `
       <form>

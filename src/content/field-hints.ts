@@ -27,12 +27,21 @@ const OTHER_DATA_AUTOCOMPLETE =
   /^(name|honorific-\w+|given-name|additional-name|family-name|nickname|organization(-title)?|street-address|address-\w+|country(-name)?|postal-code|cc-[\w-]+|transaction-\w+|language|bday(-\w+)?|sex|url|photo|impp|tel-(country-code|area-code|national|local(-\w+)?|extension))$/
 /** Autocomplete sections for checkout forms, whose email and phone are not a login. */
 const CHECKOUT_AUTOCOMPLETE = new Set(["billing", "shipping"])
-/** Matched against `hintWords`, so English words stand apart. */
-export const NEW_PASSWORD_HINT =
-  /\b(new|register|registration|sign ?up|create)\b|新密码|新密碼|设置密码|設定密碼/i
-export const CONFIRM_PASSWORD_HINT =
+/**
+ * Words that name a field for a new password, matched against `hintWords` and label text, so
+ * English words stand apart. The Italian, Spanish, French, German and Dutch words for "new" come
+ * from DuckDuckGo's autofill.
+ */
+const NEW_PASSWORD_HINT =
+  /\b(new|create|choose|set|nuova|nueva|nuevo|nouveau|nouvelle|neues|nieuw)\b|新密码|新密碼|设置密码|設定密碼/i
+/**
+ * Words of a field's attributes for a sign-up's password. A label may use them on a sign-in form
+ * too, as in "the password used to sign up", so labels are not matched against them.
+ */
+const SIGN_UP_HINT = /\b(register|registration|sign ?up)\b/i
+const CONFIRM_PASSWORD_HINT =
   /\b(confirm|confirmation|repeat|retype|again|verify)\b|确认|確認|重复|重複|再次/i
-export const CURRENT_PASSWORD_HINT =
+const CURRENT_PASSWORD_HINT =
   /\b(current|old|existing|previous)\b|当前|目前|旧密码|舊密碼|原密码|原密碼/i
 
 /**
@@ -104,11 +113,43 @@ function hintText(input: HTMLInputElement): string {
   ].join(" ")
 }
 
+/** Label text beyond this length holds more than the field's name. */
+const MAX_LABEL_LENGTH = 100
+
 /** The field's hint text with camelCase, underscores and dashes split into words. */
 export function hintWords(input: HTMLInputElement): string {
   return hintText(input)
     .replace(/([a-z])([A-Z])/g, "$1 $2")
     .replace(/[_\-.[\]]+/g, " ")
+}
+
+/**
+ * `hintWords` with the text of the field's short labels, where a password field often says what
+ * it takes, as in "Create password" or "Nuova password".
+ */
+function wordsWithLabels(input: HTMLInputElement): string {
+  const labels = [...(input.labels ?? [])]
+    .map((label) => (label.textContent ?? "").replace(/\s+/g, " ").trim())
+    .filter((text) => text.length <= MAX_LABEL_LENGTH)
+  return [hintWords(input), ...labels].join(" ")
+}
+
+/** Whether a password field's names or labels say it takes a new password. */
+export function namesNewPassword(input: HTMLInputElement): boolean {
+  return (
+    NEW_PASSWORD_HINT.test(wordsWithLabels(input)) ||
+    SIGN_UP_HINT.test(hintWords(input))
+  )
+}
+
+/** Whether a password field's names or labels say it takes the current password. */
+export function namesCurrentPassword(input: HTMLInputElement): boolean {
+  return CURRENT_PASSWORD_HINT.test(wordsWithLabels(input))
+}
+
+/** Whether a password field's names or labels say it confirms the one before it. */
+export function namesConfirmation(input: HTMLInputElement): boolean {
+  return CONFIRM_PASSWORD_HINT.test(wordsWithLabels(input))
 }
 
 /**
