@@ -1,4 +1,11 @@
-import { type ReactNode, useState } from "react"
+import {
+  type CSSProperties,
+  type ReactNode,
+  type RefObject,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react"
 import {
   Select,
   SelectContent,
@@ -7,6 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { tabsIndicatorClassName } from "@/components/ui/tabs"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { cn } from "@/lib/utils"
 
@@ -115,28 +123,72 @@ export function Segmented<T extends string>({
   onChange: (value: T) => void
   label: string
 }) {
+  const group = useRef<HTMLDivElement>(null)
+  const pressedBox = usePressedBox(group, value)
   return (
     <ToggleGroup
+      ref={group}
       aria-label={label}
       value={[value]}
       onValueChange={([chosen]) => {
         const option = options.find(([optionValue]) => optionValue === chosen)
         if (option) onChange(option[0])
       }}
-      className="inline-flex h-8 max-w-full min-w-0 gap-0 bg-muted p-[3px]"
+      className="relative inline-flex h-8 max-w-full min-w-0 gap-0 bg-muted p-[3px]"
     >
+      {/* Before the options, so they paint over it. */}
+      {pressedBox && (
+        <span
+          aria-hidden="true"
+          className={tabsIndicatorClassName}
+          style={pressedBox}
+        />
+      )}
       {options.map(([optionValue, text]) => (
-        // The toggle clips its background to the padding box; a pressed option fills under its border too.
         <ToggleGroupItem
           key={optionValue}
           value={optionValue}
-          className="h-full shrink rounded-md border border-transparent bg-clip-border text-foreground/60 hover:bg-transparent aria-pressed:bg-background aria-pressed:text-foreground aria-pressed:shadow-sm dark:text-muted-foreground dark:aria-pressed:border-input dark:aria-pressed:bg-input/30 dark:aria-pressed:text-foreground"
+          data-value={optionValue}
+          className="relative h-full shrink rounded-md border border-transparent text-foreground/60 hover:bg-transparent aria-pressed:bg-transparent aria-pressed:text-foreground dark:text-muted-foreground dark:aria-pressed:text-foreground"
         >
           {text}
         </ToggleGroupItem>
       ))}
     </ToggleGroup>
   )
+}
+
+/**
+ * Where the pressed option sits within a segmented control, for the background that slides under
+ * it as the tab list's does. It is measured again when the control changes size.
+ */
+function usePressedBox(
+  group: RefObject<HTMLElement | null>,
+  value: string,
+): CSSProperties | null {
+  const [box, setBox] = useState<CSSProperties | null>(null)
+  useLayoutEffect(() => {
+    const root = group.current
+    if (!root) return
+    const measure = () => {
+      const pressed = root.querySelector<HTMLElement>(
+        `[data-value="${CSS.escape(value)}"]`,
+      )
+      setBox(
+        pressed && {
+          left: pressed.offsetLeft,
+          top: pressed.offsetTop,
+          width: pressed.offsetWidth,
+          height: pressed.offsetHeight,
+        },
+      )
+    }
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(root)
+    return () => observer.disconnect()
+  }, [group, value])
+  return box
 }
 
 /** The label of a value in a list of values and their labels. */
