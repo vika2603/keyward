@@ -1,5 +1,6 @@
 import type { ContentScriptContext } from "wxt/utils/content-script-context"
 import { eventOrigin } from "./deep-dom"
+import type { PageEvents } from "./page-events"
 import { credentialsAround, type SubmittedLogin } from "./submitted-login"
 
 const DEDUPE_MS = 3000
@@ -110,6 +111,7 @@ function watchSignInRequests(
  */
 export function watchSubmissions(
   ctx: ContentScriptContext,
+  events: PageEvents,
   active: () => boolean,
   report: (credentials: SubmittedLogin) => void,
 ): void {
@@ -126,8 +128,7 @@ export function watchSubmissions(
     report(credentials)
   }
 
-  ctx.addEventListener(
-    document,
+  events.on(
     "submit",
     (event) => {
       const form = eventOrigin(event)
@@ -136,8 +137,7 @@ export function watchSubmissions(
     },
     { capture: true },
   )
-  ctx.addEventListener(
-    document,
+  events.on(
     "click",
     (event) => {
       const target = eventOrigin(event)
@@ -152,8 +152,7 @@ export function watchSubmissions(
     },
     { capture: true },
   )
-  ctx.addEventListener(
-    document,
+  events.on(
     "keydown",
     (event) => {
       if (!event.isTrusted || event.key !== "Enter" || event.isComposing) return

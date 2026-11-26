@@ -2,6 +2,7 @@ import type { ContentScriptContext } from "wxt/utils/content-script-context"
 import { createIframeUi } from "wxt/utils/content-script-ui/iframe"
 import { deepActiveElement, eventOrigin } from "./deep-dom"
 import { PROMPT_WIDTH } from "./overlay-size"
+import type { PageEvents } from "./page-events"
 
 /** Room around the overlay's card for its shadow, inside the iframe. */
 const SHADOW_MARGIN = 8
@@ -259,6 +260,7 @@ export class InlineMenu {
 
   constructor(
     ctx: ContentScriptContext,
+    events: PageEvents,
     scheme: () => "light" | "dark",
     private readonly onClosed: () => void,
     /** Elements of the extension in the page, such as the field icons, that do not close the menu. */
@@ -282,8 +284,7 @@ export class InlineMenu {
       passive: true,
     })
     ctx.addEventListener(window, "resize", reposition, { passive: true })
-    ctx.addEventListener(
-      document,
+    events.on(
       "pointerdown",
       (event) => {
         if (
@@ -298,8 +299,7 @@ export class InlineMenu {
     // Losing the focus to anything but the menu or Keyward's own elements closes the menu too. A
     // click outside the frame the field is in, as around a sign-in form in an iframe, reaches no
     // pointerdown here, and neither does the Tab key.
-    ctx.addEventListener(
-      document,
+    events.on(
       "focusout",
       (event) => {
         const field = this.field
@@ -317,8 +317,7 @@ export class InlineMenu {
       },
       { capture: true },
     )
-    ctx.addEventListener(
-      document,
+    events.on(
       "keydown",
       (event) => {
         if (!this.field) return

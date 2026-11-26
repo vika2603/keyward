@@ -1,8 +1,9 @@
 import type { ContentScriptContext } from "wxt/utils/content-script-context"
 import LOGO_SVG from "@/assets/field-icon.svg?raw"
 import type { Language } from "@/lib/i18n/language"
-import { deepActiveElement } from "./deep-dom"
+import { deepActiveElement, markOwnHost } from "./deep-dom"
 import { codeBoxes, isVisible } from "./field-finder"
+import type { PageEvents } from "./page-events"
 
 /** The icon's only text; kept here so the content script does not carry the whole catalog. */
 const ICON_LABELS: Record<Language, string> = {
@@ -107,6 +108,7 @@ export class FieldIcons {
 
   constructor(
     ctx: ContentScriptContext,
+    events: PageEvents,
     private readonly onActivate: (field: HTMLInputElement) => void,
   ) {
     this.host = document.createElement("keyward-field-icons")
@@ -122,6 +124,7 @@ export class FieldIcons {
       this.host.style.setProperty(name, value, "important")
     }
     this.root = this.host.attachShadow({ mode: "closed" })
+    markOwnHost(this.host)
     const style = document.createElement("style")
     style.textContent = STYLE
     this.root.append(style)
@@ -132,8 +135,8 @@ export class FieldIcons {
       passive: true,
     })
     ctx.addEventListener(window, "resize", schedule, { passive: true })
-    ctx.addEventListener(document, "focusin", schedule)
-    ctx.addEventListener(document, "focusout", schedule)
+    events.on("focusin", schedule)
+    events.on("focusout", schedule)
     ctx.setInterval(schedule, 1000)
     ctx.onInvalidated(() => this.host.remove())
   }

@@ -17,6 +17,7 @@ import { FieldTracker } from "@/content/field-tracker"
 import { FillHandlers } from "@/content/fill-handlers"
 import { FieldIcons } from "@/content/icons"
 import { InlineMenu, SavePrompt } from "@/content/overlays"
+import { PageEvents } from "@/content/page-events"
 import { PasskeySteering } from "@/content/passkey-steering"
 import { watchSubmissions } from "@/content/submit"
 import type { FieldRules } from "@/lib/password-rules"
@@ -33,8 +34,10 @@ export default defineContentScript({
       isDarkTheme(configuration.current.theme) ? "dark" : "light"
     const savePrompt = isTop ? new SavePrompt(ctx, colorScheme) : null
 
+    const events = new PageEvents(ctx)
     const menu = new InlineMenu(
       ctx,
+      events,
       colorScheme,
       () => {
         icons.setExpanded(null)
@@ -42,7 +45,7 @@ export default defineContentScript({
       },
       (target) => icons.owns(target),
     )
-    const icons = new FieldIcons(ctx, (field) => void openMenu(field))
+    const icons = new FieldIcons(ctx, events, (field) => void openMenu(field))
     const fields = new FieldTracker(ctx, {
       isKeywardNode: (node) =>
         icons.owns(node) ||
@@ -53,11 +56,9 @@ export default defineContentScript({
           callBackground("content.hasCodes", null).catch(() => false),
         ),
       onScan: (found) => {
-        icons.update(
-          configuration.current.menuTrigger === "off"
-            ? []
-            : [...found.login, ...found.newPassword, ...found.code],
-        )
+        const all = [...found.login, ...found.newPassword, ...found.code]
+        for (const field of all) events.watchRootsOf(field)
+        icons.update(configuration.current.menuTrigger === "off" ? [] : all)
         steerPasskeys()
         openForEarlyFocus()
       },
@@ -222,7 +223,7 @@ export default defineContentScript({
 
     const focused = deepActiveElement()
     if (focused instanceof HTMLInputElement) focusedEarly = focused
-    ctx.addEventListener(document, "focusin", (event) => {
+    events.on("focusin", (event) => {
       if (!event.isTrusted) return
       const target = eventOrigin(event)
       focusedEarly = null
@@ -246,6 +247,7 @@ export default defineContentScript({
 
     watchSubmissions(
       ctx,
+      events,
       () => configuration.current.active,
       (credentials) => {
         ++menuOpenings

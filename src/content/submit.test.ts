@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { ContentScriptContext } from "wxt/utils/content-script-context"
+import { PageEvents } from "./page-events"
 import { isSignInRequest, submitControlOf, watchSubmissions } from "./submit"
 import type { SubmittedLogin } from "./submitted-login"
 import { stubLayout, trusted } from "./test-support"
@@ -112,6 +113,7 @@ describe("a sign-in a script sends", () => {
     ctx = new ContentScriptContext("content")
     watchSubmissions(
       ctx,
+      new PageEvents(ctx),
       () => true,
       (login) => reports.push(login),
     )

@@ -610,6 +610,72 @@ describe("opening the menu for a field the page focused itself", () => {
   })
 })
 
+describe("fields in shadow roots", () => {
+  /** A sign-in form in a shadow root of the given mode, as a web component puts it. */
+  function signInInShadowRoot(mode: ShadowRootMode): ShadowRoot {
+    const host = document.createElement("div")
+    document.body.append(host)
+    const root = host.attachShadow({ mode })
+    root.innerHTML = SIGN_IN
+    return root
+  }
+
+  function fieldIn(root: ShadowRoot, name: string): HTMLInputElement {
+    const found = root.querySelector<HTMLInputElement>(`[name=${name}]`)
+    if (!found) throw new Error(`No ${name} in the shadow root`)
+    return found
+  }
+
+  it("opens the menu for a field in a closed shadow root", async () => {
+    const root = signInInShadowRoot("closed")
+    const page = await startContentScript()
+    ctx = page.ctx
+    const username = fieldIn(root, "username")
+    username.focus()
+    await openMenuOn(username)
+  })
+
+  it("follows the focus from field to field within one shadow root", async () => {
+    const root = signInInShadowRoot("open")
+    const page = await startContentScript()
+    ctx = page.ctx
+    const username = fieldIn(root, "username")
+    username.focus()
+    await openMenuOn(username)
+    // Within one shadow root the browser delivers the focus change to the root, not the document.
+    const password = fieldIn(root, "password")
+    password.focus()
+    password.dispatchEvent(
+      trusted(new FocusEvent("focusin", { bubbles: true, composed: false })),
+    )
+    await vi.advanceTimersByTimeAsync(0)
+    const openings = page.requests.filter(
+      (request) => request.type === "content.openMenu",
+    )
+    expect(openings).toHaveLength(2)
+    expect(menuIsOpen()).toBe(true)
+  })
+
+  it("keeps the menu open while the focus is on the field's icon", async () => {
+    document.body.innerHTML = SIGN_IN
+    const page = await startContentScript()
+    ctx = page.ctx
+    const username = input("[name=username]")
+    username.focus()
+    await openMenuOn(username)
+    const iconHost = document.querySelector("keyward-field-icons")
+    const iconRoot =
+      iconHost &&
+      fakeBrowser.dom.openOrClosedShadowRoot(iconHost as HTMLElement)
+    const icon = (iconRoot as ShadowRoot | null)?.querySelector("button")
+    if (!icon) throw new Error("No field icon")
+    icon.focus()
+    username.dispatchEvent(new FocusEvent("focusout", { bubbles: true }))
+    await vi.advanceTimersByTimeAsync(0)
+    expect(menuIsOpen()).toBe(true)
+  })
+})
+
 describe("closing the menu when its field loses the focus", () => {
   it("closes when the focus moves on to the page, as with the Tab key", async () => {
     document.body.innerHTML = SIGN_IN

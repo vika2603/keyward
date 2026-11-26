@@ -12,9 +12,22 @@ import contentScript from "@/entrypoints/content"
 /**
  * happy-dom lays nothing out and computes no default opacity, so every element would count as
  * hidden. This gives each element a box the size of a text field and full opacity, with nothing
- * drawn over it.
+ * drawn over it. It also hands closed shadow roots to the extension, as the browser does.
  */
 export function stubLayout(): void {
+  const closedRoots = new WeakMap<Element, ShadowRoot>()
+  const attachShadow = Element.prototype.attachShadow
+  vi.spyOn(Element.prototype, "attachShadow").mockImplementation(function (
+    this: Element,
+    init: ShadowRootInit,
+  ) {
+    const root = attachShadow.call(this, init)
+    if (init.mode === "closed") closedRoots.set(this, root)
+    return root
+  })
+  vi.spyOn(fakeBrowser.dom, "openOrClosedShadowRoot").mockImplementation(
+    (element) => element.shadowRoot ?? closedRoots.get(element) ?? null,
+  )
   vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue(
     new DOMRect(10, 10, 200, 32),
   )
