@@ -278,6 +278,15 @@ export class HelperSession {
     this.port.post(message)
   }
 
+  /** Sends a plain request, one that needs no pairing, and waits for its reply. */
+  async ask(
+    message: HelperMessage,
+    options: QueryOptions,
+  ): Promise<HelperMessage> {
+    await this.ensureConnected()
+    return this.port.request(message, { ...options, tagged: true })
+  }
+
   /**
    * Sends an encrypted query over the paired session and opens its reply. The request carries a
    * frame ID of its own, so only its own reply answers it. A query that a newer one replaces fails

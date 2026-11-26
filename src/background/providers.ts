@@ -64,10 +64,28 @@ export class Providers {
   }
 
   /** Every vault with the logins it has for the page; a vault that fails is shown without logins. */
-  loginsForPage(page: URL | null, options?: ListOptions): Promise<VaultView[]> {
-    return this.listForPage(page, (provider, vaultId, url) =>
+  async loginsForPage(
+    page: URL | null,
+    options?: ListOptions,
+  ): Promise<VaultView[]> {
+    const views = await this.listForPage(page, (provider, vaultId, url) =>
       provider.logins(vaultId, url, options),
     )
+    if (!page) return views
+    return Promise.all(views.map((view) => this.withLockedLogins(view, page)))
+  }
+
+  /** A vault that is not open, marked when it can tell that it keeps logins for the page. */
+  private async withLockedLogins(
+    view: VaultView,
+    page: URL,
+  ): Promise<VaultView> {
+    const provider = this.providerOf(view.id)
+    if (view.status !== "locked" || !provider.keepsLoginsFor) return view
+    const keeps = await provider
+      .keepsLoginsFor(view.id, page)
+      .catch(() => false)
+    return keeps ? { ...view, keepsPageLogins: true } : view
   }
 
   /** Every vault with the logins that give one-time codes for the page. */

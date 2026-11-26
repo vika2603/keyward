@@ -26,7 +26,7 @@ const SAVE_TIMEOUT_MS = 10 * 60_000
 /** The parts of the session the commands run in. */
 export type HelperApiSession = Pick<
   HelperSession,
-  "query" | "post" | "ensureConnected" | "capabilities" | "paired"
+  "ask" | "query" | "post" | "ensureConnected" | "capabilities" | "paired"
 >
 
 /** What the helper lists for a host. */
@@ -48,6 +48,22 @@ export class HelperApi {
   private readonly codeListings = serialQueue()
 
   constructor(private readonly session: HelperApiSession) {}
+
+  /**
+   * Command 3, which needs no pairing: whether Passwords keeps logins for a host. Apple's extension
+   * asks it to choose the icon it shows in a sign-in field.
+   */
+  async keepsLogins(host: string): Promise<boolean> {
+    if (!isHostName(host)) return false
+    const reply = await this.session.ask(
+      {
+        cmd: Cmd.SiteStatus,
+        payload: JSON.stringify({ TID: "CmdSetIconNTitle", URL: host }),
+      },
+      { timeoutMs: LIST_TIMEOUT_MS },
+    )
+    return reply.payload === "RememberLoginAndPassword"
+  }
 
   /** Command 4: the logins saved for a host, and whether the site is set never to save. */
   async listLogins(host: string): Promise<SiteListing> {

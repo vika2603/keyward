@@ -5,6 +5,11 @@ import { type BinaryCodec, sameSessionId } from "./srp"
 export const Cmd = {
   End: 0,
   Handshake: 2,
+  /**
+   * Plain, needs no pairing: what Passwords keeps for a host. Apple's extension names it
+   * CmdSetIconNTitle.
+   */
+  SiteStatus: 3,
   GetLoginNamesForUrl: 4,
   GetPasswordForLoginName: 5,
   SetPasswordForLoginNameAndUrl: 6,

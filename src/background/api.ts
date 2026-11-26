@@ -33,6 +33,8 @@ import type { MenuTrigger } from "@/lib/settings"
 
 export interface VaultView extends VaultInfo {
   logins: LoginSummary[]
+  /** A vault that is not open keeps logins for the page, as far as it can tell. */
+  keepsPageLogins?: boolean
   /** Secure notes, listed only in search results and the whole vault. */
   notes?: NoteSummary[]
   /** Given with the whole vault, by providers that group their items. */

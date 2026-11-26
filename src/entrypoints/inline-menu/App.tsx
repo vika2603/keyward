@@ -89,10 +89,11 @@ export function App() {
 
   if (!language) return null
   const allVaults = state?.vaults ?? []
-  // Once one vault is open, the others are paired, unlocked or set up from the popup instead.
+  // Once one vault is open, the others are paired, unlocked or set up from the popup instead,
+  // unless one is known to keep logins for this page.
   const anyReady = allVaults.some((vault) => vault.status === "ready")
   const shownVaults = allVaults.filter((vault) => {
-    if (waitsForUser(vault)) return !anyReady
+    if (waitsForUser(vault)) return !anyReady || Boolean(vault.keepsPageLogins)
     const hasLogins = vault.logins.length > 0
     return vault.status !== "ready" || Boolean(vault.error) || hasLogins
   })

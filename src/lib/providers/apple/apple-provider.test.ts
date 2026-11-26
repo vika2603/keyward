@@ -17,8 +17,9 @@ function providerListing(
   const offerLogin = vi
     .spyOn(apple.api, "offerLogin")
     .mockResolvedValue(undefined)
+  const codeEntries = vi.spyOn(apple.api, "codeEntries").mockResolvedValue([])
   vi.spyOn(apple.helper, "capabilities", "get").mockReturnValue(capabilities)
-  return { apple, listLogins, offerLogin }
+  return { apple, listLogins, offerLogin, codeEntries }
 }
 
 /** A listing with one login per username, each saved for its own site. */
@@ -92,6 +93,49 @@ describe("AppleProvider.logins", () => {
     expect(logins.map((login) => [login.username, login.host])).toEqual([
       ["shopper", "shop.univision.com"],
     ])
+  })
+
+  it("marks the logins that have a one-time code", async () => {
+    const { apple, codeEntries } = providerListing(() =>
+      listing(["me", "example.com"], ["other", "example.com"]),
+    )
+    codeEntries.mockResolvedValue([{ username: "me", domain: "example.com" }])
+    const logins = await apple.logins(
+      "apple",
+      new URL("https://example.com/login"),
+    )
+    expect(logins.map((login) => [login.username, login.hasCode])).toEqual([
+      ["me", true],
+      ["other", false],
+    ])
+  })
+
+  it("still lists the logins when the code listing fails", async () => {
+    const { apple, codeEntries } = providerListing(() =>
+      listing(["me", "example.com"]),
+    )
+    codeEntries.mockRejectedValue(new Error("no answer"))
+    const logins = await apple.logins("apple", new URL("https://example.com/"))
+    expect(logins.map((login) => [login.username, login.hasCode])).toEqual([
+      ["me", false],
+    ])
+  })
+})
+
+describe("AppleProvider.keepsLoginsFor", () => {
+  const page = new URL("https://github.com/login")
+
+  it("asks the helper only while it waits for pairing", async () => {
+    const apple = new AppleProvider()
+    const keepsLogins = vi
+      .spyOn(apple.api, "keepsLogins")
+      .mockResolvedValue(true)
+    const state = vi.spyOn(apple.helper, "getState")
+    state.mockReturnValue({ phase: "unpaired" })
+    expect(await apple.keepsLoginsFor("apple", page)).toBe(true)
+    state.mockReturnValue({ phase: "disabled" })
+    expect(await apple.keepsLoginsFor("apple", page)).toBe(false)
+    expect(keepsLogins).toHaveBeenCalledOnce()
   })
 })
 

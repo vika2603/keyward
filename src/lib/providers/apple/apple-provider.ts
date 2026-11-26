@@ -66,14 +66,31 @@ export class AppleProvider implements VaultProvider {
     ]
   }
 
+  /**
+   * The page's logins, each marked when it has a one-time code. The helper lists codes apart from
+   * logins; a code listing that fails leaves the logins unmarked.
+   */
   async logins(_vaultId: string, page: URL): Promise<LoginSummary[]> {
-    const entries = await this.listForPage(page.hostname)
+    const [entries, codes] = await Promise.all([
+      this.listForPage(page.hostname),
+      this.api.codeEntries(page, []).catch(() => []),
+    ])
     return entries.map((entry) => ({
       id: loginId(entry.username, entry.site),
       username: entry.username,
       title: entry.customTitle || entry.site,
       host: entry.site,
+      hasCode: codes.some((code) =>
+        isCodeFor(code, entry.username, entry.site),
+      ),
     }))
+  }
+
+  /** Before pairing, whether Passwords keeps logins for the page, by the helper's own matching. */
+  async keepsLoginsFor(_vaultId: string, page: URL): Promise<boolean> {
+    const { phase } = this.helper.getState()
+    if (phase !== "unpaired" && phase !== "awaitingCode") return false
+    return this.api.keepsLogins(page.hostname)
   }
 
   /** The helper looks logins up by site only, so a search must be a site's address. */

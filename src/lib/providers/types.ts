@@ -55,7 +55,7 @@ export interface LoginSummary {
   title: string
   /** The host of the login's site, for its icon. */
   host?: string
-  /** Whether the login is known to give one-time codes; Apple tells only when asked for codes. */
+  /** Whether the login is known to give one-time codes. */
   hasCode?: boolean
   /** The login this tab signed in with on the site moments ago, listed first for its code. */
   recent?: boolean
@@ -271,6 +271,11 @@ export interface VaultProvider {
    * vault. A provider that can only look up a site answers a query that is a host name.
    */
   search(vaultId: string, query: string): Promise<LoginSummary[]>
+  /**
+   * Whether a vault that is not open keeps logins for the page; only providers that can tell
+   * without opening the vault have it.
+   */
+  keepsLoginsFor?(vaultId: string, page: URL): Promise<boolean>
   /**
    * Reads one login's password; may ask the user to authenticate. `page` is the page the login is
    * read for, which it must match. Null is for a login the user picked in Keyward's own views from
