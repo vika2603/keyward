@@ -1,6 +1,5 @@
 import {
   CheckIcon,
-  ChevronLeftIcon,
   ChevronRightIcon,
   CopyIcon,
   LoaderCircleIcon,
@@ -10,9 +9,11 @@ import {
 import { type ReactNode, useCallback, useEffect, useRef, useState } from "react"
 import keywardIcon from "@/assets/icon.svg"
 import { callBackground } from "@/background/api"
+import { useAppearance } from "@/components/keyward/appearance"
 import { BrandIcon } from "@/components/keyward/brand-icon"
 import { errorMessage } from "@/components/keyward/errors"
 import { FormError } from "@/components/keyward/form-field"
+import { useLanguage } from "@/components/keyward/language"
 import { Button } from "@/components/ui/button"
 import {
   Collapsible,
@@ -34,7 +35,6 @@ import {
   setupCommand,
 } from "@/lib/providers/apple/setup-command"
 import { cn } from "@/lib/utils"
-import { navigate } from "./navigation"
 
 /** How often the page looks again while it waits for the command to run. */
 const CHECK_INTERVAL_MS = 2000
@@ -136,29 +136,27 @@ function useSetupStatus() {
   return { status, message, check }
 }
 
+export function App() {
+  const language = useLanguage()
+  useAppearance()
+  useEffect(() => {
+    if (language) document.title = t("options.passwordsSetup.title")
+  }, [language])
+  return language ? <ConnectPasswords /> : null
+}
+
 /**
  * Lets the browser reach Passwords: a Terminal command lets it start the helper that comes with
  * macOS. Pairing waits until Passwords is first used, in the popup or a login field's menu. The
- * command needs a tab of its own, since the popup closes as soon as Terminal takes the focus.
+ * page has a tab of its own, since the popup closes as soon as Terminal takes the focus.
  */
-export function PasswordsSetupPage() {
+function ConnectPasswords() {
   const { status, message, check } = useSetupStatus()
   const setUp = status === "done"
 
   return (
-    <div className="flex min-h-screen flex-col items-center bg-muted px-4 pt-6 pb-16">
+    <div className="flex min-h-screen flex-col items-center bg-muted px-4 pt-12 pb-16">
       <main className="flex w-full max-w-[560px] flex-col gap-4">
-        <div>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="-ml-2 text-muted-foreground"
-            onClick={() => navigate("vaults")}
-          >
-            <ChevronLeftIcon />
-            {t("options.passwordsSetup.back")}
-          </Button>
-        </div>
         <header className="flex flex-col items-center gap-1.5 pb-2 text-center">
           <ConnectionIcons link={linkOf(status)} />
           <h1 className="text-2xl leading-8 font-semibold tracking-tight">

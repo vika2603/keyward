@@ -27,6 +27,7 @@ import {
   useReportHeight,
 } from "@/components/keyward/overlay-frame"
 import { SiteIcon } from "@/components/keyward/site-icon"
+import { openConnectPasswords } from "@/lib/connect-passwords"
 import { t } from "@/lib/i18n"
 import { cn } from "@/lib/utils"
 
@@ -427,9 +428,7 @@ function connect(vault: VaultView): void {
     void callOverlay("menu.connect", { vaultId: vault.id }).catch(() => {})
     return
   }
-  void browser.tabs.create({
-    url: browser.runtime.getURL("/options.html#passwords"),
-  })
+  void openConnectPasswords()
   void callOverlay("menu.close", {}).catch(() => {})
 }
 

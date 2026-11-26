@@ -1,5 +1,9 @@
 import type { Handlers } from "@/lib/messaging"
 import type { AppleProvider } from "@/lib/providers/apple/apple-provider"
+import {
+  type AppleState,
+  needsSetup,
+} from "@/lib/providers/apple/helper-session"
 import { VaultError } from "@/lib/providers/types"
 import { getSettings, updateSettings } from "@/lib/settings"
 import type { BackgroundApi } from "../api"
@@ -8,11 +12,21 @@ import { connectPages, popupOnly } from "./request-context"
 import { requireText, siteInput } from "./validation"
 
 export function appleHandlers(apple: AppleProvider) {
-  /** Turns Passwords on, as using it from a page means, and connects to the helper. */
-  const enable = async () => {
-    if (!(await getSettings()).appleEnabled)
-      await updateSettings({ appleEnabled: true })
+  /**
+   * Connects to the helper and turns Passwords on, as using it from a page means. While this Mac
+   * lacks the one-time setup, Passwords stays as it was, so no view offers a vault that cannot
+   * connect unless the user had turned it on.
+   */
+  const connect = async (): Promise<AppleState> => {
+    const wasEnabled = (await getSettings()).appleEnabled
     await apple.helper.setEnabled(true)
+    const state = apple.helper.getState()
+    if (needsSetup(state)) {
+      if (!wasEnabled) await apple.helper.setEnabled(false)
+      return state
+    }
+    if (!wasEnabled) await updateSettings({ appleEnabled: true })
+    return state
   }
 
   return {
@@ -23,17 +37,15 @@ export function appleHandlers(apple: AppleProvider) {
     "apple.startPairing": {
       allow: connectPages,
       handle: async ({ restart }) => {
-        await enable()
+        const state = await connect()
+        if (needsSetup(state)) return state
         await apple.helper.startPairing(Boolean(restart))
         return apple.helper.getState()
       },
     },
     "apple.checkSetup": {
-      allow: connectPages,
-      handle: async () => {
-        await enable()
-        return apple.helper.getState()
-      },
+      allow: [...connectPages, "connectPage"],
+      handle: () => connect(),
     },
     "apple.submitCode": {
       allow: connectPages,

@@ -5,7 +5,7 @@ import {
   isBitwardenVault,
 } from "@/lib/providers/bitwarden/vault-id"
 import type { ProviderKind } from "@/lib/providers/types"
-import { BackHeader, openOptions } from "./header"
+import { BackHeader, openConnectPage, openOptions } from "./header"
 
 /** Pairs Apple Passwords or unlocks one account, each on a page of its own. */
 export function ConnectView({
@@ -25,10 +25,7 @@ export function ConnectView({
       <BackHeader onBack={onDone} />
       <div className="flex min-h-0 flex-1 flex-col justify-center overflow-y-auto px-4 pb-12">
         {kind === "apple" ? (
-          <ApplePairing
-            onPaired={onDone}
-            onSetUp={() => openOptions("passwords")}
-          />
+          <ApplePairing onPaired={onDone} onSetUp={openConnectPage} />
         ) : (
           <BitwardenUnlock
             initialAccountId={accountId}

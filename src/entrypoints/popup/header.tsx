@@ -5,6 +5,7 @@ import {
 } from "lucide-react"
 import type { ReactNode } from "react"
 import { Button } from "@/components/ui/button"
+import { openConnectPasswords } from "@/lib/connect-passwords"
 import { t } from "@/lib/i18n"
 import { usePopOut } from "./pop-out"
 
@@ -61,6 +62,12 @@ export function SettingsButton() {
       <SlidersHorizontalIcon />
     </Button>
   )
+}
+
+/** Opens the page that connects Passwords; the popup would close anyway once Terminal takes the focus. */
+export function openConnectPage(): void {
+  void openConnectPasswords()
+  window.close()
 }
 
 export function openOptions(hash: string): void {

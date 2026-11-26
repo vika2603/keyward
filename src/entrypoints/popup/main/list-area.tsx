@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button"
 import { t } from "@/lib/i18n"
 import type { Settings } from "@/lib/settings"
 import { ConnectCard, LockedVaultCard } from "../connect-card"
-import { openOptions } from "../header"
+import { openConnectPage, openOptions } from "../header"
 import type { View } from "../views"
 import { ItemBrowser, type ItemFilter } from "./all-items"
 import { type AccountFilters, GroupFilterContext } from "./group-filter"
@@ -109,7 +109,7 @@ export function ListArea({
       vault={vault}
       onClick={() =>
         vault.needsSetup
-          ? openOptions("passwords")
+          ? openConnectPage()
           : onNavigate({ name: "connect", kind: vault.kind, vaultId: vault.id })
       }
     />

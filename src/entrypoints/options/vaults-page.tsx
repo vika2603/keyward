@@ -1,5 +1,6 @@
 import {
   ExternalLinkIcon,
+  LoaderCircleIcon,
   PencilIcon,
   PlusIcon,
   RefreshCwIcon,
@@ -30,6 +31,7 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
+import { openConnectPasswords } from "@/lib/connect-passwords"
 import { currentLanguage, t } from "@/lib/i18n"
 import { needsSetup } from "@/lib/providers/apple/helper-session"
 import { APPLE_VAULT_ID } from "@/lib/providers/apple/vault-id"
@@ -83,40 +85,55 @@ export function VaultsPage() {
   }, [])
   useEffect(load, [load])
 
-  /** Whether Passwords is on but this Mac lacks the one-time setup. */
-  const [appleNeedsSetup, setAppleNeedsSetup] = useState(false)
+  /** Whether the browser reaches the Passwords helper; null until a check answers. */
+  const [appleReachable, setAppleReachable] = useState<boolean | null>(null)
+  const [appleConnecting, setAppleConnecting] = useState(false)
   const appleEnabled = settings?.appleEnabled === true
+
+  const checkApple = useCallback(async () => {
+    try {
+      const state = await callBackground("apple.checkSetup", null)
+      setAppleReachable(!needsSetup(state))
+      return state
+    } catch {
+      // Without an answer the row keeps what it shows.
+      return null
+    }
+  }, [])
+
   useEffect(() => {
-    let current = true
-    const check = async () => {
-      try {
-        const state = await callBackground("apple.checkSetup", null)
-        if (current) setAppleNeedsSetup(needsSetup(state))
-      } catch {
-        // Without an answer the row stays hidden; pairing in the popup still offers the setup.
-      }
+    if (!appleEnabled) {
+      setAppleReachable(null)
+      return
     }
-    if (appleEnabled) void check()
-    else setAppleNeedsSetup(false)
-    return () => {
-      current = false
+    void checkApple()
+    // The setup may get done in the connect page or in Terminal while this page waits behind them.
+    const checkWhenShown = () => {
+      if (document.visibilityState === "visible") void checkApple()
     }
-  }, [appleEnabled])
+    document.addEventListener("visibilitychange", checkWhenShown)
+    return () =>
+      document.removeEventListener("visibilitychange", checkWhenShown)
+  }, [appleEnabled, checkApple])
 
   if (!settings) return null
 
-  /** Turning Passwords on leads to its setup page while this Mac still needs the one-time setup. */
-  const setAppleEnabled = (enabled: boolean) => {
-    update({ appleEnabled: enabled })
-    if (!enabled) return
-    callBackground("apple.checkSetup", null).then(
-      (state) => {
-        if (needsSetup(state)) navigate("passwords")
-      },
-      // The setup row below offers the page once a check gets an answer.
-      () => {},
-    )
+  /** Connects Passwords, or opens the connect page while this Mac lacks the one-time setup. */
+  const connectApple = async () => {
+    setAppleConnecting(true)
+    const state = await checkApple()
+    setAppleConnecting(false)
+    if (state && needsSetup(state)) void openConnectPasswords()
   }
+  // Passwords offers a switch once it is connected, and a way to connect until then.
+  const appleConnected = settings.appleEnabled && appleReachable !== false
+  const appleSwitch = (
+    <Switch
+      aria-label={t("options.vaults.apple.toggle")}
+      checked={settings.appleEnabled}
+      onCheckedChange={(checked) => update({ appleEnabled: checked })}
+    />
+  )
 
   const signOut = async (account: AccountSummary) => {
     setAccountsMessage(null)
@@ -187,25 +204,35 @@ export function VaultsPage() {
               {providerName("apple")}
             </span>
           }
-          description={t("options.vaults.apple.description")}
+          description={
+            appleConnected
+              ? t("options.vaults.apple.description")
+              : t("options.vaults.apple.notConnected")
+          }
         >
-          <Switch
-            aria-label={t("options.vaults.apple.toggle")}
-            checked={settings.appleEnabled}
-            onCheckedChange={setAppleEnabled}
-          />
+          {appleConnected ? (
+            appleSwitch
+          ) : (
+            <div className="flex items-center gap-3">
+              <Button
+                variant="outline"
+                disabled={appleConnecting}
+                onClick={() => void connectApple()}
+              >
+                {appleConnecting && (
+                  <LoaderCircleIcon
+                    data-icon="inline-start"
+                    className="animate-spin"
+                  />
+                )}
+                {t("options.vaults.apple.connect")}
+              </Button>
+              {/* On, yet the Mac's setup is gone: it can still be turned off. */}
+              {settings.appleEnabled && appleSwitch}
+            </div>
+          )}
         </Option>
-        {settings.appleEnabled && appleNeedsSetup && (
-          <Option
-            name={t("options.vaults.apple.setUp.name")}
-            description={t("options.vaults.apple.setUp.description")}
-          >
-            <Button variant="outline" onClick={() => navigate("passwords")}>
-              {t("options.vaults.apple.setUp.action")}
-            </Button>
-          </Option>
-        )}
-        {settings.appleEnabled && (
+        {appleConnected && (
           <Option
             name={t("options.vaults.apple.actions.name")}
             description={t("options.vaults.apple.actions.description")}

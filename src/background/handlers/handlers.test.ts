@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { fakeBrowser } from "wxt/testing/fake-browser"
 import type { Sender } from "@/lib/messaging"
+import type { AppleState } from "@/lib/providers/apple/helper-session"
 import { getSettings } from "@/lib/settings"
 import type { BackgroundApi } from "../api"
 import { listHistory } from "../history"
@@ -38,20 +39,44 @@ beforeEach(() => {
   fakeBrowser.reset()
 })
 
-describe("apple.checkSetup", () => {
-  it("turns Passwords on and answers with the helper's state", async () => {
+describe("connecting Passwords", () => {
+  /** Handlers over a helper that answers with `state` and never reaches a real one. */
+  function appleHandlers(state: AppleState) {
     const named = idleNamedProviders()
     const setEnabled = vi
       .spyOn(named.apple.helper, "setEnabled")
       .mockResolvedValue()
-    const unreachable = { phase: "unavailable", problem: "notSetUp" } as const
-    vi.spyOn(named.apple.helper, "getState").mockReturnValue(unreachable)
+    const startPairing = vi
+      .spyOn(named.apple.helper, "startPairing")
+      .mockResolvedValue()
+    vi.spyOn(named.apple.helper, "getState").mockReturnValue(state)
     const handlers = createHandlers(fakeProviders([]).providers, named)
+    return { handlers, setEnabled, startPairing }
+  }
+  const notSetUp: AppleState = { phase: "unavailable", problem: "notSetUp" }
+
+  it("leaves Passwords off while this Mac lacks the setup", async () => {
+    const { handlers, setEnabled } = appleHandlers(notSetUp)
     await expect(
       handlers["apple.checkSetup"].handle(null as never, popup),
-    ).resolves.toEqual(unreachable)
-    expect(setEnabled).toHaveBeenCalledWith(true)
+    ).resolves.toEqual(notSetUp)
+    expect(setEnabled.mock.calls).toEqual([[true], [false]])
+    expect((await getSettings()).appleEnabled).toBe(false)
+  })
+
+  it("turns Passwords on once the helper answers", async () => {
+    const { handlers } = appleHandlers({ phase: "unpaired" })
+    await handlers["apple.checkSetup"].handle(null as never, popup)
     expect((await getSettings()).appleEnabled).toBe(true)
+  })
+
+  it("asks for no pairing code while this Mac lacks the setup", async () => {
+    const { handlers, startPairing } = appleHandlers(notSetUp)
+    await expect(
+      handlers["apple.startPairing"].handle({ restart: false } as never, popup),
+    ).resolves.toEqual(notSetUp)
+    expect(startPairing).not.toHaveBeenCalled()
+    expect((await getSettings()).appleEnabled).toBe(false)
   })
 })
 

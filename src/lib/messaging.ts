@@ -13,6 +13,8 @@ export type SenderKind =
   | "menu"
   /** The save prompt, an extension page inside a web page. */
   | "savePrompt"
+  /** The page that connects Passwords. */
+  | "connectPage"
   | "contentScript"
 
 const PAGE_KINDS: Record<string, SenderKind> = {
@@ -20,6 +22,7 @@ const PAGE_KINDS: Record<string, SenderKind> = {
   "/options.html": "options",
   "/inline-menu.html": "menu",
   "/save-prompt.html": "savePrompt",
+  "/connect-passwords.html": "connectPage",
 }
 
 interface Envelope {

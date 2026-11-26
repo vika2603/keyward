@@ -18,10 +18,9 @@ export const en = {
   "options.vaults.apple.actions.description":
     "List accounts for the current site, fill, copy passwords and save new ones. Other management is done in the Passwords app.",
   "options.vaults.apple.openApp": "Open Passwords app",
-  "options.vaults.apple.setUp.name": "Setup on this Mac",
-  "options.vaults.apple.setUp.description":
-    "Not set up yet. The browser can reach Passwords after one command in Terminal.",
-  "options.vaults.apple.setUp.action": "Set up",
+  "options.vaults.apple.notConnected":
+    "Connect to fill and save logins from Passwords on this Mac.",
+  "options.vaults.apple.connect": "Connect",
   "options.vaults.bitwarden.signedInDescription":
     "You can sign in to several accounts at once, and their items are shown together. When locked, unlock each account with its master password in the popup.",
   "options.vaults.bitwarden.signedOutDescription":
@@ -189,7 +188,6 @@ export const en = {
   "options.passwordsSetup.title": "Connect Passwords",
   "options.passwordsSetup.description":
     "Keyward reads Passwords through a helper that comes with macOS. Each Mac needs this once.",
-  "options.passwordsSetup.back": "Back to settings",
   "options.passwordsSetup.done": "Done",
   "options.passwordsSetup.setUp.title": "Let the browser reach Passwords",
   "options.passwordsSetup.setUp.description":
@@ -276,10 +274,9 @@ export const zhCN: Record<keyof typeof en, string> = {
   "options.vaults.apple.actions.description":
     "按当前站点列出账号、填充、复制密码和保存新密码。其余管理操作在 Passwords App 中完成。",
   "options.vaults.apple.openApp": "打开 Passwords App",
-  "options.vaults.apple.setUp.name": "本机设置",
-  "options.vaults.apple.setUp.description":
-    "还没设置。在终端运行一条命令后，浏览器才能连接 Passwords。",
-  "options.vaults.apple.setUp.action": "去设置",
+  "options.vaults.apple.notConnected":
+    "连接后，可以填充和保存这台 Mac 上 Passwords 里的密码。",
+  "options.vaults.apple.connect": "连接",
   "options.vaults.bitwarden.signedInDescription":
     "可以同时登录多个账号，条目一起显示。锁定后在弹窗里逐个输入主密码解锁。",
   "options.vaults.bitwarden.signedOutDescription":
@@ -439,7 +436,6 @@ export const zhCN: Record<keyof typeof en, string> = {
   "options.passwordsSetup.title": "连接 Passwords",
   "options.passwordsSetup.description":
     "Keyward 通过 macOS 自带的组件读取 Passwords。每台 Mac 只需设置一次。",
-  "options.passwordsSetup.back": "返回设置",
   "options.passwordsSetup.done": "已完成",
   "options.passwordsSetup.setUp.title": "允许浏览器连接 Passwords",
   "options.passwordsSetup.setUp.description":

@@ -261,8 +261,9 @@ export type BackgroundApi = {
   "apple.state": { payload: null; result: AppleState }
   "apple.startPairing": { payload: { restart: boolean }; result: AppleState }
   /**
-   * Turns Passwords on and connects to the helper again if it is not connected, without pairing,
-   * so nothing shows on the Mac; the state says whether the one-time setup is still missing.
+   * Connects to the helper without pairing, so nothing shows on the Mac, and turns Passwords on
+   * once it answers. While this Mac lacks the one-time setup, Passwords stays as it was and the
+   * state says so.
    */
   "apple.checkSetup": { payload: null; result: AppleState }
   "apple.submitCode": { payload: { code: string }; result: AppleState }
