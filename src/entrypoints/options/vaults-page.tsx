@@ -3,7 +3,10 @@ import { useCallback, useEffect, useState } from "react"
 import { callBackground } from "@/background/api"
 import { BrandIcon, providerName } from "@/components/keyward/brand-icon"
 import { errorMessage } from "@/components/keyward/errors"
-import { RemovalDetails } from "@/components/keyward/passwords-setup"
+import {
+  RemovalDetails,
+  usePasswordsSupported,
+} from "@/components/keyward/passwords-setup"
 import { VaultSelect } from "@/components/keyward/vault-select"
 import {
   AlertDialog,
@@ -79,6 +82,7 @@ export function VaultsPage() {
   }, [])
   useEffect(load, [load])
 
+  const passwordsSupported = usePasswordsSupported()
   /** Whether this Mac has the one-time setup for this browser; null until a check answers. */
   const [appleSetUp, setAppleSetUp] = useState<boolean | null>(null)
 
@@ -100,7 +104,7 @@ export function VaultsPage() {
       document.removeEventListener("visibilitychange", checkWhenShown)
   }, [])
 
-  if (!settings) return null
+  if (!settings || passwordsSupported === null) return null
 
   // Passwords is set up before its switch can be turned on.
   const appleNeedsSetup = appleSetUp === false
@@ -165,42 +169,45 @@ export function VaultsPage() {
         title={t("options.vaults.title")}
         description={t("options.vaults.description")}
       />
-      <Card>
-        <Option
-          name={
-            <span className="flex items-center gap-2.5">
-              <BrandIcon kind="apple" />
-              {providerName("apple")}
-            </span>
-          }
-          description={
-            appleNeedsSetup
-              ? t("options.vaults.apple.notSetUp")
-              : t("options.vaults.apple.description")
-          }
-        >
-          {appleNeedsSetup ? (
-            <div className="flex items-center gap-3">
-              <Button
-                variant="outline"
-                onClick={() => void openConnectPasswords()}
-              >
-                {t("options.vaults.apple.setUp")}
-              </Button>
-              {/* On, yet the setup is gone: it can still be turned off. */}
-              {settings.appleEnabled && appleSwitch}
+      {/* Only macOS has Passwords; a switch left on elsewhere can still be turned off. */}
+      {(passwordsSupported || settings.appleEnabled) && (
+        <Card>
+          <Option
+            name={
+              <span className="flex items-center gap-2.5">
+                <BrandIcon kind="apple" />
+                {providerName("apple")}
+              </span>
+            }
+            description={
+              appleNeedsSetup
+                ? t("options.vaults.apple.notSetUp")
+                : t("options.vaults.apple.description")
+            }
+          >
+            {appleNeedsSetup ? (
+              <div className="flex items-center gap-3">
+                <Button
+                  variant="outline"
+                  onClick={() => void openConnectPasswords()}
+                >
+                  {t("options.vaults.apple.setUp")}
+                </Button>
+                {/* On, yet the setup is gone: it can still be turned off. */}
+                {settings.appleEnabled && appleSwitch}
+              </div>
+            ) : (
+              appleSwitch
+            )}
+          </Option>
+          {/* Folded under the switch, as it is needed about once per Mac. */}
+          {appleSetUp && (
+            <div className="-mt-1 px-4 pb-3">
+              <RemovalDetails />
             </div>
-          ) : (
-            appleSwitch
           )}
-        </Option>
-        {/* Folded under the switch, as it is needed about once per Mac. */}
-        {appleSetUp && (
-          <div className="-mt-1 px-4 pb-3">
-            <RemovalDetails />
-          </div>
-        )}
-      </Card>
+        </Card>
+      )}
       <Card>
         <Option
           name={
@@ -293,7 +300,13 @@ export function VaultsPage() {
         {accounts.length > 0 && (
           <Option
             name={t("options.vaults.lockOnSystemLock.name")}
-            description={t("options.vaults.lockOnSystemLock.description")}
+            description={
+              passwordsSupported
+                ? t("options.vaults.lockOnSystemLock.description")
+                : t(
+                    "options.vaults.lockOnSystemLock.descriptionWithoutPasswords",
+                  )
+            }
           >
             <Switch
               aria-label={t("options.vaults.lockOnSystemLock.name")}

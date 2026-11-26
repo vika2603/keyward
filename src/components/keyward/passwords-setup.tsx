@@ -128,6 +128,18 @@ export function useSetupStatus() {
   return { status, message, check }
 }
 
+/**
+ * Whether this computer has Passwords at all, null until the browser says. Only macOS comes with
+ * the helper; elsewhere the interface leaves Passwords out.
+ */
+export function usePasswordsSupported(): boolean | null {
+  const [supported, setSupported] = useState<boolean | null>(null)
+  useEffect(() => {
+    void isMac().then(setSupported)
+  }, [])
+  return supported
+}
+
 /** Whether Passwords can be connected on this computer: not at all, after its setup, or now. */
 export type PasswordsAvailability = "unsupported" | "needsSetup" | "ready"
 

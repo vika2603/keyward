@@ -5,7 +5,10 @@ import { callBackground } from "@/background/api"
 import { useAppearance } from "@/components/keyward/appearance"
 import { BrandIcon, providerName } from "@/components/keyward/brand-icon"
 import { useLanguage } from "@/components/keyward/language"
-import { usePasswordsAvailability } from "@/components/keyward/passwords-setup"
+import {
+  usePasswordsAvailability,
+  usePasswordsSupported,
+} from "@/components/keyward/passwords-setup"
 import { Button } from "@/components/ui/button"
 import { SignIn } from "@/entrypoints/options/onboard-page"
 import { useSettings } from "@/hooks/use-settings"
@@ -29,6 +32,7 @@ export function App() {
  */
 function Welcome() {
   const [settings] = useSettings()
+  const passwordsSupported = usePasswordsSupported()
   const [accounts, setAccounts] = useState<AccountSummary[] | null>(null)
   const loadAccounts = useCallback(() => {
     callBackground("bitwarden.accounts", null).then(setAccounts, () =>
@@ -37,7 +41,7 @@ function Welcome() {
   }, [])
   useEffect(loadAccounts, [loadAccounts])
 
-  if (!settings || !accounts) return null
+  if (!settings || !accounts || passwordsSupported === null) return null
   const connected = settings.appleEnabled || accounts.length > 0
 
   return (
@@ -54,10 +58,14 @@ function Welcome() {
             {t("welcome.title")}
           </h1>
           <p className="text-sm text-muted-foreground">
-            {t("welcome.description")}
+            {passwordsSupported
+              ? t("welcome.description")
+              : t("welcome.descriptionWithoutPasswords")}
           </p>
         </header>
-        <PasswordsCard enabled={settings.appleEnabled} />
+        {passwordsSupported && (
+          <PasswordsCard enabled={settings.appleEnabled} />
+        )}
         <BitwardenCard accounts={accounts} onSignedIn={loadAccounts} />
         <PinCard />
         <footer className="flex flex-col items-center gap-3 pt-4 text-center">
@@ -88,15 +96,6 @@ function PasswordsCard({ enabled }: { enabled: boolean }) {
   const availability = usePasswordsAvailability()
   const icon = <BrandIcon kind="apple" className="size-6" />
 
-  if (availability === "unsupported") {
-    return (
-      <StepCard
-        icon={icon}
-        title={providerName("apple")}
-        description={t("options.passwordsSetup.notMac")}
-      />
-    )
-  }
   if (enabled && availability === "ready") {
     return (
       <StepCard

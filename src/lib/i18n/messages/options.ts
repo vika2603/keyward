@@ -47,6 +47,8 @@ export const en = {
   "options.vaults.lockOnSystemLock.name": "Lock with the computer",
   "options.vaults.lockOnSystemLock.description":
     "Lock Bitwarden accounts when the computer's screen locks. Passwords stays paired; it asks for Touch ID before each password anyway.",
+  "options.vaults.lockOnSystemLock.descriptionWithoutPasswords":
+    "Lock Bitwarden accounts when the computer's screen locks.",
   "options.vaults.saveTarget.title": "Save location",
   "options.vaults.saveTarget.name": "Save new logins to",
   "options.vaults.saveTarget.description":
@@ -212,6 +214,8 @@ export const en = {
   "welcome.title": "Welcome to Keyward",
   "welcome.description":
     "Connect Passwords, Bitwarden or both to fill passwords and verification codes on the web.",
+  "welcome.descriptionWithoutPasswords":
+    "Sign in to Bitwarden to fill passwords and verification codes on the web.",
   "welcome.connect": "Connect",
   "welcome.signIn": "Sign in",
   "welcome.cancel": "Cancel",
@@ -323,6 +327,8 @@ export const zhCN: Record<keyof typeof en, string> = {
   "options.vaults.lockOnSystemLock.name": "电脑锁屏时锁定",
   "options.vaults.lockOnSystemLock.description":
     "电脑锁屏时锁定 Bitwarden 账号。Passwords 保持配对，它每次取密码都会要求触控 ID。",
+  "options.vaults.lockOnSystemLock.descriptionWithoutPasswords":
+    "电脑锁屏时锁定 Bitwarden 账号。",
   "options.vaults.saveTarget.title": "保存位置",
   "options.vaults.saveTarget.name": "新登录默认保存到",
   "options.vaults.saveTarget.description": "保存提示里仍可临时改选。",
@@ -480,6 +486,8 @@ export const zhCN: Record<keyof typeof en, string> = {
   "welcome.title": "欢迎使用 Keyward",
   "welcome.description":
     "连接 Passwords、Bitwarden，或者两个都连，就能在网页里填充密码和验证码。",
+  "welcome.descriptionWithoutPasswords":
+    "登录 Bitwarden，就能在网页里填充密码和验证码。",
   "welcome.connect": "连接",
   "welcome.signIn": "登录",
   "welcome.cancel": "取消",
