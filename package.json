@@ -2,6 +2,7 @@
   "name": "password-manager",
   "version": "0.1.0",
   "private": true,
+  "license": "MIT",
   "description": "Browser extension password manager over several password vaults.",
   "type": "module",
   "scripts": {

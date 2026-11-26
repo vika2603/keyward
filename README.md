@@ -64,3 +64,9 @@ mise run format  # fix formatting
 
 - Decrypted secrets and session keys stay in memory or in `storage.session`. `storage.local` holds settings and, for each Bitwarden account, a user key and refresh token that are encrypted and useless without the master password.
 - Before a login or code is sent to a frame, the background checks that the frame's origin matches the login, and the content script fills only if its origin is still the one checked.
+
+## License
+
+Keyward's own code is under the MIT License; see [LICENSE](LICENSE).
+
+The built extension also contains `@bitwarden/sdk-internal`, which is under GPL-3.0. Whoever distributes the built extension, the SDK included, does so under the terms of GPL-3.0; the source for it is this repository.
