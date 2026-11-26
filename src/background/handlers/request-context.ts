@@ -5,8 +5,10 @@ import { activeTab, sendToFrame, webPage } from "../page"
 
 /** The senders the toolbar popup's requests come from. */
 export const popupOnly = ["popup"] as const
-/** The pages that connect vaults: the popup, the options page and the welcome page. */
-export const connectPages = ["popup", "options", "welcomePage"] as const
+/** The pages that connect vaults: the popup and the options page. */
+export const connectPages = ["popup", "options"] as const
+/** The pages that sign in to Bitwarden: those that connect vaults, and the welcome page. */
+export const signInPages = [...connectPages, "welcomePage"] as const
 
 export function tabFrame(sender: Sender): { tabId: number; frameId: number } {
   if (sender.tab?.id === undefined || sender.frameId === undefined) {

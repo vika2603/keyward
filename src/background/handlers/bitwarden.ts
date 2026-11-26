@@ -7,7 +7,7 @@ import { normalizeServerAddress } from "@/lib/providers/bitwarden/server"
 import { VaultError } from "@/lib/providers/types"
 import type { BackgroundApi } from "../api"
 import { MAX_ACCOUNT_NAME_LENGTH, MAX_SECOND_STEP_CODE_LENGTH } from "../limits"
-import { connectPages } from "./request-context"
+import { connectPages, signInPages } from "./request-context"
 import { customEndpointsOf, requireText, secondStepMethod } from "./validation"
 
 export function bitwardenHandlers(bitwarden: BitwardenProvider) {
@@ -22,7 +22,7 @@ export function bitwardenHandlers(bitwarden: BitwardenProvider) {
 
   return {
     "bitwarden.accounts": {
-      allow: connectPages,
+      allow: signInPages,
       handle: () => bitwarden.accounts(),
     },
     "bitwarden.unlock": {
@@ -63,7 +63,7 @@ export function bitwardenHandlers(bitwarden: BitwardenProvider) {
       },
     },
     "bitwarden.signIn": {
-      allow: connectPages,
+      allow: signInPages,
       handle: ({ server, endpoints, email, password }) =>
         bitwarden.signIn(
           normalizeServerAddress(requireText(server, "server")),
@@ -75,18 +75,18 @@ export function bitwardenHandlers(bitwarden: BitwardenProvider) {
         ),
     },
     "bitwarden.pendingSignIn": {
-      allow: connectPages,
+      allow: signInPages,
       handle: () => bitwarden.pendingSignIn(),
     },
     "bitwarden.sendEmailCode": {
-      allow: connectPages,
+      allow: signInPages,
       handle: async () => {
         await bitwarden.sendEmailCode()
         return null
       },
     },
     "bitwarden.submitSecondStep": {
-      allow: connectPages,
+      allow: signInPages,
       handle: async ({ method, code }) => ({
         accountId: await bitwarden.submitSecondStep(
           secondStepMethod(method),
@@ -95,7 +95,7 @@ export function bitwardenHandlers(bitwarden: BitwardenProvider) {
       }),
     },
     "bitwarden.cancelSignIn": {
-      allow: connectPages,
+      allow: signInPages,
       handle: async () => {
         await bitwarden.cancelSignIn()
         return null

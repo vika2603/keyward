@@ -8,11 +8,11 @@ import { bitwardenHandlers } from "./bitwarden"
 import { contentHandlers } from "./content"
 import { generatorHandlers } from "./generator"
 import { menuHandlers } from "./menu"
-import { pageHandlers } from "./pages"
 import { popupItemHandlers } from "./popup-items"
 import { popupNoteHandlers } from "./popup-notes"
 import { popupSaveHandlers } from "./popup-save"
 import { promptHandlers } from "./prompt"
+import { welcomeHandlers } from "./welcome"
 
 /** The providers whose own requests, such as pairing or signing in, name them directly. */
 export interface NamedProviders {
@@ -39,6 +39,6 @@ export function createHandlers(
     ...menuHandlers(providers),
     ...promptHandlers(providers),
     ...contentHandlers(providers),
-    ...pageHandlers(),
+    ...welcomeHandlers(),
   }
 }

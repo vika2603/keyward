@@ -39,8 +39,8 @@ export function ApplePairing({
   onSetUp,
 }: {
   onPaired: () => void
-  /** Opens the setup page; given, pairing goes there at once while this Mac is not set up yet. */
-  onSetUp?: () => void
+  /** Opens the setup page, where pairing goes at once while this Mac is not set up yet. */
+  onSetUp: () => void
 }) {
   const [state, setState] = useState<AppleState | null>(null)
   const [code, setCode] = useState("")
@@ -103,7 +103,7 @@ export function ApplePairing({
   const setupMissing = state !== null && needsSetup(state)
   // Pairing needs the one-time setup first, which runs in a page of its own.
   useEffect(() => {
-    if (!onSetUp || !setupMissing || sentToSetup.current) return
+    if (!setupMissing || sentToSetup.current) return
     sentToSetup.current = true
     onSetUp()
   }, [onSetUp, setupMissing])
@@ -140,7 +140,7 @@ export function ApplePairing({
     }
   }, [ready])
 
-  if (onSetUp && setupMissing) return null
+  if (setupMissing) return null
 
   const paired = phase === "paired"
   const MacIcon = paired ? LaptopMinimalCheckIcon : LaptopMinimalIcon

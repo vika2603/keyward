@@ -25,11 +25,11 @@ export function appleHandlers(apple: AppleProvider) {
 
   return {
     "apple.state": {
-      allow: connectPages,
+      allow: popupOnly,
       handle: () => apple.helper.getState(),
     },
     "apple.startPairing": {
-      allow: connectPages,
+      allow: popupOnly,
       handle: async ({ restart }) => {
         const state = await reach()
         if (needsSetup(state)) {
@@ -44,11 +44,11 @@ export function appleHandlers(apple: AppleProvider) {
       },
     },
     "apple.checkSetup": {
-      allow: [...connectPages, "connectPage"],
+      allow: [...connectPages, "connectPage", "welcomePage"],
       handle: () => apple.helper.checkSetup(),
     },
     "apple.submitCode": {
-      allow: connectPages,
+      allow: popupOnly,
       handle: async ({ code }) => {
         if (typeof code !== "string" || !/^\d{6}$/.test(code)) {
           throw new VaultError("The code has six digits", "invalidInput")
@@ -58,7 +58,7 @@ export function appleHandlers(apple: AppleProvider) {
       },
     },
     "apple.openPasswordsApp": {
-      allow: connectPages,
+      allow: popupOnly,
       handle: async ({ site }) => {
         await apple.openPasswordsApp(
           site === undefined

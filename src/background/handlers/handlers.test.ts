@@ -90,11 +90,11 @@ describe("connecting Passwords", () => {
   })
 })
 
-describe("pages that set Keyward up", () => {
+describe("the welcome page", () => {
   const handlers = () =>
     createHandlers(fakeProviders([]).providers, idleNamedProviders())
 
-  it("lets the welcome page connect vaults but not change them", () => {
+  it("lets the welcome page sign in and check Passwords, and nothing more", () => {
     const all = handlers()
     const connecting = [
       "bitwarden.accounts",
@@ -104,17 +104,24 @@ describe("pages that set Keyward up", () => {
     ] as const
     for (const type of connecting)
       expect(all[type].allow).toContain("welcomePage")
-    for (const type of ["bitwarden.signOut", "bitwarden.sync"] as const)
+    const others = [
+      "bitwarden.unlock",
+      "bitwarden.signOut",
+      "bitwarden.sync",
+      "apple.startPairing",
+      "apple.submitCode",
+    ] as const
+    for (const type of others)
       expect(all[type].allow).not.toContain("welcomePage")
   })
 
   it("opens the popup for the welcome page only", async () => {
     const all = handlers()
-    expect(all["page.openPopup"].allow).toEqual(["welcomePage"])
+    expect(all["welcome.openPopup"].allow).toEqual(["welcomePage"])
     const openPopup = vi
       .spyOn(fakeBrowser.action, "openPopup")
       .mockResolvedValue()
-    await all["page.openPopup"].handle(
+    await all["welcome.openPopup"].handle(
       null as never,
       {
         kind: "welcomePage",

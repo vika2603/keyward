@@ -5,6 +5,7 @@ import { BrandIcon, providerName } from "@/components/keyward/brand-icon"
 import { errorMessage } from "@/components/keyward/errors"
 import {
   RemovalDetails,
+  usePasswordsAvailability,
   usePasswordsSupported,
 } from "@/components/keyward/passwords-setup"
 import { VaultSelect } from "@/components/keyward/vault-select"
@@ -32,7 +33,6 @@ import { Switch } from "@/components/ui/switch"
 import { useSettings } from "@/hooks/use-settings"
 import { openConnectPasswords } from "@/lib/connect-passwords"
 import { currentLanguage, t } from "@/lib/i18n"
-import { isSetupProblem } from "@/lib/providers/apple/helper-port"
 import { APPLE_VAULT_ID } from "@/lib/providers/apple/vault-id"
 import type { AccountSummary } from "@/lib/providers/bitwarden/bitwarden-provider"
 import { isCloudServer, serverHost } from "@/lib/providers/bitwarden/server"
@@ -83,36 +83,17 @@ export function VaultsPage() {
   useEffect(load, [load])
 
   const passwordsSupported = usePasswordsSupported()
-  /** Whether this Mac has the one-time setup for this browser; null until a check answers. */
-  const [appleSetUp, setAppleSetUp] = useState<boolean | null>(null)
-
-  useEffect(() => {
-    const check = () =>
-      callBackground("apple.checkSetup", null).then(
-        (answer) =>
-          setAppleSetUp(answer.reached || !isSetupProblem(answer.problem)),
-        // Without an answer the row keeps what it shows.
-        () => {},
-      )
-    void check()
-    // The setup gets done or removed in the connect page and in Terminal, behind this page.
-    const checkWhenShown = () => {
-      if (document.visibilityState === "visible") void check()
-    }
-    document.addEventListener("visibilitychange", checkWhenShown)
-    return () =>
-      document.removeEventListener("visibilitychange", checkWhenShown)
-  }, [])
+  const passwords = usePasswordsAvailability()
 
   if (!settings || passwordsSupported === null) return null
 
   // Passwords is set up before its switch can be turned on.
-  const appleNeedsSetup = appleSetUp === false
+  const appleNeedsSetup = passwords === "needsSetup"
   const appleSwitch = (
     <Switch
       aria-label={t("options.vaults.apple.toggle")}
       checked={settings.appleEnabled}
-      disabled={appleSetUp === null && !settings.appleEnabled}
+      disabled={passwords === null && !settings.appleEnabled}
       onCheckedChange={(checked) => update({ appleEnabled: checked })}
     />
   )
@@ -201,7 +182,7 @@ export function VaultsPage() {
             )}
           </Option>
           {/* Folded under the switch, as it is needed about once per Mac. */}
-          {appleSetUp && (
+          {passwords === "ready" && (
             <div className="-mt-1 px-4 pb-3">
               <RemovalDetails />
             </div>

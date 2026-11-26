@@ -74,7 +74,7 @@ function Welcome() {
             disabled={!connected}
             // An older background without the request leaves the toolbar icon to the user.
             onClick={() =>
-              void callBackground("page.openPopup", null).catch(() => {})
+              void callBackground("welcome.openPopup", null).catch(() => {})
             }
           >
             {t("welcome.open")}

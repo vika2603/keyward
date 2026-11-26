@@ -5,15 +5,11 @@ import { useAppearance } from "@/components/keyward/appearance"
 import { BrandIcon } from "@/components/keyward/brand-icon"
 import { useLanguage } from "@/components/keyward/language"
 import { FADE_IN } from "@/components/keyward/loading"
-import {
-  RemovalDetails,
-  SetUpStep,
-  type SetupStatus,
-  useSetupStatus,
-} from "@/components/keyward/passwords-setup"
+import { RemovalDetails } from "@/components/keyward/passwords-setup"
 import { pageBrowser } from "@/components/keyward/setup-commands"
 import { t } from "@/lib/i18n"
 import { cn } from "@/lib/utils"
+import { SetUpStep, type SetupStatus, useSetupStatus } from "./setup-step"
 
 /** How the header shows the link between Keyward and Passwords. */
 type Link = "connecting" | "stopped" | "connected"
@@ -45,8 +41,6 @@ export function App() {
 function ConnectPasswords() {
   const { status, message, check } = useSetupStatus()
   const [targetBrowser, setTargetBrowser] = useState(pageBrowser)
-  const setUp = status === "done"
-
   const link = linkOf(status)
 
   return (
@@ -60,7 +54,7 @@ function ConnectPasswords() {
           <LinkStatus link={link} />
         </header>
         <section className="flex flex-col gap-4 rounded-xl bg-card p-5 ring-1 ring-foreground/10">
-          {setUp ? (
+          {status === "done" ? (
             <>
               <p className="text-sm text-muted-foreground">
                 {t("options.passwordsSetup.connected")}

@@ -95,7 +95,7 @@ export function startBackground(): void {
   browser.runtime.onConnect.addListener((port) => {
     if (port.name !== APPLE_PAIRING_PORT) return
     const kind = port.sender ? senderKind(port.sender) : null
-    if (kind !== "popup" && kind !== "options") {
+    if (kind !== "popup") {
       port.disconnect()
       return
     }
