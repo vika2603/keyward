@@ -1,8 +1,17 @@
 // @vitest-environment happy-dom
-import { afterEach, describe, expect, it } from "vitest"
-import { submitControlOf } from "./submit"
+import { afterEach, describe, expect, it, vi } from "vitest"
+import { ContentScriptContext } from "wxt/utils/content-script-context"
+import { isSignInRequest, submitControlOf, watchSubmissions } from "./submit"
+import type { SubmittedLogin } from "./submitted-login"
+import { stubLayout } from "./test-support"
+
+let ctx: ContentScriptContext | undefined
 
 afterEach(() => {
+  ctx?.abort()
+  ctx = undefined
+  vi.unstubAllGlobals()
+  vi.restoreAllMocks()
   document.body.innerHTML = ""
 })
 
@@ -42,5 +51,83 @@ describe("the control a click submits with", () => {
       <a id="help" href="/help" class="btn">Help</a>`
     expect(pressed("show")).toBeNull()
     expect(pressed("help")).toBeNull()
+  })
+})
+
+/** A resource entry as the browser records a request the page sent. */
+function request(initiatorType: string, path: string): PerformanceEntry {
+  return {
+    initiatorType,
+    name: `https://example.com${path}`,
+  } as unknown as PerformanceEntry
+}
+
+describe("a sign-in a script sends", () => {
+  /** Watches the page for submissions; returns what it reports and a way to deliver requests. */
+  function watch() {
+    stubLayout()
+    let deliver: (entries: PerformanceEntry[]) => void = () => {}
+    vi.stubGlobal(
+      "PerformanceObserver",
+      class {
+        constructor(
+          callback: (list: { getEntries(): PerformanceEntry[] }) => void,
+        ) {
+          deliver = (entries) => callback({ getEntries: () => entries })
+        }
+        observe() {}
+        disconnect() {}
+      },
+    )
+    const reports: SubmittedLogin[] = []
+    ctx = new ContentScriptContext("content")
+    watchSubmissions(
+      ctx,
+      () => true,
+      (login) => reports.push(login),
+    )
+    return {
+      reports,
+      deliver: (...entries: PerformanceEntry[]) => deliver(entries),
+    }
+  }
+
+  function signInForm(): void {
+    document.body.innerHTML = `
+      <form>
+        <input name="username" value="someone">
+        <input type="password" name="password" value="typed-password">
+        <div class="sign-in-box">Continue to your account</div>
+      </form>
+      <input name="search">`
+  }
+
+  it("is told by its path and by being a fetch or XHR request", () => {
+    expect(isSignInRequest(request("fetch", "/api/session/login"))).toBe(true)
+    expect(isSignInRequest(request("xmlhttprequest", "/users/sign_in"))).toBe(
+      true,
+    )
+    expect(isSignInRequest(request("img", "/login.png"))).toBe(false)
+    expect(isSignInRequest(request("fetch", "/api/profile"))).toBe(false)
+  })
+
+  it("reports the form with the filled password once the user has left it", () => {
+    signInForm()
+    const { reports, deliver } = watch()
+    document.querySelector<HTMLInputElement>("[name=search]")?.focus()
+    deliver(request("fetch", "/api/profile"))
+    expect(reports).toEqual([])
+    deliver(request("fetch", "/api/session/login"))
+    expect(reports).toEqual([
+      { username: "someone", password: "typed-password", newPassword: false },
+    ])
+  })
+
+  it("waits while the focus is still in a field of the form", () => {
+    signInForm()
+    const { reports, deliver } = watch()
+    document.querySelector<HTMLInputElement>("[name=password]")?.focus()
+    deliver(request("xmlhttprequest", "/login"))
+    expect(reports).toEqual([])
   })
 })

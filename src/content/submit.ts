@@ -1,5 +1,7 @@
 import type { ContentScriptContext } from "wxt/utils/content-script-context"
-import { eventOrigin } from "./deep-dom"
+import { deepActiveElement, deepInputs, eventOrigin, scopeOf } from "./deep-dom"
+import { isFillable } from "./field-finder"
+import { isPasswordField } from "./field-hints"
 import { credentialsAround, type SubmittedLogin } from "./submitted-login"
 
 const DEDUPE_MS = 3000
@@ -14,6 +16,36 @@ const CONTROL_SELECTOR =
   'button, input, [role="button"], a[href="#"], a[href^="javascript:"], [onclick], [class*="button" i], [class*="btn" i]'
 /** A longer text is a part of the page around a control rather than its label. */
 const MAX_SCRIPTED_LABEL_LENGTH = 25
+/** Paths of the requests a script sends to sign in, after DuckDuckGo's autofill. */
+const SIGN_IN_REQUEST_PATH = /log-?in|sign-?in|log_in|sign_in|logon/i
+const SCRIPT_REQUESTS = new Set(["fetch", "xmlhttprequest"])
+
+/** Whether a resource the page loaded is a request its script sent to sign in. */
+export function isSignInRequest(entry: PerformanceEntry): boolean {
+  const { initiatorType } = entry as PerformanceResourceTiming
+  if (!SCRIPT_REQUESTS.has(initiatorType)) return false
+  try {
+    return SIGN_IN_REQUEST_PATH.test(new URL(entry.name).pathname)
+  } catch {
+    return false
+  }
+}
+
+/**
+ * The filled password field a script's sign-in request sent, or null while the focus is still in
+ * a field of its form, where the user may not have finished typing.
+ */
+function sentPasswordField(): HTMLInputElement | null {
+  const password = deepInputs(document).find(
+    (input) => isPasswordField(input) && input.value && isFillable(input),
+  )
+  if (!password) return null
+  const focused = deepActiveElement()
+  const stillTyping =
+    focused instanceof HTMLInputElement &&
+    scopeOf(focused) === scopeOf(password)
+  return stillTyping ? null : password
+}
 
 /** The control a click on `target` presses, when it is one that submits a login form. */
 export function submitControlOf(target: Element): HTMLElement | null {
@@ -38,7 +70,8 @@ function isSubmitControl(control: HTMLElement): boolean {
 
 /**
  * Reports login forms the user submits, read when the form is submitted, a submit control is
- * clicked or Enter is pressed in a field. Only events from the user count; pages that sign in
+ * clicked or Enter is pressed in a field, all only from the user, or when the page's script sends
+ * a request to sign in once the user has left a form with a filled password. Pages that sign in
  * some other way are missed. Nothing is read while `active` returns false.
  */
 export function watchSubmissions(
@@ -89,4 +122,12 @@ export function watchSubmissions(
     },
     { capture: true },
   )
+  // The entry of a request comes once its response has.
+  const requests = new PerformanceObserver((list) => {
+    if (!active() || !list.getEntries().some(isSignInRequest)) return
+    const password = sentPasswordField()
+    if (password) reportCredentialsAround(password)
+  })
+  requests.observe({ type: "resource" })
+  ctx.onInvalidated(() => requests.disconnect())
 }
