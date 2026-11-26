@@ -80,7 +80,9 @@ describe("a sign-in form", () => {
     expect(fillTargets(field("email")).password).toBe(field("password"))
     type("email", "user@example.com")
     type("password", "{{SECRET_xbfqywla}}")
-    expect(credentialsAround(field("password"))?.password).toBe("{{SECRET_xbfqywla}}")
+    expect(credentialsAround(field("password"))?.password).toBe(
+      "{{SECRET_xbfqywla}}",
+    )
   })
 
   it("keeps a sign-up form beside it new while the page shows its password in plain text", () => {
