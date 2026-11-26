@@ -85,28 +85,39 @@ export function hintWords(input: HTMLInputElement): string {
     .replace(/[_\-.[\]]+/g, " ")
 }
 
-export function isTextField(input: HTMLInputElement): boolean {
-  return (
-    TEXT_TYPES.has(input.type) &&
-    !hasCodeAutocomplete(input) &&
-    !marksOtherData(input) &&
-    !EXCLUDED_HINT.test(hintText(input))
+/**
+ * Whether the page marks the field for a username or email. `webauthn` marks the field a page
+ * offers passkeys on, which is where a username goes.
+ */
+function marksUsername(input: HTMLInputElement): boolean {
+  const values = autocompleteValues(input)
+  return ["username", "email", "webauthn"].some((value) =>
+    values.includes(value),
   )
 }
 
 /**
- * A text field that looks like it takes a username or email, judged without a password field.
- * `webauthn` marks the field a page offers passkeys on, which is where a username goes.
+ * Whether a field takes text that may be a username. The page's mark for a username overrules
+ * the words of the field's names, and lets in a search field that carries it.
  */
+export function isTextField(input: HTMLInputElement): boolean {
+  if (hasCodeAutocomplete(input) || marksOtherData(input)) return false
+  if (marksUsername(input))
+    return TEXT_TYPES.has(input.type) || input.type === "search"
+  return TEXT_TYPES.has(input.type) && !EXCLUDED_HINT.test(hintText(input))
+}
+
+/** A text field that looks like it takes a username or email, judged without a password field. */
 export function looksLikeUsername(input: HTMLInputElement): boolean {
   if (!isTextField(input)) return false
-  const values = autocompleteValues(input)
-  const marksUsername = ["username", "email", "webauthn"].some((value) =>
-    values.includes(value),
-  )
-  if (marksUsername) return true
-  if (values.includes("new-password")) return false
+  if (marksUsername(input)) return true
+  if (marksNewPassword(input)) return false
   return input.type === "email" || USERNAME_HINT.test(hintText(input))
+}
+
+/** Fields named "fake…" are decoys that pages keep out of sight to catch the browser's own autofill. */
+export function isDecoyField(input: HTMLInputElement): boolean {
+  return /^fake/i.test(input.name)
 }
 
 /** A field for a one-time code from an authenticator. */

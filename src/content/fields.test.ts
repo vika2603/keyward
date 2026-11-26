@@ -99,6 +99,19 @@ describe("a sign-in form", () => {
     expect(fillTargets(field("password")).username).toBe(field("email"))
   })
 
+  it("takes the page's mark for a username over the field's type and names, and passes over decoys", () => {
+    document.body.innerHTML = `
+      <form>
+        <input name="fakeusernameremembered">
+        <input type="password" name="fakepasswordremembered">
+        <input type="search" name="userID" autocomplete="username">
+        <input type="password" name="password">
+      </form>`
+    expect(names(scan().login)).toEqual(new Set(["userID", "password"]))
+    expect(scan().newPassword).toEqual([])
+    expect(fillTargets(field("password")).username).toBe(field("userID"))
+  })
+
   it("keeps a password marked new-password as the login's when a forgot-password link is near", () => {
     document.body.innerHTML = `
       <div>

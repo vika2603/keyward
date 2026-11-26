@@ -2,6 +2,7 @@ import { deepInputs, scopeOf } from "./deep-dom"
 import { FieldIndex, isFillable } from "./field-finder"
 import {
   hasAutocomplete,
+  isDecoyField,
   isPasswordField,
   looksLikeUsername,
 } from "./field-hints"
@@ -22,7 +23,9 @@ export interface SubmittedLogin {
 export function credentialsAround(element: Element): SubmittedLogin | null {
   const index = new FieldIndex()
   const scope = element instanceof HTMLFormElement ? element : scopeOf(element)
-  const inputs = deepInputs(scope).filter((input) => !input.disabled)
+  const inputs = deepInputs(scope).filter(
+    (input) => !input.disabled && !isDecoyField(input),
+  )
   const filled = inputs.filter((input) => isPasswordField(input) && input.value)
   const fresh = filled.find((input) => index.isNewPassword(input))
   const password = fresh ?? filled[0]

@@ -8,6 +8,7 @@ import {
   hasCodeAutocomplete,
   hintWords,
   isCodeField,
+  isDecoyField,
   isPasswordField,
   isTextField,
   looksLikeUsername,
@@ -52,6 +53,7 @@ export function isFillable(input: HTMLInputElement): boolean {
     input.type !== "hidden" &&
     !input.disabled &&
     !input.readOnly &&
+    !isDecoyField(input) &&
     isVisible(input)
   )
 }
