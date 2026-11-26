@@ -2,7 +2,7 @@
 
 import type { FillField } from "@/lib/providers/types"
 import { deepInputs, formOf, scopeOf } from "./deep-dom"
-import { codeBoxes, isFillable, isVisible } from "./field-finder"
+import { buttonGroupOf, codeBoxes, isFillable, isVisible } from "./field-finder"
 
 /** Input types that take neither typed text nor a check mark. */
 const NOT_FILLABLE_TYPES = new Set([
@@ -16,6 +16,28 @@ const NOT_FILLABLE_TYPES = new Set([
   "reset",
   "submit",
 ])
+
+/** Input types a user types into; a search field is left out, as a page header may hold one. */
+const TYPED_TYPES = new Set([
+  "text",
+  "email",
+  "tel",
+  "password",
+  "number",
+  "url",
+])
+
+/**
+ * Whether a visible field the user types into is still empty beside `field`: in its form, or for a
+ * field outside a form, among the elements its buttons are in. Submitting would send it empty,
+ * such as a captcha or a code the page asks for with the login.
+ */
+export function leavesFieldEmpty(field: HTMLInputElement): boolean {
+  const group = buttonGroupOf(field) ?? field.ownerDocument
+  return deepInputs(group).some(
+    (input) => TYPED_TYPES.has(input.type) && !input.value && isFillable(input),
+  )
+}
 
 /** Sets a value the way typing would, so that page frameworks see the change. */
 export function setFieldValue(input: HTMLInputElement, value: string): void {

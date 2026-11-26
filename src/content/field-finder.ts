@@ -118,7 +118,7 @@ function submitsSignUp(field: HTMLInputElement): boolean {
  * ancestor with a button, as pages built without forms group a field with its buttons. Null when
  * no such ancestor is close.
  */
-function buttonGroupOf(field: HTMLInputElement): Element | null {
+export function buttonGroupOf(field: HTMLInputElement): Element | null {
   const form = formOf(field)
   if (form) return form
   let levels = 0

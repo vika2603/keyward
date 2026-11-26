@@ -7,6 +7,7 @@ import type { FieldTracker } from "./field-tracker"
 import {
   fillCodeField,
   fillCustomFields,
+  leavesFieldEmpty,
   setFieldValue,
   submitFor,
 } from "./fill-dom"
@@ -79,10 +80,17 @@ export class FillHandlers {
       if (password && message.password)
         setFieldValue(password, message.password)
     })
-    // A login without a password leaves a form that asks for one to the user.
+    // A login without a password leaves a form that asks for one to the user, and so does a form
+    // with a field still empty, such as a captcha or a code.
     const complete = Boolean(message.password) || !password
     const submitField = password ?? username
-    if (message.autoSubmit && complete && submitField) submitFor(submitField)
+    if (
+      message.autoSubmit &&
+      complete &&
+      submitField &&
+      !leavesFieldEmpty(submitField)
+    )
+      submitFor(submitField)
   }
 
   fillCode(message: Message<"fillCode">): void {

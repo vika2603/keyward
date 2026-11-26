@@ -257,6 +257,29 @@ describe("filling a login", () => {
     expect(submitted).toHaveBeenCalledOnce()
   })
 
+  it("leaves a form with a field still empty, such as a captcha, to the user", async () => {
+    document.body.innerHTML = `
+      <form>
+        <input name="username">
+        <input type="password" name="password">
+        <input name="captcha" placeholder="Characters in the picture">
+        <button>Sign in</button>
+      </form>
+      <form><input name="newsletter" type="email"></form>`
+    const page = await startContentScript()
+    ctx = page.ctx
+    const submitted = vi.fn((event: Event) => event.preventDefault())
+    document.addEventListener("submit", submitted)
+
+    await page.send({ ...login(), autoSubmit: true })
+    expect(submitted).not.toHaveBeenCalled()
+
+    // An empty field of another form does not hold this one back.
+    input("[name=captcha]").value = "x7k2"
+    await page.send({ ...login(), autoSubmit: true })
+    expect(submitted).toHaveBeenCalledOnce()
+  })
+
   it("fills only the username of a login without a password and leaves the form to the user", async () => {
     document.body.innerHTML = SIGN_IN
     const page = await startContentScript()
