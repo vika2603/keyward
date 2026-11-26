@@ -120,7 +120,7 @@ export class FillHandlers {
     this.menu.close()
     if (!anchor) return false
     const targets =
-      isPasswordField(anchor) && !isNewPassword(anchor)
+      anchor.type === "password" && !isNewPassword(anchor)
         ? [anchor]
         : newPasswordTargets(anchor, this.fields.newPassword)
     this.whileFilling(() => {

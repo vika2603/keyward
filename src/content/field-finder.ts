@@ -5,7 +5,6 @@ import {
   CONFIRM_PASSWORD_HINT,
   CURRENT_PASSWORD_HINT,
   hasAutocomplete,
-  hasCodeAutocomplete,
   hintWords,
   isCodeField,
   isDecoyField,
@@ -14,7 +13,9 @@ import {
   looksLikeUsername,
   marksNewPassword,
   marksOtherData,
+  NAME_PART_HINT,
   NEW_PASSWORD_HINT,
+  suggestsOnlyPhone,
 } from "./field-hints"
 
 /** Elements smaller than this, in CSS pixels, either way are taken as hidden. */
@@ -74,18 +75,14 @@ function nearForgotPassword(password: HTMLInputElement): boolean {
   return false
 }
 
-/**
- * Whether a field's form submits with a sign-up button and has none for signing in. Only the
- * form's own submit controls count; a page's other buttons may belong to any of its forms.
- */
-function submitsSignUp(field: HTMLInputElement): boolean {
-  const form = formOf(field)
-  if (!form) return false
-  const texts = [
-    ...form.querySelectorAll<HTMLButtonElement | HTMLInputElement>(
-      'button[type="submit"], button:not([type]), input[type="submit"]',
-    ),
-  ].map((control) =>
+const SUBMIT_CONTROLS =
+  'button[type="submit"], button:not([type]), input[type="submit"]'
+const BUTTONS =
+  'button, input[type="submit"], input[type="button"], [role="button"]'
+
+/** The labels of the controls in a form that match `selector`, with runs of white space collapsed. */
+function controlLabels(form: HTMLFormElement, selector: string): string[] {
+  return [...form.querySelectorAll<HTMLElement>(selector)].map((control) =>
     (control instanceof HTMLInputElement
       ? control.value
       : (control.textContent ?? "")
@@ -93,9 +90,32 @@ function submitsSignUp(field: HTMLInputElement): boolean {
       .replace(/\s+/g, " ")
       .trim(),
   )
+}
+
+/**
+ * Whether a field's form submits with a sign-up button and has none for signing in. Only the
+ * form's own submit controls count; a page's other buttons may belong to any of its forms.
+ */
+function submitsSignUp(field: HTMLInputElement): boolean {
+  const form = formOf(field)
+  if (!form) return false
+  const labels = controlLabels(form, SUBMIT_CONTROLS)
   return (
-    texts.some((text) => SIGN_UP_SUBMIT.test(text)) &&
-    !texts.some((text) => SIGN_IN_SUBMIT.test(text))
+    labels.some((label) => SIGN_UP_SUBMIT.test(label)) &&
+    !labels.some((label) => SIGN_IN_SUBMIT.test(label))
+  )
+}
+
+/**
+ * Whether a lone field that only looks like a phone number belongs to a sign-in: checkout,
+ * contact and sign-up forms ask for a phone too, so its form must have a button to sign in.
+ * Outside a form there is nothing to tell them apart by, and the field counts.
+ */
+function phoneSignsIn(field: HTMLInputElement): boolean {
+  const form = formOf(field)
+  if (!form) return true
+  return controlLabels(form, BUTTONS).some((label) =>
+    SIGN_IN_SUBMIT.test(label),
   )
 }
 
@@ -129,12 +149,17 @@ export class FieldIndex {
     return inputs
   }
 
-  /** The text field right before a password field in the same form, which holds the username. */
+  /**
+   * The text field closest before a password field in the same form, which holds the username.
+   * Fields for a person's name are passed over, as forms that sign in with a member number may
+   * ask for a last name between it and the password.
+   */
   usernameFor(password: HTMLInputElement): HTMLInputElement | null {
     const inputs = this.inputs(scopeOf(password))
     for (let index = inputs.indexOf(password) - 1; index >= 0; index--) {
       const input = inputs[index]
-      if (input && isTextField(input)) return input
+      if (input && isTextField(input) && !NAME_PART_HINT.test(hintWords(input)))
+        return input
     }
     return null
   }
@@ -187,8 +212,7 @@ export class FieldIndex {
     const inputs = this.inputs(root)
     const fields = new Set<HTMLInputElement>()
     for (const password of inputs.filter(isPasswordField)) {
-      if (this.isNewPassword(password) || hasCodeAutocomplete(password))
-        continue
+      if (this.isNewPassword(password)) continue
       fields.add(password)
       const username = this.usernameFor(password)
       if (username) fields.add(username)
@@ -197,8 +221,11 @@ export class FieldIndex {
       if (
         !fields.has(input) &&
         looksLikeUsername(input) &&
-        !this.inputs(scopeOf(input)).some(isPasswordField) &&
-        !this.inLongerForm(input)
+        !this.inputs(scopeOf(input)).some(
+          (field) => field.type === "password",
+        ) &&
+        !this.inLongerForm(input) &&
+        (!suggestsOnlyPhone(input) || phoneSignsIn(input))
       ) {
         fields.add(input)
       }
@@ -224,10 +251,7 @@ export class FieldIndex {
 
   newPasswordFields(root: Document): HTMLInputElement[] {
     return this.inputs(root).filter(
-      (input) =>
-        isPasswordField(input) &&
-        !hasCodeAutocomplete(input) &&
-        this.isNewPassword(input),
+      (input) => isPasswordField(input) && this.isNewPassword(input),
     )
   }
 

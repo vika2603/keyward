@@ -391,6 +391,67 @@ describe("a checkout form", () => {
       </form>`
     expect(scan().login).toEqual([])
   })
+
+  it("does not take a card's security code or a name for a login, even in password fields", () => {
+    document.body.innerHTML = `
+      <form>
+        <input name="lastName" autocomplete="cc-family-name">
+        <input name="month" autocomplete="cc-exp-month">
+        <input type="password" name="cvv" autocomplete="cc-csc">
+      </form>`
+    expect(scan()).toEqual({ login: [], newPassword: [], code: [] })
+  })
+
+  it("offers logins on a lone phone field only when its form has a button to sign in", () => {
+    document.body.innerHTML = `
+      <form>
+        <input type="tel" name="delivery-phone" placeholder="Phone number">
+        <button>Continue to payment</button>
+      </form>
+      <form>
+        <input type="tel" name="mobile" placeholder="手机号">
+        <button type="button">获取验证码</button>
+        <button>登录</button>
+      </form>`
+    expect(names(scan().login)).toEqual(new Set(["mobile"]))
+  })
+})
+
+describe("a form with other secrets in password fields", () => {
+  it("takes neither security answers nor one-character boxes for passwords", () => {
+    document.body.innerHTML = `
+      <form>
+        <input name="email">
+        <input type="password" name="password">
+        <input type="password" name="securityAnswer">
+        <input type="password" name="answerAgain">
+      </form>
+      <form>
+        <input type="password" name="pin-1" maxlength="1">
+        <input type="password" name="pin-2" maxlength="1">
+      </form>`
+    expect(names(scan().login)).toEqual(new Set(["email", "password"]))
+    expect(scan().newPassword).toEqual([])
+  })
+
+  it("takes a password called PIN for the login's", () => {
+    document.body.innerHTML = `
+      <form>
+        <input name="account">
+        <input type="password" name="pin">
+      </form>`
+    expect(names(scan().login)).toEqual(new Set(["account", "pin"]))
+  })
+
+  it("passes over a last name between the member number and the password", () => {
+    document.body.innerHTML = `
+      <form>
+        <input name="memberId" aria-label="Membership number">
+        <input name="lastName">
+        <input type="password" name="password">
+      </form>`
+    expect(fillTargets(field("password")).username).toBe(field("memberId"))
+  })
 })
 
 describe("a login's custom fields", () => {

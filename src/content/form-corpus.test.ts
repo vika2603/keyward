@@ -45,26 +45,26 @@ interface Score {
 /** Scores where higher is better, with their floors. */
 const FLOORS = {
   /** Username and email fields on sign-in pages that offer logins. */
-  signInUsernames: 275,
+  signInUsernames: 279,
   /** Sign-in passwords whose login fill reaches the annotated username of the same form. */
-  pairedUsernames: 253,
+  pairedUsernames: 257,
   /** Unlabelled password fields on sign-up pages that read as new. */
-  signUpPasswords: 151,
+  signUpPasswords: 152,
   /** Fields labelled as a new password that read as new. */
   newPasswords: 76,
   /** Fields labelled as a current password that offer logins. */
   currentPasswords: 56,
   /** Fields labelled as a one-time code that read as code fields. */
-  codes: 6,
+  codes: 7,
   /** Annotated submit controls on sign-in and sign-up pages that a click reports. */
   submitControls: 280,
 }
 /** Scores of false detection, where lower is better, with their ceilings. */
 const CEILINGS = {
   /** Typed fields of other data, or without a label, taken for a login, new password or code field. */
-  otherFields: 83,
+  otherFields: 70,
   /** Pages without a login, password or code field that still get the field icon. */
-  pagesWithoutLogins: 14,
+  pagesWithoutLogins: 8,
   /** Current passwords taken for new ones, which a suggested password would overwrite. */
   currentAsNew: 1,
 }
