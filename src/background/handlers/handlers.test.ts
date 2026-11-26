@@ -70,6 +70,16 @@ describe("connecting Passwords", () => {
     expect((await getSettings()).appleEnabled).toBe(false)
   })
 
+  it("turns Passwords on when pairing starts on a Mac with the setup", async () => {
+    const { handlers, startPairing } = appleHandlers({ phase: "unpaired" })
+    await handlers["apple.startPairing"].handle(
+      { restart: false } as never,
+      popup,
+    )
+    expect(startPairing).toHaveBeenCalledOnce()
+    expect((await getSettings()).appleEnabled).toBe(true)
+  })
+
   it("asks for no pairing code while this Mac lacks the setup", async () => {
     const { handlers, startPairing } = appleHandlers(notSetUp)
     await expect(
