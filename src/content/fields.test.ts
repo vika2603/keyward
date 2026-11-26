@@ -223,6 +223,82 @@ describe("a sign-up form", () => {
     expect(scan().newPassword).toEqual([])
   })
 
+  it("judges a lone password field by its buttons, a button that submits counting most", () => {
+    const newPasswords = (html: string) => {
+      document.body.innerHTML = html
+      return names(scan().newPassword)
+    }
+    // Outside a form, the buttons beside the field count as a form's would.
+    expect(
+      newPasswords(`
+        <div>
+          <div><input type="email" name="email"></div>
+          <div><input type="password" name="password"></div>
+          <div role="button">Register</div>
+        </div>`),
+    ).toEqual(new Set(["password"]))
+    // A button that leads to signing up beside one that signs in marks a sign-in form.
+    expect(
+      newPasswords(`
+        <form>
+          <input name="user">
+          <input type="password" name="password">
+          <button type="submit">Log In</button>
+          <button type="button">Register for web access</button>
+        </form>`),
+    ).toEqual(new Set())
+    // A longer form that submits to sign up, with a button that leads to signing in.
+    expect(
+      newPasswords(`
+        <form>
+          <input name="first-name"><input name="last-name"><input name="phone">
+          <input type="email" name="address"><input type="password" name="password">
+          <button type="submit">Create account</button>
+          <button type="button">Sign in</button>
+        </form>`),
+    ).toEqual(new Set(["password"]))
+  })
+
+  it("judges a lone password field with no buttons by the page's headings and address", () => {
+    document.body.innerHTML = `
+      <h1>Create Your Apple ID</h1>
+      <div><input type="password" name="password"></div>`
+    expect(names(scan().newPassword)).toEqual(new Set(["password"]))
+
+    document.body.innerHTML = `<div><input type="password" name="password"></div>`
+    history.replaceState(null, "", "/users/sign_up")
+    expect(names(scan().newPassword)).toEqual(new Set(["password"]))
+    history.replaceState(null, "", "/users/sign_in")
+    expect(scan().newPassword).toEqual([])
+    history.replaceState(null, "", "/")
+  })
+
+  it("takes a password stated in the form's requirements as new", () => {
+    document.body.innerHTML = `
+      <form>
+        <input type="email" name="email">
+        <input type="password" name="password">
+        <p>Use at least 8 characters.</p>
+        <button>Continue</button>
+      </form>`
+    expect(names(scan().newPassword)).toEqual(new Set(["password"]))
+  })
+
+  it("overrules a current-password mark only for a form that clearly signs up", () => {
+    const form = (fields: string) => `
+      <form>
+        ${fields}
+        <input type="password" name="password" autocomplete="current-password">
+        <button>Sign Up</button>
+      </form>`
+    document.body.innerHTML = form(
+      '<input name="user"><input type="email" name="email"><input name="phone"><input name="birthday"><input name="code">',
+    )
+    expect(names(scan().newPassword)).toEqual(new Set(["password"]))
+    document.body.innerHTML = form('<input name="user">')
+    expect(scan().newPassword).toEqual([])
+  })
+
   it("reads the new password it submits", () => {
     type("email", "user@example.com")
     type("password", "{{SECRET_0rjx6wrn}}")

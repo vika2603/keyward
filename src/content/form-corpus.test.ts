@@ -49,9 +49,9 @@ const FLOORS = {
   /** Sign-in passwords whose login fill reaches the annotated username of the same form. */
   pairedUsernames: 256,
   /** Unlabelled password fields on sign-up pages that read as new. */
-  signUpPasswords: 154,
+  signUpPasswords: 158,
   /** Fields labelled as a new password that read as new. */
-  newPasswords: 79,
+  newPasswords: 81,
   /** Fields labelled as a current password that offer logins. */
   currentPasswords: 56,
   /** Fields labelled as a one-time code that read as code fields. */
@@ -62,7 +62,7 @@ const FLOORS = {
 /** Scores of false detection, where lower is better, with their ceilings. */
 const CEILINGS = {
   /** Typed fields of other data, or without a label, taken for a login, new password or code field. */
-  otherFields: 65,
+  otherFields: 63,
   /** Pages without a login, password or code field that still get the field icon. */
   pagesWithoutLogins: 4,
   /** Current passwords taken for new ones, which a suggested password would overwrite. */
@@ -191,7 +191,7 @@ function scorePage(kind: PageKind, scores: Scores): void {
 describe.skipIf(!CORPUS_DIR)("DuckDuckGo's annotated form corpus", () => {
   it("keeps every score at or above its floor", () => {
     stubCorpusLayout()
-    const index: { html: string }[] = JSON.parse(
+    const index: { html: string; title?: string }[] = JSON.parse(
       fs.readFileSync(path.join(CORPUS_DIR ?? "", "index.json"), "utf8"),
     )
     const scores = Object.fromEntries(
@@ -200,9 +200,11 @@ describe.skipIf(!CORPUS_DIR)("DuckDuckGo's annotated form corpus", () => {
         { hits: 0, of: 0 },
       ]),
     ) as Scores
-    for (const { html } of index) {
+    for (const { html, title } of index) {
       const file = path.basename(html)
       document.body.innerHTML = inertMarkup(file)
+      // The snapshots keep only the page body; the index records the title of some.
+      document.title = title ?? ""
       scorePage(pageKindOf(file), scores)
     }
     document.body.innerHTML = ""

@@ -2,7 +2,8 @@
 
 import type { FillField } from "@/lib/providers/types"
 import { deepInputs, formOf, scopeOf } from "./deep-dom"
-import { buttonGroupOf, codeBoxes, isFillable, isVisible } from "./field-finder"
+import { codeBoxes, isFillable, isVisible } from "./field-finder"
+import { buttonGroupOf } from "./form-kind"
 
 /** Input types that take neither typed text nor a check mark. */
 const NOT_FILLABLE_TYPES = new Set([

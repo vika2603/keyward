@@ -18,6 +18,15 @@ import {
   namesNewPassword,
   suggestsOnlyPhone,
 } from "./field-hints"
+import {
+  BUTTONS,
+  buttonGroupOf,
+  buttonPoints,
+  controlLabels,
+  pagePoints,
+  requirementPoints,
+  SIGN_IN_LABEL,
+} from "./form-kind"
 
 /** Elements smaller than this, in CSS pixels, either way are taken as hidden. */
 const MIN_VISIBLE_SIZE = 8
@@ -27,14 +36,15 @@ const MAX_HIDDEN_OPACITY = 0.05
 const FORGOT_PASSWORD_HINT = /\bforgot\b|忘记密码|忘記密碼|找回密码|找回密碼/i
 /** Text beyond this length belongs to more of the page than a form and its own links. */
 const SURROUNDING_TEXT_MAX = 2000
-/** Submit button text of sign-up and sign-in forms, matched with runs of white space collapsed. */
-const SIGN_UP_SUBMIT =
-  /\b(sign ?up|register|create( an| my| your)? account|join)\b|注册|註冊|创建账号|创建帐号|建立帳號/i
-const SIGN_IN_SUBMIT = /\b(log ?in|sign ?in)\b|登录|登入|登陆|登錄/i
 /** Input types that take typed text, counted to tell a login step from a longer form. */
 const TYPED_TYPES = new Set(["text", "email", "tel", "number", "search", "url"])
-/** The most typed fields a login step has beside its username field. */
+/**
+ * The most typed fields a login step has beside its username field, and the most a sign-in form
+ * has beside its password; each one more is a point for a sign-up.
+ */
 const MAX_FIELDS_BESIDE_USERNAME = 3
+/** More points than a sign-up button alone gives, which a form needs to overrule a page's mark. */
+const CLEAR_SIGN_UP_POINTS = 3
 
 export function isVisible(element: HTMLElement): boolean {
   if (!element.isConnected) return false
@@ -76,63 +86,6 @@ function nearForgotPassword(password: HTMLInputElement): boolean {
   return false
 }
 
-const SUBMIT_CONTROLS =
-  'button[type="submit"], button:not([type]), input[type="submit"]'
-const BUTTONS =
-  'button, input[type="submit"], input[type="button"], [role="button"]'
-
-/**
- * How many levels with more than one child a search climbs from a field outside a form to its
- * buttons; wrappers around a single element do not count.
- */
-const MAX_BRANCHING_LEVELS = 5
-
-/** The labels of the controls in `container` that match `selector`, with runs of white space collapsed. */
-function controlLabels(container: Element, selector: string): string[] {
-  return [...container.querySelectorAll<HTMLElement>(selector)].map((control) =>
-    (control instanceof HTMLInputElement
-      ? control.value
-      : (control.textContent ?? "")
-    )
-      .replace(/\s+/g, " ")
-      .trim(),
-  )
-}
-
-/**
- * Whether a field's form submits with a sign-up button and has none for signing in. Only the
- * form's own submit controls count; a page's other buttons may belong to any of its forms.
- */
-function submitsSignUp(field: HTMLInputElement): boolean {
-  const form = formOf(field)
-  if (!form) return false
-  const labels = controlLabels(form, SUBMIT_CONTROLS)
-  return (
-    labels.some((label) => SIGN_UP_SUBMIT.test(label)) &&
-    !labels.some((label) => SIGN_IN_SUBMIT.test(label))
-  )
-}
-
-/**
- * The element whose buttons go with a field: its form, or for a field outside a form the nearest
- * ancestor with a button, as pages built without forms group a field with its buttons. Null when
- * no such ancestor is close.
- */
-export function buttonGroupOf(field: HTMLInputElement): Element | null {
-  const form = formOf(field)
-  if (form) return form
-  let levels = 0
-  for (
-    let node = composedParent(field);
-    node && node !== field.ownerDocument.body;
-    node = composedParent(node)
-  ) {
-    if (node.querySelector(BUTTONS)) return node
-    if (node.childElementCount > 1 && ++levels >= MAX_BRANCHING_LEVELS) break
-  }
-  return null
-}
-
 /**
  * Whether a lone field that only looks like a phone number belongs to a sign-in: checkout,
  * contact and sign-up forms ask for a phone too, so the buttons that go with it must include one
@@ -142,7 +95,7 @@ function phoneSignsIn(field: HTMLInputElement): boolean {
   const group = buttonGroupOf(field)
   if (!group) return true
   return controlLabels(group, BUTTONS).some((label) =>
-    SIGN_IN_SUBMIT.test(label),
+    SIGN_IN_LABEL.test(label),
   )
 }
 
@@ -207,11 +160,12 @@ export class FieldIndex {
    * password and a new one; the first field counts as new only when the second asks to confirm it
    * or a username comes before it. Taking a current password for a new one would let a suggested
    * password overwrite it, so the unclear case keeps the first field as the current one. A form's
-   * only password field is new when the form submits with a sign-up button and no forgot-password
-   * link sits around it.
+   * only password field is new when its form looks like a sign-up. A page's `current-password`
+   * mark gives way only to a form that clearly signs up, as on Twitch's sign-up form.
    */
   isNewPassword(input: HTMLInputElement): boolean {
-    if (hasAutocomplete(input, "current-password")) return false
+    if (hasAutocomplete(input, "current-password"))
+      return this.signUpPoints(input) > CLEAR_SIGN_UP_POINTS
     if (marksNewPassword(input))
       return namesNewPassword(input) || !nearForgotPassword(input)
     if (namesCurrentPassword(input)) return false
@@ -219,13 +173,33 @@ export class FieldIndex {
     const passwords = this.inputs(scopeOf(input)).filter(isPasswordField)
     const index = passwords.indexOf(input)
     if (index < 0) return false
-    if (passwords.length === 1)
-      return submitsSignUp(input) && !nearForgotPassword(input)
+    if (passwords.length === 1) return this.signUpPoints(input) > 0
     if (index > 0) return true
     if (passwords.length > 2) return false
     const second = passwords[1] as HTMLInputElement
     if (marksNewPassword(second) || namesNewPassword(second)) return false
     return namesConfirmation(second) || this.usernameFor(input) !== null
+  }
+
+  /**
+   * How strongly the form of a password field looks like a sign-up: the points of `form-kind`,
+   * with one for each typed field beyond a sign-in form's; above zero for a sign-up. A
+   * forgot-password link near the field makes it a sign-in's, whatever the points.
+   */
+  private signUpPoints(password: HTMLInputElement): number {
+    if (nearForgotPassword(password)) return Number.NEGATIVE_INFINITY
+    const page = pagePoints(password.ownerDocument)
+    const group = buttonGroupOf(password)
+    if (!group) return page
+    const typedFields = this.inputs(group).filter((field) =>
+      TYPED_TYPES.has(field.type),
+    ).length
+    return (
+      page +
+      buttonPoints(group) +
+      requirementPoints(group) +
+      Math.max(0, typedFields - MAX_FIELDS_BESIDE_USERNAME)
+    )
   }
 
   loginFields(root: Document): HTMLInputElement[] {
