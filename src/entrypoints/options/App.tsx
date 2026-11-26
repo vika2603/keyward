@@ -63,7 +63,7 @@ export function App() {
     <div className="flex min-h-screen flex-col bg-canvas md:flex-row">
       <nav
         aria-label={t("options.nav.label")}
-        className="flex flex-col gap-2 border-b border-sidebar-border bg-sidebar p-3 md:w-60 md:shrink-0 md:border-r md:border-b-0"
+        className="flex flex-col gap-2 border-b border-sidebar-border bg-sidebar p-3 md:w-64 md:shrink-0 md:border-r md:border-b-0"
       >
         <div className="flex items-center gap-2.5 px-2.5 pt-1.5 pb-2 text-sm font-semibold tracking-tight">
           <img
@@ -84,7 +84,7 @@ export function App() {
                 href={`#${navPage.hash}`}
                 aria-current={active ? "page" : undefined}
                 className={cn(
-                  "flex h-8.5 items-center gap-2.5 rounded-lg px-2.5 text-sm text-muted-foreground transition-colors hover:bg-foreground/5 hover:text-foreground",
+                  "flex min-h-8.5 items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-sm leading-5 text-muted-foreground transition-colors hover:bg-foreground/5 hover:text-foreground",
                   active &&
                     "bg-foreground/8 font-medium text-foreground hover:bg-foreground/8",
                 )}
