@@ -2,17 +2,18 @@
 # Sets up this Mac for Keyward: lets the extension reach the Passwords helper that comes with macOS.
 #
 # A browser starts a native helper only for the extensions that a host manifest names, and looks
-# for the user's manifests in the NativeMessagingHosts folder of its own data folder; ego lite
-# looks in Google Chrome's. Apple's manifest names only Apple's extensions, so this writes
-# keyward.passwords.json, which names Keyward and points at the same helper, into that folder for
-# one browser: Chrome unless --browser names another. It needs no administrator password and
-# installs nothing.
+# for the user's manifests in the NativeMessagingHosts folder of its own data folder. Apple's
+# manifest names only Apple's extensions, so this writes keyward.passwords.json, which names
+# Keyward and points at the same helper, into the data folder of one browser: Chrome unless
+# --browser names another. ego lite reads Chrome's folder rather than its own (checked on ego lite
+# 0.6.3.17), so the default sets it up too. It needs no administrator password and installs
+# nothing.
 #
 # Usage:
 #   setup.sh [--browser NAME | --user-data-dir DIR] EXTENSION_ID...   write the manifest
 #   setup.sh [--browser NAME | --user-data-dir DIR] --uninstall       remove it
 #
-# NAME is chrome (the default), dia, edge, brave or ego. --user-data-dir names the data folder of
+# NAME is chrome (the default), dia, edge or brave. --user-data-dir names the data folder of
 # a browser started with that option.
 
 set -eu
@@ -41,7 +42,6 @@ browser_folder() {
     dia) echo "Dia" ;;
     edge) echo "Microsoft Edge" ;;
     brave) echo "BraveSoftware/Brave-Browser" ;;
-    ego) echo "Citro Labs/ego lite" ;;
     *) return 1 ;;
   esac
 }
@@ -67,7 +67,7 @@ origins=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --browser)
-      [ $# -ge 2 ] || fail "--browser needs a name: chrome, dia, edge, brave or ego."
+      [ $# -ge 2 ] || fail "--browser needs a name: chrome, dia, edge or brave."
       browser=$2
       shift 2
       ;;
@@ -99,29 +99,23 @@ if [ -n "$user_data_dir" ]; then
   data_dir=$user_data_dir
 else
   folder=$(browser_folder "$browser") ||
-    fail "$browser is not a browser this can set up. Use chrome, dia, edge, brave or ego."
+    fail "$browser is not a browser this can set up. Use chrome, dia, edge or brave."
   data_dir="$SUPPORT/$folder"
 fi
-[ -d "$data_dir" ] || fail "No browser data was found in $data_dir. Is the browser installed and opened once?"
 hosts_dir="$data_dir/NativeMessagingHosts"
-shared_note=""
-# ego lite reads the user's host manifests from Google Chrome's folder, not its own (checked on
-# ego lite 0.6.3.17), so it shares Chrome's manifest and needs no Chrome installed.
-if [ "$browser" = ego ] && [ -z "$user_data_dir" ]; then
-  hosts_dir="$SUPPORT/Google/Chrome/NativeMessagingHosts"
-  shared_note="ego lite reads this file from Google Chrome's folder, so Google Chrome shares it."
-fi
 manifest_path="$hosts_dir/$HOST.json"
 
 if [ "$uninstall" = true ]; then
-  if [ -f "$manifest_path" ]; then
-    rm "$manifest_path"
-    echo "Removed $manifest_path"
-    [ -z "$shared_note" ] || echo "$shared_note"
-  fi
-  echo "Keyward in this browser can no longer reach Passwords."
+  rm -f "$manifest_path"
+  echo OK
   exit 0
 fi
+
+# A Mac with only ego lite has no Chrome folder yet for ego to read.
+if [ "$browser" = chrome ] && [ -z "$user_data_dir" ] && [ -d "$SUPPORT/Citro Labs/ego lite" ]; then
+  mkdir -p "$data_dir"
+fi
+[ -d "$data_dir" ] || fail "No browser data was found in $data_dir. Is the browser installed and opened once?"
 
 [ -n "$origins" ] || fail "Give the extension ID that Keyward's connect page shows."
 helper=$(helper_path) ||
@@ -130,6 +124,4 @@ helper=$(helper_path) ||
 mkdir -p "$hosts_dir"
 printf '{"name":"%s","description":"Lets Keyward reach the Passwords helper that comes with macOS","path":"%s","type":"stdio","allowed_origins":[%s]}\n' \
   "$HOST" "$helper" "$origins" >"$manifest_path"
-echo "Wrote $manifest_path"
-[ -z "$shared_note" ] || echo "$shared_note"
-echo "Done. Go back to Keyward; its connect page continues by itself."
+echo OK

@@ -54,7 +54,7 @@ export function BrowserSelect({
           label: SETUP_BROWSER_NAMES[candidate],
         }))}
       >
-        <SelectTrigger id={id} className="w-44">
+        <SelectTrigger id={id} className="w-52">
           <SelectValue />
         </SelectTrigger>
         <SelectContent>

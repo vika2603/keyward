@@ -8,18 +8,17 @@ export const SETUP_SCRIPT_PAGE = `https://github.com/${REPOSITORY}/blob/${SCRIPT
 
 /**
  * The browsers the setup script can set up, by the name it takes after --browser; the script maps
- * each to the folder it reads host manifests from, which for ego lite is Chrome's. Chrome is its
- * default.
+ * each to its data folder. Chrome is its default, which also sets up ego lite, as ego reads
+ * Chrome's folder.
  */
-export const SETUP_BROWSERS = ["chrome", "dia", "edge", "brave", "ego"] as const
+export const SETUP_BROWSERS = ["chrome", "dia", "edge", "brave"] as const
 export type SetupBrowser = (typeof SETUP_BROWSERS)[number]
 
 export const SETUP_BROWSER_NAMES: Record<SetupBrowser, string> = {
-  chrome: "Google Chrome",
+  chrome: "Google Chrome / ego lite",
   dia: "Dia",
   edge: "Microsoft Edge",
   brave: "Brave",
-  ego: "ego lite",
 }
 
 /**
