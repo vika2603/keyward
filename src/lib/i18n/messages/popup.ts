@@ -163,6 +163,8 @@ export const en = {
   "popup.add.confirmOnMac": "Confirm saving in the window on your Mac.",
   "popup.add.save": "Save",
   "popup.add.openNewPasswordSheet": "Create in the Passwords app",
+  "popup.add.appleNeedsPassword":
+    "Passwords saves a login from here only with a password. Create one without a password in the Passwords app.",
   "popup.generator.title": "Generator",
   "popup.generator.regenerate": "Regenerate",
   "popup.generator.length": "Length",
@@ -376,6 +378,8 @@ export const zhCN: Record<keyof typeof en, string> = {
   "popup.add.confirmOnMac": "在 Mac 弹出的窗口中确认保存。",
   "popup.add.save": "保存",
   "popup.add.openNewPasswordSheet": "在 Passwords App 中新建",
+  "popup.add.appleNeedsPassword":
+    "从这里存到 Passwords 必须填密码。没有密码的登录，请在 Passwords App 里新建。",
   "popup.generator.title": "生成器",
   "popup.generator.regenerate": "重新生成",
   "popup.generator.length": "长度",

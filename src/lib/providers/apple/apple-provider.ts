@@ -354,7 +354,8 @@ export class AppleProvider implements VaultProvider {
         ),
       )
     }
-    // Apple's own extension offers only passwords typed into a page, never an empty one.
+    // The helper drops a save without a password before asking on the Mac, and answers nothing
+    // that says so; refusing it here gives the reason.
     if (!login.password) {
       return Promise.reject(
         new VaultError(

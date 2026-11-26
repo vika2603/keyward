@@ -240,9 +240,11 @@ function AddLoginForm({ onDone }: { onDone: () => void }) {
   const targetKind = targets?.find((candidate) => candidate.id === target)?.kind
   const apple = targetKind === "apple"
   const bitwarden = targetKind === "bitwarden"
-  // Passwords keeps no login without a password; other vaults keep one with only a username.
+  // The Passwords helper saves no login without a password; other vaults keep one with only a
+  // username.
   const hasCredential =
     Boolean(password) || (!apple && Boolean(username.trim()))
+  const appleNeedsPassword = apple && !password && Boolean(username.trim())
 
   // The Passwords app's own form also takes a title and notes, which Keyward cannot save there.
   const openNewPasswordSheet = async () => {
@@ -301,6 +303,11 @@ function AddLoginForm({ onDone }: { onDone: () => void }) {
               <RefreshCcwDotIcon />
             </Button>
           </div>
+          {appleNeedsPassword && (
+            <p className="text-xs text-muted-foreground">
+              {t("popup.add.appleNeedsPassword")}
+            </p>
+          )}
         </FormField>
         <FormField label={t("popup.add.saveTo")}>
           <VaultSelect
