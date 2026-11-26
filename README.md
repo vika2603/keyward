@@ -2,6 +2,15 @@
 
 A browser extension for filling, generating, and saving passwords with macOS **Passwords** and **Bitwarden**.
 
+![The Keyward menu under a sign-in field, listing logins from Passwords and Bitwarden](store/en/screenshot-1-fill.png)
+
+<p>
+  <img src="store/en/screenshot-2-popup.png" width="49%" alt="The popup with the current site's logins from Passwords and two Bitwarden accounts">
+  <img src="store/en/screenshot-3-generator.png" width="49%" alt="The password generator">
+  <img src="store/en/screenshot-4-save.png" width="49%" alt="The offer to save a new login after signing up">
+  <img src="store/en/screenshot-5-settings.png" width="49%" alt="The fill and save settings">
+</p>
+
 ## Build
 
 Requires [mise](https://mise.jdx.dev) (and macOS 14 or later for Passwords).
