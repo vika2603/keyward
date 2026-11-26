@@ -56,6 +56,11 @@ export interface HelperCapabilities {
   }
 }
 
+/** The capabilities a helper's hello names; a reply without them names none. */
+export function capabilitiesOf(value: unknown): HelperCapabilities {
+  return isRecord(value) ? value : {}
+}
+
 export function encodePake(message: object): string {
   return utf8(JSON.stringify(message)).toBase64()
 }

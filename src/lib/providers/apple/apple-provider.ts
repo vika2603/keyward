@@ -1,8 +1,8 @@
 import { parse as parseHost } from "tldts"
-import { bigIntToBytes, bytesToBigInt } from "@/lib/bytes"
 import { equivalentDomainsOf } from "@/lib/matching"
+import { serialQueue } from "@/lib/serial-queue"
 import { getSettings } from "@/lib/settings"
-import { isHostOrSubdomain } from "@/lib/site"
+import { isHostName } from "@/lib/site"
 import {
   type Credential,
   type ExistingLogin,
@@ -14,391 +14,68 @@ import {
   VaultError,
   type VaultInfo,
   type VaultProvider,
+  type VaultStatus,
 } from "../types"
-import { type HelperMessage, HelperPort, SupersededError } from "./helper-port"
+import { type ApplePhase, HelperSession } from "./helper-session"
+import {
+  type CodeEntry,
+  codeEntryOf,
+  type Entry,
+  entryOf,
+  isCodeFor,
+  loginId,
+  parseLoginId,
+  passwordIn,
+  TOTP_SOURCE,
+} from "./listing"
 import {
   Action,
   Cmd,
-  decodePake,
-  encodePake,
   entriesOf,
-  type HelperCapabilities,
   isLoginEntry,
   isNeverSavedEntry,
   QueryStatus,
-  SecureSession,
 } from "./protocol"
-import { BinaryCodec, SrpClient, sameSessionId, verifyServerProof } from "./srp"
 import { APPLE_VAULT_ID } from "./vault-id"
 
-export type ApplePhase =
-  | "disabled"
-  /** The helper cannot be reached: not macOS, wrong extension ID, or the browser may not launch it. */
-  | "unavailable"
-  | "connecting"
-  /** Connected to the helper without a session. */
-  | "unpaired"
-  /** The helper shows a code on the Mac and waits for it. */
-  | "awaitingCode"
-  | "paired"
-
-export interface AppleState {
-  phase: ApplePhase
-  error?: string
-}
-
-/** The name the Mac shows when it asks to pair. Apple's own extension for Chrome sends "Chrome" in every language. */
-const BROWSER_NAME = "Chrome"
-const PROTOCOL_VERSION = "1.0"
-const SRP_WITH_RFC_VERIFICATION = 1
 const LIST_TIMEOUT_MS = 15_000
 const SAVE_TIMEOUT_MS = 10 * 60_000
 /** Waits between listings after a save, about four seconds in all; a new login can take a moment to show up. */
 const SAVE_CHECK_DELAYS_MS = [0, 250, 500, 750, 1000, 1500]
 /** Saves use frame IDs from here up, so their replies (sent as command 4) never reach a login listing. */
 const SAVE_FRAME_BASE = 1_000_000_000
+/** The tab of a lookup the background makes on its own; the helper uses the tab only to route its reply. */
+const BACKGROUND_TAB: TabRef = { tabId: 0, frameId: 0 }
 
-/** Whether a site the helper returned may answer a request made for `host`. */
-export function isSameSite(site: string, host: string): boolean {
-  return isHostOrSubdomain(site, host) || isHostOrSubdomain(host, site)
+/** How the vault shows in each phase of the connection to the helper. */
+const STATUS_OF_PHASE: Record<ApplePhase, VaultStatus> = {
+  disabled: "locked",
+  unavailable: "unavailable",
+  connecting: "locked",
+  unpaired: "locked",
+  awaitingCode: "locked",
+  paired: "ready",
 }
 
-function loginId(username: string, site: string): string {
-  return JSON.stringify([username, site])
-}
-
-function parseLoginId(id: string): { username: string; site: string } {
-  let parsed: unknown = null
-  try {
-    parsed = JSON.parse(id)
-  } catch {
-    // Not one of the IDs `loginId` makes; reported as an unknown login below.
-  }
-  if (
-    !Array.isArray(parsed) ||
-    typeof parsed[0] !== "string" ||
-    typeof parsed[1] !== "string"
-  ) {
-    throw new VaultError("Unknown login", "unknownLogin")
-  }
-  return { username: parsed[0], site: parsed[1] }
-}
-
-function isHostName(host: string): boolean {
-  return /^[a-z0-9-]+(\.[a-z0-9-]+)*$/i.test(host)
-}
-
-/** A listed login. */
-interface Entry {
-  username: string
-  /** The site the login is listed under. */
-  site: string
-  /** Every site the login is saved for. */
-  sites: string[]
-  customTitle?: string
-}
-
-/** An authenticator entry the helper offers codes for. */
-interface CodeEntry {
-  username: string
-  domain: string
-}
-
-const TOTP_SOURCE = "totp"
-
-/**
- * What a reply to a password read says about one login: its password, `null` when the helper has
- * none for it, as for a login with only a passkey, or `undefined` when the reply is about other
- * logins, as a late answer to a replaced read is.
- */
-export function passwordIn(
-  reply: Record<string, unknown>,
-  username: string,
-  site: string,
-): string | null | undefined {
-  const entries = entriesOf(reply)
-  const match = entries.find(
-    (entry) =>
-      (entry.USR ?? "") === username &&
-      Array.isArray(entry.sites) &&
-      entry.sites.some((s) => isSameSite(String(s), site)),
-  )
-  if (typeof match?.PWD === "string" && match.PWD) return match.PWD
-  return match || !entries.length ? null : undefined
-}
-
-function textOf(value: unknown): string {
-  return typeof value === "string" ? value : ""
-}
-
-/**
- * Apple Passwords through the system's PasswordManagerBrowserExtensionHelper. A paired session
- * belongs to one helper process, so it lives only in memory and lasts while the native port stays
- * open; the open port in turn keeps the service worker alive. A new browser session pairs again.
- */
+/** Apple Passwords, read and written through the system helper's paired session. */
 export class AppleProvider implements VaultProvider {
   readonly kind = "apple" as const
-  private readonly port: HelperPort
-  private capabilities: HelperCapabilities | null = null
-  private session: SecureSession | null = null
-  private pairing: {
-    client: SrpClient
-    salt: Uint8Array
-    serverPublicKey: bigint
-  } | null = null
-  private state: AppleState = { phase: "disabled" }
-  private connecting: Promise<void> | null = null
-  private readonly lanes = new Map<string, Promise<unknown>>()
+  private readonly listQueue = serialQueue()
+  private readonly codeQueue = serialQueue()
+  private readonly saveQueue = serialQueue()
   private saveCount = 0
-  private readonly listeners = new Set<(state: AppleState) => void>()
-  private readonly codeListeners = new Set<() => void>()
 
-  constructor() {
-    this.port = new HelperPort({
-      onUnsolicited: (message) => this.onUnsolicited(message),
-      onDisconnect: (reason) => {
-        this.session = null
-        this.pairing = null
-        this.capabilities = null
-        if (this.state.phase !== "disabled")
-          this.setState({ phase: "unavailable", error: reason })
-      },
-    })
-  }
-
-  onChange(listener: (state: AppleState) => void): void {
-    this.listeners.add(listener)
-  }
-
-  /** Calls `listener` when the helper says the verification codes it offers have changed. */
-  onCodesChanged(listener: () => void): void {
-    this.codeListeners.add(listener)
-  }
-
-  getState(): AppleState {
-    return this.state
-  }
-
-  get enabled(): boolean {
-    return this.state.phase !== "disabled"
-  }
-
-  async setEnabled(enabled: boolean): Promise<void> {
-    if (!enabled) {
-      this.port.disconnect()
-      this.session = null
-      this.pairing = null
-      this.capabilities = null
-      this.setState({ phase: "disabled" })
-      return
-    }
-    if (this.state.phase === "disabled") this.setState({ phase: "connecting" })
-    await this.ensureConnected().catch(() => {})
-  }
-
-  ensureConnected(): Promise<void> {
-    if (!this.enabled)
-      return Promise.reject(
-        new VaultError("Apple Passwords is turned off", "apple.disabled"),
-      )
-    if (this.port.connected && this.capabilities) return Promise.resolve()
-    this.connecting ??= this.connect().finally(() => {
-      this.connecting = null
-    })
-    return this.connecting
-  }
-
-  private async connect(): Promise<void> {
-    this.setState({ phase: "connecting" })
-    try {
-      this.port.connect()
-      const hello = await this.port.request(
-        { cmd: Cmd.Hello },
-        { timeoutMs: 5000 },
-      )
-      this.capabilities =
-        (hello.capabilities as HelperCapabilities | undefined) ?? {}
-    } catch (error) {
-      this.port.disconnect()
-      this.capabilities = null
-      this.setState({ phase: "unavailable", error: errorText(error) })
-      throw new VaultError(
-        "The Apple Passwords helper is not available",
-        "apple.unavailable",
-      )
-    }
-    this.session = null
-    this.setState({ phase: "unpaired" })
-  }
-
-  private get codec(): BinaryCodec {
-    return new BinaryCodec(Boolean(this.capabilities?.shouldUseBase64))
-  }
-
-  /**
-   * Asks the helper to show a pairing code on the Mac. A helper process shows the same code for
-   * every handshake, so asking again, as when the pairing page opens again, shows the code already
-   * given; one the user just read stays valid. `restart` starts a new helper process for a new code.
-   */
-  startPairing(restart: boolean): Promise<void> {
-    return this.serialized("pair", async () => {
-      if (this.state.phase === "paired" && this.session) return
-      if (restart) this.endHelperProcess()
-      await this.ensureConnected()
-      const version = this.capabilities?.secretSessionVersion
-      if (version !== undefined && version !== SRP_WITH_RFC_VERIFICATION) {
-        throw new VaultError(
-          `Unsupported helper session version ${version}`,
-          "apple.unsupported",
-        )
-      }
-      this.session = null
-      this.pairing = null
-      const client = new SrpClient(this.codec)
-      const reply = await this.port.request(
-        {
-          cmd: Cmd.Handshake,
-          msg: JSON.stringify({
-            QID: "m0",
-            PAKE: encodePake({
-              TID: client.username,
-              MSG: 0,
-              A: client.codec.encode(bigIntToBytes(client.publicKey)),
-              VER: PROTOCOL_VERSION,
-              PROTO: [SRP_WITH_RFC_VERIFICATION],
-            }),
-            HSTBRSR: BROWSER_NAME,
-          }),
-        },
-        { timeoutMs: 30_000 },
-      )
-      const pake = decodePake(payloadOf(reply).PAKE)
-      if (
-        typeof pake.TID !== "string" ||
-        !sameSessionId(client.codec, client.username, pake.TID)
-      ) {
-        throw new VaultError(
-          "Pairing reply belongs to another session",
-          "apple.protocol",
-        )
-      }
-      if (pake.ErrCode !== undefined && Number(pake.ErrCode) !== 0) {
-        throw new VaultError(
-          `Pairing was refused (error ${pake.ErrCode})`,
-          "apple.refused",
-        )
-      }
-      if (
-        String(pake.MSG) !== "1" ||
-        typeof pake.s !== "string" ||
-        typeof pake.B !== "string"
-      ) {
-        throw new VaultError("Unexpected pairing reply", "apple.protocol")
-      }
-      if (
-        pake.PROTO !== undefined &&
-        Number(pake.PROTO) !== SRP_WITH_RFC_VERIFICATION
-      ) {
-        throw new VaultError(
-          `Helper chose unsupported protocol ${pake.PROTO}`,
-          "apple.unsupported",
-        )
-      }
-      this.pairing = {
-        client,
-        salt: client.codec.decode(pake.s),
-        serverPublicKey: bytesToBigInt(client.codec.decode(pake.B)),
-      }
-      this.setState({ phase: "awaitingCode" })
-    })
-  }
-
-  /** Completes pairing with the six-digit code. A wrong code ends this attempt; the user starts a new one. */
-  submitCode(code: string): Promise<void> {
-    return this.serialized("pair", async () => {
-      const pairing = this.pairing
-      if (!pairing)
-        throw new VaultError("No pairing in progress", "apple.noPairing")
-      this.pairing = null
-      const { client } = pairing
-      try {
-        const result = await client.computeProof(
-          pairing.salt,
-          pairing.serverPublicKey,
-          code,
-        )
-        const reply = await this.port.request(
-          {
-            cmd: Cmd.Handshake,
-            msg: JSON.stringify({
-              QID: "m2",
-              PAKE: encodePake({
-                TID: client.username,
-                MSG: 2,
-                M: client.codec.encode(result.proof, false),
-              }),
-            }),
-          },
-          { timeoutMs: 30_000 },
-        )
-        const pake = decodePake(payloadOf(reply).PAKE)
-        if (
-          typeof pake.TID !== "string" ||
-          !sameSessionId(client.codec, client.username, pake.TID)
-        ) {
-          throw new VaultError(
-            "Pairing reply belongs to another session",
-            "apple.protocol",
-          )
-        }
-        if (String(pake.MSG) !== "3")
-          throw new VaultError("Unexpected pairing reply", "apple.protocol")
-        if (Number(pake.ErrCode) === 1)
-          throw new VaultError("The code is incorrect", "apple.wrongCode")
-        if (Number(pake.ErrCode) !== 0) {
-          throw new VaultError(
-            `Pairing failed (error ${pake.ErrCode})`,
-            "apple.refused",
-          )
-        }
-        if (
-          typeof pake.HAMK !== "string" ||
-          !verifyServerProof(result, client.codec.decode(pake.HAMK))
-        ) {
-          throw new VaultError(
-            "The helper could not prove it knows the code",
-            "apple.protocol",
-          )
-        }
-        this.session = await SecureSession.create(
-          client.username,
-          client.codec,
-          result.sessionKey,
-        )
-        this.setState({ phase: "paired" })
-      } catch (error) {
-        if (this.port.connected)
-          this.setState({ phase: "unpaired", error: errorText(error) })
-        throw error
-      }
-    })
-  }
+  constructor(readonly helper = new HelperSession()) {}
 
   async vaults(): Promise<VaultInfo[]> {
-    if (!this.enabled) return []
-    const { phase, error } = this.state
-    const status =
-      phase === "paired"
-        ? "ready"
-        : phase === "unavailable"
-          ? "unavailable"
-          : "locked"
+    if (!this.helper.enabled) return []
+    const { phase, error } = this.helper.getState()
     return [
       {
         id: APPLE_VAULT_ID,
         kind: "apple",
         label: "Apple Passwords",
-        status,
+        status: STATUS_OF_PHASE[phase],
         error,
       },
     ]
@@ -426,12 +103,11 @@ export class AppleProvider implements VaultProvider {
    * The helper matches sites itself, so an equivalent site takes a listing of its own.
    */
   private async listForPage(host: string): Promise<Entry[]> {
-    const tab = { tabId: 0, frameId: 0 }
     const { equivalentDomains } = await getSettings()
     const hosts = [host, ...equivalentDomainsOf(host, equivalentDomains)]
     const entries: Entry[] = []
     for (const listedHost of hosts) {
-      for (const entry of await this.listEntries(listedHost, tab)) {
+      for (const entry of await this.listEntries(listedHost, BACKGROUND_TAB)) {
         const listedBefore = entries.some(
           (seen) =>
             seen.username === entry.username && seen.site === entry.site,
@@ -442,29 +118,29 @@ export class AppleProvider implements VaultProvider {
     return entries
   }
 
+  /** The login the helper lists for `host` under this username and site, if any. */
+  private async listedLogin(
+    host: string,
+    username: string,
+    site: string,
+  ): Promise<Entry | undefined> {
+    return (await this.listForPage(host)).find(
+      (entry) => entry.username === username && entry.site === site,
+    )
+  }
+
   /**
    * Whether the user chose in the Passwords app never to save passwords for the page's site. Its
    * logins are still listed and filled; only the offer to save a new one is left out.
    */
   async refusesSaving(_vaultId: string, page: URL): Promise<boolean> {
-    const entries = await this.listedEntries(page.hostname, {
-      tabId: 0,
-      frameId: 0,
-    })
+    const entries = await this.listedEntries(page.hostname, BACKGROUND_TAB)
     return entries.some(isNeverSavedEntry)
   }
 
   private async listEntries(host: string, tab: TabRef): Promise<Entry[]> {
     const entries = await this.listedEntries(host, tab)
-    return entries.filter(isLoginEntry).map((entry) => {
-      const sites = Array.isArray(entry.sites) ? entry.sites.map(String) : []
-      return {
-        username: textOf(entry.USR),
-        site: sites[0] ?? host,
-        sites: sites.length ? sites : [host],
-        customTitle: textOf(entry.customTitle) || undefined,
-      }
-    })
+    return entries.filter(isLoginEntry).map((entry) => entryOf(entry, host))
   }
 
   /** Every entry the helper lists for a host, including the mark of a site never saved. */
@@ -474,8 +150,8 @@ export class AppleProvider implements VaultProvider {
   ): Promise<Record<string, unknown>[]> {
     // The helper has crashed on a request with an empty URL, which also ends the session.
     if (!isHostName(host)) return []
-    const reply = await this.serialized("list", () =>
-      this.query(
+    const reply = await this.listQueue(() =>
+      this.helper.query(
         {
           cmd: Cmd.GetLoginNamesForUrl,
           url: host,
@@ -501,37 +177,22 @@ export class AppleProvider implements VaultProvider {
     page: URL | null,
     tab: TabRef,
   ): Promise<Credential> {
-    const { username, site } = parseLoginId(id)
-    if (!isHostName(site))
-      throw new VaultError("The login has no site", "unknownLogin")
+    const { username, site } = siteLoginOf(id)
     // The helper's own listing for the page, and for its equivalent sites, decides which logins
     // belong to it.
-    const listed = await this.listForPage(page?.hostname ?? site)
-    if (
-      !listed.some(
-        (entry) => entry.username === username && entry.site === site,
-      )
-    ) {
+    if (!(await this.listedLogin(page?.hostname ?? site, username, site)))
       throw new VaultError("The login does not match this page", "notFound")
-    }
-    let reply: Record<string, unknown>
-    try {
-      reply = await this.query(
-        {
-          cmd: Cmd.GetPasswordForLoginName,
-          url: site,
-          tabId: tab.tabId,
-          frameId: tab.frameId,
-        },
-        "CmdGetPassword4LoginName",
-        { ACT: Action.Search, URL: site, USR: username },
-        { timeoutMs: null },
-      )
-    } catch (error) {
-      if (error instanceof SupersededError)
-        throw new VaultError("Replaced by a newer request", "cancelled")
-      throw error
-    }
+    const reply = await this.helper.query(
+      {
+        cmd: Cmd.GetPasswordForLoginName,
+        url: site,
+        tabId: tab.tabId,
+        frameId: tab.frameId,
+      },
+      "CmdGetPassword4LoginName",
+      { ACT: Action.Search, URL: site, USR: username },
+      { timeoutMs: null },
+    )
     const password = passwordIn(reply, username, site)
     if (password) return { username, password }
     if (password === null)
@@ -547,22 +208,17 @@ export class AppleProvider implements VaultProvider {
     id: string,
     page: URL | null,
   ): Promise<LoginDetails> {
-    const { username, site } = parseLoginId(id)
-    if (!isHostName(site))
-      throw new VaultError("The login has no site", "unknownLogin")
-    const tab = { tabId: 0, frameId: 0 }
+    const { username, site } = siteLoginOf(id)
     const target = page ?? new URL(`https://${site}`)
-    const entry = (await this.listForPage(target.hostname)).find(
-      (candidate) => candidate.username === username && candidate.site === site,
-    )
+    const entry = await this.listedLogin(target.hostname, username, site)
     if (!entry)
       throw new VaultError("The login does not match this page", "notFound")
-    const codes = await this.codeEntries(target, tab).catch(() => [])
+    const codes = await this.codeEntries(target, BACKGROUND_TAB).catch(() => [])
     return {
       username,
       name: entry.customTitle,
       uris: entry.sites,
-      hasCode: codes.some((c) => isCodeFor(c, username, site)),
+      hasCode: codes.some((code) => isCodeFor(code, username, site)),
       secretsWithheld: false,
       // The helper has no command to change or delete a login; the Passwords app does that.
       editable: false,
@@ -571,12 +227,15 @@ export class AppleProvider implements VaultProvider {
 
   /** Authenticator entries for a page, when the helper can give codes. */
   private async codeEntries(page: URL, tab: TabRef): Promise<CodeEntry[]> {
-    await this.ensureConnected()
-    if (!this.capabilities?.canFillOneTimeCodes || !isHostName(page.hostname))
+    await this.helper.ensureConnected()
+    if (
+      !this.helper.capabilities?.canFillOneTimeCodes ||
+      !isHostName(page.hostname)
+    )
       return []
     const frameURLs = await frameChain(page, tab)
-    const reply = await this.serialized("codes", () =>
-      this.query(
+    const reply = await this.codeQueue(() =>
+      this.helper.query(
         { cmd: Cmd.GetOneTimeCodes, tabId: tab.tabId, frameId: tab.frameId },
         "CmdGetOneTimeCodes",
         { ACT: Action.GhostSearch, TYPE: "oneTimeCodes", frameURLs },
@@ -586,10 +245,7 @@ export class AppleProvider implements VaultProvider {
     if (reply.STATUS === QueryStatus.NoResults) return []
     return entriesOf(reply)
       .filter((entry) => entry.source === TOTP_SOURCE)
-      .map((entry) => ({
-        username: textOf(entry.username),
-        domain: textOf(entry.domain) || page.hostname,
-      }))
+      .map((entry) => codeEntryOf(entry, page.hostname))
   }
 
   async codeLogins(
@@ -624,33 +280,30 @@ export class AppleProvider implements VaultProvider {
     // The menu's IDs name the entry's own domain; the popup's name the login's site, which an
     // entry for a subdomain or parent domain may serve.
     const entry =
-      entries.find((c) => c.username === username && c.domain === site) ??
-      entries.find((c) => isCodeFor(c, username, site))
+      entries.find(
+        (candidate) =>
+          candidate.username === username && candidate.domain === site,
+      ) ?? entries.find((candidate) => isCodeFor(candidate, username, site))
     if (!entry) throw new VaultError("The login has no one-time code", "noCode")
-    let reply: Record<string, unknown>
-    try {
-      reply = await this.query(
-        { cmd: Cmd.DidFillOneTimeCode, tabId: tab.tabId, frameId: tab.frameId },
-        "CmdDidFillOneTimeCode",
-        {
-          ACT: Action.Search,
-          TYPE: "oneTimeCodes",
-          frameURLs: await frameChain(page, tab),
-          ...(entry.username ? { username: entry.username } : {}),
-        },
-        { timeoutMs: null },
-      )
-    } catch (error) {
-      if (error instanceof SupersededError)
-        throw new VaultError("Replaced by a newer request", "cancelled")
-      throw error
-    }
-    const match = entriesOf(reply).find(
-      (e) =>
-        e.source === TOTP_SOURCE &&
-        textOf(e.username) === entry.username &&
-        (textOf(e.domain) || page.hostname) === entry.domain,
+    const reply = await this.helper.query(
+      { cmd: Cmd.DidFillOneTimeCode, tabId: tab.tabId, frameId: tab.frameId },
+      "CmdDidFillOneTimeCode",
+      {
+        ACT: Action.Search,
+        TYPE: "oneTimeCodes",
+        frameURLs: await frameChain(page, tab),
+        ...(entry.username ? { username: entry.username } : {}),
+      },
+      { timeoutMs: null },
     )
+    const match = entriesOf(reply).find((candidate) => {
+      const listed = codeEntryOf(candidate, page.hostname)
+      return (
+        candidate.source === TOTP_SOURCE &&
+        listed.username === entry.username &&
+        listed.domain === entry.domain
+      )
+    })
     const code = match?.code
     if (typeof code !== "string" && typeof code !== "number")
       throw new VaultError("Apple Passwords returned no code", "noCode")
@@ -677,6 +330,7 @@ export class AppleProvider implements VaultProvider {
    */
   save(_vaultId: string, login: NewLogin, tab: TabRef): Promise<void> {
     const host = login.url.hostname
+    const username = login.username.trim()
     if (!isHostName(host))
       return Promise.reject(new VaultError("Not a host name", "invalidSite"))
     if (!this.canSave(login.url)) {
@@ -697,8 +351,8 @@ export class AppleProvider implements VaultProvider {
       )
     }
     if (
-      !login.username.trim() &&
-      !this.capabilities?.canSaveAccountWithEmptyUserName
+      !username &&
+      !this.helper.capabilities?.canSaveAccountWithEmptyUserName
     ) {
       return Promise.reject(
         new VaultError(
@@ -707,14 +361,14 @@ export class AppleProvider implements VaultProvider {
         ),
       )
     }
-    return this.serialized("save", async () => {
+    return this.saveQueue(async () => {
       const entryKey = (entry: Entry) => loginId(entry.username, entry.site)
-      const entriesBefore = login.username
+      const entriesBefore = username
         ? new Set<string>()
         : new Set((await this.listEntries(host, tab)).map(entryKey))
       this.saveCount += 1
       const frameId = SAVE_FRAME_BASE + this.saveCount
-      await this.query(
+      await this.helper.query(
         { cmd: Cmd.SetPasswordForLoginNameAndUrl, tabId: tab.tabId, frameId },
         "CmdSetPassword4LoginName_URL",
         {
@@ -723,7 +377,7 @@ export class AppleProvider implements VaultProvider {
           USR: "",
           PWD: "",
           NURL: host,
-          NUSR: login.username,
+          NUSR: username,
           NPWD: login.password,
         },
         {
@@ -736,13 +390,13 @@ export class AppleProvider implements VaultProvider {
         await new Promise((resolve) => setTimeout(resolve, delay))
         const saved = await this.listEntries(host, tab)
         const stored = saved.some((entry) =>
-          login.username
-            ? entry.username === login.username
+          username
+            ? entry.username === username
             : !entriesBefore.has(entryKey(entry)),
         )
         if (stored) return
       }
-      if (!login.username) {
+      if (!username) {
         throw new VaultError(
           "Whether Apple Passwords stored the login cannot be told",
           "apple.saveUnconfirmed",
@@ -769,11 +423,8 @@ export class AppleProvider implements VaultProvider {
     page: URL,
     username: string,
   ): Promise<ExistingLogin | null> {
-    const entries = await this.listEntries(page.hostname, {
-      tabId: 0,
-      frameId: 0,
-    })
-    const entry = entries.find((e) => e.username === username)
+    const entries = await this.listEntries(page.hostname, BACKGROUND_TAB)
+    const entry = entries.find((candidate) => candidate.username === username)
     return entry
       ? {
           loginId: loginId(entry.username, entry.site),
@@ -784,18 +435,7 @@ export class AppleProvider implements VaultProvider {
 
   /** Ends the session and the helper process, so pairing again shows a new code. */
   async lock(): Promise<void> {
-    this.session = null
-    this.endHelperProcess()
-    const { phase } = this.state
-    if (phase !== "disabled" && phase !== "unavailable")
-      this.setState({ phase: "unpaired" })
-  }
-
-  /** Disconnects from the helper, which ends its process; the next request starts a new one. */
-  private endHelperProcess(): void {
-    this.port.disconnect()
-    this.capabilities = null
-    this.pairing = null
+    this.helper.lock()
   }
 
   async lockAll(): Promise<void> {
@@ -804,8 +444,8 @@ export class AppleProvider implements VaultProvider {
 
   /** Opens the Passwords app, searching for a site when one is given. */
   async openPasswordsApp(site?: string): Promise<void> {
-    await this.ensureConnected()
-    this.port.post(
+    await this.helper.ensureConnected()
+    this.helper.post(
       site && isHostName(site)
         ? { cmd: Cmd.LaunchPasswordsApp, searchQueryURL: `https://${site}` }
         : { cmd: Cmd.LaunchPasswordsApp },
@@ -814,8 +454,8 @@ export class AppleProvider implements VaultProvider {
 
   /** Opens the Passwords app's form for a new password, with the site filled in. */
   async openNewPasswordSheet(site: string): Promise<void> {
-    await this.ensureConnected()
-    if (!this.capabilities?.canOpenPasswordsAppToNewPasswordSheet) {
+    await this.helper.ensureConnected()
+    if (!this.helper.capabilities?.canOpenPasswordsAppToNewPasswordSheet) {
       throw new VaultError(
         "This Passwords app cannot open its new password form",
         "apple.unsupported",
@@ -823,32 +463,17 @@ export class AppleProvider implements VaultProvider {
     }
     if (!isHostName(site))
       throw new VaultError("Not a web address", "invalidSite")
-    this.port.post({
+    this.helper.post({
       cmd: Cmd.LaunchPasswordsApp,
       newPasswordWithSuggestedURL: `https://${site}`,
     })
   }
 
-  /**
-   * Ends a pairing that waits for its code, as when the view that asked for the code closes. The
-   * Mac then closes the window that shows the code; asking again shows it again. This waits for
-   * pairing requests already made, then asks `stillWanted` again, since a view may have opened
-   * meanwhile.
-   */
-  cancelPairing(stillWanted: () => boolean = () => false): Promise<void> {
-    return this.serialized("pair", async () => {
-      const waitingForCode =
-        this.state.phase === "awaitingCode" && this.pairing !== null
-      if (!waitingForCode || !this.port.connected || stillWanted()) return
-      this.port.post({ cmd: Cmd.DidCancelPINPairing })
-      this.pairing = null
-      this.setState({ phase: "unpaired" })
-    })
-  }
-
   /** Whether the Passwords app can be handed a verification code to set up right now. */
   canSetUpCodes(): boolean {
-    return this.session !== null && this.capabilities?.scanForOTPURI === true
+    return (
+      this.helper.paired && this.helper.capabilities?.scanForOTPURI === true
+    )
   }
 
   /**
@@ -860,85 +485,20 @@ export class AppleProvider implements VaultProvider {
       throw new VaultError("Not a host name", "invalidSite")
     if (!this.canSetUpCodes())
       throw new VaultError("Apple Passwords cannot set up codes now", "locked")
-    this.port.post({
+    this.helper.post({
       cmd: Cmd.LaunchPasswordsApp,
       setUpTOTPPageURL: site,
       setUpTOTPURI: uri,
     })
   }
+}
 
-  /** Requests of one kind run one after another; different kinds may overlap. */
-  private serialized<T>(lane: string, task: () => Promise<T>): Promise<T> {
-    const run = (this.lanes.get(lane) ?? Promise.resolve()).then(task, task)
-    this.lanes.set(
-      lane,
-      run.catch(() => undefined),
-    )
-    return run
-  }
-
-  private async query(
-    envelope: HelperMessage,
-    qid: string,
-    body: object,
-    options: {
-      timeoutMs: number | null
-      replyCmd?: number
-      matchTab?: boolean
-    },
-  ): Promise<Record<string, unknown>> {
-    await this.ensureConnected()
-    const session = this.session
-    if (!session)
-      throw new VaultError("Apple Passwords needs pairing", "locked")
-    const smsg = await session.seal(body)
-    const reply = await this.port.request(
-      { ...envelope, payload: JSON.stringify({ QID: qid, SMSG: smsg }) },
-      options,
-    )
-    let decoded: Record<string, unknown>
-    try {
-      decoded = await session.open(payloadOf(reply).SMSG)
-    } catch {
-      this.dropSession("The helper no longer accepts this session")
-      throw new VaultError("Apple Passwords needs pairing", "locked")
-    }
-    const status = decoded.STATUS
-    if (status === QueryStatus.InvalidSession) {
-      this.dropSession("The helper ended the session")
-      throw new VaultError("Apple Passwords needs pairing", "locked")
-    }
-    if (status !== QueryStatus.Success && status !== QueryStatus.NoResults) {
-      throw new VaultError(
-        `Apple Passwords query failed with status ${String(status)}`,
-        "apple.query",
-      )
-    }
-    return decoded
-  }
-
-  private onUnsolicited(message: HelperMessage): void {
-    if (message.cmd === Cmd.OneTimeCodeAvailable) {
-      for (const listener of this.codeListeners) listener()
-      return
-    }
-    if (
-      message.cmd === Cmd.PasswordsDisabled ||
-      message.cmd === Cmd.ReloginNeeded
-    ) {
-      this.dropSession(`The helper reported command ${message.cmd}`)
-    }
-  }
-
-  private dropSession(reason: string): void {
-    this.session = null
-    if (this.port.connected) this.setState({ phase: "unpaired", error: reason })
-  }
-
-  private setState(state: AppleState): void {
-    this.state = state
-    for (const listener of this.listeners) listener(state)
-  }
+/** A login's username and site from its ID; a login read from the helper always has a site. */
+function siteLoginOf(id: string): { username: string; site: string } {
+  const login = parseLoginId(id)
+  if (!isHostName(login.site))
+    throw new VaultError("The login has no site", "unknownLogin")
+  return login
 }
 
 /**
@@ -951,7 +511,7 @@ async function frameChain(page: URL, tab: TabRef): Promise<string[]> {
   const frames = await browser.webNavigation
     .getAllFrames({ tabId: tab.tabId })
     .catch(() => null)
-  const byId = new Map((frames ?? []).map((f) => [f.frameId, f]))
+  const byId = new Map((frames ?? []).map((frame) => [frame.frameId, frame]))
   let parent = byId.get(tab.frameId)?.parentFrameId ?? -1
   while (parent >= 0 && urls.length <= byId.size) {
     const frame = byId.get(parent)
@@ -960,21 +520,4 @@ async function frameChain(page: URL, tab: TabRef): Promise<string[]> {
     parent = frame.parentFrameId
   }
   return urls
-}
-
-/** Whether an authenticator entry belongs to the login with this username and site. */
-function isCodeFor(entry: CodeEntry, username: string, site: string): boolean {
-  return entry.username === username && isSameSite(entry.domain, site)
-}
-
-function payloadOf(message: HelperMessage): Record<string, unknown> {
-  const payload = message.payload
-  if (typeof payload === "string") return JSON.parse(payload)
-  if (payload && typeof payload === "object")
-    return payload as Record<string, unknown>
-  throw new Error(`Helper reply to command ${message.cmd} has no payload`)
-}
-
-function errorText(error: unknown): string {
-  return error instanceof Error ? error.message : String(error)
 }

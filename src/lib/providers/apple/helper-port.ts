@@ -9,6 +9,12 @@ export interface HelperMessage {
   [key: string]: unknown
 }
 
+/** What the port reports besides the replies its requests wait for. */
+export interface HelperPortEvents {
+  onUnsolicited: (message: HelperMessage) => void
+  onDisconnect: (reason: string | undefined) => void
+}
+
 interface Waiter {
   resolve: (message: HelperMessage) => void
   reject: (error: Error) => void
@@ -20,7 +26,7 @@ class HelperTimeoutError extends Error {}
 /** A newer request waiting for the same reply replaced this one. */
 export class SupersededError extends Error {}
 
-interface RequestOptions {
+export interface RequestOptions {
   /** null waits without limit, for replies that follow a system prompt. */
   timeoutMs: number | null
   /** The command number of the reply when it differs from the request's. */
@@ -46,12 +52,7 @@ export class HelperPort {
   private port: Browser.runtime.Port | null = null
   private readonly waiters = new Map<string, Waiter>()
 
-  constructor(
-    private readonly listeners: {
-      onUnsolicited: (message: HelperMessage) => void
-      onDisconnect: (reason: string | undefined) => void
-    },
-  ) {}
+  constructor(private readonly listeners: HelperPortEvents) {}
 
   get connected(): boolean {
     return this.port !== null
@@ -152,4 +153,13 @@ export class HelperPort {
     }
     this.waiters.clear()
   }
+}
+
+/** A helper message's payload, which the helper sends as JSON text or as an object. */
+export function payloadOf(message: HelperMessage): Record<string, unknown> {
+  const payload = message.payload
+  if (typeof payload === "string") return JSON.parse(payload)
+  if (payload && typeof payload === "object")
+    return payload as Record<string, unknown>
+  throw new Error(`Helper reply to command ${message.cmd} has no payload`)
 }

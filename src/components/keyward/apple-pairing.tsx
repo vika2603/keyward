@@ -13,7 +13,7 @@ import {
   InputOTPSlot,
 } from "@/components/ui/input-otp"
 import { t } from "@/lib/i18n"
-import type { AppleState } from "@/lib/providers/apple/apple-provider"
+import type { AppleState } from "@/lib/providers/apple/helper-session"
 import { errorCodeOf, errorMessage } from "./errors"
 import { FormError } from "./form-field"
 

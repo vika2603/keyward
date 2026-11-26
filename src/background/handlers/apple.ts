@@ -10,15 +10,18 @@ import { requireText, siteInput } from "./validation"
 export function appleHandlers(providers: Providers) {
   const { apple } = providers
   return {
-    "apple.state": { allow: connectPages, handle: () => apple.getState() },
+    "apple.state": {
+      allow: connectPages,
+      handle: () => apple.helper.getState(),
+    },
     "apple.startPairing": {
       allow: connectPages,
       handle: async ({ restart }) => {
         if (!(await getSettings()).appleEnabled)
           await updateSettings({ appleEnabled: true })
-        await apple.setEnabled(true)
-        await apple.startPairing(Boolean(restart))
-        return apple.getState()
+        await apple.helper.setEnabled(true)
+        await apple.helper.startPairing(Boolean(restart))
+        return apple.helper.getState()
       },
     },
     "apple.submitCode": {
@@ -27,8 +30,8 @@ export function appleHandlers(providers: Providers) {
         if (typeof code !== "string" || !/^\d{6}$/.test(code)) {
           throw new VaultError("The code has six digits", "invalidInput")
         }
-        await apple.submitCode(code)
-        return apple.getState()
+        await apple.helper.submitCode(code)
+        return apple.helper.getState()
       },
     },
     "apple.openPasswordsApp": {

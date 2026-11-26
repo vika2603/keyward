@@ -42,7 +42,7 @@ export function popupItemHandlers(providers: Providers) {
       handle: async () => {
         const requested = await takeRequestedView()
         if (requested) return requested
-        if (apple.getState().phase === "awaitingCode")
+        if (apple.helper.getState().phase === "awaitingCode")
           return { name: "connect", kind: "apple" }
         return { name: "main" }
       },

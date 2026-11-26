@@ -54,7 +54,7 @@ export class BinaryCodec {
   }
 }
 
-interface SrpResult {
+export interface SrpResult {
   /** Client proof M, sent to the helper. */
   proof: Uint8Array
   /** Expected server proof H(A | M | K). */

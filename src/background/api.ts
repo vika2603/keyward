@@ -1,7 +1,7 @@
 import type { GeneratorKind } from "@/lib/generator"
 import type { Language } from "@/lib/i18n/language"
 import { sendRequest } from "@/lib/messaging"
-import type { AppleState } from "@/lib/providers/apple/apple-provider"
+import type { AppleState } from "@/lib/providers/apple/helper-session"
 import type { SecondStepMethod } from "@/lib/providers/bitwarden/auth"
 import type {
   AccountSummary,

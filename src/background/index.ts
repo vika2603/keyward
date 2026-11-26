@@ -101,14 +101,14 @@ export function startBackground(): void {
     }, ANNOUNCE_DELAY_MS)
   }
   let appleReady = false
-  apple.onChange((state) => {
+  apple.helper.onChange((state) => {
     if ((state.phase === "paired") === appleReady) return
     appleReady = state.phase === "paired"
     announce()
   })
   bitwarden.onChange(announce)
   // A Passwords code added or removed changes which code fields get the icon.
-  apple.onCodesChanged(announce)
+  apple.helper.onCodesChanged(announce)
 
   let pairingViews = 0
   browser.runtime.onConnect.addListener((port) => {
@@ -122,17 +122,18 @@ export function startBackground(): void {
     port.onDisconnect.addListener(() => {
       pairingViews--
       const viewsOpen = () => pairingViews > 0
-      if (!viewsOpen()) void apple.cancelPairing(viewsOpen).catch(() => {})
+      if (!viewsOpen())
+        void apple.helper.cancelPairing(viewsOpen).catch(() => {})
     })
   })
 
   void getSettings().then((settings) => {
-    void apple.setEnabled(settings.appleEnabled)
+    void apple.helper.setEnabled(settings.appleEnabled)
     void controlBrowserSaving(settings.takeOverSaving).catch(() => {})
   })
   settingsItem.watch((next, previous) => {
     if (next?.appleEnabled !== previous?.appleEnabled)
-      void apple.setEnabled(Boolean(next?.appleEnabled))
+      void apple.helper.setEnabled(Boolean(next?.appleEnabled))
     if (next?.takeOverSaving !== previous?.takeOverSaving)
       void controlBrowserSaving(next?.takeOverSaving ?? true).catch(() => {})
     // Turning a provider on or off and site rules change what the badge counts.
