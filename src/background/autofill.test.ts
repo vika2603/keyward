@@ -29,6 +29,11 @@ import {
 vi.mock("./page", async () => (await import("./test-support")).pageModule)
 
 const TAB = 9
+/** The tab and the document of its top frame, as `beforeEach` sets it. */
+const TOP_DOCUMENT = [
+  TAB,
+  `${TAB}:0 https://accounts.example.com/login`,
+] as const
 const credential = { username: "someone", password: "stored-password" }
 
 beforeEach(() => {
@@ -62,7 +67,7 @@ describe("fillLogin", () => {
       "item-1",
       new URL("https://accounts.example.com/login"),
     )
-    expect(pageModule.sendToFrame).toHaveBeenCalledWith(TAB, 0, {
+    expect(pageModule.sendToDocument).toHaveBeenCalledWith(...TOP_DOCUMENT, {
       type: "fill",
       origin: "https://accounts.example.com",
       ...credential,
@@ -71,13 +76,12 @@ describe("fillLogin", () => {
     })
   })
 
-  it("sends nothing when the frame navigated while the password was read", async () => {
-    const { providers } = fakeProviders([{ info: accountVault, credential }])
-    pageModule.frameUrl.mockImplementationOnce(
-      async () => new URL("https://accounts.example.com/login"),
-    )
-    pageModule.frameUrl.mockImplementationOnce(
-      async () => new URL("https://attacker.net/"),
+  it("delivers nothing when the frame navigated while the password was read", async () => {
+    const { providers, calls } = fakeProviders([
+      { info: accountVault, credential },
+    ])
+    calls.credential.mockImplementation(() =>
+      setFrame(TAB, 0, "https://attacker.net/"),
     )
     await expect(
       fillLogin(providers, TAB, 0, accountVault.id, "item-1"),
@@ -85,6 +89,28 @@ describe("fillLogin", () => {
       code: "pageChanged",
     })
     expect(pageModule.sendToFrame).not.toHaveBeenCalled()
+  })
+
+  it("delivers nothing to a reloaded page of the same site", async () => {
+    const { providers, calls } = fakeProviders([
+      { info: accountVault, credential },
+    ])
+    calls.credential.mockImplementation(() =>
+      setFrame(TAB, 0, "https://accounts.example.com/login?again"),
+    )
+    await expect(
+      fillLogin(providers, TAB, 0, accountVault.id, "item-1"),
+    ).rejects.toMatchObject({
+      code: "pageChanged",
+    })
+  })
+
+  it("passes on a failed send to a frame that still shows the document", async () => {
+    const { providers } = fakeProviders([{ info: accountVault, credential }])
+    pageModule.sendToDocument.mockRejectedValueOnce(new Error("no listener"))
+    await expect(
+      fillLogin(providers, TAB, 0, accountVault.id, "item-1"),
+    ).rejects.toThrow("no listener")
   })
 
   it("refuses a vault that does not serve the site", async () => {
@@ -101,9 +127,9 @@ describe("fillLogin", () => {
     setFrame(TAB, 4, "https://widget.other.net/login")
     const { providers } = fakeProviders([{ info: accountVault, credential }])
     await fillLogin(providers, TAB, 4, accountVault.id, "item-1")
-    expect(pageModule.sendToFrame).toHaveBeenCalledWith(
+    expect(pageModule.sendToDocument).toHaveBeenCalledWith(
       TAB,
-      4,
+      expect.stringContaining("https://widget.other.net"),
       expect.objectContaining({
         origin: "https://widget.other.net",
       }),
@@ -121,9 +147,9 @@ describe("fillLogin", () => {
     setFrame(TAB, 5, "https://idmsa.example.com/signin")
     const { providers } = fakeProviders([{ info: accountVault, credential }])
     await fillLogin(providers, TAB, 5, accountVault.id, "item-1")
-    expect(pageModule.sendToFrame).toHaveBeenCalledWith(
+    expect(pageModule.sendToDocument).toHaveBeenCalledWith(
       TAB,
-      5,
+      expect.stringContaining("https://idmsa.example.com"),
       expect.objectContaining({
         origin: "https://idmsa.example.com",
       }),
@@ -148,7 +174,7 @@ describe("fillNewPassword", () => {
 
   it("sends the password with the frame's origin and keeps it in the generator's history", async () => {
     await fillNewPassword(TAB, 0, generated)
-    expect(pageModule.sendToFrame).toHaveBeenCalledWith(TAB, 0, {
+    expect(pageModule.sendToDocument).toHaveBeenCalledWith(...TOP_DOCUMENT, {
       type: "fillNew",
       origin: "https://accounts.example.com",
       password: generated,
@@ -164,7 +190,7 @@ describe("fillNewPassword", () => {
     await expect(fillNewPassword(TAB, 4, generated)).rejects.toMatchObject({
       code: "fillDisabled",
     })
-    expect(pageModule.sendToFrame).not.toHaveBeenCalled()
+    expect(pageModule.sendToDocument).not.toHaveBeenCalled()
     expect(await listHistory()).toEqual([])
   })
 })
@@ -193,9 +219,8 @@ describe("fillFirst", () => {
       { info: accountVault, credential, logins: [login] },
     ])
     await expect(fillFirst(providers)).resolves.toBe("filled")
-    expect(pageModule.sendToFrame).toHaveBeenCalledWith(
-      TAB,
-      0,
+    expect(pageModule.sendToDocument).toHaveBeenCalledWith(
+      ...TOP_DOCUMENT,
       expect.objectContaining({ type: "fill", username: "someone" }),
     )
   })
@@ -274,11 +299,7 @@ describe("fillFirst", () => {
       },
     ])
     await expect(fillFirst(providers)).resolves.toBe("noLogin")
-    expect(pageModule.sendToFrame).not.toHaveBeenCalledWith(
-      TAB,
-      0,
-      expect.objectContaining({ type: "fill" }),
-    )
+    expect(pageModule.sendToDocument).not.toHaveBeenCalled()
   })
 
   it("does nothing on a page without a login field", async () => {
@@ -306,25 +327,21 @@ describe("fillCode", () => {
       new URL("https://accounts.example.com/login"),
       { tabId: TAB, frameId: 0 },
     )
-    expect(pageModule.sendToFrame).toHaveBeenCalledWith(TAB, 0, {
+    expect(pageModule.sendToDocument).toHaveBeenCalledWith(...TOP_DOCUMENT, {
       type: "fillCode",
       origin: "https://accounts.example.com",
       code: "123456",
     })
   })
 
-  it("sends nothing when the frame navigated while the code was read", async () => {
-    const { providers } = fakeProviders([{ info: accountVault, code }])
-    pageModule.frameUrl.mockImplementationOnce(
-      async () => new URL("https://accounts.example.com/login"),
-    )
-    pageModule.frameUrl.mockImplementationOnce(
-      async () => new URL("https://attacker.net/"),
+  it("delivers nothing when the frame navigated while the code was read", async () => {
+    const { providers, calls } = fakeProviders([{ info: accountVault, code }])
+    calls.oneTimeCode.mockImplementation(() =>
+      setFrame(TAB, 0, "https://attacker.net/"),
     )
     await expect(
       fillCode(providers, TAB, 0, accountVault.id, "item-1"),
     ).rejects.toMatchObject({ code: "pageChanged" })
-    expect(pageModule.sendToFrame).not.toHaveBeenCalled()
   })
 
   it("tells a frame whether a ready vault has codes for it", async () => {

@@ -7,10 +7,17 @@ import { VaultError } from "@/lib/providers/types"
 import { serialQueue } from "@/lib/serial-queue"
 import { getSettings, type Settings, type SiteBehavior } from "@/lib/settings"
 import { siteDomainOf } from "@/lib/site"
-import type { ContentConfig, FieldInfo } from "./api"
+import type { ContentConfig, ContentMessage, FieldInfo } from "./api"
 import { rememberFill } from "./filled-logins"
 import { addHistory } from "./history"
-import { activeTab, frameUrl, sendToFrame } from "./page"
+import {
+  activeTab,
+  type FrameDocument,
+  frameDocument,
+  frameUrl,
+  sendToDocument,
+  sendToFrame,
+} from "./page"
 import { type Providers, vaultsForRule } from "./providers"
 import {
   markRecent,
@@ -50,17 +57,17 @@ async function allowedPage(
   return page
 }
 
-/** The frame's page, which must be one Keyward may fill; the error says why it may not. */
-async function requireFillablePage(
+/** The frame's document, whose page must be one Keyward may fill; the error says why it may not. */
+async function requireFillableDocument(
   tabId: number,
   frameId: number,
   settings: Settings,
-): Promise<URL> {
-  const page = await frameUrl(tabId, frameId)
-  if (!page) throw new VaultError("The frame is not a web page", "notWebPage")
-  if (!(await frameAllowed(tabId, frameId, page, settings)))
+): Promise<FrameDocument> {
+  const target = await frameDocument(tabId, frameId)
+  if (!target) throw new VaultError("The frame is not a web page", "notWebPage")
+  if (!(await frameAllowed(tabId, frameId, target.page, settings)))
     throw new VaultError("Filling is turned off for this frame", "fillDisabled")
-  return page
+  return target
 }
 
 /** When the in-page menu opens: as the site's rule says, else as the settings say. */
@@ -110,38 +117,49 @@ export async function contentConfig(
   }
 }
 
-/** The frame's page, once it is known that the frame may be filled from the vault. */
-async function fillablePage(
+/** The frame's document, once it is known that the frame may be filled from the vault. */
+async function fillableDocument(
   providers: Providers,
   tabId: number,
   frameId: number,
   vaultId: string,
-): Promise<{ page: URL; settings: Settings }> {
+): Promise<{ target: FrameDocument; settings: Settings }> {
   const settings = await getSettings()
-  const page = await requireFillablePage(tabId, frameId, settings)
+  const target = await requireFillableDocument(tabId, frameId, settings)
   if (
-    !(await providers.vaultsForPage(page)).some((vault) => vault.id === vaultId)
+    !(await providers.vaultsForPage(target.page)).some(
+      (vault) => vault.id === vaultId,
+    )
   ) {
     throw new VaultError("The vault does not serve this site", "unknownVault")
   }
-  return { page, settings }
+  return { target, settings }
 }
 
-/** Reading a secret can wait for Touch ID, during which the frame may have navigated. */
-async function requireSameOrigin(
+/**
+ * Sends a secret to the document that was checked, and to no later one: reading the secret can
+ * wait for Touch ID, during which the frame may have navigated to another page.
+ */
+async function sendToChecked<T>(
   tabId: number,
   frameId: number,
-  page: URL,
-): Promise<void> {
-  const current = await frameUrl(tabId, frameId)
-  if (current?.origin !== page.origin)
-    throw new VaultError("The page changed", "pageChanged")
+  target: FrameDocument,
+  message: ContentMessage,
+): Promise<T> {
+  try {
+    return await sendToDocument<T>(tabId, target.documentId, message)
+  } catch (error) {
+    const current = await frameDocument(tabId, frameId)
+    if (current?.documentId !== target.documentId)
+      throw new VaultError("The page changed", "pageChanged")
+    throw error
+  }
 }
 
 /**
  * Sends a login to one frame. The vault must serve the frame's site and the provider checks that
- * the login matches the frame's URL; the content script fills only if its origin is still the one
- * checked here.
+ * the login matches the frame's URL; the login goes only to the document checked here, and its
+ * content script fills only if its origin is still the one checked.
  */
 export async function fillLogin(
   providers: Providers,
@@ -150,17 +168,17 @@ export async function fillLogin(
   vaultId: string,
   loginId: string,
 ): Promise<void> {
-  const { page, settings } = await fillablePage(
+  const { target, settings } = await fillableDocument(
     providers,
     tabId,
     frameId,
     vaultId,
   )
+  const { page } = target
   const credential = await providers
     .providerOf(vaultId)
     .credential(vaultId, loginId, page)
-  await requireSameOrigin(tabId, frameId, page)
-  await sendToFrame(tabId, frameId, {
+  await sendToChecked(tabId, frameId, target, {
     type: "fill",
     origin: page.origin,
     username: credential.username,
@@ -185,14 +203,13 @@ export async function fillCode(
   vaultId: string,
   loginId: string,
 ): Promise<void> {
-  const { page } = await fillablePage(providers, tabId, frameId, vaultId)
+  const { target } = await fillableDocument(providers, tabId, frameId, vaultId)
   const { code } = await providers
     .providerOf(vaultId)
-    .oneTimeCode(vaultId, loginId, page, { tabId, frameId })
-  await requireSameOrigin(tabId, frameId, page)
-  await sendToFrame(tabId, frameId, {
+    .oneTimeCode(vaultId, loginId, target.page, { tabId, frameId })
+  await sendToChecked(tabId, frameId, target, {
     type: "fillCode",
-    origin: page.origin,
+    origin: target.page.origin,
     code,
   })
 }
@@ -207,11 +224,15 @@ export async function fillNewPassword(
   frameId: number,
   password: string,
 ): Promise<boolean> {
-  const page = await requireFillablePage(tabId, frameId, await getSettings())
-  await addHistory(password, page.hostname)
-  const filled = await sendToFrame<boolean | null>(tabId, frameId, {
+  const target = await requireFillableDocument(
+    tabId,
+    frameId,
+    await getSettings(),
+  )
+  await addHistory(password, target.page.hostname)
+  const filled = await sendToChecked<boolean | null>(tabId, frameId, target, {
     type: "fillNew",
-    origin: page.origin,
+    origin: target.page.origin,
     password,
   })
   return filled === true

@@ -88,11 +88,37 @@ export function siteRule(
 }
 
 /** A stand-in for the `./page` module; tests pass it to `vi.mock`. */
+/** The ID of a frame's document: another address set for the frame stands for another document. */
+function documentIdOf(tabId: number, frameId: number): string | null {
+  const url = frames.get(`${tabId}:${frameId}`)
+  return url ? `${tabId}:${frameId} ${url}` : null
+}
+
 export const pageModule = {
   frameUrl: vi.fn(async (tabId: number, frameId: number) => {
     const url = frames.get(`${tabId}:${frameId}`)
     return url ? new URL(url) : null
   }),
+  frameDocument: vi.fn(async (tabId: number, frameId: number) => {
+    const url = frames.get(`${tabId}:${frameId}`)
+    const documentId = documentIdOf(tabId, frameId)
+    return url && documentId ? { page: new URL(url), documentId } : null
+  }),
+  /** Rejects, as the browser does, once no frame of the tab shows the document any more. */
+  sendToDocument: vi.fn(
+    async (tabId: number, documentId: string, _message: unknown) => {
+      const shown = [...frames.keys()].some(
+        (key) =>
+          key.startsWith(`${tabId}:`) &&
+          documentIdOf(tabId, Number(key.split(":")[1])) === documentId,
+      )
+      if (!shown)
+        throw new Error(
+          "Could not establish connection. Receiving end does not exist.",
+        )
+      return undefined as unknown
+    },
+  ),
   sendToFrame: vi.fn(
     async (_tabId: number, _frameId: number, _message: unknown) =>
       undefined as unknown,
