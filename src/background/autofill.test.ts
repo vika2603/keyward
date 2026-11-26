@@ -89,21 +89,35 @@ describe("fillLogin", () => {
     expect(pageModule.sendToFrame).not.toHaveBeenCalled()
   })
 
-  it("does not fill a cross-origin frame unless the setting allows it", async () => {
+  it("fills a frame from another site until the setting turns that off", async () => {
     setFrame(TAB, 4, "https://widget.other.net/login")
     const { providers } = fakeProviders([{ info: accountVault, credential }])
-    await expect(
-      fillLogin(providers, TAB, 4, accountVault.id, "item-1"),
-    ).rejects.toMatchObject({
-      code: "fillDisabled",
-    })
-    await updateSettings({ crossOriginFrames: true })
     await fillLogin(providers, TAB, 4, accountVault.id, "item-1")
     expect(pageModule.sendToFrame).toHaveBeenCalledWith(
       TAB,
       4,
       expect.objectContaining({
         origin: "https://widget.other.net",
+      }),
+    )
+    await updateSettings({ crossSiteFrames: false })
+    await expect(
+      fillLogin(providers, TAB, 4, accountVault.id, "item-1"),
+    ).rejects.toMatchObject({
+      code: "fillDisabled",
+    })
+  })
+
+  it("fills a frame of the page's own site with that setting off", async () => {
+    await updateSettings({ crossSiteFrames: false })
+    setFrame(TAB, 5, "https://idmsa.example.com/signin")
+    const { providers } = fakeProviders([{ info: accountVault, credential }])
+    await fillLogin(providers, TAB, 5, accountVault.id, "item-1")
+    expect(pageModule.sendToFrame).toHaveBeenCalledWith(
+      TAB,
+      5,
+      expect.objectContaining({
+        origin: "https://idmsa.example.com",
       }),
     )
   })
@@ -136,7 +150,8 @@ describe("fillNewPassword", () => {
     ])
   })
 
-  it("sends nothing to a cross-origin frame unless the setting allows it", async () => {
+  it("sends nothing to a frame from another site while the setting is off", async () => {
+    await updateSettings({ crossSiteFrames: false })
     setFrame(TAB, 4, "https://widget.other.net/signup")
     await expect(fillNewPassword(TAB, 4, generated)).rejects.toMatchObject({
       code: "fillDisabled",
@@ -346,8 +361,9 @@ describe("passkey sites", () => {
 
   it("does not learn from a frame that may not show the menu", async () => {
     setFrame(TAB, 3, "https://widget.example.net/")
+    await updateSettings({ crossSiteFrames: false })
     await notePasskeyUsed(TAB, 3)
-    await updateSettings({ crossOriginFrames: true })
+    await updateSettings({ crossSiteFrames: true })
     expect(await takesOver("https://widget.example.net/", 3)).toBe(false)
   })
 })

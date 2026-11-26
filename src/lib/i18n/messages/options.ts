@@ -63,9 +63,9 @@ export const en = {
     "The icon appears in the fields of login and sign-up forms. If you choose On icon click, the menu won't pop up by itself and cover the page.",
   "options.fill.menuTrigger.click": "On icon click",
   "options.fill.menuTrigger.focus": "On field focus",
-  "options.fill.crossOriginFrames.name": "Show in cross-origin frames",
-  "options.fill.crossOriginFrames.description":
-    "Also offer suggestions when a login form is embedded in a frame from another domain.",
+  "options.fill.crossSiteFrames.name": "Show in frames from other sites",
+  "options.fill.crossSiteFrames.description":
+    "Also offer logins in a login form another site embeds, matched to that site. Frames of the page's own site, such as Apple's sign-in, always get them.",
   "options.fill.contextMenu.name": "Right-click menu",
   "options.fill.contextMenu.description":
     "Fill the page's logins, copy their usernames, passwords and verification codes, or generate a password from the browser's right-click menu.",
@@ -341,9 +341,9 @@ export const zhCN: Record<keyof typeof en, string> = {
     "图标显示在登录和注册表单的输入框里。选择点击图标时，菜单不会自动弹出遮挡页面。",
   "options.fill.menuTrigger.click": "点击图标时",
   "options.fill.menuTrigger.focus": "输入框获得焦点时",
-  "options.fill.crossOriginFrames.name": "在跨域框架中显示",
-  "options.fill.crossOriginFrames.description":
-    "登录框嵌在其他域名的框架里时也提供候选。",
+  "options.fill.crossSiteFrames.name": "在其他网站的框架中显示",
+  "options.fill.crossSiteFrames.description":
+    "登录框是从其他网站嵌进来的，也提供候选，按那个网站匹配。同一网站的框架（例如 Apple 的登录框）始终提供。",
   "options.fill.contextMenu.name": "右键菜单",
   "options.fill.contextMenu.description":
     "在浏览器的右键菜单里填充当前页面的登录，复制用户名、密码和验证码，或生成密码。",

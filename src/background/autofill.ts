@@ -18,7 +18,11 @@ import {
   rememberUsername,
 } from "./recent-usernames"
 
-/** Whether a frame may show the field icon and receive logins, given its URL and the settings. */
+/**
+ * Whether a frame may show the field icon and receive logins, given its URL and the settings. A
+ * frame of the page's own site counts as the page, as a sign-in form on another of its subdomains
+ * does; logins are matched to the frame's own address either way.
+ */
 async function frameAllowed(
   tabId: number,
   frameId: number,
@@ -27,9 +31,11 @@ async function frameAllowed(
 ): Promise<boolean> {
   if (ruleForHost(settings.siteRules, page.hostname)?.behavior === "disabled")
     return false
-  if (frameId === 0 || settings.crossOriginFrames) return true
+  if (frameId === 0 || settings.crossSiteFrames) return true
   const top = await frameUrl(tabId, 0)
-  return top?.origin === page.origin
+  return (
+    top !== null && siteDomainOf(top.hostname) === siteDomainOf(page.hostname)
+  )
 }
 
 /** The frame's page, when the frame may show the field icon and receive logins; null otherwise. */

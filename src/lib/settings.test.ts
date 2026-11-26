@@ -48,7 +48,7 @@ describe("a settings file", () => {
   const changed: Settings = {
     ...defaultSettings,
     menuTrigger: "click",
-    crossOriginFrames: true,
+    crossSiteFrames: false,
     autoSubmit: true,
     askSave: false,
     askUpdate: false,

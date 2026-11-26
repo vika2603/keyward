@@ -84,14 +84,14 @@ export function FillPage() {
             />
           </Option>
           <Option
-            name={t("options.fill.crossOriginFrames.name")}
-            description={t("options.fill.crossOriginFrames.description")}
+            name={t("options.fill.crossSiteFrames.name")}
+            description={t("options.fill.crossSiteFrames.description")}
           >
             <Switch
-              aria-label={t("options.fill.crossOriginFrames.name")}
-              checked={settings.crossOriginFrames}
+              aria-label={t("options.fill.crossSiteFrames.name")}
+              checked={settings.crossSiteFrames}
               onCheckedChange={(checked) =>
-                update({ crossOriginFrames: checked })
+                update({ crossSiteFrames: checked })
               }
             />
           </Option>

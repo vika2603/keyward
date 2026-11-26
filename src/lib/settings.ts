@@ -48,7 +48,11 @@ export interface SiteRule {
 export interface Settings {
   appleEnabled: boolean
   menuTrigger: MenuTrigger
-  crossOriginFrames: boolean
+  /**
+   * Whether login fields in frames from a site other than the page's get the icon and fills;
+   * frames of the page's own site always do.
+   */
+  crossSiteFrames: boolean
   autoSubmit: boolean
   askSave: boolean
   askUpdate: boolean
@@ -78,7 +82,7 @@ export interface Settings {
 export const defaultSettings: Settings = {
   appleEnabled: false,
   menuTrigger: "focus",
-  crossOriginFrames: false,
+  crossSiteFrames: true,
   autoSubmit: false,
   askSave: true,
   askUpdate: true,
@@ -131,7 +135,7 @@ export async function updateSettings(
 /** The parts of the settings that a configuration export carries. */
 export const exportableKeys = [
   "menuTrigger",
-  "crossOriginFrames",
+  "crossSiteFrames",
   "autoSubmit",
   "askSave",
   "askUpdate",
@@ -206,7 +210,7 @@ const importers: {
   [K in ExportableKey]: (value: unknown) => ExportedSettings[K] | undefined
 } = {
   menuTrigger: (value) => (oneOf(MENU_TRIGGERS)(value) ? value : undefined),
-  crossOriginFrames: importBoolean,
+  crossSiteFrames: importBoolean,
   autoSubmit: importBoolean,
   askSave: importBoolean,
   askUpdate: importBoolean,
