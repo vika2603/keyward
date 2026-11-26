@@ -1,5 +1,5 @@
+import { SecretInput } from "@/components/keyward/secret-input"
 import { t } from "@/lib/i18n"
-import { SecretInput } from "./secret-input"
 
 /** An authenticator key, a secret like a password: hidden until its eye button shows it. */
 export function CodeKeyInput({

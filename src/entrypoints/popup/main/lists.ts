@@ -60,11 +60,11 @@ export function mainLists({
     activeTab === "all" || vault.kind === activeTab
   const shown = (search ? (results ?? []) : vaults).filter(inTab)
   const shownReady = shown.some((vault) => vault.status === "ready")
-  // With one provider in view and nothing searched, a provider that can list a whole vault offers
-  // it beside the site's logins. Passwords cannot, so its view stays as it is.
+  // With one provider in view, a provider that can list a whole vault offers its item and group
+  // filters beside the site's logins and while searching. Passwords cannot, so its view stays as it is.
   const oneProvider = activeTab !== "all" || kinds.size === 1
   // Locked vaults have nothing to browse; their unlock cards show instead.
-  const browsing = anyVaultReady && !search && oneProvider && shownReady
+  const browsing = anyVaultReady && oneProvider && shownReady
   // Vaults to pair or unlock get a large button each, except on the "all" tab once one is open:
   // each is then unlocked from its own tab. The others list their logins or say why they cannot.
   const locked =

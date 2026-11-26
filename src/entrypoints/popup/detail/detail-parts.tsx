@@ -1,4 +1,5 @@
 import {
+  ArchiveRestoreIcon,
   CheckIcon,
   CopyIcon,
   EyeIcon,
@@ -6,12 +7,18 @@ import {
   StarIcon,
   Trash2Icon,
 } from "lucide-react"
-import { type ReactNode, type RefObject, useState } from "react"
+import {
+  type ReactNode,
+  type RefObject,
+  useEffect,
+  useRef,
+  useState,
+} from "react"
 import { callBackground } from "@/background/api"
 import { FormError } from "@/components/keyward/form-field"
-import { notifyError } from "@/components/keyward/notify"
+import { notify, notifyError } from "@/components/keyward/notify"
+import { SecretInput } from "@/components/keyward/secret-input"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import { useAsyncAction } from "@/hooks/use-async-action"
 import {
   COPIED_FEEDBACK_MS,
@@ -218,12 +225,17 @@ export function RepromptForm({
   onPassed: () => void
 }) {
   const [password, setPassword] = useState("")
+  const passwordRef = useRef<HTMLInputElement>(null)
   const { busy, message, run } = useAsyncAction()
   const submit = async () => {
     const passed = await run(() =>
       callBackground("popup.passReprompt", { vaultId, itemId, password }),
     )
-    if (!passed) return
+    if (!passed) {
+      passwordRef.current?.focus()
+      passwordRef.current?.select()
+      return
+    }
     setPassword("")
     onPassed()
   }
@@ -237,15 +249,17 @@ export function RepromptForm({
     >
       <p className="text-xs text-muted-foreground">{hint}</p>
       <div className="flex gap-2">
-        <Input
-          type="password"
-          value={password}
-          onChange={(event) => setPassword(event.target.value)}
-          placeholder={t("popup.reprompt.password")}
-          aria-label={t("popup.reprompt.password")}
-          autoComplete="current-password"
-          autoFocus
-        />
+        <div className="min-w-0 flex-1">
+          <SecretInput
+            ref={passwordRef}
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
+            placeholder={t("popup.reprompt.password")}
+            aria-label={t("popup.reprompt.password")}
+            autoComplete="current-password"
+            autoFocus
+          />
+        </div>
         <Button type="submit" disabled={busy || !password}>
           {t("popup.reprompt.submit")}
         </Button>
@@ -421,6 +435,11 @@ export function DeleteButton({
   onDelete: () => Promise<boolean>
 }) {
   const [state, setState] = useState<"armed" | "busy" | null>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (state === "armed")
+      containerRef.current?.scrollIntoView({ block: "nearest" })
+  }, [state])
   const click = async () => {
     if (state !== "armed") {
       setState("armed")
@@ -430,7 +449,7 @@ export function DeleteButton({
     if (!(await onDelete())) setState(null)
   }
   return (
-    <div className="flex flex-col gap-1.5">
+    <div ref={containerRef} className="flex flex-col gap-1.5">
       <Button
         variant={state ? "destructive" : "outline"}
         disabled={state === "busy"}
@@ -438,11 +457,91 @@ export function DeleteButton({
         onBlur={() =>
           setState((current) => (current === "armed" ? null : current))
         }
+        onKeyDown={(event) => {
+          if (state === "armed" && event.key === "Escape") {
+            event.preventDefault()
+            setState(null)
+          }
+        }}
       >
         <Trash2Icon />
         {state ? t("popup.detail.confirmDelete") : t("popup.detail.delete")}
       </Button>
       {state && <p className="px-1 text-xs text-muted-foreground">{hint}</p>}
+    </div>
+  )
+}
+
+/** Restore and two-step permanent delete at the bottom of a trashed item's detail view. */
+export function TrashActions({
+  vaultId,
+  itemId,
+  name,
+  editable,
+  onDone,
+}: {
+  vaultId: string
+  itemId: string
+  name: string
+  editable: boolean
+  onDone: () => void
+}) {
+  const [busy, setBusy] = useState(false)
+  const [armed, setArmed] = useState(false)
+
+  if (!editable) {
+    return (
+      <p className="px-1 text-xs text-muted-foreground">
+        {t("popup.trash.readOnly")}
+      </p>
+    )
+  }
+
+  const run = async (action: "restore" | "purge") => {
+    setBusy(true)
+    const ok = await requestOrNotify(async () => {
+      const ids = { vaultId, itemId }
+      if (action === "restore") await callBackground("popup.restoreItem", ids)
+      else await callBackground("popup.purgeItem", ids)
+      notify(
+        action === "restore"
+          ? t("popup.trash.restored", { name })
+          : t("popup.trash.purged", { name }),
+      )
+      onDone()
+      return true
+    })
+    if (!ok) {
+      setBusy(false)
+      setArmed(false)
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-2">
+      <Button
+        variant="outline"
+        disabled={busy}
+        onClick={() => void run("restore")}
+      >
+        <ArchiveRestoreIcon />
+        {t("popup.trash.restore")}
+      </Button>
+      <Button
+        variant={armed ? "destructive" : "outline"}
+        disabled={busy}
+        onClick={() => (armed ? void run("purge") : setArmed(true))}
+        onBlur={() => setArmed(false)}
+        onKeyDown={(event) => {
+          if (armed && event.key === "Escape") {
+            event.preventDefault()
+            setArmed(false)
+          }
+        }}
+      >
+        <Trash2Icon />
+        {armed ? t("popup.trash.confirmPurge") : t("popup.trash.purge")}
+      </Button>
     </div>
   )
 }

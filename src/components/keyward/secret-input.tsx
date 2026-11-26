@@ -2,6 +2,7 @@ import { EyeIcon, EyeOffIcon } from "lucide-react"
 import { type ComponentProps, type ReactNode, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { t } from "@/lib/i18n"
 import { cn } from "@/lib/utils"
 
 /**
@@ -17,8 +18,8 @@ export function SecretInput({
   className,
   ...props
 }: Omit<ComponentProps<typeof Input>, "type"> & {
-  showLabel: string
-  hideLabel: string
+  showLabel?: string
+  hideLabel?: string
   shown?: boolean
   onShownChange?: (shown: boolean) => void
   /** A button after the eye, such as one that generates a new secret. */
@@ -30,9 +31,11 @@ export function SecretInput({
     setOwnShown(!shown)
     onShownChange?.(!shown)
   }
-  const eyeLabel = shown ? hideLabel : showLabel
+  const eyeLabel = shown
+    ? (hideLabel ?? t("popup.detail.hidePassword"))
+    : (showLabel ?? t("popup.detail.showPassword"))
   return (
-    <div className="relative">
+    <div className="relative min-w-0">
       <Input
         type={shown ? "text" : "password"}
         className={cn(
@@ -44,7 +47,7 @@ export function SecretInput({
         spellCheck={false}
         {...props}
       />
-      <div className="absolute top-0.5 right-0.5 flex">
+      <div className="absolute inset-y-0 right-0.5 flex items-center">
         <Button
           type="button"
           variant="ghost"

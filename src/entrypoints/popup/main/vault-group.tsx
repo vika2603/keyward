@@ -20,6 +20,7 @@ export function VaultGroup({
   vault,
   heading,
   title,
+  nameFirst = false,
   density,
   scrollElement,
   open,
@@ -36,6 +37,8 @@ export function VaultGroup({
   heading: "vault" | "tab"
   /** For the "tab" heading, what the rows are, such as the site's logins; none for search results. */
   title?: string
+  /** Shows each login's name above its username, as for search results across sites. */
+  nameFirst?: boolean
   density: Settings["density"]
   /** The list area, which scrolls the group's rows. */
   scrollElement: RefObject<HTMLDivElement | null>
@@ -77,6 +80,7 @@ export function VaultGroup({
       rows={rows}
       density={density}
       scrollElement={scrollElement}
+      nameFirst={nameFirst}
       onOpenLogin={(_, login) => onOpen(login)}
       onOpenNote={(_, note) => onOpenNote(note)}
     />

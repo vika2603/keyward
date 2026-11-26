@@ -1,4 +1,5 @@
 import { PlusIcon, XIcon } from "lucide-react"
+import { SecretInput } from "@/components/keyward/secret-input"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
@@ -12,7 +13,6 @@ import {
 } from "@/components/ui/select"
 import { type MessageKey, t } from "@/lib/i18n"
 import type { CustomField } from "@/lib/providers/types"
-import { SecretInput } from "./secret-input"
 
 type CustomFieldKind = CustomField["kind"]
 type LinkTarget = Extract<CustomField, { kind: "linked" }>["linkedTo"]

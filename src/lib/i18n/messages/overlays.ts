@@ -21,6 +21,7 @@ export const en = {
   "overlay.prompt.noFolder": "No folder",
   "overlay.prompt.confirmOnMac": "Confirm saving in the window on your Mac.",
   "overlay.prompt.never": "Never for this site",
+  "overlay.prompt.notNow": "Not now",
   "overlay.prompt.update": "Update",
   "overlay.prompt.save": "Save",
 } as const
@@ -47,6 +48,7 @@ export const zhCN: Record<keyof typeof en, string> = {
   "overlay.prompt.noFolder": "无文件夹",
   "overlay.prompt.confirmOnMac": "在 Mac 弹出的窗口中确认保存。",
   "overlay.prompt.never": "此站点不再询问",
+  "overlay.prompt.notNow": "暂不",
   "overlay.prompt.update": "更新",
   "overlay.prompt.save": "保存",
 }

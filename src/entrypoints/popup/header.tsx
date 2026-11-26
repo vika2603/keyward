@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button"
 import { openConnectPasswords } from "@/lib/connect-passwords"
 import { t } from "@/lib/i18n"
 import { cn } from "@/lib/utils"
-import { usePopOut } from "./pop-out"
+import { closeIfPopup, usePopOut } from "./pop-out"
 
 export function BackHeader({
   title,
@@ -73,7 +73,7 @@ export function SettingsButton() {
       title={t("popup.settings")}
       onClick={() => {
         void browser.runtime.openOptionsPage()
-        window.close()
+        closeIfPopup()
       }}
     >
       <SlidersHorizontalIcon />
@@ -84,12 +84,12 @@ export function SettingsButton() {
 /** Opens the page that connects Passwords; the popup would close anyway once Terminal takes the focus. */
 export function openConnectPage(): void {
   void openConnectPasswords()
-  window.close()
+  closeIfPopup()
 }
 
 export function openOptions(hash: string): void {
   void browser.tabs.create({
     url: browser.runtime.getURL(`/options.html#${hash}`),
   })
-  window.close()
+  closeIfPopup()
 }

@@ -84,7 +84,16 @@ export function HistoryView({ onBack }: { onBack: () => void }) {
     <div className="flex min-h-0 flex-1 flex-col">
       <BackHeader title={t("popup.history.title")} onBack={onBack}>
         {confirming ? (
-          <div className="flex gap-1">
+          // biome-ignore lint/a11y/noStaticElementInteractions: Escape disarms the two-step clear before leaving the view.
+          <div
+            className="flex gap-1"
+            onKeyDown={(event) => {
+              if (event.key === "Escape") {
+                event.preventDefault()
+                setConfirming(false)
+              }
+            }}
+          >
             <Button
               variant="ghost"
               size="sm"

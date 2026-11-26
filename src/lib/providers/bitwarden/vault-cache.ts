@@ -25,6 +25,7 @@ export interface Vault {
   keys: VaultKeys
   groups: VaultGroups
   trashed: TrashedItem[]
+  trashedCiphers: Record<string, unknown>[]
   items: LoginItem[]
   ciphers: Record<string, unknown>[]
   notes: NoteItem[]
@@ -126,13 +127,15 @@ export class VaultCache {
     )
     const ciphers = loginCiphers(stored.data)
     const noteCiphersOfVault = noteCiphers(stored.data)
+    const trashedCiphersOfVault = trashedCiphers(stored.data)
     const vault: Vault = {
       syncedAt: stored.syncedAt,
       keys,
       groups: decryptGroups(stored.data, keys),
-      trashed: decryptEach(trashedCiphers(stored.data), (cipher) =>
+      trashed: decryptEach(trashedCiphersOfVault, (cipher) =>
         decryptTrashed(cipher, keys),
       ),
+      trashedCiphers: trashedCiphersOfVault,
       items: decryptEach(ciphers, (cipher) => decryptLogin(cipher, keys)),
       ciphers,
       notes: decryptEach(noteCiphersOfVault, (cipher) =>

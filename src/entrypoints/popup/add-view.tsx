@@ -4,6 +4,7 @@ import { callBackground } from "@/background/api"
 import { errorMessage, isUnsupportedRequest } from "@/components/keyward/errors"
 import { FormError, FormField } from "@/components/keyward/form-field"
 import { notifyError } from "@/components/keyward/notify"
+import { SecretInput } from "@/components/keyward/secret-input"
 import { VaultSelect } from "@/components/keyward/vault-select"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -32,7 +33,6 @@ import { CustomFieldsEditor } from "./custom-fields-editor"
 import { BackHeader } from "./header"
 import { NO_FOLDER } from "./main/group-filter"
 import { NoteForm } from "./note-form"
-import { SecretInput } from "./secret-input"
 
 /** The places that can store a login are asked for once typing in the site pauses this long. */
 const SITE_TYPING_DELAY_MS = 200
@@ -173,13 +173,30 @@ function AddLoginForm({ onDone }: { onDone: () => void }) {
   const [details, setDetails] = useState(EMPTY_DETAILS)
   /** Why no place could be found for the site; the site's places are unknown meanwhile. */
   const [targetsError, setTargetsError] = useState<string | null>(null)
+  const siteRef = useRef<HTMLInputElement>(null)
+  const usernameRef = useRef<HTMLInputElement>(null)
+  const initialFocusDone = useRef(false)
   const request = useRef(0)
   const { busy, message, setMessage, run } = useAsyncAction()
 
   useEffect(() => {
-    callBackground("popup.state", null).then((state) => {
-      if (state.page) setSite((current) => current || state.page?.host || "")
-    }, notifyError)
+    const focusInitial = (prefilledSite: boolean) => {
+      if (initialFocusDone.current || document.activeElement !== document.body)
+        return
+      initialFocusDone.current = true
+      ;(prefilledSite ? usernameRef.current : siteRef.current)?.focus()
+    }
+    callBackground("popup.state", null).then(
+      (state) => {
+        const host = state.page?.host || ""
+        if (host) setSite((current) => current || host)
+        focusInitial(Boolean(host))
+      },
+      (error) => {
+        focusInitial(false)
+        notifyError(error)
+      },
+    )
   }, [])
 
   // Which places can store the login depends on the site, so the choice follows it as it is typed.
@@ -270,6 +287,7 @@ function AddLoginForm({ onDone }: { onDone: () => void }) {
         <FormField label={t("popup.add.site")} htmlFor="add-site">
           <Input
             id="add-site"
+            ref={siteRef}
             value={site}
             onChange={(event) => setSite(event.target.value)}
             required
@@ -278,6 +296,7 @@ function AddLoginForm({ onDone }: { onDone: () => void }) {
         <FormField label={t("popup.add.username")} htmlFor="add-username">
           <Input
             id="add-username"
+            ref={usernameRef}
             value={username}
             onChange={(event) => setUsername(event.target.value)}
             autoComplete="off"

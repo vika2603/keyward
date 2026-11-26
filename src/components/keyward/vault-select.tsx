@@ -16,15 +16,20 @@ export function VaultSelect({
   value,
   onChange,
   label,
+  alignItemWithTrigger,
+  onOpenChange,
 }: {
   vaults: VaultInfo[]
   value: string | null
   onChange: (id: string) => void
   label: string
+  alignItemWithTrigger?: boolean
+  onOpenChange?: (open: boolean) => void
 }) {
   return (
     <Select
       value={value}
+      onOpenChange={onOpenChange}
       onValueChange={(next) => {
         if (typeof next === "string") onChange(next)
       }}
@@ -49,7 +54,7 @@ export function VaultSelect({
           }}
         </SelectValue>
       </SelectTrigger>
-      <SelectContent>
+      <SelectContent alignItemWithTrigger={alignItemWithTrigger}>
         <SelectGroup>
           {vaults.map((vault) => (
             <SelectItem key={vault.id} value={vault.id}>

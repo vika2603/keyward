@@ -1,8 +1,9 @@
 import { ChevronLeftIcon } from "lucide-react"
-import { useEffect, useId, useState } from "react"
+import { useEffect, useId, useRef, useState } from "react"
 import { callBackground } from "@/background/api"
 import { BrandIcon } from "@/components/keyward/brand-icon"
 import { errorMessage } from "@/components/keyward/errors"
+import { SecretInput } from "@/components/keyward/secret-input"
 import { Button } from "@/components/ui/button"
 import { Field } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
@@ -111,6 +112,8 @@ export function SignIn({ onSignedIn }: { onSignedIn: () => void }) {
   const [code, setCode] = useState("")
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
+  const passwordRef = useRef<HTMLInputElement>(null)
+  const codeRef = useRef<HTMLInputElement>(null)
   const ids = useId()
 
   const choose = (next: SecondStepMethod) => {
@@ -173,13 +176,18 @@ export function SignIn({ onSignedIn }: { onSignedIn: () => void }) {
       .catch((error) => setMessage(errorMessage(error)))
   }, [])
 
-  const run = async (task: () => Promise<void>) => {
+  const run = async (
+    task: () => Promise<void>,
+    onErrorField?: HTMLInputElement | null,
+  ) => {
     setBusy(true)
     setMessage(null)
     try {
       await task()
     } catch (error) {
       setMessage(errorMessage(error))
+      onErrorField?.focus()
+      onErrorField?.select()
     } finally {
       setBusy(false)
     }
@@ -195,7 +203,7 @@ export function SignIn({ onSignedIn }: { onSignedIn: () => void }) {
           void run(async () => {
             await callBackground("bitwarden.submitSecondStep", { method, code })
             onSignedIn()
-          })
+          }, codeRef.current)
         }}
       >
         <Field>
@@ -220,6 +228,7 @@ export function SignIn({ onSignedIn }: { onSignedIn: () => void }) {
           </Label>
           <Input
             id={`${ids}-code`}
+            ref={codeRef}
             value={code}
             onChange={(event) => setCode(event.target.value)}
             autoComplete="one-time-code"
@@ -277,7 +286,7 @@ export function SignIn({ onSignedIn }: { onSignedIn: () => void }) {
           await lastServerItem.setValue(server)
           if (outcome.kind === "signedIn") onSignedIn()
           else showSecondStep(outcome.pending)
-        })
+        }, passwordRef.current)
       }}
     >
       <Field>
@@ -290,6 +299,7 @@ export function SignIn({ onSignedIn }: { onSignedIn: () => void }) {
           value={email}
           onChange={(event) => setEmail(event.target.value)}
           autoComplete="username"
+          autoFocus={!email}
           required
         />
       </Field>
@@ -297,12 +307,13 @@ export function SignIn({ onSignedIn }: { onSignedIn: () => void }) {
         <Label htmlFor={`${ids}-password`}>
           {t("options.onboard.signIn.masterPassword")}
         </Label>
-        <Input
+        <SecretInput
           id={`${ids}-password`}
-          type="password"
+          ref={passwordRef}
           value={password}
           onChange={(event) => setPassword(event.target.value)}
           autoComplete="current-password"
+          autoFocus={Boolean(email)}
           required
         />
       </Field>

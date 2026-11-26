@@ -531,3 +531,45 @@ describe("filling a generated password", () => {
     expect(filled()).toEqual({})
   })
 })
+
+describe("moving keyboard focus between the field and the menu", () => {
+  it("hands focus to the menu with the session token on a trusted ArrowDown, and returns it to the field", async () => {
+    document.body.innerHTML = SIGN_IN
+    const page = await startContentScript()
+    ctx = page.ctx
+    const username = input("[name=username]")
+    username.focus()
+    await openMenuOn(username)
+    const iframe = document.querySelector("iframe")
+    if (!iframe?.contentWindow) throw new Error("No menu iframe")
+    const posted: unknown[] = []
+    vi.spyOn(iframe.contentWindow, "postMessage").mockImplementation((data) =>
+      posted.push(data),
+    )
+    iframe.dispatchEvent(new Event("load"))
+
+    // An untrusted ArrowDown from page script must not post the focus token.
+    username.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }),
+    )
+    expect(posted).toEqual([{ keywardOverlay: expect.any(String) }])
+
+    username.dispatchEvent(
+      trusted(
+        new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }),
+      ),
+    )
+    const token = (posted[0] as { keywardOverlay: string }).keywardOverlay
+    expect(posted[1]).toEqual({ keywardOverlayFocus: token })
+
+    username.blur()
+    await page.send({ type: "menu.focusField" })
+    expect(document.activeElement).toBe(username)
+    expect(menuIsOpen()).toBe(true)
+
+    username.blur()
+    await page.send({ type: "menu.close", focusField: true })
+    expect(menuIsOpen()).toBe(false)
+    expect(document.activeElement).toBe(username)
+  })
+})

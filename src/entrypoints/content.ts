@@ -163,7 +163,10 @@ export default defineContentScript({
           menu.resize(message.height)
           return
         case "menu.close":
-          menu.close()
+          menu.close(message.focusField)
+          return
+        case "menu.focusField":
+          menu.focusField()
           return
         case "prompt.show":
           savePrompt?.show(message.token)
@@ -198,6 +201,7 @@ export default defineContentScript({
         menuTrigger === "focus" &&
         event.isTrusted &&
         !fills.filling &&
+        !menu.isReturningFocus(target) &&
         target instanceof HTMLInputElement &&
         !target.value &&
         fields.has(target) &&
@@ -216,7 +220,11 @@ export default defineContentScript({
     watchSubmissions(
       ctx,
       () => configuration.current.active,
-      (credentials) => notifyBackground("content.submitted", credentials),
+      (credentials) => {
+        ++menuOpenings
+        menu.close()
+        notifyBackground("content.submitted", credentials)
+      },
     )
   },
 })

@@ -11,6 +11,11 @@ export const POPUP_HEIGHT = 600
 /** Whether this page runs in a window of its own rather than as the toolbar popup. */
 export const isPoppedOut = new URLSearchParams(location.search).has("window")
 
+/** Closes the toolbar popup; a popped-out window stays open until the user closes it. */
+export function closeIfPopup(): void {
+  if (!isPoppedOut) window.close()
+}
+
 /**
  * Opens the popup's current view in a window of its own and closes the popup. Unlike the popup,
  * the window stays open when another window takes the focus.

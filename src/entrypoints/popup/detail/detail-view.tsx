@@ -1,6 +1,7 @@
 import { ChevronRightIcon, ExternalLinkIcon } from "lucide-react"
 import { useMemo, useState } from "react"
 import { callBackground } from "@/background/api"
+import { errorCodeOf } from "@/components/keyward/errors"
 import { formatDate } from "@/components/keyward/format"
 import { FADE_IN } from "@/components/keyward/loading"
 import { notifyError } from "@/components/keyward/notify"
@@ -11,6 +12,8 @@ import { useBackgroundQuery } from "@/hooks/use-background-query"
 import { t } from "@/lib/i18n"
 import type { LoginSummary, VaultInfo } from "@/lib/providers/types"
 import { cn } from "@/lib/utils"
+import { closeIfPopup } from "../pop-out"
+import type { TrashInfo } from "../views"
 import {
   CopyButton,
   copyText,
@@ -21,6 +24,7 @@ import {
   RepromptForm,
   requestOrNotify,
   Section,
+  TrashActions,
 } from "./detail-parts"
 import {
   CustomFieldsSection,
@@ -72,13 +76,15 @@ function DetailSkeleton() {
 export function DetailView({
   vault,
   login,
+  trashed,
   onBack,
   onEdit,
   onPasswordHistory,
 }: {
   vault: VaultInfo
   login: LoginSummary
-  /** Also where the view goes once the login was deleted. */
+  trashed?: TrashInfo
+  /** Also where the view goes once the login was deleted or restored. */
   onBack: () => void
   onEdit: () => void
   onPasswordHistory: () => void
@@ -93,7 +99,12 @@ export function DetailView({
     error: loadError,
     reload,
     update: updateDetails,
-  } = useBackgroundQuery("popup.details", ids, { onError: notifyError })
+  } = useBackgroundQuery("popup.details", ids, {
+    // An older background does not read trashed items; the view still offers to restore or delete.
+    onError: (error) => {
+      if (!trashed || errorCodeOf(error) !== "notFound") notifyError(error)
+    },
+  })
   /** The password waits for Touch ID or the provider; the next code waits for it. */
   const [passwordPending, setPasswordPending] = useState(false)
 
@@ -194,7 +205,7 @@ export function DetailView({
                               label={t("popup.detail.openWebsite")}
                               onClick={() => {
                                 void browser.tabs.create({ url })
-                                window.close()
+                                closeIfPopup()
                               }}
                             >
                               <ExternalLinkIcon />
@@ -247,6 +258,11 @@ export function DetailView({
                   {formatDate(details.passwordModified)}
                 </InfoRow>
               )}
+              {trashed?.deletedAt !== undefined && (
+                <InfoRow label={t("popup.detail.deleted")}>
+                  {formatDate(trashed.deletedAt)}
+                </InfoRow>
+              )}
               {pastPasswordCount > 0 && (
                 <button
                   type="button"
@@ -278,12 +294,40 @@ export function DetailView({
                 {t("popup.detail.openInPasswordsApp")}
               </Button>
             )}
-            {details.editable && (
-              <DeleteButton
-                hint={t("popup.detail.deleteHint")}
-                onDelete={remove}
+            {trashed ? (
+              <TrashActions
+                vaultId={vault.id}
+                itemId={login.id}
+                name={name}
+                editable={trashed.editable}
+                onDone={onBack}
               />
+            ) : (
+              details.editable && (
+                <DeleteButton
+                  hint={t("popup.detail.deleteHint")}
+                  onDelete={remove}
+                />
+              )
             )}
+          </div>
+        )}
+        {!details && Boolean(loadError) && trashed && (
+          <div className={cn("flex flex-col gap-3", FADE_IN)}>
+            <ItemInfoSection vault={vault}>
+              {trashed.deletedAt !== undefined && (
+                <InfoRow label={t("popup.detail.deleted")}>
+                  {formatDate(trashed.deletedAt)}
+                </InfoRow>
+              )}
+            </ItemInfoSection>
+            <TrashActions
+              vaultId={vault.id}
+              itemId={login.id}
+              name={name}
+              editable={trashed.editable}
+              onDone={onBack}
+            />
           </div>
         )}
       </div>

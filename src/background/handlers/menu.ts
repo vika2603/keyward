@@ -115,8 +115,21 @@ export function menuHandlers(providers: Providers) {
     },
     "menu.close": {
       allow: ["menu"],
+      handle: async ({ token, focusField }, sender) => {
+        await closeMenu(
+          (await menuSessions.claim(sender, token)).tabId,
+          focusField === true,
+        )
+        return null
+      },
+    },
+    "menu.focusField": {
+      allow: ["menu"],
       handle: async ({ token }, sender) => {
-        await closeMenu((await menuSessions.claim(sender, token)).tabId)
+        const session = await menuSessions.claim(sender, token)
+        await sendToFrame(session.tabId, session.frameId, {
+          type: "menu.focusField",
+        }).catch(() => {})
         return null
       },
     },

@@ -1,7 +1,6 @@
-import { useState } from "react"
+import { useRef, useState } from "react"
 import { callBackground } from "@/background/api"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import { useAsyncAction } from "@/hooks/use-async-action"
 import { useBackgroundQuery } from "@/hooks/use-background-query"
 import { t } from "@/lib/i18n"
@@ -11,6 +10,7 @@ import { BrandIcon } from "./brand-icon"
 import { errorMessage } from "./errors"
 import { FormError } from "./form-field"
 import { FADE_IN, FieldsSkeleton } from "./loading"
+import { SecretInput } from "./secret-input"
 import { VaultSelect } from "./vault-select"
 
 /**
@@ -32,6 +32,8 @@ export function BitwardenUnlock({
   )
   const [chosenId, setChosenId] = useState(initialAccountId)
   const [password, setPassword] = useState("")
+  const [shown, setShown] = useState(false)
+  const passwordRef = useRef<HTMLInputElement>(null)
   const { busy, message, setMessage, run } = useAsyncAction()
 
   // Without its accounts the view has nothing else to show, so the error takes the form's place.
@@ -73,12 +75,17 @@ export function BitwardenUnlock({
     if (!account || busy) return
     if (!password) {
       setMessage(t("unlock.enterPassword"))
+      passwordRef.current?.focus()
       return
     }
     const unlocked = await run(() =>
       callBackground("bitwarden.unlock", { accountId: account.id, password }),
     )
-    if (!unlocked) return
+    if (!unlocked) {
+      passwordRef.current?.focus()
+      passwordRef.current?.select()
+      return
+    }
     setPassword("")
     onUnlocked()
   }
@@ -113,6 +120,7 @@ export function BitwardenUnlock({
           onChange={(id) => {
             setChosenId(id)
             setPassword("")
+            setShown(false)
             setMessage(null)
           }}
           label={t("unlock.accountLabel")}
@@ -127,8 +135,10 @@ export function BitwardenUnlock({
             void unlock()
           }}
         >
-          <Input
-            type="password"
+          <SecretInput
+            ref={passwordRef}
+            shown={shown}
+            onShownChange={setShown}
             autoComplete="current-password"
             placeholder={t("unlock.masterPassword")}
             aria-label={t("unlock.masterPassword")}

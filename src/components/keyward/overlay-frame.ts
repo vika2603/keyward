@@ -1,6 +1,8 @@
 import { type RefObject, useCallback, useEffect, useRef } from "react"
 import { type BackgroundApi, callBackground } from "@/background/api"
 
+let resolvedToken: string | null = null
+
 /**
  * The session token the content script posts to the frame it created. Registered when the page's
  * script first runs, before the frame's load event, at which the content script posts it.
@@ -9,9 +11,31 @@ const token = new Promise<string>((resolve) => {
   addEventListener("message", (event) => {
     const value = (event.data as { keywardOverlay?: unknown } | null)
       ?.keywardOverlay
-    if (event.source === parent && typeof value === "string") resolve(value)
+    if (event.source === parent && typeof value === "string") {
+      resolvedToken = value
+      resolve(value)
+    }
   })
 })
+
+/**
+ * Runs `onFocus` when the content script moves focus here from the field on ArrowDown, proven by
+ * the session token so a page calling `iframe.focus()` cannot select an item.
+ */
+export function onOverlayFocus(onFocus: () => void): () => void {
+  const listener = (event: MessageEvent) => {
+    const value = (event.data as { keywardOverlayFocus?: unknown } | null)
+      ?.keywardOverlayFocus
+    if (
+      event.source === parent &&
+      resolvedToken !== null &&
+      value === resolvedToken
+    )
+      onFocus()
+  }
+  addEventListener("message", listener)
+  return () => removeEventListener("message", listener)
+}
 
 type OverlayRequest = {
   [K in keyof BackgroundApi]: BackgroundApi[K]["payload"] extends {
@@ -40,20 +64,38 @@ export function useReportHeight(
   ref: RefObject<HTMLElement | null>,
   shown: boolean,
   report: (height: number) => void,
+  minHeight = 0,
 ): void {
   // biome-ignore lint/correctness/useExhaustiveDependencies: `report` may change identity on every render.
   useEffect(() => {
     const element = ref.current
     if (!shown || !element) return
-    const measure = () =>
-      report(Math.ceil(element.getBoundingClientRect().height))
-    // Chrome skips rendering updates, ResizeObserver included, in a hidden or zero-height frame,
-    // which is how the page holds this frame until it knows the height; the first value is measured directly.
+    let last = -1
+    const measure = () => {
+      const next = Math.max(
+        minHeight,
+        Math.ceil(element.getBoundingClientRect().height),
+      )
+      if (next !== last) {
+        last = next
+        report(next)
+      }
+    }
+    // Chrome skips rendering updates, ResizeObserver included, while the host holds the frame
+    // hidden at height 0; re-measuring on DOM changes and when the frame itself resizes catches
+    // anything rendered before the frame became visible.
     measure()
-    const observer = new ResizeObserver(measure)
-    observer.observe(element)
-    return () => observer.disconnect()
-  }, [ref, shown])
+    const resizeObserver = new ResizeObserver(measure)
+    resizeObserver.observe(element)
+    const mutationObserver = new MutationObserver(measure)
+    mutationObserver.observe(element, { childList: true, subtree: true })
+    addEventListener("resize", measure)
+    return () => {
+      resizeObserver.disconnect()
+      mutationObserver.disconnect()
+      removeEventListener("resize", measure)
+    }
+  }, [ref, shown, minHeight])
 }
 
 /** How long the frame must stay plainly visible, and in place, before a click on it counts. */

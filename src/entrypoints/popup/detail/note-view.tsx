@@ -1,5 +1,7 @@
 import { useMemo } from "react"
 import { callBackground } from "@/background/api"
+import { errorCodeOf } from "@/components/keyward/errors"
+import { formatDate } from "@/components/keyward/format"
 import { FADE_IN } from "@/components/keyward/loading"
 import { NoteIcon } from "@/components/keyward/note-icon"
 import { notifyError } from "@/components/keyward/notify"
@@ -8,14 +10,17 @@ import { useBackgroundQuery } from "@/hooks/use-background-query"
 import { t } from "@/lib/i18n"
 import type { NoteSummary, VaultInfo } from "@/lib/providers/types"
 import { cn } from "@/lib/utils"
+import type { TrashInfo } from "../views"
 import {
   CopyButton,
   copyText,
   DeleteButton,
   DetailRow,
+  InfoRow,
   RepromptForm,
   requestOrNotify,
   Section,
+  TrashActions,
 } from "./detail-parts"
 import {
   CustomFieldsSection,
@@ -28,12 +33,14 @@ import {
 export function NoteView({
   vault,
   note,
+  trashed,
   onBack,
   onEdit,
 }: {
   vault: VaultInfo
   note: NoteSummary
-  /** Also where the view goes once the note was deleted. */
+  trashed?: TrashInfo
+  /** Also where the view goes once the note was deleted or restored. */
   onBack: () => void
   onEdit: () => void
 }) {
@@ -46,7 +53,11 @@ export function NoteView({
     error: loadError,
     reload,
     update: updateDetails,
-  } = useBackgroundQuery("popup.note", ids, { onError: notifyError })
+  } = useBackgroundQuery("popup.note", ids, {
+    onError: (error) => {
+      if (!trashed || errorCodeOf(error) !== "notFound") notifyError(error)
+    },
+  })
 
   /** True once the note is gone; false when the request failed and its error shows. */
   const remove = async () =>
@@ -117,13 +128,47 @@ export function NoteView({
               vault={vault}
               modified={details.modified}
               created={details.created}
-            />
-            {details.editable && (
-              <DeleteButton
-                hint={t("popup.note.deleteHint")}
-                onDelete={remove}
+            >
+              {trashed?.deletedAt !== undefined && (
+                <InfoRow label={t("popup.detail.deleted")}>
+                  {formatDate(trashed.deletedAt)}
+                </InfoRow>
+              )}
+            </ItemInfoSection>
+            {trashed ? (
+              <TrashActions
+                vaultId={vault.id}
+                itemId={note.id}
+                name={name}
+                editable={trashed.editable}
+                onDone={onBack}
               />
+            ) : (
+              details.editable && (
+                <DeleteButton
+                  hint={t("popup.note.deleteHint")}
+                  onDelete={remove}
+                />
+              )
             )}
+          </div>
+        )}
+        {!details && Boolean(loadError) && trashed && (
+          <div className={cn("flex flex-col gap-3", FADE_IN)}>
+            <ItemInfoSection vault={vault}>
+              {trashed.deletedAt !== undefined && (
+                <InfoRow label={t("popup.detail.deleted")}>
+                  {formatDate(trashed.deletedAt)}
+                </InfoRow>
+              )}
+            </ItemInfoSection>
+            <TrashActions
+              vaultId={vault.id}
+              itemId={note.id}
+              name={name}
+              editable={trashed.editable}
+              onDone={onBack}
+            />
           </div>
         )}
       </div>

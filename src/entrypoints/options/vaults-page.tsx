@@ -1,4 +1,4 @@
-import { PencilIcon, PlusIcon, RefreshCwIcon } from "lucide-react"
+import { CheckIcon, PencilIcon, PlusIcon, RefreshCwIcon } from "lucide-react"
 import { useCallback, useEffect, useState } from "react"
 import { callBackground } from "@/background/api"
 import { BrandIcon, providerName } from "@/components/keyward/brand-icon"
@@ -31,6 +31,10 @@ import {
 import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
 import { useSettings } from "@/hooks/use-settings"
+import {
+  COPIED_FEEDBACK_MS,
+  useTransientValue,
+} from "@/hooks/use-transient-value"
 import { openConnectPasswords } from "@/lib/connect-passwords"
 import { currentLanguage, t } from "@/lib/i18n"
 import { APPLE_VAULT_ID } from "@/lib/providers/apple/vault-id"
@@ -72,6 +76,7 @@ export function VaultsPage() {
   const [signingOut, setSigningOut] = useState<AccountSummary | null>(null)
   /** The account being synced now. */
   const [syncing, setSyncing] = useState<string | null>(null)
+  const [syncedId, showSynced] = useTransientValue<string>(COPIED_FEEDBACK_MS)
   /** Why loading, syncing or signing out the Bitwarden accounts failed. */
   const [accountsMessage, setAccountsMessage] = useState<string | null>(null)
 
@@ -113,6 +118,7 @@ export function VaultsPage() {
     setAccountsMessage(null)
     try {
       await callBackground("bitwarden.sync", { accountId: account.id })
+      showSynced(account.id)
     } catch (error) {
       setAccountsMessage(errorMessage(error))
     } finally {
@@ -218,44 +224,57 @@ export function VaultsPage() {
             </Button>
           )}
         </Option>
-        {accounts.map((account) => (
-          <Option
-            key={account.id}
-            name={account.label}
-            description={accountDetail(account)}
-          >
-            <div className="flex gap-1.5">
-              <Button
-                variant="ghost"
-                size="icon"
-                aria-label={t("options.vaults.bitwarden.syncNow")}
-                title={
-                  account.unlocked
-                    ? t("options.vaults.bitwarden.syncNow")
-                    : t("options.vaults.bitwarden.syncLocked")
-                }
-                disabled={!account.unlocked || syncing !== null}
-                onClick={() => void syncNow(account)}
-              >
-                <RefreshCwIcon
-                  className={cn(syncing === account.id && "animate-spin")}
-                />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                aria-label={t("options.vaults.bitwarden.rename")}
-                title={t("options.vaults.bitwarden.rename")}
-                onClick={() => setRenaming(account)}
-              >
-                <PencilIcon />
-              </Button>
-              <Button variant="outline" onClick={() => setSigningOut(account)}>
-                {t("options.vaults.bitwarden.signOut")}
-              </Button>
-            </div>
-          </Option>
-        ))}
+        {accounts.map((account) => {
+          const justSynced = syncedId === account.id && syncing !== account.id
+          const syncLabel = justSynced
+            ? t("options.vaults.bitwarden.synced")
+            : t("options.vaults.bitwarden.syncNow")
+          return (
+            <Option
+              key={account.id}
+              name={account.label}
+              description={accountDetail(account)}
+            >
+              <div className="flex gap-1.5">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  aria-label={syncLabel}
+                  title={
+                    account.unlocked
+                      ? syncLabel
+                      : t("options.vaults.bitwarden.syncLocked")
+                  }
+                  disabled={!account.unlocked || syncing !== null}
+                  onClick={() => void syncNow(account)}
+                >
+                  {justSynced ? (
+                    <CheckIcon />
+                  ) : (
+                    <RefreshCwIcon
+                      className={cn(syncing === account.id && "animate-spin")}
+                    />
+                  )}
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  aria-label={t("options.vaults.bitwarden.rename")}
+                  title={t("options.vaults.bitwarden.rename")}
+                  onClick={() => setRenaming(account)}
+                >
+                  <PencilIcon />
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => setSigningOut(account)}
+                >
+                  {t("options.vaults.bitwarden.signOut")}
+                </Button>
+              </div>
+            </Option>
+          )
+        })}
         {accountsMessage && (
           <p className="px-4 pb-3 text-sm text-destructive">
             {accountsMessage}

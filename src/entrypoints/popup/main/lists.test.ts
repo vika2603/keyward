@@ -61,4 +61,17 @@ describe("mainLists", () => {
     ])
     expect(lists.activeTab).toBe("all")
   })
+
+  it("keeps the whole-vault browser open while searching a single provider", () => {
+    const ready = bitwardenVault("ready")
+    const lists = mainLists({
+      vaults: [appleVault("ready"), ready],
+      results: [ready],
+      allItems: [ready],
+      query: "git",
+      tab: "bitwarden",
+    })
+    expect(lists.browsing).toBe(true)
+    expect(lists.search).toBe("git")
+  })
 })

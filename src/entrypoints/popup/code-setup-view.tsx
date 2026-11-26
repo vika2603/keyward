@@ -16,6 +16,7 @@ import type { LoginSummary, VaultInfo } from "@/lib/providers/types"
 import { cn } from "@/lib/utils"
 import { LockedVaultCard } from "./connect-card"
 import { BackHeader } from "./header"
+import { isPoppedOut } from "./pop-out"
 
 /** A place the key can go: the Passwords app, or a Bitwarden login. */
 interface Choice {
@@ -115,6 +116,17 @@ export function CodeSetupView({
             variant={confirmingChoiceId === id ? "destructive" : "outline"}
             disabled={busy}
             onClick={() => void choose(choice, replaces)}
+            onBlur={() =>
+              setConfirmingChoiceId((current) =>
+                current === id ? null : current,
+              )
+            }
+            onKeyDown={(event) => {
+              if (confirmingChoiceId === id && event.key === "Escape") {
+                event.preventDefault()
+                setConfirmingChoiceId(null)
+              }
+            }}
           >
             {choiceLabel(confirmingChoiceId === id, replaces)}
           </Button>
@@ -172,7 +184,10 @@ export function CodeSetupView({
                 ? t("popup.codeSetup.appleOpened")
                 : t("popup.codeSetup.added", { name: done.name })}
             </p>
-            <Button variant="outline" onClick={() => window.close()}>
+            <Button
+              variant="outline"
+              onClick={() => (isPoppedOut ? onBack() : window.close())}
+            >
               {t("popup.codeSetup.done")}
             </Button>
           </div>

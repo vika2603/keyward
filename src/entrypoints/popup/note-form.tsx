@@ -101,6 +101,7 @@ export function NoteForm({
                 value={form.name}
                 onChange={(event) => update({ name: event.target.value })}
                 autoComplete="off"
+                autoFocus={target.mode === "create"}
                 required
               />
             </FormField>

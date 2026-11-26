@@ -3,6 +3,7 @@ import { callBackground, type VaultView } from "@/background/api"
 import { isUnsupportedRequest } from "@/components/keyward/errors"
 import { notifyError } from "@/components/keyward/notify"
 import { useBackgroundQuery } from "@/hooks/use-background-query"
+import { textMatchesQuery } from "@/lib/providers/bitwarden/decrypt"
 import { type AccountFilters, narrowed } from "./group-filter"
 import { mainLists, type ProviderTab } from "./lists"
 
@@ -59,8 +60,11 @@ export function useMainLists({
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: each new state of the vaults, as after a lock, searches again.
   useEffect(() => {
-    setResults(null)
-    if (!search) return
+    if (!search) {
+      setResults(null)
+      setSearchFailed(false)
+      return
+    }
     setSearchFailed(false)
     let stale = false
     const timer = setTimeout(() => {
@@ -79,15 +83,30 @@ export function useMainLists({
     }
   }, [search, popupState])
 
-  // Each account's group filter narrows its part of the list of whole vaults; the site's logins
-  // are few and stay as they are.
-  const browsed = useMemo(
-    () =>
-      filterable.map((vault) =>
-        narrowed(vault, groupFilters.choices[vault.id]),
-      ),
-    [filterable, groupFilters],
-  )
+  // Each account's group filter narrows its part of the list of whole vaults; when searching, each
+  // account keeps its matched logins, notes and trashed items.
+  const browsed = useMemo(() => {
+    const byId =
+      search && results
+        ? new Map(results.map((vault) => [vault.id, vault]))
+        : null
+    return filterable.map((vault) => {
+      const searched = byId
+        ? {
+            ...vault,
+            logins: byId.get(vault.id)?.logins ?? [],
+            notes: byId.get(vault.id)?.notes ?? [],
+            trashed: vault.trashed?.filter((item) =>
+              textMatchesQuery(
+                [item.name, item.username ?? "", item.host ?? ""].join("\n"),
+                search,
+              ),
+            ),
+          }
+        : vault
+      return narrowed(searched, groupFilters.choices[vault.id])
+    })
+  }, [filterable, groupFilters, results, search])
 
   // The whole vault is asked for on every opening; its failure matters only where it would show. A
   // background without the request leaves the site's logins, which need no message.

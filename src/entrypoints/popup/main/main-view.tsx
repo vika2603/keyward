@@ -74,7 +74,22 @@ export function MainView({
   }, [listReady, place])
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
+    // biome-ignore lint/a11y/noStaticElementInteractions: Escape clears an active search from anywhere in the main view before closing the popup.
+    <div
+      className="flex min-h-0 flex-1 flex-col"
+      onKeyDown={(event) => {
+        if (
+          event.key === "Escape" &&
+          query &&
+          !event.defaultPrevented &&
+          !event.nativeEvent.isComposing
+        ) {
+          event.preventDefault()
+          onQuery("")
+          searchRef.current?.focus()
+        }
+      }}
+    >
       <MainHeader
         lockShown={loading || lists.vaults.length > 0}
         lockEnabled={anyVaultReady}

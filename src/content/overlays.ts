@@ -44,6 +44,9 @@ class Overlay {
   private watchFrame = 0
   private lastRect = ""
   private expected = ""
+  private token = ""
+  private loaded = false
+  private pendingFocus = false
   /** Every wrapper this overlay put in the page, including removed ones whose removal is still reported. */
   private readonly wrappers = new WeakSet<Node>()
 
@@ -65,6 +68,9 @@ class Overlay {
   show(token: string): void {
     this.hide()
     this.height = 0
+    this.token = token
+    this.loaded = false
+    this.pendingFocus = false
     const ui = createIframeUi(this.ctx, {
       page: this.page,
       position: "inline",
@@ -88,18 +94,42 @@ class Overlay {
         })
         iframe.setAttribute("allowtransparency", "true")
         // A target origin keeps the token from a document the page may have navigated the frame to.
-        iframe.addEventListener("load", () =>
+        iframe.addEventListener("load", () => {
+          if (this.ui?.iframe !== iframe) return
+          this.loaded = true
           iframe.contentWindow?.postMessage(
             { keywardOverlay: token },
             this.origin,
-          ),
-        )
+          )
+          if (this.pendingFocus) {
+            this.pendingFocus = false
+            iframe.contentWindow?.postMessage(
+              { keywardOverlayFocus: token },
+              this.origin,
+            )
+          }
+        })
       },
     })
     this.wrappers.add(ui.wrapper)
     ui.mount()
     this.ui = ui
     this.guard(ui)
+  }
+
+  /** Moves the focus into the frame and tells it, with the session token, to select its first item. */
+  focusFirst(): void {
+    const iframe = this.ui?.iframe
+    if (!iframe) return
+    iframe.focus()
+    if (this.loaded) {
+      iframe.contentWindow?.postMessage(
+        { keywardOverlayFocus: this.token },
+        this.origin,
+      )
+    } else {
+      this.pendingFocus = true
+    }
   }
 
   /** Whether a node is the overlay's wrapper or inside it. */
@@ -114,6 +144,8 @@ class Overlay {
     this.observer = null
     cancelAnimationFrame(this.watchFrame)
     this.watchFrame = 0
+    this.loaded = false
+    this.pendingFocus = false
     this.ui?.remove()
     this.ui = null
   }
@@ -201,7 +233,8 @@ class Overlay {
     const watch = () => {
       if (this.ui !== ui) return
       const box = ui.iframe.getBoundingClientRect()
-      const rect = `${box.x},${box.y},${box.width},${box.height}`
+      // Height changes come only from the overlay's own resize; position and width catch moves and zoom.
+      const rect = `${box.x},${box.y},${box.width}`
       if (loaded && rect !== this.lastRect) {
         this.lastRect = rect
         ui.iframe.contentWindow?.postMessage(
@@ -220,6 +253,9 @@ export class InlineMenu {
   private readonly overlay: Overlay
   private field: HTMLInputElement | null = null
   private frame = 0
+  /** Set briefly when returning focus from the menu's cross-origin frame, which fires a trusted focusin. */
+  private returningTo: HTMLInputElement | null = null
+  private returnTimer = 0
 
   constructor(
     ctx: ContentScriptContext,
@@ -268,10 +304,11 @@ export class InlineMenu {
         else if (
           event.key === "ArrowDown" &&
           event.isTrusted &&
+          !event.isComposing &&
           eventOrigin(event) === this.field
         ) {
           event.preventDefault()
-          this.overlay.iframe?.focus()
+          this.overlay.focusFirst()
         }
       },
       { capture: true },
@@ -297,10 +334,33 @@ export class InlineMenu {
     if (this.field) this.overlay.placeBelow(this.field)
   }
 
-  close(): void {
+  focusField(): void {
+    if (this.field) this.returnFocusTo(this.field)
+  }
+
+  /** Whether a focusin on `target` came from the menu handing the focus back. */
+  isReturningFocus(target: EventTarget | null): boolean {
+    if (!this.returningTo || target !== this.returningTo) return false
+    clearTimeout(this.returnTimer)
+    this.returningTo = null
+    return true
+  }
+
+  private returnFocusTo(field: HTMLInputElement): void {
+    clearTimeout(this.returnTimer)
+    this.returningTo = field
+    this.returnTimer = window.setTimeout(() => {
+      this.returningTo = null
+    }, 200)
+    field.focus({ preventScroll: true })
+  }
+
+  close(focusField = false): void {
     if (!this.field) return
+    const field = this.field
     this.field = null
     this.overlay.hide()
+    if (focusField) this.returnFocusTo(field)
     this.onClosed()
   }
 }

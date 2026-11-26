@@ -5,6 +5,7 @@ import { errorMessage } from "@/components/keyward/errors"
 import { FormError, FormField } from "@/components/keyward/form-field"
 import { FADE_IN } from "@/components/keyward/loading"
 import { matchNames } from "@/components/keyward/match-names"
+import { SecretInput } from "@/components/keyward/secret-input"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -32,7 +33,6 @@ import { cn } from "@/lib/utils"
 import { CodeKeyInput } from "./code-key-input"
 import { CustomFieldsEditor } from "./custom-fields-editor"
 import { BackHeader } from "./header"
-import { SecretInput } from "./secret-input"
 
 const DEFAULT_MATCH = "default"
 

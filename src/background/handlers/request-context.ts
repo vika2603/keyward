@@ -17,13 +17,17 @@ export function tabFrame(sender: Sender): { tabId: number; frameId: number } {
   return { tabId: sender.tab.id, frameId: sender.frameId }
 }
 
-export async function closeMenu(tabId: number): Promise<void> {
+export async function closeMenu(
+  tabId: number,
+  focusField = false,
+): Promise<void> {
   const session = await menuSessions.get(tabId)
   if (!session) return
   await menuSessions.remove(tabId)
-  await sendToFrame(tabId, session.frameId, { type: "menu.close" }).catch(
-    () => {},
-  )
+  await sendToFrame(tabId, session.frameId, {
+    type: "menu.close",
+    ...(focusField ? { focusField: true } : {}),
+  }).catch(() => {})
 }
 
 export async function activePage(): Promise<{

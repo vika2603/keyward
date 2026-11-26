@@ -43,6 +43,45 @@ const STAYS_IN_POPUP: ReadonlySet<View["name"]> = new Set([
   "codeSetup",
 ])
 
+/** The view that Back and Escape return to from a subview; null on the main view. */
+function parentViewOf(view: View): View | null {
+  switch (view.name) {
+    case "main":
+      return null
+    case "add":
+    case "detail":
+    case "note":
+    case "generator":
+    case "codeSetup":
+      return { name: "main" }
+    case "edit":
+    case "passwordHistory": {
+      const { name: _ignored, ...rest } = view
+      return { name: "detail", ...rest }
+    }
+    case "editNote":
+      return { name: "note", vault: view.vault, note: view.note }
+    case "history":
+      return { name: "generator" }
+    case "connect":
+      return view.back === "codeSetup"
+        ? { name: "codeSetup" }
+        : { name: "main" }
+    default: {
+      const unknown: never = view
+      return unknown
+    }
+  }
+}
+
+function hasOpenPopupLayer(): boolean {
+  return (
+    document.querySelector(
+      "[data-slot='select-content'], [data-slot='dialog-content'], [data-slot='alert-dialog-content']",
+    ) !== null
+  )
+}
+
 // Requested once per popup: the background hands out a pending view only to the first request. A
 // popped-out window opens on the view it was popped out from.
 const initialView: Promise<View> = isPoppedOut
@@ -88,7 +127,10 @@ function CurrentView({
   onQuery: (query: string) => void
   listPlace: ListPlace
 }) {
-  const backToMain = () => onNavigate({ name: "main" })
+  const back = () => {
+    const parent = parentViewOf(view)
+    if (parent) onNavigate(parent)
+  }
   switch (view.name) {
     case "main":
       return (
@@ -101,14 +143,17 @@ function CurrentView({
         />
       )
     case "add":
-      return <AddView onBack={backToMain} />
+      return <AddView onBack={back} />
     case "detail":
       return (
         <DetailView
           vault={view.vault}
           login={view.login}
-          onBack={backToMain}
-          onEdit={() => onNavigate({ ...view, name: "edit" })}
+          trashed={view.trashed}
+          onBack={back}
+          onEdit={() =>
+            onNavigate({ name: "edit", vault: view.vault, login: view.login })
+          }
           onPasswordHistory={() =>
             onNavigate({ ...view, name: "passwordHistory" })
           }
@@ -119,47 +164,38 @@ function CurrentView({
         <NoteView
           vault={view.vault}
           note={view.note}
-          onBack={backToMain}
-          onEdit={() => onNavigate({ ...view, name: "editNote" })}
+          trashed={view.trashed}
+          onBack={back}
+          onEdit={() =>
+            onNavigate({ name: "editNote", vault: view.vault, note: view.note })
+          }
         />
       )
     case "editNote":
-      return (
-        <EditNoteView
-          vault={view.vault}
-          note={view.note}
-          onBack={() => onNavigate({ ...view, name: "note" })}
-        />
-      )
+      return <EditNoteView vault={view.vault} note={view.note} onBack={back} />
     case "passwordHistory":
       return (
         <PasswordHistoryView
           vault={view.vault}
           login={view.login}
-          onBack={() => onNavigate({ ...view, name: "detail" })}
+          onBack={back}
         />
       )
     case "edit":
-      return (
-        <EditView
-          vault={view.vault}
-          login={view.login}
-          onDone={() => onNavigate({ ...view, name: "detail" })}
-        />
-      )
+      return <EditView vault={view.vault} login={view.login} onDone={back} />
     case "generator":
       return (
         <GeneratorView
-          onBack={backToMain}
+          onBack={back}
           onHistory={() => onNavigate({ name: "history" })}
         />
       )
     case "history":
-      return <HistoryView onBack={() => onNavigate({ name: "generator" })} />
+      return <HistoryView onBack={back} />
     case "codeSetup":
       return (
         <CodeSetupView
-          onBack={backToMain}
+          onBack={back}
           onConnect={(vault) =>
             onNavigate({
               name: "connect",
@@ -172,15 +208,7 @@ function CurrentView({
       )
     case "connect":
       return (
-        <ConnectView
-          kind={view.kind}
-          vaultId={view.vaultId}
-          onDone={
-            view.back === "codeSetup"
-              ? () => onNavigate({ name: "codeSetup" })
-              : backToMain
-          }
-        />
+        <ConnectView kind={view.kind} vaultId={view.vaultId} onDone={back} />
       )
     default: {
       const unknown: never = view
@@ -203,6 +231,24 @@ export function App() {
     if (isPoppedOut) void fitWindow().catch(() => {})
   }, [])
 
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (
+        event.key !== "Escape" ||
+        event.defaultPrevented ||
+        event.isComposing ||
+        hasOpenPopupLayer()
+      )
+        return
+      const parent = view ? parentViewOf(view) : null
+      if (!parent) return
+      event.preventDefault()
+      setView(parent)
+    }
+    addEventListener("keydown", onKey)
+    return () => removeEventListener("keydown", onKey)
+  }, [view])
+
   if (!language) return null
   return (
     <Toaster closeLabel={t("common.close")}>
@@ -213,11 +259,17 @@ export function App() {
             : () => void popOut(view).catch(notifyError)
         }
       >
-        {/* A fixed size, as Chrome keeps a popup's size while it is open; every view fills it and
-            scrolls its own content. */}
+        {/* A fixed size in the toolbar popup, and the window's viewport once popped out; every view
+            fills it and scrolls its own content. */}
         <div
-          className="flex flex-col"
-          style={{ width: POPUP_WIDTH, height: POPUP_HEIGHT }}
+          className={
+            isPoppedOut ? "flex h-dvh w-full flex-col" : "flex flex-col"
+          }
+          style={
+            isPoppedOut
+              ? undefined
+              : { width: POPUP_WIDTH, height: POPUP_HEIGHT }
+          }
         >
           {view && (
             <CurrentView

@@ -417,6 +417,27 @@ describe("trash", () => {
     })
     expect(writes()).toEqual([])
   })
+
+  it("shows a trashed item's details in the popup without offering it to pages or edits", async () => {
+    const bw = provider()
+    const details = await bw.details(VAULT, "item-4", null)
+    expect(details).toMatchObject({
+      name: "Thrown Away",
+      username: "former",
+      uris: ["https://old.example.com"],
+      editable: false,
+      favorite: undefined,
+    })
+    await expect(
+      bw.details(VAULT, "item-4", new URL("https://old.example.com")),
+    ).rejects.toMatchObject({ code: "notFound" })
+    await expect(
+      bw.edit(VAULT, "item-4", { name: "Changed" }),
+    ).rejects.toMatchObject({ code: "notEditable" })
+    await expect(bw.setFavorite(VAULT, "item-4", true)).rejects.toMatchObject({
+      code: "notEditable",
+    })
+  })
 })
 
 describe("setFavorite", () => {

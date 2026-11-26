@@ -341,7 +341,12 @@ export type BackgroundApi = {
   /** Has the page sign in with a passkey, through the browser's passkey dialog. */
   "menu.usePasskey": { payload: { token: string }; result: null }
   "menu.resize": { payload: { token: string; height: number }; result: null }
-  "menu.close": { payload: { token: string }; result: null }
+  "menu.close": {
+    payload: { token: string; focusField?: boolean }
+    result: null
+  }
+  /** Moves the focus back from the in-page menu to the field it opened on. */
+  "menu.focusField": { payload: { token: string }; result: null }
   "menu.connect": { payload: { token: string; vaultId: string }; result: null }
   /** Opens the popup's form for a new login on the page. */
   "menu.newLogin": { payload: { token: string }; result: null }
@@ -429,7 +434,8 @@ export type ContentMessage =
   | { type: "newPasswordRules" }
   | { type: "usePasskey" }
   | { type: "menu.resize"; height: number }
-  | { type: "menu.close" }
+  | { type: "menu.close"; focusField?: boolean }
+  | { type: "menu.focusField" }
   | { type: "prompt.show"; token: string }
   | { type: "prompt.resize"; height: number }
   | { type: "prompt.close" }

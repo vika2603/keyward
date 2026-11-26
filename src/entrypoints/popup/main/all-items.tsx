@@ -1,4 +1,5 @@
 import { useVirtualizer } from "@tanstack/react-virtual"
+import { LockIcon } from "lucide-react"
 import {
   type ReactNode,
   type RefObject,
@@ -9,9 +10,11 @@ import {
   useRef,
   useState,
 } from "react"
-import type { VaultView } from "@/background/api"
+import { callBackground, type VaultView } from "@/background/api"
 import { BrandIcon, vaultLabel } from "@/components/keyward/brand-icon"
 import { compareNames } from "@/components/keyward/format"
+import { notifyError } from "@/components/keyward/notify"
+import { Button } from "@/components/ui/button"
 import {
   Select,
   SelectContent,
@@ -180,6 +183,37 @@ function keyOf(row: ListRow): string {
  * so thousands of rows scroll as smoothly as a few. The rows scroll with the list area, below
  * whatever comes before them there.
  */
+function LockVaultButton({
+  vaultId,
+  size = "icon-xs",
+  onLocked,
+}: {
+  vaultId: string
+  size?: "icon-xs" | "icon-sm"
+  onLocked?: () => void
+}) {
+  const lock = async () => {
+    try {
+      await callBackground("popup.lock", { vaultId })
+    } catch (error) {
+      notifyError(error)
+    }
+    onLocked?.()
+  }
+  return (
+    <Button
+      variant="ghost"
+      size={size}
+      className="text-muted-foreground"
+      aria-label={t("popup.main.lock")}
+      title={t("popup.main.lock")}
+      onClick={() => void lock()}
+    >
+      <LockIcon />
+    </Button>
+  )
+}
+
 export function VirtualRows({
   rows,
   density,
@@ -188,6 +222,7 @@ export function VirtualRows({
   onToggleVault,
   onOpenLogin,
   onOpenNote,
+  onOpenTrashed,
   onChanged,
 }: {
   rows: readonly ListRow[]
@@ -200,7 +235,8 @@ export function VirtualRows({
   onToggleVault?: (vaultId: string) => void
   onOpenLogin: (vault: VaultView, login: LoginSummary) => void
   onOpenNote: (vault: VaultView, note: NoteSummary) => void
-  /** An item left the trash; the list loads again. */
+  onOpenTrashed?: (vault: VaultView, item: TrashedItem) => void
+  /** An item left the trash or an account locked; the list loads again. */
   onChanged?: () => void
 }) {
   const listRef = useRef<HTMLDivElement>(null)
@@ -280,6 +316,7 @@ export function VirtualRows({
                   </span>
                 </button>
                 <GroupFilterButton vaultId={row.vault.id} />
+                <LockVaultButton vaultId={row.vault.id} onLocked={onChanged} />
                 <span className="px-1 text-xs text-muted-foreground tabular-nums">
                   {row.count}
                 </span>
@@ -308,6 +345,7 @@ export function VirtualRows({
                 vault={row.vault}
                 item={row.item}
                 density={density}
+                onOpen={() => onOpenTrashed?.(row.vault, row.item)}
                 onChanged={() => onChanged?.()}
               />
             )}
@@ -332,6 +370,8 @@ export function VirtualRows({
  */
 export function ItemBrowser({
   vaults,
+  allVaults,
+  search = "",
   host,
   siteItemCount,
   chosen,
@@ -341,10 +381,14 @@ export function ItemBrowser({
   scrollElement,
   onOpenLogin,
   onOpenNote,
+  onOpenTrashed,
   onChanged,
 }: {
   vaults: readonly VaultView[]
-  /** The page's host; the filter offers the site's items only when there is one. */
+  /** The vaults before search narrowing, so kind filters stay offered while searching. */
+  allVaults?: readonly VaultView[]
+  search?: string
+  /** The page's host; the filter offers the site's items only when there is one and nothing is searched. */
   host: string | null
   siteItemCount: number
   /** The filter the user chose; until there is one, the site's items if it has any, else every item. */
@@ -356,18 +400,20 @@ export function ItemBrowser({
   scrollElement: RefObject<HTMLDivElement | null>
   onOpenLogin: (vault: VaultView, login: LoginSummary) => void
   onOpenNote: (vault: VaultView, note: NoteSummary) => void
+  onOpenTrashed: (vault: VaultView, item: TrashedItem) => void
   /** Something in the vaults changed from the list, as a restore from the trash. */
   onChanged: () => void
 }) {
-  const hasNotes = vaults.some((vault) => vault.notes?.length)
-  const hasTrash = vaults.some((vault) => vault.trashed?.length)
-  const hasFavorites = vaults.some(
+  const sourceVaults = allVaults ?? vaults
+  const hasNotes = sourceVaults.some((vault) => vault.notes?.length)
+  const hasTrash = sourceVaults.some((vault) => vault.trashed?.length)
+  const hasFavorites = sourceVaults.some(
     (vault) =>
       vault.logins.some((login) => login.favorite) ||
       vault.notes?.some((note) => note.favorite),
   )
   const filters: ItemFilter[] = [
-    ...(host ? (["site"] as const) : []),
+    ...(host && !search ? (["site"] as const) : []),
     "all",
     ...(hasFavorites ? (["favorites"] as const) : []),
     ...(hasNotes ? (["logins", "notes"] as const) : []),
@@ -376,7 +422,7 @@ export function ItemBrowser({
   const filter = shownFilter(
     chosen,
     filters,
-    host !== null && siteItemCount > 0,
+    !search && host !== null && siteItemCount > 0,
   )
   const [foldedVaults, setFoldedVaults] = useState(savedFoldedVaults)
   const filtersShown = useContext(GroupFilterContext)?.filters.shown
@@ -406,7 +452,9 @@ export function ItemBrowser({
   const listedItems =
     itemCount === 0 ? (
       <p className="px-3 py-2 text-xs text-muted-foreground">
-        {t("popup.main.noItems")}
+        {search
+          ? t("popup.main.noResults", { query: search })
+          : t("popup.main.noItems")}
       </p>
     ) : (
       <VirtualRows
@@ -417,13 +465,14 @@ export function ItemBrowser({
         onToggleVault={toggleVault}
         onOpenLogin={onOpenLogin}
         onOpenNote={onOpenNote}
+        onOpenTrashed={onOpenTrashed}
         onChanged={onChanged}
       />
     )
 
   return (
     <section>
-      <div className="flex min-h-9 items-center gap-2 px-3 pt-2 pb-1.5">
+      <div className="flex min-h-9 items-center gap-1 px-3 pt-2 pb-1.5">
         {filters.length > 1 ? (
           <Select
             value={filter}
@@ -462,8 +511,17 @@ export function ItemBrowser({
         {onlyVault && (
           <GroupFilterButton vaultId={onlyVault.id} size="icon-sm" />
         )}
-        <span className="ml-auto shrink-0 text-xs text-muted-foreground tabular-nums">
-          {itemCount}
+        <span className="ml-auto flex shrink-0 items-center gap-1">
+          {onlyVault && (
+            <LockVaultButton
+              vaultId={onlyVault.id}
+              size="icon-xs"
+              onLocked={onChanged}
+            />
+          )}
+          <span className="text-xs text-muted-foreground tabular-nums">
+            {itemCount}
+          </span>
         </span>
       </div>
       {onlyVault && (

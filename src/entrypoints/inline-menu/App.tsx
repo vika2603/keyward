@@ -23,6 +23,7 @@ import { FADE_IN, LoginListSkeleton } from "@/components/keyward/loading"
 import { LoginLabel } from "@/components/keyward/login-label"
 import {
   callOverlay,
+  onOverlayFocus,
   useClickGuard,
   useReportHeight,
 } from "@/components/keyward/overlay-frame"
@@ -54,8 +55,9 @@ export function App() {
     (height) => void callOverlay("menu.resize", { height }).catch(() => {}),
   )
 
-  const clickCounts = useClickGuard(card, state !== null && language !== null)
-  useMenuKeyboard(card)
+  const ready = state !== null && language !== null
+  const clickCounts = useClickGuard(card, ready)
+  useMenuKeyboard(card, ready)
 
   useEffect(() => {
     callOverlay("menu.state", {}).then(setState, (error) => {
@@ -382,26 +384,68 @@ function VaultHeading({
 }
 
 /**
- * Keys reach this window once the field's content script moves the focus here on ArrowDown, and
- * the page can move it here too. Focus lands on no login until an arrow key pressed here selects
- * one, so a key meant for the page never picks a login.
+ * Focuses the first row when the content script hands focus here on ArrowDown (proven by the
+ * session token, so a page calling `iframe.focus()` selects nothing), and returns focus to the
+ * field on Escape or ArrowUp from the top row.
  */
-function useMenuKeyboard(card: RefObject<HTMLElement | null>): void {
+function useMenuKeyboard(
+  card: RefObject<HTMLElement | null>,
+  ready: boolean,
+): void {
+  const pendingFocus = useRef(false)
+  const rowsOf = () => [
+    ...(card.current?.querySelectorAll<HTMLButtonElement>(
+      "button[data-login]",
+    ) ?? []),
+  ]
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `rowsOf` reads the ref's current DOM.
+  useEffect(() => {
+    if (!ready || !pendingFocus.current) return
+    pendingFocus.current = false
+    const first = rowsOf()[0]
+    if (first) first.focus()
+    else void callOverlay("menu.focusField", {}).catch(() => {})
+  }, [ready])
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `rowsOf` reads the ref's current DOM, and `ready` is read through a ref.
+  useEffect(() => {
+    return onOverlayFocus(() => {
+      const first = rowsOf()[0]
+      if (first) {
+        pendingFocus.current = false
+        first.focus()
+      } else {
+        pendingFocus.current = true
+      }
+    })
+  }, [])
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `rowsOf` reads the ref's current DOM.
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
+      if (event.isComposing) return
       if (event.key === "Escape") {
-        void callOverlay("menu.close", {}).catch(() => {})
+        event.preventDefault()
+        void callOverlay("menu.close", { focusField: true }).catch(() => {})
         return
       }
       if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return
-      const rows = [
-        ...(card.current?.querySelectorAll<HTMLButtonElement>(
-          "button[data-login]",
-        ) ?? []),
-      ]
-      if (!rows.length) return
+      const rows = rowsOf()
+      if (!rows.length) {
+        if (event.key === "ArrowUp") {
+          event.preventDefault()
+          void callOverlay("menu.focusField", {}).catch(() => {})
+        }
+        return
+      }
       event.preventDefault()
       const index = rows.indexOf(document.activeElement as HTMLButtonElement)
+      if (event.key === "ArrowUp" && index === 0) {
+        rows[0]?.blur()
+        void callOverlay("menu.focusField", {}).catch(() => {})
+        return
+      }
       const step = event.key === "ArrowDown" ? 1 : -1
       const next =
         index < 0

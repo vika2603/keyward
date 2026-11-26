@@ -36,8 +36,8 @@ export function MainHeader({
         variant="ghost"
         size="icon-sm"
         className="text-muted-foreground hover:text-foreground"
-        aria-label={t("popup.add.title")}
-        title={t("popup.add.title")}
+        aria-label={t("popup.main.add")}
+        title={t("popup.main.add")}
         onClick={onAdd}
       >
         <PlusIcon />

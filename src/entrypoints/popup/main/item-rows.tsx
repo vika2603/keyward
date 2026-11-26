@@ -136,11 +136,13 @@ export function TrashedRow({
   vault,
   item,
   density,
+  onOpen,
   onChanged,
 }: {
   vault: VaultInfo
   item: TrashedItem
   density: Settings["density"]
+  onOpen: () => void
   /** The item left the trash; the list loads again. */
   onChanged: () => void
 }) {
@@ -172,16 +174,18 @@ export function TrashedRow({
 
   return (
     <RowShell compact={compact}>
-      {item.kind === "login" ? (
-        <SiteIcon
-          host={item.host}
-          text={item.name}
-          className={rowIconClass(compact)}
-        />
-      ) : (
-        <NoteIcon className={rowIconClass(compact)} />
-      )}
-      <LoginLabel primary={item.name} detail={detail} compact={compact} />
+      <OpenItemButton onOpen={onOpen}>
+        {item.kind === "login" ? (
+          <SiteIcon
+            host={item.host}
+            text={item.name}
+            className={rowIconClass(compact)}
+          />
+        ) : (
+          <NoteIcon className={rowIconClass(compact)} />
+        )}
+        <LoginLabel primary={item.name} detail={detail} compact={compact} />
+      </OpenItemButton>
       {item.editable && (
         <RowActions shown={armed} className="items-center">
           {!armed && (
@@ -202,6 +206,12 @@ export function TrashedRow({
             disabled={busy}
             onClick={() => (armed ? void run("purge") : setArmed(true))}
             onBlur={() => setArmed(false)}
+            onKeyDown={(event) => {
+              if (armed && event.key === "Escape") {
+                event.preventDefault()
+                setArmed(false)
+              }
+            }}
           >
             <Trash2Icon />
             {armed && t("popup.trash.confirmPurge")}
@@ -361,9 +371,15 @@ export function LoginRow({
   )
 }
 
-/** The line under a trashed item's name: that it is read-only, else when it was deleted. */
+/** The line under a trashed item's name: its username or kind, and when it was deleted or read-only. */
 function trashDetail(item: TrashedItem): string {
-  if (!item.editable) return t("popup.trash.readOnly")
-  if (item.deletedAt === undefined) return item.username ?? ""
-  return t("popup.trash.deletedOn", { date: formatDay(item.deletedAt) })
+  const lead =
+    item.kind === "note"
+      ? t("popup.note.title")
+      : item.username || (item.host !== item.name ? item.host : "") || ""
+  let status = ""
+  if (!item.editable) status = t("popup.trash.readOnly")
+  else if (item.deletedAt !== undefined)
+    status = t("popup.trash.deletedOn", { date: formatDay(item.deletedAt) })
+  return [lead, status].filter(Boolean).join(" · ")
 }

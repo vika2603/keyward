@@ -144,6 +144,7 @@ export function ListArea({
           ? t("popup.main.currentSite", { host: page.host })
           : undefined
       }
+      nameFirst={Boolean(search)}
       density={density}
       scrollElement={scrollElement}
       open={!foldedSiteVaults.has(vault.id)}
@@ -162,6 +163,8 @@ export function ListArea({
         <GroupFilterContext value={groupFilterContext}>
           <ItemBrowser
             vaults={lists.browsed}
+            allVaults={filterable}
+            search={search}
             host={page?.host ?? null}
             siteItemCount={lists.siteItemCount}
             chosen={itemFilter}
@@ -184,6 +187,32 @@ export function ListArea({
             onOpenNote={(vault, note) =>
               onNavigate({ name: "note", vault, note })
             }
+            onOpenTrashed={(vault, item) => {
+              const trashed = {
+                editable: item.editable,
+                deletedAt: item.deletedAt,
+              }
+              if (item.kind === "note") {
+                onNavigate({
+                  name: "note",
+                  vault,
+                  note: { id: item.id, name: item.name },
+                  trashed,
+                })
+              } else {
+                onNavigate({
+                  name: "detail",
+                  vault,
+                  login: {
+                    id: item.id,
+                    username: item.username ?? "",
+                    title: item.name,
+                    host: item.host,
+                  },
+                  trashed,
+                })
+              }
+            }}
           />
         </GroupFilterContext>
       </div>

@@ -27,12 +27,14 @@ import { t } from "@/lib/i18n"
 import type { Folder } from "@/lib/providers/types"
 
 const NO_FOLDER = "none"
+/** Frame height while a dropdown is open, so a folder list is not clipped to the card's height. */
+const OPEN_SELECT_MIN_HEIGHT = 480
 
 /** Asks to save or update a login after the user signed in; shown at the top right of the page. */
 export function App() {
   useAppearance()
   const language = useLanguage()
-  const card = useRef<HTMLDivElement>(null)
+  const card = useRef<HTMLFormElement>(null)
   const [state, setState] = useState<PromptState | null>(null)
   const [target, setTarget] = useState<string | null>(null)
   /** The new login's name; empty names it after the site. */
@@ -41,19 +43,34 @@ export function App() {
   const [folderId, setFolderId] = useState<string | null>(null)
   /** A background from before names and folders does not know the folder request, and drops the name. */
   const [supportsNameAndFolder, setSupportsNameAndFolder] = useState(true)
+  const [vaultSelectOpen, setVaultSelectOpen] = useState(false)
+  const [folderSelectOpen, setFolderSelectOpen] = useState(false)
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
 
+  const selectOpen = vaultSelectOpen || folderSelectOpen
   useReportHeight(
     card,
     state !== null && language !== null,
     (height) => void callOverlay("prompt.resize", { height }).catch(() => {}),
+    selectOpen ? OPEN_SELECT_MIN_HEIGHT : 0,
   )
   const clickCounts = useClickGuard(card, state !== null && language !== null)
   const guarded = (action: () => void) => () => {
     if (clickCounts()) action()
     else setMessage(t("overlay.prompt.guard"))
   }
+
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || event.defaultPrevented || event.isComposing)
+        return
+      event.preventDefault()
+      void callOverlay("prompt.close", {}).catch(() => {})
+    }
+    addEventListener("keydown", onKey)
+    return () => removeEventListener("keydown", onKey)
+  }, [])
 
   useEffect(() => {
     callOverlay("prompt.state", {}).then(
@@ -110,12 +127,18 @@ export function App() {
     ...folders.map((folder) => ({ value: folder.id, label: folder.name })),
   ]
 
+  const canSubmit = !busy && (update || Boolean(target))
+
   return (
     <div className="p-2">
-      <div
+      <form
         ref={card}
         style={{ width: PROMPT_WIDTH }}
         className="flex flex-col gap-3 rounded-xl border border-border/80 bg-popover p-3.5 text-popover-foreground shadow-md"
+        onSubmit={(event) => {
+          event.preventDefault()
+          if (canSubmit) guarded(() => void confirm())()
+        }}
       >
         {state && language && (
           <>
@@ -126,6 +149,7 @@ export function App() {
                   : t("overlay.prompt.saveTitle")}
               </h1>
               <Button
+                type="button"
                 variant="ghost"
                 size="icon-sm"
                 aria-label={t("overlay.prompt.close")}
@@ -171,6 +195,8 @@ export function App() {
                     value={target}
                     onChange={setTarget}
                     label={t("overlay.prompt.saveTo")}
+                    alignItemWithTrigger={false}
+                    onOpenChange={setVaultSelectOpen}
                   />
                 </div>
                 {bitwardenTarget && supportsNameAndFolder && (
@@ -193,6 +219,7 @@ export function App() {
                     </span>
                     <Select
                       value={folderId ?? NO_FOLDER}
+                      onOpenChange={setFolderSelectOpen}
                       onValueChange={(value) =>
                         setFolderId(value === NO_FOLDER ? null : value)
                       }
@@ -204,7 +231,7 @@ export function App() {
                       >
                         <SelectValue className="truncate" />
                       </SelectTrigger>
-                      <SelectContent>
+                      <SelectContent alignItemWithTrigger={false}>
                         <SelectGroup>
                           {folderChoices.map((choice) => (
                             <SelectItem key={choice.value} value={choice.value}>
@@ -224,9 +251,12 @@ export function App() {
               </p>
             )}
             {message && <p className="text-xs text-destructive">{message}</p>}
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5">
               <Button
+                type="button"
                 variant="ghost"
+                size="sm"
+                className="-ml-2 text-xs text-muted-foreground"
                 disabled={busy}
                 onClick={guarded(
                   () => void callOverlay("prompt.never", {}).catch(() => {}),
@@ -235,16 +265,23 @@ export function App() {
                 {t("overlay.prompt.never")}
               </Button>
               <Button
+                type="button"
+                variant="outline"
                 className="ml-auto"
-                disabled={busy || (!update && !target)}
-                onClick={guarded(() => void confirm())}
+                disabled={busy}
+                onClick={() =>
+                  void callOverlay("prompt.close", {}).catch(() => {})
+                }
               >
+                {t("overlay.prompt.notNow")}
+              </Button>
+              <Button type="submit" disabled={!canSubmit}>
                 {update ? t("overlay.prompt.update") : t("overlay.prompt.save")}
               </Button>
             </div>
           </>
         )}
-      </div>
+      </form>
     </div>
   )
 }
