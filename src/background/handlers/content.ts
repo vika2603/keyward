@@ -1,7 +1,7 @@
 import type { Handlers } from "@/lib/messaging"
 import { fieldRulesFrom } from "@/lib/password-rules"
 import type { BackgroundApi } from "../api"
-import { contentConfig, hasCodes, notePasskeyUsed } from "../autofill"
+import { contentConfig, hasCodes } from "../autofill"
 import { offerCandidate } from "../code-setup"
 import { menuSessions } from "../overlays"
 import type { Providers } from "../providers"
@@ -50,14 +50,6 @@ export function contentHandlers(providers: Providers) {
       handle: (_, sender) => {
         const { tabId, frameId } = tabFrame(sender)
         return hasCodes(providers, tabId, frameId)
-      },
-    },
-    "content.passkeyUsed": {
-      allow: ["contentScript"],
-      handle: async (_, sender) => {
-        const { tabId, frameId } = tabFrame(sender)
-        await notePasskeyUsed(tabId, frameId)
-        return null
       },
     },
     "content.closeMenu": {

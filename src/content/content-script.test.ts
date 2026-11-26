@@ -576,6 +576,40 @@ describe("moving keyboard focus between the field and the menu", () => {
   })
 })
 
+describe("opening the menu for a field the page focused itself", () => {
+  it("opens for a field focused before the script started, as by autofocus", async () => {
+    document.body.innerHTML = SIGN_IN
+    input("[name=username]").focus()
+    const page = await startContentScript()
+    ctx = page.ctx
+    await vi.advanceTimersByTimeAsync(0)
+    expect(menuIsOpen()).toBe(true)
+  })
+
+  it("opens once a scan finds a field focused as the page added it", async () => {
+    const page = await startContentScript()
+    ctx = page.ctx
+    document.body.innerHTML = SIGN_IN
+    const username = input("[name=username]")
+    username.focus()
+    focusByUser(username)
+    await vi.advanceTimersByTimeAsync(0)
+    expect(menuIsOpen()).toBe(false)
+    await vi.advanceTimersByTimeAsync(SETTLE_MS)
+    expect(menuIsOpen()).toBe(true)
+  })
+
+  it("waits for the user while the page is not the focused window", async () => {
+    document.body.innerHTML = SIGN_IN
+    input("[name=username]").focus()
+    vi.spyOn(document, "hasFocus").mockReturnValue(false)
+    const page = await startContentScript()
+    ctx = page.ctx
+    await vi.advanceTimersByTimeAsync(SETTLE_MS)
+    expect(menuIsOpen()).toBe(false)
+  })
+})
+
 describe("closing the menu when its field loses the focus", () => {
   it("closes when the focus moves on to the page, as with the Tab key", async () => {
     document.body.innerHTML = SIGN_IN

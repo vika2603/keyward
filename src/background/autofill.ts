@@ -11,7 +11,6 @@ import type { ContentConfig, FieldInfo } from "./api"
 import { rememberFill } from "./filled-logins"
 import { addHistory } from "./history"
 import { activeTab, frameUrl, sendToFrame } from "./page"
-import { hasPasskeySite, rememberPasskeySite } from "./passkey-sites"
 import { type Providers, vaultsForRule } from "./providers"
 import {
   markRecent,
@@ -101,10 +100,7 @@ export async function contentConfig(
   )
   const menuTrigger = menuTriggerFor(rule?.behavior, settings.menuTrigger)
   // A passkey request kept for the menu would wait for a menu that never opens.
-  const takeOverPasskeys =
-    menuTrigger !== "off" &&
-    settings.takeOverPasskeys &&
-    (await hasPasskeySite(page))
+  const takeOverPasskeys = menuTrigger !== "off" && settings.takeOverPasskeys
   return {
     ...off,
     active: true,
@@ -112,15 +108,6 @@ export async function contentConfig(
     scanCodes,
     takeOverPasskeys,
   }
-}
-
-/** Notes that the frame's site has a passkey, once the frame may show the menu at all. */
-export async function notePasskeyUsed(
-  tabId: number,
-  frameId: number,
-): Promise<void> {
-  const page = await allowedPage(tabId, frameId, await getSettings())
-  if (page) await rememberPasskeySite(page)
 }
 
 /** The frame's page, once it is known that the frame may be filled from the vault. */

@@ -1,3 +1,4 @@
+import { storage } from "wxt/utils/storage"
 import type { HelperCheck } from "@/lib/providers/apple/helper-port"
 import { updateSettings } from "@/lib/settings"
 
@@ -49,5 +50,7 @@ export async function whenInstalled(
   if (reason === "install" || reason === "update")
     work.push(injectIntoOpenTabs())
   if (reason === "install") work.push(welcome(checkPasswords))
+  // Earlier versions kept the sites of passkey sign-ins under this key; nothing reads it now.
+  if (reason === "update") work.push(storage.removeItem("local:passkeySites"))
   await Promise.allSettled(work)
 }

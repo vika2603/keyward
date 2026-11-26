@@ -2,7 +2,6 @@ import type { ContentScriptContext } from "wxt/utils/content-script-context"
 import {
   PASSKEY_CONTROL_EVENT,
   PASSKEY_STATE_EVENT,
-  PASSKEY_USED_EVENT,
   type PasskeyControl,
 } from "./passkey-events"
 
@@ -16,8 +15,6 @@ export class PasskeySteering {
     options: {
       /** The page-world script started or stopped holding a request. */
       onWaitingChange: () => void
-      /** The page got a passkey credential. */
-      onUsed: () => void
     },
   ) {
     ctx.addEventListener(document, PASSKEY_STATE_EVENT, (event) => {
@@ -26,7 +23,6 @@ export class PasskeySteering {
       this.requestWaiting = waiting
       options.onWaitingChange()
     })
-    ctx.addEventListener(document, PASSKEY_USED_EVENT, options.onUsed)
     // The menu of this copy is gone; a newer copy of the script takes over in new pages only.
     ctx.onInvalidated(() => this.control("release"))
   }

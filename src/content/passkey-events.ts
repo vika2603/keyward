@@ -15,6 +15,3 @@ export const PASSKEY_STATE_EVENT = "keyward:passkey-state"
 export const PASSKEY_CONTROL_EVENT = "keyward:passkey-control"
 
 export type PasskeyControl = "hold" | "release" | "use"
-
-/** Sent by the page-world script when the page got a passkey credential, by whatever request. */
-export const PASSKEY_USED_EVENT = "keyward:passkey-used"

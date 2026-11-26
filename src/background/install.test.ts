@@ -42,4 +42,10 @@ describe("installing and updating", () => {
     expect(checkPasswords).not.toHaveBeenCalled()
     expect((await getSettings()).appleEnabled).toBe(false)
   })
+
+  it("drops the passkey sites that earlier versions kept, on an update", async () => {
+    await fakeBrowser.storage.local.set({ passkeySites: ["example.com"] })
+    await whenInstalled("update", notSetUp)
+    expect(await fakeBrowser.storage.local.get("passkeySites")).toEqual({})
+  })
 })

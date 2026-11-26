@@ -100,7 +100,6 @@ Check these types of data:
 
 - Personally identifiable information: the email address of a Bitwarden account.
 - Authentication information: the logins in the user's vaults, and a login the user submits.
-- Web history: the sites where the user signed in with a passkey.
 - Website content: the form fields of a page, and a QR code the user chooses.
 
 Check all three certifications. The data is used only to fill, generate and save passwords, and goes nowhere but the vault the user connects.

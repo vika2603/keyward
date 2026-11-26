@@ -390,8 +390,6 @@ export type BackgroundApi = {
   }
   /** Whether a ready vault has one-time codes for the frame, asked once the frame has a code field. */
   "content.hasCodes": { payload: null; result: boolean }
-  /** The page got a passkey credential; the site's passkey requests go to the menu from now on. */
-  "content.passkeyUsed": { payload: null; result: null }
   "content.closeMenu": { payload: null; result: null }
   "content.submitted": {
     /**

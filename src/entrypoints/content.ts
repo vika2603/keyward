@@ -59,6 +59,7 @@ export default defineContentScript({
             : [...found.login, ...found.newPassword, ...found.code],
         )
         steerPasskeys()
+        openForEarlyFocus()
       },
     })
     const passkeys = new PasskeySteering(ctx, {
@@ -70,13 +71,19 @@ export default defineContentScript({
           void openMenu(field)
         }
       },
-      onUsed: () => notifyBackground("content.passkeyUsed", null),
     })
     /** Keeps the page's passkey request for the menu while this frame shows the menu on login fields. */
     const steerPasskeys = () => {
       const { active, takeOverPasskeys } = configuration.current
       passkeys.steer(active && takeOverPasskeys && fields.login.length > 0)
     }
+
+    /**
+     * A field that got the focus before it could open the menu: the page focused it as it loaded,
+     * before this script ran or had its configuration, or before a scan found it. The next scan
+     * that finds it opens the menu, as the focus would have.
+     */
+    let focusedEarly: HTMLInputElement | null = null
 
     let lastMenuField: HTMLInputElement | null = null
     const fills = new FillHandlers(menu, fields, () => lastMenuField)
@@ -111,6 +118,31 @@ export default defineContentScript({
       menu.show(field, session.token)
       // Keeps the keyboard path open: ArrowDown in the field moves into the menu.
       if (deepActiveElement() !== field) field.focus({ preventScroll: true })
+    }
+
+    /**
+     * Whether the focus on a field opens its menu. Only an empty field's does; a filled one, as
+     * after a fill when the focus comes back from the menu's frame, opens it from its icon.
+     */
+    function opensOnFocus(field: HTMLInputElement): boolean {
+      const { active, menuTrigger } = configuration.current
+      return (
+        active &&
+        menuTrigger === "focus" &&
+        !fills.filling &&
+        !field.value &&
+        fields.has(field) &&
+        menu.openFor !== field
+      )
+    }
+
+    function openForEarlyFocus(): void {
+      const field = focusedEarly
+      if (!field || !fields.has(field)) return
+      focusedEarly = null
+      // A page in a background tab focuses its field again when the tab comes to the front.
+      if (deepActiveElement() !== field || !document.hasFocus()) return
+      if (opensOnFocus(field)) void openMenu(field)
     }
 
     function applyConfig(config: ContentConfig, previous: ContentConfig): void {
@@ -188,28 +220,23 @@ export default defineContentScript({
       }
     }
 
+    const focused = deepActiveElement()
+    if (focused instanceof HTMLInputElement) focusedEarly = focused
+    ctx.addEventListener(document, "focusin", (event) => {
+      if (!event.isTrusted) return
+      const target = eventOrigin(event)
+      focusedEarly = null
+      if (
+        !(target instanceof HTMLInputElement) ||
+        menu.isReturningFocus(target)
+      )
+        return
+      if (!fields.has(target)) focusedEarly = target
+      else if (opensOnFocus(target)) void openMenu(target)
+    })
+
     await configuration.load()
     if (isTop) notifyBackground("content.ready", null)
-
-    // Only an empty field opens the menu on focus. A filled one, as after a fill when the focus
-    // comes back from the menu's frame, opens it from its icon.
-    ctx.addEventListener(document, "focusin", (event) => {
-      const target = eventOrigin(event)
-      const { active, menuTrigger } = configuration.current
-      if (
-        active &&
-        menuTrigger === "focus" &&
-        event.isTrusted &&
-        !fills.filling &&
-        !menu.isReturningFocus(target) &&
-        target instanceof HTMLInputElement &&
-        !target.value &&
-        fields.has(target) &&
-        menu.openFor !== target
-      ) {
-        void openMenu(target)
-      }
-    })
 
     watchCodeImages(
       ctx,

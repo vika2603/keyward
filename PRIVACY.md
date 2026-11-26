@@ -21,7 +21,6 @@ Keyward keeps the following in the browser's extension storage on your device:
 
 - Your settings, including any per-site rules you add.
 - For each Bitwarden account: the email address, the server address, the name you gave it, and the account key and sign-in token in encrypted form, which can be used only with your master password. Also a random device identifier that Bitwarden servers require.
-- The sites where you signed in with a passkey, so that Keyward's menu can offer passkeys there.
 - Your generator options.
 
 Unlocked keys, access tokens, downloaded vault data, the Passwords session and the generator history are kept only in memory or in session storage, which the browser clears when it closes.

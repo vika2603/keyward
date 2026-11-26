@@ -8,7 +8,6 @@ import {
   fillLogin,
   fillNewPassword,
   hasCodes,
-  notePasskeyUsed,
 } from "./autofill"
 import { isFilledPassword } from "./filled-logins"
 import { listHistory } from "./history"
@@ -365,36 +364,16 @@ describe("contentConfig", () => {
     expect((await configFor()).menuTrigger).toBe("click")
   })
 
-  it("keeps no passkey request for a menu that is off", async () => {
-    await notePasskeyUsed(TAB, 0)
+  it("keeps a page's passkey request for the menu on any site, unless turned off", async () => {
+    setFrame(TAB, 0, "https://never-signed-in.example.org/login")
     expect((await configFor()).takeOverPasskeys).toBe(true)
-    await updateSettings({ menuTrigger: "off" })
+    await updateSettings({ takeOverPasskeys: false })
     expect((await configFor()).takeOverPasskeys).toBe(false)
   })
-})
 
-describe("passkey sites", () => {
-  const takesOver = async (url: string, frameId = 0) => {
-    setFrame(TAB, frameId, url)
-    const { providers } = fakeProviders([{ info: accountVault }])
-    return (await contentConfig(providers, TAB, frameId)).takeOverPasskeys
-  }
-
-  it("offers passkeys in the menu only on sites where one was used", async () => {
-    expect(await takesOver("https://accounts.example.com/login")).toBe(false)
-    await notePasskeyUsed(TAB, 0)
-    expect(await takesOver("https://login.example.com/")).toBe(true)
-    expect(await takesOver("https://example.org/login")).toBe(false)
-    await updateSettings({ takeOverPasskeys: false })
-    expect(await takesOver("https://accounts.example.com/login")).toBe(false)
-  })
-
-  it("does not learn from a frame that may not show the menu", async () => {
-    setFrame(TAB, 3, "https://widget.example.net/")
-    await updateSettings({ crossSiteFrames: false })
-    await notePasskeyUsed(TAB, 3)
-    await updateSettings({ crossSiteFrames: true })
-    expect(await takesOver("https://widget.example.net/", 3)).toBe(false)
+  it("keeps no passkey request for a menu that is off", async () => {
+    await updateSettings({ menuTrigger: "off" })
+    expect((await configFor()).takeOverPasskeys).toBe(false)
   })
 })
 
