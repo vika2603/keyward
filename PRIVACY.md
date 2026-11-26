@@ -35,4 +35,4 @@ Signing out of a Bitwarden account in Keyward's settings removes what Keyward ke
 
 ## Changes and contact
 
-Changes to this policy are published in this file at https://github.com/vika2603/keyward/blob/main/PRIVACY.md. Questions can be asked at https://github.com/vika2603/keyward/issues.
+Changes to this policy are published in this file at https://raw.githubusercontent.com/vika2603/keyward/main/PRIVACY.md. Questions can be asked at https://github.com/vika2603/keyward/issues.

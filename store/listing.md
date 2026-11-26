@@ -111,7 +111,7 @@ Check all three certifications. The data is used only to fill, generate and save
 ### Privacy policy URL
 
 ```text
-https://github.com/vika2603/keyward/blob/main/PRIVACY.md
+https://raw.githubusercontent.com/vika2603/keyward/main/PRIVACY.md
 ```
 
 ## Test instructions
