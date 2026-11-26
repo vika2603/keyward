@@ -148,15 +148,17 @@ function ConnectPasswords() {
   return (
     <div className="flex min-h-screen flex-col items-center bg-muted px-4 pt-12 pb-16">
       <main className="flex w-full max-w-[560px] flex-col gap-4">
-        <header className="flex flex-col items-center gap-1.5 pb-2 text-center">
-          <ConnectionIcons link={linkOf(status)} />
-          <LinkStatus link={linkOf(status)} />
+        <header className="flex flex-col items-center gap-1.5 text-center">
           <h1 className="text-2xl leading-8 font-semibold tracking-tight">
             {t("options.passwordsSetup.title")}
           </h1>
           <p className="text-sm text-muted-foreground">
             {t("options.passwordsSetup.description")}
           </p>
+          <div className="flex flex-col items-center gap-3 pt-8 pb-6">
+            <ConnectionIcons link={linkOf(status)} />
+            <LinkStatus link={linkOf(status)} />
+          </div>
         </header>
         <SetupCard done={setUp}>
           {setUp ? (
@@ -190,7 +192,7 @@ function ConnectPasswords() {
 /** Keyward and Passwords side by side; the dots between them move while the two connect. */
 function ConnectionIcons({ link }: { link: Link }) {
   return (
-    <div className="mb-3 flex items-center gap-3" aria-hidden="true">
+    <div className="flex items-center gap-3" aria-hidden="true">
       <img src={keywardIcon} alt="" draggable={false} className="size-12" />
       <div className="flex w-14 items-center justify-center gap-2">
         {link === "connected" ? (
@@ -234,7 +236,7 @@ function LinkStatus({ link }: { link: Link }) {
       key={link}
       role="status"
       className={cn(
-        "-mt-1 mb-2 text-sm font-medium",
+        "text-lg leading-7 font-medium",
         link === "connected" ? "text-success" : "text-muted-foreground",
         FADE_IN,
       )}
