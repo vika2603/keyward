@@ -17,6 +17,9 @@
     "enabled": true,
     "rules": {
       "preset": "recommended",
+      "style": {
+        "noNestedTernary": "error"
+      },
       "suspicious": {
         "noShadow": "error"
       },
