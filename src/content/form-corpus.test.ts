@@ -57,7 +57,7 @@ const FLOORS = {
   /** Fields labelled as a one-time code that read as code fields. */
   codes: 7,
   /** Annotated submit controls on sign-in and sign-up pages that a click reports. */
-  submitControls: 278,
+  submitControls: 281,
 }
 /** Scores of false detection, where lower is better, with their ceilings. */
 const CEILINGS = {

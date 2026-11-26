@@ -3,9 +3,13 @@ import { eventOrigin } from "./deep-dom"
 import { credentialsAround, type SubmittedLogin } from "./submitted-login"
 
 const DEDUPE_MS = 3000
-/** Labels of controls that send a sign-in, sign-up or one of their steps. */
+/**
+ * Labels of controls that send a sign-in, sign-up or one of their steps, in the languages most
+ * sites use. Words that end in a letter outside ASCII stay out of the `\b` group, as `\b` knows
+ * only ASCII letters.
+ */
 const SUBMIT_LABEL =
-  /\b(log ?in|sign ?in|sign ?up|register|create( an| my| your)? account|join|submit|continue|next)\b|登录|登入|登陆|注册|註冊|提交|继续|下一步|確認|确认/i
+  /\b(log ?in|sign ?in|sign (me )?up|register|create( an| my| your)? account|join|submit|continue|next|anmelden|einloggen|registrieren|weiter|connexion|se connecter|s'identifier|s'inscrire|continuer|suivant|iniciar sesión|entrar|acceder|registrarse|continuar|siguiente|accedi|registrati|continua|avanti|inloggen|aanmelden|doorgaan|volgende|zaloguj|dalej)\b|giriş|войти|вход|далее|продолжить|ログイン|サインイン|次へ|로그인|다음|登录|登入|登陆|注册|註冊|提交|继续|下一步|確認|确认/i
 /** Labels that ask a question or offer help, as the links beside a sign-in form do: "Can't log in?" */
 const HELP_LABEL =
   /[?？]|\b(forgot|help|trouble|can['’]?t|cannot)\b|忘记|忘記|帮助|幫助/i

@@ -35,6 +35,20 @@ describe("the control a click submits with", () => {
     expect(pressed("register")).toBe("register")
   })
 
+  it("is a button labelled in another language", () => {
+    document.body.innerHTML = `
+      <button id="russian" type="button">Войти</button>
+      <input id="japanese" type="button" value="ログインする">
+      <div id="german" role="button">Anmelden</div>
+      <a id="spanish" href="#">Iniciar sesión</a>
+      <button id="other" type="button">Weitere Optionen</button>`
+    expect(pressed("russian")).toBe("russian")
+    expect(pressed("japanese")).toBe("japanese")
+    expect(pressed("german")).toBe("german")
+    expect(pressed("spanish")).toBe("spanish")
+    expect(pressed("other")).toBeNull()
+  })
+
   it("is a link or styled element a page turns into a button, with a short label", () => {
     document.body.innerHTML = `
       <a id="link" class="btn btn-primary"><span id="link-text">Create Account</span></a>
