@@ -16,6 +16,10 @@ Open `chrome://extensions`, enable Developer mode, and load `.output/chrome-mv3`
 
 `mise run zip` packages the extension for the Chrome Web Store as `.output/keyward-<version>-chrome.zip`. The package carries no manifest key, since the store assigns the extension ID.
 
+## Privacy
+
+Keyward sends nothing to its developer. [PRIVACY.md](PRIVACY.md) describes what it handles and where the data goes.
+
 ## License
 
 Keyward's source code is licensed under the [MIT License](LICENSE).
