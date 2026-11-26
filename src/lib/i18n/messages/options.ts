@@ -193,7 +193,7 @@ export const en = {
   "options.passwordsSetup.done": "Done",
   "options.passwordsSetup.setUp.title": "Let the browser reach Passwords",
   "options.passwordsSetup.setUp.description":
-    "Run this command in Terminal. It writes a small configuration file into your own Library folder for each browser; it needs no administrator password and installs nothing.",
+    "Run this command in Terminal. It writes a small configuration file into the data folder of the browser Keyward is installed in; it needs no administrator password and installs nothing.",
   "options.passwordsSetup.copy": "Copy command",
   "options.passwordsSetup.copied": "Copied",
   "options.passwordsSetup.terminal":
@@ -209,7 +209,7 @@ export const en = {
   "options.passwordsSetup.notMac": "Passwords is only available on macOS.",
   "options.passwordsSetup.details": "What the command does",
   "options.passwordsSetup.detailsText":
-    "It finds the Passwords helper that comes with macOS and writes keyward.passwords.json into the NativeMessagingHosts folder of Chrome and of the other Chromium browsers you have. The file lets only this extension start the helper.",
+    "It finds the Passwords helper that comes with macOS and writes keyward.passwords.json into the NativeMessagingHosts folder of each browser that has Keyward installed. The file lets only this extension start the helper.",
   "options.passwordsSetup.removal": "To undo it, run:",
   "options.passwordsSetup.viewScript": "View the script",
   "options.passwordsSetup.pairAfterSetUp":
@@ -445,7 +445,7 @@ export const zhCN: Record<keyof typeof en, string> = {
   "options.passwordsSetup.done": "已完成",
   "options.passwordsSetup.setUp.title": "允许浏览器连接 Passwords",
   "options.passwordsSetup.setUp.description":
-    "在终端里运行下面的命令。它只在你自己的资源库文件夹里为每个浏览器写一个小配置文件，不需要管理员密码，也不安装任何程序。",
+    "在终端里运行下面的命令。它只在装了 Keyward 的浏览器的数据文件夹里写一个小配置文件，不需要管理员密码，也不安装任何程序。",
   "options.passwordsSetup.copy": "复制命令",
   "options.passwordsSetup.copied": "已复制",
   "options.passwordsSetup.terminal":
@@ -460,7 +460,7 @@ export const zhCN: Record<keyof typeof en, string> = {
   "options.passwordsSetup.notMac": "Passwords 只能在 macOS 上使用。",
   "options.passwordsSetup.details": "命令会做什么",
   "options.passwordsSetup.detailsText":
-    "它找到 macOS 自带的 Passwords 组件，把 keyward.passwords.json 写进 Chrome 和你装的其他 Chromium 浏览器的 NativeMessagingHosts 文件夹。这个文件只允许本插件启动该组件。",
+    "它找到 macOS 自带的 Passwords 组件，把 keyward.passwords.json 写进装了 Keyward 的浏览器的 NativeMessagingHosts 文件夹。这个文件只允许本插件启动该组件。",
   "options.passwordsSetup.removal": "要撤销，运行：",
   "options.passwordsSetup.viewScript": "查看脚本",
   "options.passwordsSetup.pairAfterSetUp":

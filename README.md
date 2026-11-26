@@ -30,11 +30,11 @@ mise install     # Node and pnpm
 mise run setup   # dependencies
 ```
 
-A browser starts the Passwords helper only for the extensions that a host manifest names. Keyward's setup page, which the popup and the Vaults settings open while Passwords is not set up, shows a Terminal command with the extension's ID. The command downloads `scripts/setup.sh` from this repository's `main` branch and runs it; the script writes `keyward.passwords.json`, which names that ID and points at the system helper, into the `NativeMessagingHosts` folder of Chrome and of the other Chromium browsers in `~/Library/Application Support`. It needs no administrator password. From a checkout:
+A browser starts the Passwords helper only for the extensions that a host manifest names. Keyward's setup page, which the popup and the Vaults settings open while Passwords is not set up, shows a Terminal command with the extension's ID. The command downloads `scripts/setup.sh` from this repository's `main` branch and runs it; the script writes `keyward.passwords.json`, which names that ID and points at the system helper, into the `NativeMessagingHosts` folder of each Chromium browser that has the extension installed: the browser's usual data folder under `~/Library/Application Support`, or the folder that a running browser was started with through `--user-data-dir`. It needs no administrator password. From a checkout:
 
 ```sh
 scripts/setup.sh <extension ID>
-scripts/setup.sh --user-data-dir <folder> <extension ID>  # a browser started with --user-data-dir
+scripts/setup.sh --user-data-dir <folder> <extension ID>  # that folder only, without looking for the extension
 scripts/setup.sh --uninstall
 ```
 
