@@ -68,13 +68,13 @@ export function GeneratedValueCard({
 
   const copyLabel = copied ? t("popup.copied") : t("popup.generator.copy")
   return (
-    <div className="flex min-h-14 items-center gap-1 rounded-xl bg-card py-2 pr-2 pl-3 ring-1 ring-foreground/10">
+    <div className="flex min-h-16 items-center gap-1.5 overflow-hidden rounded-xl border border-border/80 bg-card py-3 pr-2 pl-3.5 shadow-2xs">
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
         {value !== null ? (
           <div
             ref={valueRef}
             className={cn(
-              "font-mono text-base leading-normal select-all",
+              "font-mono text-base leading-relaxed select-all",
               kind === "password" ? "break-all" : "[overflow-wrap:anywhere]",
             )}
           >
@@ -95,26 +95,30 @@ export function GeneratedValueCard({
           </span>
         )}
       </div>
-      <Button
-        variant="ghost"
-        size="icon"
-        aria-label={t("popup.generator.regenerate")}
-        title={t("popup.generator.regenerate")}
-        disabled={value === null}
-        onClick={onRegenerate}
-      >
-        <RefreshCwIcon />
-      </Button>
-      <Button
-        variant="ghost"
-        size="icon"
-        aria-label={copyLabel}
-        title={copyLabel}
-        disabled={value === null}
-        onClick={() => void copy()}
-      >
-        {copied ? <CheckIcon /> : <CopyIcon />}
-      </Button>
+      <div className="flex shrink-0 gap-0.5">
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          className="text-muted-foreground hover:text-foreground"
+          aria-label={t("popup.generator.regenerate")}
+          title={t("popup.generator.regenerate")}
+          disabled={value === null}
+          onClick={onRegenerate}
+        >
+          <RefreshCwIcon />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          className="text-muted-foreground hover:text-foreground"
+          aria-label={copyLabel}
+          title={copyLabel}
+          disabled={value === null}
+          onClick={() => void copy()}
+        >
+          {copied ? <CheckIcon /> : <CopyIcon />}
+        </Button>
+      </div>
     </div>
   )
 }

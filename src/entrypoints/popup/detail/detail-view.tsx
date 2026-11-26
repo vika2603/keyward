@@ -50,7 +50,7 @@ function DetailSkeleton() {
     <div role="status" className="flex flex-col gap-1.5">
       <span className="sr-only">{t("common.loading")}</span>
       <Skeleton className="mx-1 h-3 w-16" />
-      <div className="rounded-xl bg-card ring-1 ring-foreground/10">
+      <div className="overflow-hidden rounded-xl border border-border/80 bg-card shadow-2xs">
         {["w-40", "w-28"].map((width) => (
           <div
             key={width}
@@ -121,9 +121,15 @@ export function DetailView({
         onBack={onBack}
         onEdit={onEdit}
       />
-      <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-3 pb-3">
+      <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto bg-canvas p-3">
         <ItemTitle
-          icon={<SiteIcon host={login.host} text={name} className="size-10" />}
+          icon={
+            <SiteIcon
+              host={login.host}
+              text={name}
+              className="size-10 rounded-lg text-sm"
+            />
+          }
           name={name}
         />
         {!details && !loadError && <DetailSkeleton />}
@@ -245,7 +251,7 @@ export function DetailView({
                 <button
                   type="button"
                   onClick={onPasswordHistory}
-                  className="flex min-h-10 w-full items-center gap-3 border-t px-3 py-2 text-left text-sm outline-none first:border-t-0 last:rounded-b-xl hover:bg-muted focus-visible:bg-muted"
+                  className="flex min-h-10 w-full items-center gap-3 border-t px-3 py-2 text-left text-sm transition-colors outline-none first:border-t-0 hover:bg-muted focus-visible:bg-muted"
                 >
                   <span className="flex-1">
                     {t("popup.detail.passwordHistory")}

@@ -17,14 +17,14 @@ export function LoginListSkeleton({
   heading?: boolean
 }) {
   return (
-    <div role="status" className="flex flex-col gap-0.5 p-1">
+    <div role="status" className="flex flex-col gap-0.5 px-1.5 py-1">
       <span className="sr-only">{t("common.loading")}</span>
-      {heading && <Skeleton className="mx-2 mt-2 mb-1 h-3 w-24" />}
+      {heading && <Skeleton className="mx-1.5 mt-2 mb-1 h-3 w-24" />}
       {ROW_WIDTHS.map((width) => (
         <div
           key={width}
           className={cn(
-            "flex items-center gap-2.5 px-2 py-1.5",
+            "flex items-center gap-2.5 px-1.5 py-1.5",
             compact ? "min-h-9" : "min-h-12",
           )}
         >

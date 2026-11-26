@@ -97,7 +97,7 @@ function CustomFieldEditor({
   onRemove: () => void
 }) {
   return (
-    <div className="flex flex-col gap-1.5 rounded-lg p-2 ring-1 ring-foreground/10">
+    <div className="flex flex-col gap-1.5 rounded-lg border border-border/80 bg-muted/25 p-2">
       <div className="flex items-center gap-1">
         <Input
           value={field.name}

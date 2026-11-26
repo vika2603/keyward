@@ -102,9 +102,10 @@ export function HistoryView({ onBack }: { onBack: () => void }) {
             </Button>
           </div>
         ) : (
-          <div className="flex gap-1">
+          <div className="flex gap-0.5">
             <Toggle
-              size="icon"
+              size="sm"
+              className="w-7 px-0 text-muted-foreground hover:text-foreground"
               aria-label={t("popup.history.show")}
               title={t("popup.history.show")}
               pressed={shown}
@@ -114,7 +115,8 @@ export function HistoryView({ onBack }: { onBack: () => void }) {
             </Toggle>
             <Button
               variant="ghost"
-              size="icon"
+              size="icon-sm"
+              className="text-muted-foreground hover:text-foreground"
               aria-label={t("popup.history.clear")}
               title={t("popup.history.clear")}
               disabled={!entries?.length}
@@ -125,14 +127,13 @@ export function HistoryView({ onBack }: { onBack: () => void }) {
           </div>
         )}
       </BackHeader>
-      <Separator />
       <div className="min-h-0 flex-1 overflow-y-auto">
         {entries && !entries.length && (
           <p className="flex h-full items-center justify-center px-3 pb-12 text-center text-sm text-muted-foreground">
             {t("popup.history.empty")}
           </p>
         )}
-        <div ref={list} className="flex flex-col gap-0.5 p-1">
+        <div ref={list} className="flex flex-col gap-0.5 px-1.5 py-1">
           {entries?.map((entry) => {
             // Usernames are not secrets, so they show without the eye button.
             const visible = shown || entry.kind === "username"
@@ -140,7 +141,7 @@ export function HistoryView({ onBack }: { onBack: () => void }) {
             return (
               <div
                 key={entry.id}
-                className="group/row flex min-h-12 items-center gap-2.5 rounded-lg px-2 py-1.5 hover:bg-muted focus-within:bg-muted"
+                className="group/row flex min-h-12 items-center gap-2.5 rounded-lg px-1.5 py-1.5 transition-colors hover:bg-muted/80 focus-within:bg-muted/80"
               >
                 <div className="flex min-w-0 flex-1 flex-col">
                   <span

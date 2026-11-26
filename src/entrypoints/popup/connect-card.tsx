@@ -19,7 +19,7 @@ export function ConnectCard({
     <button
       type="button"
       onClick={onClick}
-      className="group/card flex w-full items-center gap-3 rounded-xl bg-card px-3.5 py-3 text-left ring-1 ring-foreground/10 outline-none transition-colors hover:bg-muted focus-visible:ring-foreground/35"
+      className="group/card flex w-full items-center gap-3 rounded-xl border border-border/80 bg-card px-3.5 py-3 text-left shadow-2xs outline-none transition-colors hover:bg-muted/70 focus-visible:border-foreground/35 focus-visible:ring-3 focus-visible:ring-foreground/6"
     >
       <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted group-hover/card:bg-background">
         <BrandIcon kind={kind} className="size-5" />

@@ -45,8 +45,8 @@ function Welcome() {
   const connected = settings.appleEnabled || accounts.length > 0
 
   return (
-    <div className="flex min-h-screen flex-col items-center bg-muted px-4 pt-12 pb-16">
-      <main className="flex w-full max-w-[560px] flex-col gap-4">
+    <div className="flex min-h-screen flex-col items-center bg-canvas px-4 pt-12 pb-16">
+      <main className="flex w-full max-w-[540px] flex-col gap-3.5">
         <header className="flex flex-col items-center gap-1.5 pb-4 text-center">
           <img
             src={keywardIcon}
@@ -232,18 +232,22 @@ function StepCard({
   children?: ReactNode
 }) {
   return (
-    <section className="flex flex-col gap-4 rounded-xl bg-card p-4 ring-1 ring-foreground/10">
-      <div className="flex items-center gap-3">
+    <section className="flex flex-col gap-4 overflow-hidden rounded-xl border border-border/80 bg-card p-4 shadow-2xs">
+      <div className="flex items-center gap-3.5">
         <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-muted">
           {icon}
         </span>
         <div className="flex min-w-0 flex-1 flex-col gap-0.5">
           <h2 className="text-sm font-medium">{title}</h2>
-          <p className="text-sm text-muted-foreground">{description}</p>
+          <p className="text-[0.8125rem] leading-5 text-muted-foreground">
+            {description}
+          </p>
         </div>
         {side}
       </div>
-      {children && <div className="flex flex-col gap-3 pl-13">{children}</div>}
+      {children && (
+        <div className="flex flex-col gap-3 border-t pt-4">{children}</div>
+      )}
     </section>
   )
 }

@@ -1,7 +1,6 @@
 import { HistoryIcon } from "lucide-react"
 import { FormError } from "@/components/keyward/form-field"
 import { Button } from "@/components/ui/button"
-import { Separator } from "@/components/ui/separator"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import type { GeneratorKind } from "@/lib/generator"
 import { type MessageKey, t } from "@/lib/i18n"
@@ -43,7 +42,8 @@ export function GeneratorView({
       <BackHeader title={t("popup.generator.title")} onBack={onBack}>
         <Button
           variant="ghost"
-          size="icon"
+          size="icon-sm"
+          className="text-muted-foreground hover:text-foreground"
           aria-label={t("popup.history.title")}
           title={t("popup.history.title")}
           onClick={onHistory}
@@ -51,53 +51,50 @@ export function GeneratorView({
           <HistoryIcon />
         </Button>
       </BackHeader>
-      <div className="min-h-0 flex-1 overflow-y-auto">
-        <div className="flex flex-col gap-2 px-3 pb-3">
-          <Tabs
-            value={kind}
-            onValueChange={(next) =>
-              generator.chooseKind(next as GeneratorKind)
-            }
+      <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto bg-canvas p-3">
+        <Tabs
+          value={kind}
+          onValueChange={(next) => generator.chooseKind(next as GeneratorKind)}
+        >
+          <TabsList
+            className="w-full"
+            aria-label={t("popup.generator.kindsLabel")}
           >
-            <TabsList
-              className="w-full"
-              aria-label={t("popup.generator.kindsLabel")}
-            >
-              {KINDS.map(([value, label]) => (
-                <TabsTrigger key={value} value={value}>
-                  {t(label)}
-                </TabsTrigger>
-              ))}
-            </TabsList>
-          </Tabs>
-          <GeneratedValueCard
-            kind={kind}
-            value={generator.value}
-            missingInputHint={missingInputHint}
-            onRegenerate={generator.regenerate}
-            onMessage={generator.setMessage}
-          />
-          <FormError>{generator.message}</FormError>
+            {KINDS.map(([value, label]) => (
+              <TabsTrigger key={value} value={value}>
+                {t(label)}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </Tabs>
+        <GeneratedValueCard
+          kind={kind}
+          value={generator.value}
+          missingInputHint={missingInputHint}
+          onRegenerate={generator.regenerate}
+          onMessage={generator.setMessage}
+        />
+        <FormError>{generator.message}</FormError>
+        <div className="overflow-hidden rounded-xl border border-border/80 bg-card shadow-2xs">
+          {kind === "password" && (
+            <PasswordOptionsForm
+              options={generator.passwordOptions}
+              onChange={generator.updatePasswordOptions}
+            />
+          )}
+          {kind === "passphrase" && (
+            <PassphraseOptionsForm
+              options={choices.passphrase}
+              onChange={generator.updatePassphrase}
+            />
+          )}
+          {kind === "username" && (
+            <UsernameOptionsForm
+              options={choices.username}
+              onChange={generator.updateUsername}
+            />
+          )}
         </div>
-        <Separator />
-        {kind === "password" && (
-          <PasswordOptionsForm
-            options={generator.passwordOptions}
-            onChange={generator.updatePasswordOptions}
-          />
-        )}
-        {kind === "passphrase" && (
-          <PassphraseOptionsForm
-            options={choices.passphrase}
-            onChange={generator.updatePassphrase}
-          />
-        )}
-        {kind === "username" && (
-          <UsernameOptionsForm
-            options={choices.username}
-            onChange={generator.updateUsername}
-          />
-        )}
       </div>
     </div>
   )

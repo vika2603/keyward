@@ -41,7 +41,7 @@ export function PasswordHistoryView({
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <BackHeader title={t("popup.passwordHistory.title")} onBack={onBack} />
-      <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-3 pb-3">
+      <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto bg-canvas p-3">
         {entries?.length === 0 && (
           <p className="px-1 text-sm text-muted-foreground">
             {t("popup.passwordHistory.empty")}

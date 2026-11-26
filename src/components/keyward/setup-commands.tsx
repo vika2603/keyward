@@ -85,7 +85,7 @@ export function CommandBox({ command }: { command: string }) {
     )
 
   return (
-    <div className="flex items-start gap-2 rounded-lg bg-muted py-1.5 pr-1.5 pl-3">
+    <div className="flex items-start gap-2 rounded-lg border border-border/60 bg-muted/70 py-1.5 pr-1.5 pl-3">
       <code className="min-w-0 flex-1 py-1 font-mono text-xs leading-5 break-all select-all">
         {command}
       </code>

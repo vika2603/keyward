@@ -7,35 +7,51 @@ import type { ReactNode } from "react"
 import { Button } from "@/components/ui/button"
 import { openConnectPasswords } from "@/lib/connect-passwords"
 import { t } from "@/lib/i18n"
+import { cn } from "@/lib/utils"
 import { usePopOut } from "./pop-out"
 
 export function BackHeader({
   title,
+  bordered = true,
   onBack,
   children,
 }: {
   /** Left out on a page whose content names it already. */
   title?: string
+  bordered?: boolean
   onBack: () => void
   children?: ReactNode
 }) {
   const popOut = usePopOut()
   return (
-    <div className="flex items-center gap-2 p-2">
+    <div
+      className={cn(
+        "flex h-11 shrink-0 items-center gap-1.5 bg-background px-2",
+        bordered && "border-b border-border/70",
+      )}
+    >
       <Button
         variant="ghost"
-        size="icon"
+        size="icon-sm"
+        className="text-muted-foreground hover:text-foreground"
         aria-label={t("popup.back")}
         onClick={onBack}
       >
         <ChevronLeftIcon />
       </Button>
-      {title && <h1 className="flex-1 text-sm font-medium">{title}</h1>}
+      {title ? (
+        <h1 className="min-w-0 flex-1 truncate text-sm font-semibold tracking-tight">
+          {title}
+        </h1>
+      ) : (
+        <div className="flex-1" />
+      )}
       {children}
       {popOut && (
         <Button
           variant="ghost"
-          size="icon"
+          size="icon-sm"
+          className="text-muted-foreground hover:text-foreground"
           aria-label={t("popup.popOut")}
           title={t("popup.popOut")}
           onClick={popOut}
@@ -51,7 +67,8 @@ export function SettingsButton() {
   return (
     <Button
       variant="ghost"
-      size="icon"
+      size="icon-sm"
+      className="text-muted-foreground hover:text-foreground"
       aria-label={t("popup.settings")}
       title={t("popup.settings")}
       onClick={() => {

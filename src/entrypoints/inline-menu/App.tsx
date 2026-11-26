@@ -107,7 +107,7 @@ export function App() {
       <div
         ref={card}
         role="menu"
-        className="flex max-h-[440px] w-full flex-col overflow-y-auto rounded-lg bg-popover pb-1 text-popover-foreground shadow-md ring-1 ring-foreground/10 outline-none [scrollbar-width:thin]"
+        className="flex max-h-[440px] w-full flex-col overflow-y-auto rounded-xl border border-border/80 bg-popover pb-1 text-popover-foreground shadow-md outline-none [scrollbar-width:thin]"
       >
         {state === null ? (
           <LoginListSkeleton compact={compact} heading={false} />

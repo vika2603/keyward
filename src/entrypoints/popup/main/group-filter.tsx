@@ -241,7 +241,7 @@ export function GroupFilterBar({ vaultId }: { vaultId: string }) {
     })
 
   return (
-    <div className="flex gap-1.5 pr-3 pb-2 pl-2">
+    <div className="flex gap-1.5 pb-2">
       {parts.map(({ part, choices }) => (
         <Select
           key={part}

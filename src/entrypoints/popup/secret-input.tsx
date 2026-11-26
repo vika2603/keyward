@@ -49,6 +49,7 @@ export function SecretInput({
           type="button"
           variant="ghost"
           size="icon-sm"
+          className="text-muted-foreground hover:text-foreground"
           aria-label={eyeLabel}
           title={eyeLabel}
           onClick={toggle}

@@ -41,7 +41,7 @@ function RowShell({
   return (
     <div
       className={cn(
-        "group/row flex items-center gap-2.5 rounded-lg px-2 py-1.5 hover:bg-muted focus-within:bg-muted",
+        "group/row flex items-center gap-2.5 rounded-lg px-1.5 py-1.5 transition-colors hover:bg-muted/80 focus-within:bg-muted/80",
         compact ? "min-h-9" : "min-h-12",
       )}
     >
@@ -92,7 +92,7 @@ function RowActions({
   return (
     <div
       className={cn(
-        "flex shrink-0 gap-0.5 opacity-0 group-hover/row:opacity-100 group-focus-within/row:opacity-100",
+        "flex shrink-0 gap-0.5 opacity-0 transition-opacity duration-100 group-hover/row:opacity-100 group-focus-within/row:opacity-100",
         className,
         shown && "opacity-100",
       )}

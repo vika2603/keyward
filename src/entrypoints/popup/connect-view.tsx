@@ -22,8 +22,8 @@ export function ConnectView({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <BackHeader onBack={onDone} />
-      <div className="flex min-h-0 flex-1 flex-col justify-center overflow-y-auto px-4 pb-12">
+      <BackHeader bordered={false} onBack={onDone} />
+      <div className="flex min-h-0 flex-1 flex-col justify-center overflow-y-auto px-5 pb-12">
         {kind === "apple" ? (
           <ApplePairing onPaired={onDone} onSetUp={openConnectPage} />
         ) : (

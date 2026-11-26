@@ -263,7 +263,7 @@ export function VirtualRows({
             key={item.key}
             data-index={item.index}
             ref={virtualizer.measureElement}
-            className="absolute top-0 left-0 w-full px-1 pb-0.5"
+            className="absolute top-0 left-0 w-full px-1.5 pb-0.5"
             style={{ transform: `translateY(${item.start - scrollMargin}px)` }}
           >
             {row.type === "vault" && (
@@ -272,7 +272,7 @@ export function VirtualRows({
                   type="button"
                   aria-expanded={row.open}
                   onClick={() => onToggleVault?.(row.vault.id)}
-                  className="flex min-w-0 flex-1 items-center gap-1.5 self-stretch rounded-md px-2 text-left text-xs font-medium text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
+                  className="flex min-w-0 flex-1 items-center gap-1.5 self-stretch rounded-md px-1.5 text-left text-xs font-medium text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
                 >
                   <BrandIcon kind={row.vault.kind} className="size-3.5" />
                   <span className="min-w-0 truncate">
@@ -290,7 +290,9 @@ export function VirtualRows({
               </div>
             )}
             {row.type === "groupFilter" && (
-              <GroupFilterBar vaultId={row.vault.id} />
+              <div className="px-1.5">
+                <GroupFilterBar vaultId={row.vault.id} />
+              </div>
             )}
             {row.type === "login" && (
               <LoginRow
@@ -421,7 +423,7 @@ export function ItemBrowser({
 
   return (
     <section>
-      <div className="flex min-h-9 items-center gap-2 pt-2 pr-3 pb-2 pl-2">
+      <div className="flex min-h-9 items-center gap-2 px-3 pt-2 pb-1.5">
         {filters.length > 1 ? (
           <Select
             value={filter}
@@ -453,7 +455,7 @@ export function ItemBrowser({
             </SelectContent>
           </Select>
         ) : (
-          <h2 className="truncate px-1 text-xs font-semibold">
+          <h2 className="truncate text-xs font-semibold">
             {t("popup.main.allItems")}
           </h2>
         )}
@@ -464,7 +466,11 @@ export function ItemBrowser({
           {itemCount}
         </span>
       </div>
-      {onlyVault && <GroupFilterBar vaultId={onlyVault.id} />}
+      {onlyVault && (
+        <div className="px-3">
+          <GroupFilterBar vaultId={onlyVault.id} />
+        </div>
+      )}
       {filter === "site" ? site : listedItems}
     </section>
   )

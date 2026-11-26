@@ -72,8 +72,11 @@ export function NoteView({
         onBack={onBack}
         onEdit={onEdit}
       />
-      <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-3 pb-3">
-        <ItemTitle icon={<NoteIcon className="size-10" />} name={name} />
+      <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto bg-canvas p-3">
+        <ItemTitle
+          icon={<NoteIcon className="size-10 rounded-lg" />}
+          name={name}
+        />
         {!details && !loadError && (
           <div role="status" className="flex flex-col gap-1.5">
             <span className="sr-only">{t("common.loading")}</span>

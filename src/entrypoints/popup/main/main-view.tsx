@@ -92,7 +92,7 @@ export function MainView({
         />
       )}
       {lists.tabsShown && (
-        <div className="px-2 pb-2">
+        <div className="px-3 pb-2.5">
           <Tabs
             value={tab}
             onValueChange={(value) => changeTab(value as ProviderTab)}
@@ -109,7 +109,7 @@ export function MainView({
           </Tabs>
         </div>
       )}
-      {(loading || anyVaultReady) && <Separator />}
+      {(loading || anyVaultReady) && <Separator className="bg-border/70" />}
       {/* biome-ignore lint/a11y/noStaticElementInteractions: arrow keys move between the rows' buttons, which take the focus. */}
       <div
         ref={listRef}

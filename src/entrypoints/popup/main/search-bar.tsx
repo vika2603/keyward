@@ -19,7 +19,7 @@ export function SearchBar({
   onOpenFirstRow: () => void
 }) {
   return (
-    <div className="flex gap-1.5 px-2 pb-2">
+    <div className="flex gap-1.5 px-3 pb-2.5">
       <div className="relative min-w-0 flex-1">
         <SearchIcon className="pointer-events-none absolute top-2 left-2.5 size-4 text-muted-foreground" />
         <Input
@@ -46,7 +46,7 @@ export function SearchBar({
           autoComplete="off"
           spellCheck={false}
           autoFocus
-          className="pr-8 pl-8 [&::-webkit-search-cancel-button]:appearance-none"
+          className="bg-muted/45 pr-8 pl-8 focus-visible:bg-background [&::-webkit-search-cancel-button]:appearance-none"
         />
         {query && (
           <Button

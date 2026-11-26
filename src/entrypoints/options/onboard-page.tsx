@@ -58,8 +58,8 @@ export function OnboardPage() {
   const done = () => navigate("vaults")
 
   return (
-    <div className="flex min-h-screen flex-col items-center bg-muted px-4 pt-6 pb-16">
-      <main className="flex w-full max-w-[440px] flex-col gap-4">
+    <div className="flex min-h-screen flex-col items-center bg-canvas px-4 pt-8 pb-16">
+      <main className="flex w-full max-w-[420px] flex-col gap-4">
         <div>
           <Button
             variant="ghost"
@@ -72,7 +72,7 @@ export function OnboardPage() {
           </Button>
         </div>
         <header className="flex flex-col items-center gap-1.5 pb-2 text-center">
-          <div className="mb-2 flex size-12 items-center justify-center rounded-xl bg-card ring-1 ring-foreground/10">
+          <div className="mb-2 flex size-12 items-center justify-center rounded-xl border border-border/80 bg-card shadow-2xs">
             <BrandIcon kind="bitwarden" className="size-6" />
           </div>
           <h1 className="text-2xl leading-8 font-semibold tracking-tight">
@@ -82,7 +82,7 @@ export function OnboardPage() {
             {t("options.onboard.description")}
           </p>
         </header>
-        <section className="rounded-xl bg-card p-4 ring-1 ring-foreground/10">
+        <section className="rounded-xl border border-border/80 bg-card p-5 shadow-2xs">
           <SignIn onSignedIn={done} />
         </section>
       </main>

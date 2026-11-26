@@ -1,4 +1,5 @@
 import { LockIcon, PlusIcon, RefreshCcwDotIcon } from "lucide-react"
+import keywardIcon from "@/assets/icon.svg"
 import { Button } from "@/components/ui/button"
 import { t } from "@/lib/i18n"
 import { SettingsButton } from "../header"
@@ -18,11 +19,23 @@ export function MainHeader({
   onLockAll: () => void
 }) {
   return (
-    <div className="flex items-center gap-1 py-2 pr-2 pl-3">
-      <h1 className="min-w-0 flex-1 truncate text-sm font-medium">Keyward</h1>
+    <div className="flex h-11 shrink-0 items-center gap-0.5 pr-2 pl-3">
+      <div className="flex min-w-0 flex-1 items-center gap-2">
+        <img
+          src={keywardIcon}
+          alt=""
+          aria-hidden="true"
+          draggable={false}
+          className="size-5 shrink-0"
+        />
+        <h1 className="min-w-0 truncate text-sm font-semibold tracking-tight">
+          Keyward
+        </h1>
+      </div>
       <Button
         variant="ghost"
-        size="icon"
+        size="icon-sm"
+        className="text-muted-foreground hover:text-foreground"
         aria-label={t("popup.add.title")}
         title={t("popup.add.title")}
         onClick={onAdd}
@@ -31,7 +44,8 @@ export function MainHeader({
       </Button>
       <Button
         variant="ghost"
-        size="icon"
+        size="icon-sm"
+        className="text-muted-foreground hover:text-foreground"
         aria-label={t("popup.generator.title")}
         title={t("popup.generator.title")}
         onClick={onGenerator}
@@ -42,7 +56,8 @@ export function MainHeader({
       {lockShown && (
         <Button
           variant="ghost"
-          size="icon"
+          size="icon-sm"
+          className="text-muted-foreground hover:text-foreground"
           aria-label={t("popup.main.lockAll")}
           title={t("popup.main.lockAll")}
           disabled={!lockEnabled}

@@ -3,7 +3,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
 
-const LABEL_CLASS = "text-sm font-medium"
+const LABEL_CLASS = "text-xs font-medium text-muted-foreground"
 
 /**
  * A row of the generator's options: a name in a column of its own, the controls beside it, and an
@@ -32,12 +32,17 @@ export function OptionRow({
   const id = labelId ?? generatedId
   // A row with a hint keeps its controls' line as tall as the controls' part of a row without one.
   const controls = (
-    <div className={cn("flex min-w-0 items-center gap-3", hint && "min-h-9")}>
+    <div
+      className={cn(
+        "flex min-w-0 flex-wrap items-center gap-x-2.5 gap-y-2",
+        hint && "min-h-8",
+      )}
+    >
       {children}
     </div>
   )
   return (
-    <div className="grid min-h-13 grid-cols-[--spacing(20)_minmax(0,1fr)] items-center gap-x-3 gap-y-1.5 border-t px-3 py-2 first:border-t-0">
+    <div className="grid min-h-12 grid-cols-[--spacing(17)_minmax(0,1fr)] items-center gap-x-3 gap-y-1.5 border-t px-3 py-2.5 first:border-t-0">
       {htmlFor ? (
         <label htmlFor={htmlFor} className={LABEL_CLASS}>
           {label}
@@ -90,6 +95,7 @@ export function NumberInput({
   min,
   max,
   onValueChange,
+  className,
   ...props
 }: Omit<
   ComponentProps<typeof Input>,
@@ -110,6 +116,10 @@ export function NumberInput({
       min={min}
       max={max}
       value={draft ?? String(value)}
+      className={cn(
+        "[appearance:textfield] text-center tabular-nums [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none",
+        className,
+      )}
       onChange={(event) => {
         const text = event.target.value
         const number = Number(text)

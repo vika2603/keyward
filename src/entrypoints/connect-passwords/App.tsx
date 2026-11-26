@@ -44,7 +44,7 @@ function ConnectPasswords() {
   const link = linkOf(status)
 
   return (
-    <div className="flex min-h-screen flex-col items-center bg-muted px-4 pt-16 pb-16">
+    <div className="flex min-h-screen flex-col items-center bg-canvas px-4 pt-16 pb-16">
       <main className="flex w-full max-w-[520px] flex-col gap-8">
         <header className="flex flex-col items-center gap-1 text-center">
           <ConnectionIcons link={link} />
@@ -53,7 +53,7 @@ function ConnectPasswords() {
           </h1>
           <LinkStatus link={link} />
         </header>
-        <section className="flex flex-col gap-4 rounded-xl bg-card p-5 ring-1 ring-foreground/10">
+        <section className="flex flex-col gap-4 overflow-hidden rounded-xl border border-border/80 bg-card p-5 shadow-2xs">
           {status === "done" ? (
             <>
               <p className="text-sm text-muted-foreground">

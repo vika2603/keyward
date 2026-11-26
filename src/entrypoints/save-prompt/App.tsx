@@ -115,7 +115,7 @@ export function App() {
       <div
         ref={card}
         style={{ width: PROMPT_WIDTH }}
-        className="flex flex-col gap-3 rounded-lg bg-popover p-3 text-popover-foreground shadow-md ring-1 ring-foreground/10"
+        className="flex flex-col gap-3 rounded-xl border border-border/80 bg-popover p-3.5 text-popover-foreground shadow-md"
       >
         {state && language && (
           <>

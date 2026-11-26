@@ -183,7 +183,7 @@ export function EditView({
       }}
     >
       <BackHeader title={t("popup.edit.title")} onBack={onDone} />
-      <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-3 pt-1 pb-3">
+      <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-3 py-3">
         {!form && !message && (
           <div role="status" className="flex flex-col gap-4 py-1">
             <span className="sr-only">{t("common.loading")}</span>
@@ -228,6 +228,7 @@ export function EditView({
                     type="button"
                     variant="ghost"
                     size="icon-sm"
+                    className="text-muted-foreground hover:text-foreground"
                     aria-label={t("popup.add.generate")}
                     title={t("popup.add.generate")}
                     onClick={() => void generate()}

@@ -23,7 +23,7 @@ export function PassphraseOptionsForm({
       >
         <NumberInput
           id="gen-words"
-          className="w-20"
+          className="w-14"
           min={WORDS_MIN}
           max={WORDS_MAX}
           value={options.words}
@@ -33,7 +33,7 @@ export function PassphraseOptionsForm({
       <OptionRow label={t("popup.generator.separator")} htmlFor="gen-separator">
         <Input
           id="gen-separator"
-          className="w-20 font-mono"
+          className="w-14 text-center font-mono"
           maxLength={1}
           spellCheck={false}
           value={options.separator}

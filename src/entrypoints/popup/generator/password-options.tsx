@@ -49,7 +49,7 @@ export function PasswordOptionsForm({
           }
         />
         <NumberInput
-          className="w-20 shrink-0"
+          className="w-14 shrink-0"
           aria-labelledby="gen-length"
           min={LENGTH_MIN}
           max={LENGTH_MAX}
@@ -87,7 +87,7 @@ export function PasswordOptionsForm({
           </label>
           <NumberInput
             id="gen-minimum-digits"
-            className="w-14"
+            className="w-12"
             aria-label={t("popup.generator.minimumDigits")}
             min={0}
             max={MINIMUM_COUNT_MAX}
@@ -102,7 +102,7 @@ export function PasswordOptionsForm({
           </label>
           <NumberInput
             id="gen-minimum-symbols"
-            className="w-14"
+            className="w-12"
             aria-label={t("popup.generator.minimumSymbols")}
             min={0}
             max={MINIMUM_COUNT_MAX}

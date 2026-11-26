@@ -170,7 +170,7 @@ export function OneTimeCodeField({
         <>
           {code &&
             (remaining !== null && code.period ? (
-              <span className="flex size-8 items-center justify-center">
+              <span className="flex size-7 items-center justify-center">
                 <Countdown remaining={remaining} period={code.period} />
               </span>
             ) : (

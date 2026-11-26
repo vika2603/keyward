@@ -32,6 +32,7 @@ import { CustomFieldsEditor } from "./custom-fields-editor"
 import { BackHeader } from "./header"
 import { NO_FOLDER } from "./main/group-filter"
 import { NoteForm } from "./note-form"
+import { SecretInput } from "./secret-input"
 
 /** The places that can store a login are asked for once typing in the site pauses this long. */
 const SITE_TYPING_DELAY_MS = 200
@@ -147,6 +148,7 @@ function AddLoginForm({ onDone }: { onDone: () => void }) {
   const [site, setSite] = useState("")
   const [username, setUsername] = useState("")
   const [password, setPassword] = useState("")
+  const [revealed, setRevealed] = useState(false)
   const [targets, setTargets] = useState<VaultInfo[] | null>(null)
   const [unsupported, setUnsupported] = useState<VaultInfo[]>([])
   const [destination, setDestination] = useState<Destination>({
@@ -215,6 +217,7 @@ function AddLoginForm({ onDone }: { onDone: () => void }) {
   const generate = async () => {
     const generated = generatePassword(await getGeneratorOptions())
     setPassword(generated)
+    setRevealed(true)
     await callBackground("generator.record", {
       password: generated,
       site,
@@ -263,7 +266,7 @@ function AddLoginForm({ onDone }: { onDone: () => void }) {
         void save()
       }}
     >
-      <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-3 pt-1 pb-3">
+      <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-3 py-3">
         <FormField label={t("popup.add.site")} htmlFor="add-site">
           <Input
             id="add-site"
@@ -281,28 +284,29 @@ function AddLoginForm({ onDone }: { onDone: () => void }) {
           />
         </FormField>
         <FormField label={t("popup.add.password")} htmlFor="add-password">
-          <div className="relative">
-            <Input
-              id="add-password"
-              className="pr-9 font-mono"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              autoComplete="off"
-              spellCheck={false}
-              required={apple}
-            />
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              className="absolute top-0.5 right-0.5"
-              aria-label={t("popup.add.generate")}
-              title={t("popup.add.generate")}
-              onClick={() => void generate()}
-            >
-              <RefreshCcwDotIcon />
-            </Button>
-          </div>
+          <SecretInput
+            id="add-password"
+            showLabel={t("popup.detail.showPassword")}
+            hideLabel={t("popup.detail.hidePassword")}
+            shown={revealed}
+            onShownChange={setRevealed}
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
+            required={apple}
+            action={
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                className="text-muted-foreground hover:text-foreground"
+                aria-label={t("popup.add.generate")}
+                title={t("popup.add.generate")}
+                onClick={() => void generate()}
+              >
+                <RefreshCcwDotIcon />
+              </Button>
+            }
+          />
           {appleNeedsPassword && (
             <p className="text-xs text-muted-foreground">
               {t("popup.add.appleNeedsPassword")}
@@ -323,7 +327,7 @@ function AddLoginForm({ onDone }: { onDone: () => void }) {
                 type="button"
                 variant="ghost"
                 size="sm"
-                className="text-muted-foreground"
+                className="-ml-2 text-muted-foreground"
                 onClick={() => void openNewPasswordSheet()}
               >
                 <ExternalLinkIcon />
@@ -387,10 +391,11 @@ export function AddView({ onBack }: { onBack: () => void }) {
         title={
           kind === "note" ? t("popup.note.addTitle") : t("popup.add.title")
         }
+        bordered={!notesPossible}
         onBack={onBack}
       />
       {notesPossible && (
-        <div className="px-3 pb-2">
+        <div className="border-b border-border/70 px-3 pb-2.5">
           <Tabs
             value={kind}
             onValueChange={(value) => setKind(value as AddKind)}

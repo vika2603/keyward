@@ -38,12 +38,12 @@ function Group({
   children: ReactNode
 }) {
   return (
-    <section className="flex flex-col gap-1">
+    <section className="flex flex-col gap-1.5">
       <h2 className="flex items-center gap-1.5 px-1 text-xs font-medium text-muted-foreground">
         {icon}
         <span className="min-w-0 truncate">{title}</span>
       </h2>
-      <div className="rounded-xl bg-card ring-1 ring-foreground/10">
+      <div className="overflow-hidden rounded-xl border border-border/80 bg-card shadow-2xs">
         {children}
       </div>
     </section>
@@ -135,13 +135,13 @@ export function CodeSetupView({
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <BackHeader title={t("popup.codeSetup.title")} onBack={onBack} />
-      <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-3 pb-3">
+      <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto bg-canvas p-3">
         {setup && (
           <div className={cn("flex items-center gap-3 px-1", FADE_IN)}>
             <SiteIcon
               host={setup.host}
               text={setup.issuer ?? setup.host}
-              className="size-10"
+              className="size-10 rounded-lg text-sm"
             />
             <div className="flex min-w-0 flex-col gap-0.5">
               <span className="truncate text-sm font-medium">

@@ -58,7 +58,10 @@ export function Card({
 }) {
   return (
     <div
-      className={cn("rounded-xl bg-card ring-1 ring-foreground/10", className)}
+      className={cn(
+        "overflow-hidden rounded-xl border border-border/80 bg-card shadow-2xs",
+        className,
+      )}
     >
       {children}
     </div>
@@ -80,14 +83,16 @@ export function Option({
   return (
     <div
       className={cn(
-        "flex flex-wrap items-center justify-between gap-x-6 gap-y-2 border-t px-4 py-3 first:border-t-0",
+        "flex flex-wrap items-center justify-between gap-x-6 gap-y-2 border-t px-4 py-3.5 first:border-t-0",
         className,
       )}
     >
       <div className="flex min-w-0 shrink grow basis-[260px] flex-col gap-0.5">
         <span className="text-sm font-medium">{name}</span>
         {description && (
-          <span className="text-sm text-muted-foreground">{description}</span>
+          <span className="text-[0.8125rem] leading-5 text-muted-foreground">
+            {description}
+          </span>
         )}
       </div>
       {children}

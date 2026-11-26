@@ -91,7 +91,7 @@ export function Section({
           {title}
         </h2>
       )}
-      <div className="rounded-xl bg-card ring-1 ring-foreground/10">
+      <div className="overflow-hidden rounded-xl border border-border/80 bg-card shadow-2xs">
         {children}
       </div>
     </section>
@@ -111,7 +111,7 @@ export function DetailRow({
   valueRef?: RefObject<HTMLDivElement | null>
 }) {
   return (
-    <div className="flex min-h-12 items-center gap-1 border-t py-2 pr-2 pl-3 first:border-t-0">
+    <div className="flex min-h-12 items-center gap-1.5 border-t py-2 pr-2 pl-3 first:border-t-0">
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
         {label && (
           <span className="text-xs text-muted-foreground">{label}</span>
@@ -139,7 +139,8 @@ export function IconButton({
   return (
     <Button
       variant="ghost"
-      size="icon"
+      size="icon-sm"
+      className="text-muted-foreground hover:text-foreground"
       aria-label={label}
       title={label}
       disabled={disabled}
@@ -188,7 +189,8 @@ export function FavoriteButton({
   return (
     <Button
       variant="ghost"
-      size="icon"
+      size="icon-sm"
+      className={cn(!favorite && "text-muted-foreground hover:text-foreground")}
       aria-label={label}
       title={label}
       aria-pressed={favorite}

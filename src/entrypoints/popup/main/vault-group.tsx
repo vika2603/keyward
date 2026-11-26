@@ -117,11 +117,9 @@ export function VaultGroup({
   if (heading === "tab") {
     return (
       <section>
-        <div className="flex min-h-9 items-center gap-0.5 pt-2 pr-3 pb-2 pl-2">
+        <div className="flex min-h-9 items-center gap-0.5 px-3 pt-2 pb-1.5">
           {title && (
-            <h2 className="min-w-0 truncate px-1 text-xs font-semibold">
-              {title}
-            </h2>
+            <h2 className="min-w-0 truncate text-xs font-semibold">{title}</h2>
           )}
           <span className="ml-auto flex shrink-0 items-center gap-0.5">
             {actions}
@@ -139,7 +137,7 @@ export function VaultGroup({
     <Collapsible open={open} onOpenChange={onOpenChange} render={<section />}>
       {/* The chevron stays last and the lock, which every group has, next to it, so both line up
           across groups; the Apple group's extra button sits further left. */}
-      <h2 className="flex items-center gap-0.5 pt-1.5 pr-1.5">
+      <h2 className="flex min-h-8 items-center gap-0.5 pt-1.5 pr-2">
         <CollapsibleTrigger className="flex min-w-0 flex-1 items-center gap-1.5 self-stretch px-3 text-left text-xs font-medium text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50">
           <BrandIcon kind={vault.kind} className="size-3.5" />
           <span className="min-w-0 truncate">{vaultLabel(vault)}</span>
@@ -148,7 +146,7 @@ export function VaultGroup({
         <CollapsibleTrigger render={<FoldToggle open={open} />} />
       </h2>
       <CollapsibleContent>
-        <div className="pt-1">{rowList}</div>
+        <div className="pt-0.5">{rowList}</div>
       </CollapsibleContent>
     </Collapsible>
   )

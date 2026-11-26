@@ -1,4 +1,11 @@
+import {
+  GlobeIcon,
+  KeyboardIcon,
+  RectangleEllipsisIcon,
+  VaultIcon,
+} from "lucide-react"
 import { useEffect, useState } from "react"
+import keywardIcon from "@/assets/icon.svg"
 import { useAppearance } from "@/components/keyward/appearance"
 import { useLanguage } from "@/components/keyward/language"
 import { t } from "@/lib/i18n"
@@ -11,10 +18,30 @@ import { SitesPage } from "./sites-page"
 import { VaultsPage } from "./vaults-page"
 
 const PAGES = [
-  { hash: "vaults", titleKey: "options.vaults.title", Page: VaultsPage },
-  { hash: "fill", titleKey: "options.fill.title", Page: FillPage },
-  { hash: "sites", titleKey: "options.sites.title", Page: SitesPage },
-  { hash: "keys", titleKey: "options.keys.title", Page: KeysPage },
+  {
+    hash: "vaults",
+    titleKey: "options.vaults.title",
+    Icon: VaultIcon,
+    Page: VaultsPage,
+  },
+  {
+    hash: "fill",
+    titleKey: "options.fill.title",
+    Icon: RectangleEllipsisIcon,
+    Page: FillPage,
+  },
+  {
+    hash: "sites",
+    titleKey: "options.sites.title",
+    Icon: GlobeIcon,
+    Page: SitesPage,
+  },
+  {
+    hash: "keys",
+    titleKey: "options.keys.title",
+    Icon: KeyboardIcon,
+    Page: KeysPage,
+  },
 ] as const
 
 export function App() {
@@ -33,31 +60,44 @@ export function App() {
 
   const page = PAGES.find((candidate) => candidate.hash === hash) ?? PAGES[0]
   return (
-    <div className="flex min-h-screen flex-wrap bg-background">
+    <div className="flex min-h-screen flex-col bg-canvas md:flex-row">
       <nav
         aria-label={t("options.nav.label")}
-        className="flex shrink grow basis-[220px] flex-col gap-1 border-r border-sidebar-border bg-sidebar p-2"
+        className="flex flex-col gap-2 border-b border-sidebar-border bg-sidebar p-3 md:w-60 md:shrink-0 md:border-r md:border-b-0"
       >
-        <div className="px-2.5 pt-1 pb-3.5 text-sm font-semibold">
+        <div className="flex items-center gap-2.5 px-2.5 pt-1.5 pb-2 text-sm font-semibold tracking-tight">
+          <img
+            src={keywardIcon}
+            alt=""
+            aria-hidden="true"
+            draggable={false}
+            className="size-6 shrink-0"
+          />
           {t("options.nav.heading")}
         </div>
-        {PAGES.map((navPage) => (
-          <a
-            key={navPage.hash}
-            href={`#${navPage.hash}`}
-            aria-current={navPage === page ? "page" : undefined}
-            className={cn(
-              "flex h-8 items-center gap-2 rounded-md p-2 text-sm hover:bg-foreground/5",
-              navPage === page &&
-                "bg-foreground/8 font-medium hover:bg-foreground/8",
-            )}
-          >
-            {t(navPage.titleKey)}
-          </a>
-        ))}
+        <div className="flex flex-wrap gap-1 md:flex-col">
+          {PAGES.map((navPage) => {
+            const active = navPage === page
+            return (
+              <a
+                key={navPage.hash}
+                href={`#${navPage.hash}`}
+                aria-current={active ? "page" : undefined}
+                className={cn(
+                  "flex h-8.5 items-center gap-2.5 rounded-lg px-2.5 text-sm text-muted-foreground transition-colors hover:bg-foreground/5 hover:text-foreground",
+                  active &&
+                    "bg-foreground/8 font-medium text-foreground hover:bg-foreground/8",
+                )}
+              >
+                <navPage.Icon className="size-4 shrink-0" aria-hidden="true" />
+                {t(navPage.titleKey)}
+              </a>
+            )
+          })}
+        </div>
       </nav>
-      <main className="min-w-0 shrink grow-[999] basis-[560px] px-[clamp(16px,4vw,40px)] pt-8 pb-14">
-        <div className="flex max-w-[720px] flex-col gap-6">
+      <main className="min-w-0 flex-1 px-[clamp(16px,4vw,48px)] pt-8 pb-16">
+        <div className="mx-auto flex max-w-[720px] flex-col gap-6">
           <page.Page />
         </div>
       </main>
