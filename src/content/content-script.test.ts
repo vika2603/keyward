@@ -256,6 +256,22 @@ describe("filling a login", () => {
     await page.send({ ...login(), autoSubmit: true })
     expect(submitted).toHaveBeenCalledOnce()
   })
+
+  it("fills only the username of a login without a password and leaves the form to the user", async () => {
+    document.body.innerHTML = SIGN_IN
+    const page = await startContentScript()
+    ctx = page.ctx
+    input("[name=password]").value = "typed-by-the-user"
+    const submitted = vi.fn((event: Event) => event.preventDefault())
+    document.addEventListener("submit", submitted)
+
+    await page.send({ ...login(), password: "", autoSubmit: true })
+    expect(filled()).toEqual({
+      username: "user@example.com",
+      password: "typed-by-the-user",
+    })
+    expect(submitted).not.toHaveBeenCalled()
+  })
 })
 
 describe("opening the menu while an earlier opening waits for the background", () => {

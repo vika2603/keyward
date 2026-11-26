@@ -235,6 +235,15 @@ describe("AppleProvider.save", () => {
     expect(await saveOutcome(apple, "")).toBe("apple.saveUnconfirmed")
   })
 
+  it("refuses a login without a password before asking the helper", async () => {
+    const apple = saving([], ["me"])
+    const query = vi.spyOn(internalsOf(apple), "query")
+    await expect(
+      apple.save("apple", { url, username: "me", password: "" }, tab),
+    ).rejects.toMatchObject({ code: "apple.emptyPassword" })
+    expect(query).not.toHaveBeenCalled()
+  })
+
   it("reports a named login the listing lacks as not stored", async () => {
     const apple = saving(["someone"], ["someone"])
     expect(await saveOutcome(apple, "me")).toBe("apple.notSaved")

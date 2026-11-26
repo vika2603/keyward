@@ -537,7 +537,7 @@ export class AppleProvider implements VaultProvider {
     if (password === null)
       throw new VaultError(
         "Apple Passwords has no password for this login",
-        "apple.noPassword",
+        "noPassword",
       )
     throw new VaultError("Apple Passwords returned no password", "notFound")
   }
@@ -684,6 +684,15 @@ export class AppleProvider implements VaultProvider {
         new VaultError(
           "Apple Passwords does not store logins for this host",
           "apple.unsupportedSite",
+        ),
+      )
+    }
+    // Apple's own extension offers only passwords typed into a page, never an empty one.
+    if (!login.password) {
+      return Promise.reject(
+        new VaultError(
+          "Apple Passwords needs a password",
+          "apple.emptyPassword",
         ),
       )
     }

@@ -34,9 +34,10 @@ export function popupSaveHandlers(providers: Providers) {
       handle: async ({ vaultId, site, username, password, details }) => {
         const url = siteInput(site)
         if (!url) throw new VaultError("Not a web address", "invalidSite")
+        const checkedUsername = requireText(username, "username").trim()
         const checkedPassword = requireText(password, "password")
-        if (!checkedPassword)
-          throw new VaultError("Empty password", "invalidInput")
+        if (!checkedUsername && !checkedPassword)
+          throw new VaultError("No username or password", "invalidInput")
         const vault = namedVault(providers, vaultId)
         const targets = await saveTargets(providers, url)
         if (!targets.some((target) => target.id === vault.vaultId)) {
@@ -49,7 +50,7 @@ export function popupSaveHandlers(providers: Providers) {
           vault.vaultId,
           {
             url,
-            username: requireText(username, "username").trim(),
+            username: checkedUsername,
             password: checkedPassword,
             details: newLoginDetailsInput(details),
           },

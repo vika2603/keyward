@@ -24,6 +24,7 @@ export const en = {
     "Keyward's background still runs the version from before the update. This works once Keyward starts again, such as after restarting the browser; everything else works now.",
   "common.close": "Close",
   "error.noCode": "This login has no verification code.",
+  "error.noPassword": "This login has no saved password.",
   "error.invalidCodeKey": "The saved authenticator key can't be read.",
   "error.noSetup":
     "There's no verification code to set up. Right-click the QR code on the page again.",
@@ -43,10 +44,10 @@ export const en = {
   "error.apple.saveUnconfirmed":
     "Can't tell whether Passwords saved this login. Check it in the Passwords app.",
   "error.apple.emptyUsername": "Passwords needs a username.",
+  "error.apple.emptyPassword": "Passwords needs a password.",
   "error.apple.unsupportedSite":
     "Passwords doesn't save logins for local or reserved addresses such as localhost, .local or .test.",
   "error.apple.query": "The Passwords request failed.",
-  "error.apple.noPassword": "This login has no saved password.",
   "error.bitwarden.wrongPassword": "The master password is not correct.",
   "error.bitwarden.auth": "The email, master password or code is not correct.",
   "error.bitwarden.signedOut":
@@ -105,6 +106,7 @@ export const zhCN: Record<keyof typeof en, string> = {
     "Keyward 的后台还在运行更新前的版本。Keyward 下次启动后（比如重启浏览器）就能用，其他功能现在照常可用。",
   "common.close": "关闭",
   "error.noCode": "这个登录没有验证码。",
+  "error.noPassword": "这个登录没有保存密码。",
   "error.invalidCodeKey": "无法读取保存的验证器密钥。",
   "error.noSetup": "没有待设置的验证码，请在网页上重新右键二维码。",
   "error.notEditable":
@@ -122,10 +124,10 @@ export const zhCN: Record<keyof typeof en, string> = {
   "error.apple.saveUnconfirmed":
     "无法确认 Passwords 是否保存了这个登录，请到 Passwords App 里查看。",
   "error.apple.emptyUsername": "Passwords 需要填写用户名。",
+  "error.apple.emptyPassword": "Passwords 需要填写密码。",
   "error.apple.unsupportedSite":
     "Passwords 不保存 localhost、.local、.test 这类本地或保留地址的登录。",
   "error.apple.query": "Passwords 请求失败。",
-  "error.apple.noPassword": "这个登录没有保存密码。",
   "error.bitwarden.wrongPassword": "主密码不正确。",
   "error.bitwarden.auth": "邮箱、主密码或验证码不正确。",
   "error.bitwarden.signedOut": "服务器已让这个账号退出，请重新登录。",

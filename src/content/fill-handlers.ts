@@ -75,10 +75,13 @@ export class FillHandlers {
       fillCustomFields(anchor, message.fields, filledFields)
       if (username && message.username)
         setFieldValue(username, message.username)
-      if (password) setFieldValue(password, message.password)
+      if (password && message.password)
+        setFieldValue(password, message.password)
     })
+    // A login without a password leaves a form that asks for one to the user.
+    const complete = Boolean(message.password) || !password
     const submitField = password ?? username
-    if (message.autoSubmit && submitField) submitFor(submitField)
+    if (message.autoSubmit && complete && submitField) submitFor(submitField)
   }
 
   fillCode(message: Message<"fillCode">): void {

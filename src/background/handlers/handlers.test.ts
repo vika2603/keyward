@@ -71,6 +71,43 @@ describe("request checks", () => {
     ])
   })
 
+  it("saves a login with a username and no password, but not one with neither", async () => {
+    const site = "https://example.com/"
+    const { providers, calls } = fakeProviders([{ info: accountVault }])
+    const save = (username: string) =>
+      request(
+        "popup.saveLogin",
+        { vaultId: accountVault.id, site, username, password: "" },
+        popup,
+        providers,
+      )
+    await save("someone")
+    expect(calls.save).toHaveBeenCalledWith(
+      accountVault.id,
+      expect.objectContaining({ username: "someone", password: "" }),
+      expect.anything(),
+    )
+    await expect(save("  ")).rejects.toMatchObject({ code: "invalidInput" })
+    expect(calls.save).toHaveBeenCalledOnce()
+  })
+
+  it("does not copy the empty password of a login without one", async () => {
+    const { providers } = fakeProviders([
+      {
+        info: accountVault,
+        credential: { username: "someone", password: "" },
+      },
+    ])
+    await expect(
+      request(
+        "popup.copyPassword",
+        { vaultId: accountVault.id, loginId: "item-1" },
+        popup,
+        providers,
+      ),
+    ).rejects.toMatchObject({ code: "noPassword" })
+  })
+
   it("refuses a menu height that is not a number", async () => {
     await menuSessions.set({
       tabId: TAB,

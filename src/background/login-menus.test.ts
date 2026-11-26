@@ -161,6 +161,25 @@ describe("LoginMenus", () => {
     expect(calls.credential.mock.calls[0]?.[2]).toEqual(new URL(PAGE_URL))
   })
 
+  it("leaves the clipboard as it is for a login without a password", async () => {
+    const { providers, calls } = fakeProviders([
+      {
+        info: accountVault,
+        credential: { username: "someone", password: "" },
+        logins: [someone],
+      },
+    ])
+    const menus = new LoginMenus(providers)
+    await menus.show([{ ...accountVault, logins: [someone] }], tab)
+    contextMenus.click(
+      { menuItemId: id("copyPassword", "someone"), frameId: 0 },
+      tab,
+    )
+    await vi.waitFor(() => expect(calls.credential).toHaveBeenCalled())
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(copyText).not.toHaveBeenCalled()
+  })
+
   it("fills a generated password into the right-clicked field's frame, offered only on fields", async () => {
     const { menus } = setUp()
     await menus.show([], tab)

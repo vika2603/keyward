@@ -56,6 +56,8 @@ export function popupItemHandlers(providers: Providers) {
       allow: popupOnly,
       handle: async ({ vaultId, loginId }) => {
         const { password } = await popupCredential(vaultId, loginId)
+        if (!password)
+          throw new VaultError("The login has no password", "noPassword")
         await copyText(password, true)
         return null
       },

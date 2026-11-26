@@ -212,7 +212,8 @@ export class LoginMenus {
           page,
           tab,
         )
-        await copyText(credential.password, true)
+        // An empty copy would clear what the clipboard holds.
+        if (credential.password) await copyText(credential.password, true)
         return
       }
       case "copyCode": {
