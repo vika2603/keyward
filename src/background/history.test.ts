@@ -12,14 +12,17 @@ import {
   listHistory,
   SETTLE_DELAY_MS,
 } from "./history"
+import { HttpAuth } from "./http-auth"
 import { fakeProviders, idleNamedProviders, pageModule } from "./test-support"
 
 vi.mock("./page", async () => (await import("./test-support")).pageModule)
 vi.mock("./clipboard", () => ({ copyText: vi.fn(async () => {}) }))
 
+const { providers } = fakeProviders([])
 const handlers = createHandlers(
-  fakeProviders([]).providers,
+  providers,
   idleNamedProviders(),
+  new HttpAuth(providers, async () => {}),
 )
 const popup = { kind: "popup" } as Sender
 

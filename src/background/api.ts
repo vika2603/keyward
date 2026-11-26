@@ -43,6 +43,15 @@ export interface VaultView extends VaultInfo {
   trashed?: TrashedItem[]
 }
 
+/** A site that asks for a login through the browser's sign-in dialog, with its logins. */
+export interface HttpAuthView {
+  /** The site's host, with its port when it has one. */
+  host: string
+  /** Whether the login travels encrypted, over HTTPS. */
+  encrypted: boolean
+  vaults: VaultView[]
+}
+
 export type PopupView =
   | { name: "main" }
   | { name: "generator" }
@@ -51,8 +60,10 @@ export type PopupView =
       name: "connect"
       kind: ProviderKind
       vaultId?: string
-      back?: "codeSetup"
+      back?: "codeSetup" | "httpAuth"
     }
+  /** The logins for a site that asks for one through the browser's own sign-in dialog. */
+  | { name: "httpAuth" }
   /** Where an authenticator key picked from a page goes. */
   | { name: "codeSetup" }
   /** A new login for the active page, asked for from the in-page menu. */
@@ -124,6 +135,15 @@ export type BackgroundApi = {
     result: { page: PageInfo | null; vaults: VaultView[] }
   }
   "popup.takeView": { payload: null; result: PopupView }
+  /** The site waiting for a login through the browser's sign-in dialog; null once it stopped. */
+  "popup.httpAuth": { payload: null; result: HttpAuthView | null }
+  /** Signs in to the waiting site with a login of its own. */
+  "popup.answerHttpAuth": {
+    payload: { vaultId: string; loginId: string }
+    result: null
+  }
+  /** Leaves the waiting site to the browser's own sign-in dialog. */
+  "popup.declineHttpAuth": { payload: null; result: null }
   /** Every login and note of each vault that can list itself whole, for browsing in the popup. */
   "popup.allItems": { payload: null; result: VaultView[] }
   /** Logins of the whole vault matching the query, per vault. */
@@ -458,6 +478,12 @@ export const VAULTS_CHANGED_KEY = "sources.changedAt"
  * one closes while the code is awaited, the pairing ends and the Mac closes its code window.
  */
 export const APPLE_PAIRING_PORT = "apple-pairing"
+
+/**
+ * The popup that lists the logins of a site asking through the browser's sign-in dialog holds a
+ * port of this name open; when it closes without a choice, the browser's dialog asks instead.
+ */
+export const HTTP_AUTH_PORT = "http-auth"
 
 export function isContentMessage(
   message: unknown,

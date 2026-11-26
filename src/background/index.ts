@@ -4,13 +4,14 @@ import { AppleProvider } from "@/lib/providers/apple/apple-provider"
 import { BitwardenProvider } from "@/lib/providers/bitwarden/bitwarden-provider"
 import { loadVaultCrypto } from "@/lib/providers/bitwarden/sdk-loader"
 import { getSettings, settingsItem } from "@/lib/settings"
-import { APPLE_PAIRING_PORT, VAULTS_CHANGED_KEY } from "./api"
+import { APPLE_PAIRING_PORT, HTTP_AUTH_PORT, VAULTS_CHANGED_KEY } from "./api"
 import { fillFirst } from "./autofill"
 import { CLEAR_CLIPBOARD_ALARM, clearClipboard } from "./clipboard"
 import { watchCodeSetup } from "./code-setup"
 import { errorCode } from "./error-code"
 import { forgetFill } from "./filled-logins"
 import { createHandlers } from "./handlers"
+import { HttpAuth } from "./http-auth"
 import { whenInstalled } from "./install"
 import { LoginMenus } from "./login-menus"
 import { menuSessions, promptSessions } from "./overlays"
@@ -67,7 +68,22 @@ export function startBackground(): void {
   const bitwarden = new BitwardenProvider(loadVaultCrypto)
   const providers = new Providers([apple, bitwarden])
 
-  serveRequests(createHandlers(providers, { apple, bitwarden }), errorCode)
+  const httpAuth = new HttpAuth(providers, () =>
+    openPopup({ name: "httpAuth" }),
+  )
+  serveRequests(
+    createHandlers(providers, { apple, bitwarden }, httpAuth),
+    errorCode,
+  )
+  // Only pages the user opens are answered: a request a page makes by itself would release a
+  // login without the user seeing where it goes.
+  browser.webRequest.onAuthRequired.addListener(
+    (details, answer) => {
+      void httpAuth.respond(details).then(answer, () => answer?.({}))
+    },
+    { urls: ["http://*/*", "https://*/*"], types: ["main_frame"] },
+    ["asyncBlocking"],
+  )
   const loginMenus = new LoginMenus(providers)
   const refreshToolbar = watchToolbar(providers, (vaults, tab) =>
     loginMenus.show(vaults, tab),
@@ -93,6 +109,16 @@ export function startBackground(): void {
   apple.helper.onCodesChanged(announce)
 
   let pairingViews = 0
+  browser.runtime.onConnect.addListener((port) => {
+    if (port.name !== HTTP_AUTH_PORT) return
+    if (!port.sender || senderKind(port.sender) !== "popup") {
+      port.disconnect()
+      return
+    }
+    httpAuth.showing()
+    port.onDisconnect.addListener(() => httpAuth.leave())
+  })
+
   browser.runtime.onConnect.addListener((port) => {
     if (port.name !== APPLE_PAIRING_PORT) return
     const kind = port.sender ? senderKind(port.sender) : null

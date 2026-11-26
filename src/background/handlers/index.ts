@@ -2,11 +2,13 @@ import type { Handlers } from "@/lib/messaging"
 import type { AppleProvider } from "@/lib/providers/apple/apple-provider"
 import type { BitwardenProvider } from "@/lib/providers/bitwarden/bitwarden-provider"
 import type { BackgroundApi } from "../api"
+import type { HttpAuth } from "../http-auth"
 import type { Providers } from "../providers"
 import { appleHandlers } from "./apple"
 import { bitwardenHandlers } from "./bitwarden"
 import { contentHandlers } from "./content"
 import { generatorHandlers } from "./generator"
+import { httpAuthHandlers } from "./http-auth"
 import { menuHandlers } from "./menu"
 import { popupItemHandlers } from "./popup-items"
 import { popupNoteHandlers } from "./popup-notes"
@@ -28,6 +30,7 @@ export interface NamedProviders {
 export function createHandlers(
   providers: Providers,
   named: NamedProviders,
+  httpAuth: HttpAuth,
 ): Handlers<BackgroundApi> {
   return {
     ...popupItemHandlers(providers),
@@ -40,5 +43,6 @@ export function createHandlers(
     ...promptHandlers(providers),
     ...contentHandlers(providers),
     ...welcomeHandlers(),
+    ...httpAuthHandlers(httpAuth),
   }
 }

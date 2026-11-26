@@ -67,6 +67,11 @@ export interface Settings {
   takeOverPasskeys: boolean
   /** Whether the browser's context menu fills and copies the page's logins. */
   contextMenu: boolean
+  /**
+   * Whether a site that asks for a login through the browser's own sign-in dialog gets the popup
+   * with its logins first.
+   */
+  httpAuth: boolean
   /** Seconds after copying a password before the clipboard is overwritten; null never. */
   clipboardClearSeconds: ClipboardClearSeconds | null
   defaultMatch: MatchType
@@ -96,6 +101,7 @@ export const defaultSettings: Settings = {
   takeOverSaving: true,
   takeOverPasskeys: true,
   contextMenu: true,
+  httpAuth: true,
   clipboardClearSeconds: 30,
   defaultMatch: MatchType.Domain,
   defaultSaveTarget: null,
@@ -150,6 +156,7 @@ export const exportableKeys = [
   "takeOverSaving",
   "takeOverPasskeys",
   "contextMenu",
+  "httpAuth",
   "clipboardClearSeconds",
   "defaultMatch",
   "siteRules",
@@ -225,6 +232,7 @@ const importers: {
   takeOverSaving: importBoolean,
   takeOverPasskeys: importBoolean,
   contextMenu: importBoolean,
+  httpAuth: importBoolean,
   clipboardClearSeconds: (value) =>
     value === null || oneOf(CLIPBOARD_CLEAR_SECONDS)(value) ? value : undefined,
   defaultMatch: (value) => (isMatchType(value) ? value : undefined),

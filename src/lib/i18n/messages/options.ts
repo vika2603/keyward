@@ -74,6 +74,9 @@ export const en = {
   "options.fill.takeOverPasskeys.name": "Offer passkeys in the menu",
   "options.fill.takeOverPasskeys.description":
     "When a site offers passkey sign-in, Chrome's passkey list under the field is replaced by \"Sign in with a passkey\" in the menu, which opens Chrome's passkey dialog.",
+  "options.fill.httpAuth.name": "Sign in through the browser's dialog",
+  "options.fill.httpAuth.description":
+    "When a site, such as a router's admin page, asks for a login in the browser's own sign-in dialog, Keyward opens first with the site's logins. Choose one to sign in, or go on to the browser's dialog.",
   "options.fill.autofill.title": "Autofill",
   "options.fill.autoSubmit.name": "Submit after filling",
   "options.fill.autoSubmit.description":
@@ -358,6 +361,9 @@ export const zhCN: Record<keyof typeof en, string> = {
   "options.fill.takeOverPasskeys.name": "在菜单里提供通行密钥",
   "options.fill.takeOverPasskeys.description":
     "网站支持通行密钥登录时，Chrome 不再在输入框下弹出通行密钥列表，改为在菜单里点「使用通行密钥登录」，再由 Chrome 的通行密钥窗口验证。",
+  "options.fill.httpAuth.name": "接管浏览器的登录对话框",
+  "options.fill.httpAuth.description":
+    "网站（如路由器管理页）用浏览器自带的登录对话框要求登录时，先打开 Keyward 列出这个网站的登录，选中一个即可登录，也可以继续用浏览器的对话框。",
   "options.fill.autofill.title": "自动填充",
   "options.fill.autoSubmit.name": "填充后自动提交",
   "options.fill.autoSubmit.description":

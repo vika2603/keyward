@@ -109,6 +109,16 @@ export function FillPage() {
             />
           </Option>
           <Option
+            name={t("options.fill.httpAuth.name")}
+            description={t("options.fill.httpAuth.description")}
+          >
+            <Switch
+              aria-label={t("options.fill.httpAuth.name")}
+              checked={settings.httpAuth}
+              onCheckedChange={(checked) => update({ httpAuth: checked })}
+            />
+          </Option>
+          <Option
             name={t("options.fill.contextMenu.name")}
             description={t("options.fill.contextMenu.description")}
           >

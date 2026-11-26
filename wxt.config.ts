@@ -37,6 +37,10 @@ export default defineConfig({
       "contextMenus",
       // Locks Bitwarden accounts when the screen locks.
       "idle",
+      // Signs in to sites that ask through the browser's own sign-in dialog, with the login the
+      // user chooses.
+      "webRequest",
+      "webRequestAuthProvider",
     ],
     // The field icons work on every site, and a self-hosted vault can live at any address.
     host_permissions: ["http://*/*", "https://*/*"],

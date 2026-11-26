@@ -153,6 +153,13 @@ export const en = {
   "popup.edit.fieldChecked": "Checked",
   "popup.edit.linkedTo": "Linked to",
   "popup.main.confirmTouchId": "Confirm with Touch ID or your Mac password",
+  "popup.httpAuth.title": "Sign in to {host}",
+  "popup.httpAuth.description":
+    "This site asks for a login in the browser's sign-in dialog. Choose one to sign in.",
+  "popup.httpAuth.unencrypted":
+    "The connection is not encrypted, so others on the network can read the password.",
+  "popup.httpAuth.browserDialog": "Use the browser's dialog",
+  "popup.httpAuth.gone": "The site no longer asks for a login.",
   "popup.add.title": "Add login",
   "popup.main.add": "Add item",
   "popup.add.site": "Website",
@@ -372,6 +379,12 @@ export const zhCN: Record<keyof typeof en, string> = {
   "popup.edit.fieldChecked": "勾选",
   "popup.edit.linkedTo": "关联到",
   "popup.main.confirmTouchId": "用触控 ID 或 Mac 密码确认",
+  "popup.httpAuth.title": "登录 {host}",
+  "popup.httpAuth.description":
+    "这个网站通过浏览器的登录对话框要求登录。选择一个登录即可登录。",
+  "popup.httpAuth.unencrypted": "连接没有加密，同一网络上的其他人能看到密码。",
+  "popup.httpAuth.browserDialog": "改用浏览器的对话框",
+  "popup.httpAuth.gone": "这个网站已不再要求登录。",
   "popup.add.title": "添加登录",
   "popup.main.add": "添加条目",
   "popup.add.site": "网站",

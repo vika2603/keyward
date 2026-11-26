@@ -13,7 +13,7 @@ Keyward reads logins, verification codes and secure notes from the vaults you co
 
 ## Web pages
 
-To find sign-in and sign-up forms and to offer the matching logins, Keyward reads the address of the page you are on and the fields of its forms. It fills a login only after you choose one, and only into a page whose site the login belongs to. When you submit a form, Keyward reads the username and password you entered so that it can offer to save them, and keeps them in session storage only for that offer. When you choose "Set up verification code" on a QR code or link, Keyward reads that code or link to add a verification code to a login. Site icons come from the browser's own icon cache.
+To find sign-in and sign-up forms and to offer the matching logins, Keyward reads the address of the page you are on and the fields of its forms. It fills a login only after you choose one, and only into a page whose site the login belongs to. When you submit a form, Keyward reads the username and password you entered so that it can offer to save them, and keeps them in session storage only for that offer. When you choose "Set up verification code" on a QR code or link, Keyward reads that code or link to add a verification code to a login. When a site asks for a login through the browser's own sign-in dialog, Keyward reads the site's address to list its logins, and sends the login you choose to that site only. Site icons come from the browser's own icon cache.
 
 ## Data kept in the browser
 

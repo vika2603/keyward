@@ -34,6 +34,7 @@ import {
 import { SiteIcon } from "@/components/keyward/site-icon"
 import { openConnectPasswords } from "@/lib/connect-passwords"
 import { t } from "@/lib/i18n"
+import { vaultsToOffer, waitsForUser } from "@/lib/offered-vaults"
 import { cn } from "@/lib/utils"
 
 type MenuState = BackgroundApi["menu.state"]["result"]
@@ -99,14 +100,8 @@ export function App() {
 
   if (!language) return null
   const allVaults = state?.vaults ?? []
-  // Once one vault is open, the others are paired, unlocked or set up from the popup instead,
-  // unless one is known to keep logins for this page.
   const anyReady = allVaults.some((vault) => vault.status === "ready")
-  const shownVaults = allVaults.filter((vault) => {
-    if (waitsForUser(vault)) return !anyReady || Boolean(vault.keepsPageLogins)
-    const hasLogins = vault.logins.length > 0
-    return vault.status !== "ready" || Boolean(vault.error) || hasLogins
-  })
+  const shownVaults = vaultsToOffer(allVaults)
   const compact = density === "compact"
   // A lone list of logins needs no heading saying where they come from.
   const headed = shownVaults.length > 1 || Boolean(state?.suggestion)
@@ -462,11 +457,6 @@ function useMenuKeyboard(
     addEventListener("keydown", onKey)
     return () => removeEventListener("keydown", onKey)
   }, [card])
-}
-
-/** A vault that lists logins only once the user pairs it, unlocks it or sets it up. */
-function waitsForUser(vault: VaultView): boolean {
-  return vault.status === "locked" || Boolean(vault.needsSetup)
 }
 
 /**

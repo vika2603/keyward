@@ -5,6 +5,7 @@ import type { AppleState } from "@/lib/providers/apple/helper-session"
 import { getSettings } from "@/lib/settings"
 import type { BackgroundApi } from "../api"
 import { listHistory } from "../history"
+import { HttpAuth } from "../http-auth"
 import { menuSessions } from "../overlays"
 import {
   accountVault,
@@ -16,7 +17,7 @@ import {
 } from "../test-support"
 import { createHandlers } from "."
 
-vi.mock("../page", () => pageModule)
+vi.mock("../page", async () => (await import("../test-support")).pageModule)
 
 const TAB = 3
 const popup = { kind: "popup" } as Sender
@@ -29,7 +30,11 @@ function request<Type extends keyof BackgroundApi>(
   sender: Sender,
   providers = fakeProviders([{ info: accountVault }]).providers,
 ): Promise<unknown> {
-  const handlers = createHandlers(providers, idleNamedProviders())
+  const handlers = createHandlers(
+    providers,
+    idleNamedProviders(),
+    new HttpAuth(providers, async () => {}),
+  )
   return Promise.resolve().then(() =>
     handlers[type].handle(payload as never, sender),
   )
@@ -50,7 +55,12 @@ describe("connecting Passwords", () => {
       .spyOn(named.apple.helper, "startPairing")
       .mockResolvedValue()
     vi.spyOn(named.apple.helper, "getState").mockReturnValue(state)
-    const handlers = createHandlers(fakeProviders([]).providers, named)
+    const { providers } = fakeProviders([])
+    const handlers = createHandlers(
+      providers,
+      named,
+      new HttpAuth(providers, async () => {}),
+    )
     return { handlers, setEnabled, startPairing, named }
   }
   const notSetUp: AppleState = { phase: "unavailable", problem: "notSetUp" }
@@ -91,8 +101,14 @@ describe("connecting Passwords", () => {
 })
 
 describe("the welcome page", () => {
-  const handlers = () =>
-    createHandlers(fakeProviders([]).providers, idleNamedProviders())
+  const handlers = () => {
+    const { providers } = fakeProviders([])
+    return createHandlers(
+      providers,
+      idleNamedProviders(),
+      new HttpAuth(providers, async () => {}),
+    )
+  }
 
   it("lets the welcome page sign in and check Passwords, and nothing more", () => {
     const all = handlers()

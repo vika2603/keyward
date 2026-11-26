@@ -15,8 +15,9 @@ import { NoteView } from "./detail/note-view"
 import { PasswordHistoryView } from "./detail/password-history-view"
 import { EditView } from "./edit-view"
 import { GeneratorView } from "./generator/generator-view"
-import { BackHeader } from "./header"
+import { BackHeader, openConnectPage } from "./header"
 import { HistoryView } from "./history-view"
+import { HttpAuthView } from "./http-auth-view"
 import { type ListPlace, newListPlace } from "./main/list-place"
 import { MainView } from "./main/main-view"
 import { NoteForm } from "./note-form"
@@ -32,8 +33,8 @@ import {
 import type { View } from "./views"
 
 /**
- * Views that stay in the popup: their typed input is not handed to the new window, and closing the
- * popup ends a pairing in progress.
+ * Views that stay in the popup: their typed input is not handed to the new window, closing the
+ * popup ends a pairing in progress, and it leaves a site asking for a login to the browser.
  */
 const STAYS_IN_POPUP: ReadonlySet<View["name"]> = new Set([
   "add",
@@ -41,12 +42,14 @@ const STAYS_IN_POPUP: ReadonlySet<View["name"]> = new Set([
   "editNote",
   "connect",
   "codeSetup",
+  "httpAuth",
 ])
 
 /** The view that Back and Escape return to from a subview; null on the main view. */
 function parentViewOf(view: View): View | null {
   switch (view.name) {
     case "main":
+    case "httpAuth":
       return null
     case "add":
     case "detail":
@@ -64,9 +67,7 @@ function parentViewOf(view: View): View | null {
     case "history":
       return { name: "generator" }
     case "connect":
-      return view.back === "codeSetup"
-        ? { name: "codeSetup" }
-        : { name: "main" }
+      return view.back ? { name: view.back } : { name: "main" }
     default: {
       const unknown: never = view
       return unknown
@@ -209,6 +210,21 @@ function CurrentView({
     case "connect":
       return (
         <ConnectView kind={view.kind} vaultId={view.vaultId} onDone={back} />
+      )
+    case "httpAuth":
+      return (
+        <HttpAuthView
+          onConnect={(vault) =>
+            vault.needsSetup
+              ? openConnectPage()
+              : onNavigate({
+                  name: "connect",
+                  kind: vault.kind,
+                  vaultId: vault.id,
+                  back: "httpAuth",
+                })
+          }
+        />
       )
     default: {
       const unknown: never = view

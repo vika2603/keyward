@@ -89,6 +89,8 @@ Keyward fills, generates and saves passwords on web pages, using the password va
 | `idle` | Locks Bitwarden accounts when the computer locks. |
 | `privacy` | Turns off the browser's own offer to save passwords while Keyward offers instead, so that a submitted form brings up one prompt. Users can give the setting back to the browser in Keyward's settings. |
 | `favicon` | Shows site icons from the browser's own icon cache, without requesting another server. |
+| `webRequest` | Notices when a site the user opens asks for a login through the browser's own sign-in dialog, as router and other admin pages do, so that Keyward can list the site's logins first. Keyward reads no other request. |
+| `webRequestAuthProvider` | Answers that sign-in request with the login the user chooses in Keyward's popup, or leaves it to the browser's dialog. |
 
 ### Remote code
 
