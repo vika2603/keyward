@@ -135,7 +135,7 @@ export function startBackground(): void {
   })
 
   browser.runtime.onInstalled.addListener(({ reason }) => {
-    void whenInstalled(reason)
+    void whenInstalled(reason, () => apple.helper.checkSetup())
   })
 
   browser.tabs.onRemoved.addListener((tabId) => {

@@ -112,9 +112,12 @@ function PasswordsCard({ enabled }: { enabled: boolean }) {
       title={providerName("apple")}
       description={t("welcome.apple.description")}
       side={
-        <Button variant="outline" onClick={() => void openConnectPasswords()}>
-          {t("welcome.connect")}
-        </Button>
+        // Until the check answers, Passwords may turn out to be connected already.
+        availability && (
+          <Button variant="outline" onClick={() => void openConnectPasswords()}>
+            {t("welcome.connect")}
+          </Button>
+        )
       }
     />
   )
