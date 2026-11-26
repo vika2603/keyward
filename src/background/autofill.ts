@@ -8,6 +8,7 @@ import { serialQueue } from "@/lib/serial-queue"
 import { getSettings, type Settings, type SiteBehavior } from "@/lib/settings"
 import { siteDomainOf } from "@/lib/site"
 import type { ContentConfig, FieldInfo } from "./api"
+import { rememberFill } from "./filled-logins"
 import { addHistory } from "./history"
 import { activeTab, frameUrl, sendToFrame } from "./page"
 import { hasPasskeySite, rememberPasskeySite } from "./passkey-sites"
@@ -180,13 +181,13 @@ export async function fillLogin(
     fields: credential.fields ?? [],
     autoSubmit: settings.autoSubmit,
   })
+  const site = siteDomainOf(page.hostname)
+  // A login submitted next is checked against this password, which Passwords cannot do itself.
+  if (credential.password)
+    await rememberFill(tabId, site, vaultId, loginId, credential.password)
   // A one-time code page that follows offers this login's code first.
   if (credential.username)
-    await rememberUsername(
-      tabId,
-      siteDomainOf(page.hostname),
-      credential.username,
-    )
+    await rememberUsername(tabId, site, credential.username)
 }
 
 /** Sends a login's current one-time code to one frame, with the same checks as `fillLogin`. */

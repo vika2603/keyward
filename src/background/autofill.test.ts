@@ -10,6 +10,7 @@ import {
   hasCodes,
   notePasskeyUsed,
 } from "./autofill"
+import { isFilledPassword } from "./filled-logins"
 import { listHistory } from "./history"
 import {
   markRecent,
@@ -41,6 +42,15 @@ describe("fillLogin", () => {
     const { providers } = fakeProviders([{ info: accountVault, credential }])
     await fillLogin(providers, TAB, 0, accountVault.id, "item-1")
     expect(await recallUsername(TAB, "example.com")).toBe("someone")
+  })
+
+  it("keeps what it filled, so a login submitted with another password is told apart", async () => {
+    const { providers } = fakeProviders([{ info: accountVault, credential }])
+    await fillLogin(providers, TAB, 0, accountVault.id, "item-1")
+    const filled = (password: string) =>
+      isFilledPassword(TAB, "example.com", accountVault.id, "item-1", password)
+    expect(await filled(credential.password)).toBe(true)
+    expect(await filled("typed by hand")).toBe(false)
   })
 
   it("sends the login to the frame together with the origin it was checked for", async () => {

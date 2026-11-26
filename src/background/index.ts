@@ -9,6 +9,7 @@ import { fillFirst } from "./autofill"
 import { CLEAR_CLIPBOARD_ALARM, clearClipboard } from "./clipboard"
 import { watchCodeSetup } from "./code-setup"
 import { errorCode } from "./error-code"
+import { forgetFill } from "./filled-logins"
 import { createHandlers } from "./handlers"
 import { whenInstalled } from "./install"
 import { LoginMenus } from "./login-menus"
@@ -139,6 +140,7 @@ export function startBackground(): void {
   })
 
   browser.tabs.onRemoved.addListener((tabId) => {
+    forgetFill(tabId)
     void forgetUsername(tabId)
     void promptSessions.remove(tabId)
     void menuSessions.remove(tabId)

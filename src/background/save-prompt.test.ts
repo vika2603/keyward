@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { getSettings, MatchType, updateSettings } from "@/lib/settings"
+import { forgetFill, rememberFill } from "./filled-logins"
 import { type PromptSession, promptSessions } from "./overlays"
 import {
   confirmPrompt,
@@ -33,6 +34,7 @@ async function pendingPrompt(): Promise<PromptSession> {
 
 beforeEach(() => {
   resetBackground()
+  forgetFill(TAB)
   setFrame(TAB, 0, "https://accounts.example.com/login")
 })
 
@@ -104,6 +106,39 @@ describe("onSubmitted", () => {
       mode: "update",
       update: { vaultId: appleVault.id, loginId: "apple-1" },
     })
+  })
+
+  it("offers to update an Apple login whose password Keyward filled and the user then changed", async () => {
+    const { providers } = fakeProviders([
+      {
+        info: appleVault,
+        existing: { loginId: "apple-1", samePassword: undefined },
+      },
+    ])
+    await rememberFill(TAB, "example.com", appleVault.id, "apple-1", "old")
+    await onSubmitted(providers, TAB, 0, login)
+    expect(await promptSessions.get(TAB)).toMatchObject({
+      mode: "update",
+      update: { vaultId: appleVault.id, loginId: "apple-1" },
+    })
+  })
+
+  it("stays quiet about an Apple login submitted with the password Keyward filled", async () => {
+    const { providers } = fakeProviders([
+      {
+        info: appleVault,
+        existing: { loginId: "apple-1", samePassword: undefined },
+      },
+    ])
+    await rememberFill(
+      TAB,
+      "example.com",
+      appleVault.id,
+      "apple-1",
+      login.password,
+    )
+    await onSubmitted(providers, TAB, 0, login)
+    expect(await promptSessions.get(TAB)).toBeNull()
   })
 
   it("names the site's only account when a change-password form does not", async () => {

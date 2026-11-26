@@ -8,6 +8,7 @@ import {
 import { getSettings, type SiteRule, updateSettings } from "@/lib/settings"
 import { siteDomainOf } from "@/lib/site"
 import type { PromptState } from "./api"
+import { isFilledPassword } from "./filled-logins"
 import { MAX_TEXT_LENGTH } from "./limits"
 import { type PromptSession, promptSessions } from "./overlays"
 import { frameUrl, sendToFrame } from "./page"
@@ -50,17 +51,20 @@ async function onlyUsername(providers: Providers, page: URL): Promise<string> {
 
 /**
  * Compares a submitted login with the vaults. It counts as unchanged when a vault has it with this
- * password, when a vault cannot tell (Apple Passwords does not reveal a password without Touch ID)
- * and the password was not typed as a new one, or when the vaults that have it are ones Keyward may
- * not change, so it is neither updated nor saved a second time.
+ * password, when a vault cannot tell and the password was not typed as a new one, or when the
+ * vaults that have it are ones Keyward may not change, so it is neither updated nor saved a second
+ * time. Apple Passwords does not reveal a password without Touch ID; a login Keyward filled in the
+ * tab moments ago is compared with what it filled instead.
  */
 async function holdingOf(
   providers: Providers,
   vaults: VaultInfo[],
+  tabId: number,
   page: URL,
   account: string,
   submitted: SubmittedLogin,
 ): Promise<Holding> {
+  const site = siteDomainOf(page.hostname)
   let changed: StoredLogin | null = null
   let keptUnchangeable = false
   for (const vault of vaults) {
@@ -69,8 +73,17 @@ async function holdingOf(
       .findExisting(vault.id, page, account, submitted.password)
       .catch(() => null)
     if (!existing) continue
-    if (existing.samePassword === true) return { kind: "unchanged" }
-    if (existing.samePassword === undefined && !submitted.newPassword)
+    const samePassword =
+      existing.samePassword ??
+      (await isFilledPassword(
+        tabId,
+        site,
+        vault.id,
+        existing.loginId,
+        submitted.password,
+      ))
+    if (samePassword === true) return { kind: "unchanged" }
+    if (samePassword === undefined && !submitted.newPassword)
       return { kind: "unchanged" }
     if (existing.editable === false) {
       keptUnchangeable = true
@@ -119,7 +132,14 @@ export async function onSubmitted(
     (vault) => vault.status === "ready",
   )
   if (!vaults.length) return
-  const holding = await holdingOf(providers, vaults, page, account, submitted)
+  const holding = await holdingOf(
+    providers,
+    vaults,
+    tabId,
+    page,
+    account,
+    submitted,
+  )
   if (holding.kind === "unchanged") return
   const update = holding.kind === "changed" ? holding.login : null
   const userWantsPrompt = update ? settings.askUpdate : settings.askSave
