@@ -8,6 +8,7 @@ import { bitwardenHandlers } from "./bitwarden"
 import { contentHandlers } from "./content"
 import { generatorHandlers } from "./generator"
 import { menuHandlers } from "./menu"
+import { pageHandlers } from "./pages"
 import { popupItemHandlers } from "./popup-items"
 import { popupNoteHandlers } from "./popup-notes"
 import { popupSaveHandlers } from "./popup-save"
@@ -20,8 +21,8 @@ export interface NamedProviders {
 }
 
 /**
- * The background's answers to requests from the popup, the options page, the in-page overlays and
- * the content scripts, one module per sender and subject. Only the requests of one provider reach
+ * The background's answers to requests from the popup, the options page, the pages that set Keyward
+ * up, the in-page overlays and the content scripts, one module per sender and subject. Only the requests of one provider reach
  * it by name; every other request goes through `providers`.
  */
 export function createHandlers(
@@ -38,5 +39,6 @@ export function createHandlers(
     ...menuHandlers(providers),
     ...promptHandlers(providers),
     ...contentHandlers(providers),
+    ...pageHandlers(),
   }
 }

@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest"
 import { fakeBrowser } from "wxt/testing/fake-browser"
-import { serveRequests } from "./messaging"
+import { senderKind, serveRequests } from "./messaging"
 
 type Api = { "test.echo": { payload: { text: string }; result: string } }
 
@@ -81,5 +81,19 @@ describe("serveRequests", () => {
   it("leaves messages of other shapes to their own listeners", async () => {
     const replies = await deliver({ keywardOffscreen: 1, text: "copied" })
     expect(replies).toEqual([])
+  })
+})
+
+describe("senderKind", () => {
+  const pageSender = (
+    path: Parameters<typeof browser.runtime.getURL>[0],
+  ): Browser.runtime.MessageSender => ({
+    id: browser.runtime.id,
+    url: browser.runtime.getURL(path),
+  })
+
+  it("tells the welcome page apart from the options page", () => {
+    expect(senderKind(pageSender("/welcome.html"))).toBe("welcomePage")
+    expect(senderKind(pageSender("/options.html"))).toBe("options")
   })
 })

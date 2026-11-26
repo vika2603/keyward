@@ -22,6 +22,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { useSettings } from "@/hooks/use-settings"
 import { t } from "@/lib/i18n"
 import type {
   MatchType,
@@ -39,7 +40,6 @@ import {
   Section,
   useDialogOpening,
 } from "./parts"
-import { useSettings } from "./use-settings"
 
 function providerNames(): [RuleProvider, string][] {
   return [

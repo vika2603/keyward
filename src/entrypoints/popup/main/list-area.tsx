@@ -3,6 +3,7 @@ import { type ReactNode, type RefObject, useMemo } from "react"
 import keywardIcon from "@/assets/icon.svg"
 import type { VaultView } from "@/background/api"
 import { FADE_IN, LoginListSkeleton } from "@/components/keyward/loading"
+import { usePasswordsAvailability } from "@/components/keyward/passwords-setup"
 import { Button } from "@/components/ui/button"
 import { t } from "@/lib/i18n"
 import type { Settings } from "@/lib/settings"
@@ -39,6 +40,41 @@ function EmptyState({
       <p className="text-sm text-muted-foreground">{text}</p>
       {children}
     </div>
+  )
+}
+
+/**
+ * Ways to connect a first vault. Passwords offers its setup until this Mac has it, and is left out
+ * where there is no Passwords. The cards wait for that check, so none changes or moves under the
+ * pointer.
+ */
+function NoVault({ onNavigate }: { onNavigate: (view: View) => void }) {
+  const passwords = usePasswordsAvailability()
+  if (!passwords) return <EmptyState icon text={t("popup.main.noVault")} />
+  return (
+    <EmptyState icon text={t("popup.main.noVault")}>
+      {passwords === "needsSetup" && (
+        <ConnectCard
+          kind="apple"
+          title={t("pairing.setUp.title")}
+          detail={t("vault.setUpDetail")}
+          onClick={openConnectPage}
+        />
+      )}
+      {passwords === "ready" && (
+        <ConnectCard
+          kind="apple"
+          title={t("popup.main.pairApple")}
+          detail={t("popup.main.pairAppleDetail")}
+          onClick={() => onNavigate({ name: "connect", kind: "apple" })}
+        />
+      )}
+      <ConnectCard
+        kind="bitwarden"
+        title={t("popup.main.signInBitwarden")}
+        onClick={() => openOptions("onboard")}
+      />
+    </EmptyState>
   )
 }
 
@@ -84,23 +120,7 @@ export function ListArea({
       <LoginListSkeleton compact={density === "compact"} />
     )
 
-  if (!lists.vaults.length) {
-    return (
-      <EmptyState icon text={t("popup.main.noVault")}>
-        <ConnectCard
-          kind="apple"
-          title={t("popup.main.pairApple")}
-          detail={t("popup.main.pairAppleDetail")}
-          onClick={() => onNavigate({ name: "connect", kind: "apple" })}
-        />
-        <ConnectCard
-          kind="bitwarden"
-          title={t("popup.main.signInBitwarden")}
-          onClick={() => openOptions("onboard")}
-        />
-      </EmptyState>
-    )
-  }
+  if (!lists.vaults.length) return <NoVault onNavigate={onNavigate} />
 
   const { search, page } = lists
   const lockedCards = lists.locked.map((vault) => (

@@ -10,6 +10,7 @@ import { CLEAR_CLIPBOARD_ALARM, clearClipboard } from "./clipboard"
 import { watchCodeSetup } from "./code-setup"
 import { errorCode } from "./error-code"
 import { createHandlers } from "./handlers"
+import { whenInstalled } from "./install"
 import { LoginMenus } from "./login-menus"
 import { menuSessions, promptSessions } from "./overlays"
 import { openPopup } from "./popup-window"
@@ -20,26 +21,6 @@ import { watchToolbar } from "./toolbar"
 const AUTO_LOCK_ALARM = "autoLock"
 /** Changes that come in a burst, such as an unlock and the sync after it, are announced once. */
 const ANNOUNCE_DELAY_MS = 300
-
-/**
- * Chrome runs content scripts only in pages loaded after the extension was installed or updated;
- * pages already open get them here, so their fields show the icon without a reload.
- */
-async function injectIntoOpenTabs(): Promise<void> {
-  const tabs = await browser.tabs.query({ url: ["http://*/*", "https://*/*"] })
-  await Promise.all(
-    tabs.map((tab) =>
-      tab.id === undefined
-        ? undefined
-        : browser.scripting
-            .executeScript({
-              target: { tabId: tab.id, allFrames: true },
-              files: ["/content-scripts/content.js"],
-            })
-            .catch(() => {}),
-    ),
-  )
-}
 
 async function lockWhenSystemLocks(
   bitwarden: BitwardenProvider,
@@ -154,9 +135,7 @@ export function startBackground(): void {
   })
 
   browser.runtime.onInstalled.addListener(({ reason }) => {
-    // Tabs opened before an install or update have no working content script; after a browser
-    // update they still have theirs.
-    if (reason === "install" || reason === "update") void injectIntoOpenTabs()
+    void whenInstalled(reason)
   })
 
   browser.tabs.onRemoved.addListener((tabId) => {

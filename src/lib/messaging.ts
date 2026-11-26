@@ -15,6 +15,8 @@ export type SenderKind =
   | "savePrompt"
   /** The page that connects Passwords. */
   | "connectPage"
+  /** The page a new install opens, which connects the first vaults. */
+  | "welcomePage"
   | "contentScript"
 
 const PAGE_KINDS: Record<string, SenderKind> = {
@@ -23,6 +25,7 @@ const PAGE_KINDS: Record<string, SenderKind> = {
   "/inline-menu.html": "menu",
   "/save-prompt.html": "savePrompt",
   "/connect-passwords.html": "connectPage",
+  "/welcome.html": "welcomePage",
 }
 
 interface Envelope {

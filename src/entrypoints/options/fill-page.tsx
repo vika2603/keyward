@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react"
 import { Switch } from "@/components/ui/switch"
+import { useSettings } from "@/hooks/use-settings"
 import {
   type BrowserSavingControl,
   browserSavingControl,
@@ -17,7 +18,6 @@ import {
   Section,
   Segmented,
 } from "./parts"
-import { useSettings } from "./use-settings"
 
 /** Who controls the browser's offer to save, read again when it may have changed. */
 function useBrowserSavingControl(

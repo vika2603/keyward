@@ -2,6 +2,7 @@ import { ExternalLinkIcon } from "lucide-react"
 import { type ChangeEvent, useEffect, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Kbd, KbdGroup } from "@/components/ui/kbd"
+import { useSettings } from "@/hooks/use-settings"
 import { type MessageKey, t } from "@/lib/i18n"
 import {
   getSettings,
@@ -10,7 +11,6 @@ import {
   updateSettings,
 } from "@/lib/settings"
 import { Card, Option, PageHeader, Section, Segmented } from "./parts"
-import { useSettings } from "./use-settings"
 
 function commandNames(): [string, string][] {
   return [

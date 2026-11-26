@@ -14,17 +14,9 @@ export const en = {
   "options.vaults.apple.description":
     "The connection isn't kept for long. When needed, enter the six-digit code shown on your Mac in the popup.",
   "options.vaults.apple.toggle": "Use Passwords",
-  "options.vaults.apple.actions.name": "Available actions",
-  "options.vaults.apple.actions.description":
-    "List accounts for the current site, fill, copy passwords and save new ones. Other management is done in the Passwords app.",
-  "options.vaults.apple.openApp": "Open Passwords app",
   "options.vaults.apple.notSetUp":
     "Not set up for this browser yet. Set it up once, then turn it on.",
   "options.vaults.apple.setUp": "Set up",
-  "options.vaults.apple.thisMac.name": "Setup on this Mac",
-  "options.vaults.apple.thisMac.description":
-    "This browser can reach the Passwords helper. Remove the setup when you no longer need it.",
-  "options.vaults.apple.thisMac.remove": "Remove setup",
   "options.vaults.apple.removal.title": "Remove the setup",
   "options.vaults.apple.removal.description":
     "Run this command in Terminal. Keyward in the chosen browser then can no longer reach Passwords.",
@@ -218,11 +210,36 @@ export const en = {
     "It finds the Passwords helper that comes with macOS and writes keyward.passwords.json into the NativeMessagingHosts folder of the chosen browser. The file lets only this extension start the helper. The Vaults settings show how to remove it.",
   "options.passwordsSetup.viewScript": "View the script",
   "options.passwordsSetup.connected":
-    "Turn Passwords on in the settings to use it. The first time, enter the six-digit code your Mac shows to pair.",
+    "Passwords is on. The first time you use it, Keyward asks for the six-digit code your Mac shows.",
   "options.passwordsSetup.link.connecting": "Connecting…",
   "options.passwordsSetup.link.stopped": "Not connected",
   "options.passwordsSetup.link.connected": "Connected",
-  "options.passwordsSetup.openSettings": "Open settings",
+  "options.passwordsSetup.openKeyward": "Open Keyward",
+
+  "welcome.title": "Welcome to Keyward",
+  "welcome.description":
+    "Connect Passwords, Bitwarden or both to fill passwords and verification codes on the web.",
+  "welcome.connect": "Connect",
+  "welcome.signIn": "Sign in",
+  "welcome.cancel": "Cancel",
+  "welcome.connected": "Connected",
+  "welcome.signedIn": "Signed in",
+  "welcome.apple.description":
+    "Use the passwords and codes saved in the Passwords app on this Mac.",
+  "welcome.apple.connected":
+    "The first time you use it, Keyward asks for the six-digit code your Mac shows.",
+  "welcome.bitwarden.description":
+    "Sign in to an account on bitwarden.com or your own server.",
+  "welcome.pin.title": "Pin Keyward to the toolbar",
+  "welcome.pin.description":
+    "Click the puzzle piece at the top right of the browser, then the pin next to Keyward.",
+  "welcome.pin.done": "Keyward's icon is on the toolbar, one click away.",
+  "welcome.pin.pinned": "Pinned",
+  "welcome.open": "Open Keyward",
+  "welcome.tip":
+    "On a sign-in page, the Keyward icon in the field fills it as well.",
+  "welcome.connectFirst": "Connect a vault first.",
+
   "options.onboard.title": "Sign in to Bitwarden",
   "options.onboard.description":
     "After signing in, the account is unlocked with its master password.",
@@ -281,16 +298,8 @@ export const zhCN: Record<keyof typeof en, string> = {
   "options.vaults.apple.description":
     "连接不会长期保留，需要时在弹窗里输入 Mac 上显示的六位验证码。",
   "options.vaults.apple.toggle": "使用 Passwords",
-  "options.vaults.apple.actions.name": "可用操作",
-  "options.vaults.apple.actions.description":
-    "按当前站点列出账号、填充、复制密码和保存新密码。其余管理操作在 Passwords App 中完成。",
-  "options.vaults.apple.openApp": "打开 Passwords App",
   "options.vaults.apple.notSetUp": "这个浏览器还没设置。设置一次后才能打开。",
   "options.vaults.apple.setUp": "设置",
-  "options.vaults.apple.thisMac.name": "本机设置",
-  "options.vaults.apple.thisMac.description":
-    "这个浏览器已能连接 Passwords 组件。不再需要时可以移除设置。",
-  "options.vaults.apple.thisMac.remove": "移除设置",
   "options.vaults.apple.removal.title": "移除本机设置",
   "options.vaults.apple.removal.description":
     "在终端运行下面的命令。之后所选浏览器里的 Keyward 就不能再连接 Passwords。",
@@ -475,11 +484,34 @@ export const zhCN: Record<keyof typeof en, string> = {
     "它找到 macOS 自带的 Passwords 组件，把 keyward.passwords.json 写进所选浏览器的 NativeMessagingHosts 文件夹。这个文件只允许本插件启动该组件。移除方法在设置的密码库页里。",
   "options.passwordsSetup.viewScript": "查看脚本",
   "options.passwordsSetup.connected":
-    "在设置里打开 Passwords 开关即可使用。第一次使用时，输入 Mac 上显示的六位验证码完成配对。",
+    "Passwords 已打开。第一次使用时，Keyward 会请你输入 Mac 上显示的六位验证码。",
   "options.passwordsSetup.link.connecting": "连接中…",
   "options.passwordsSetup.link.stopped": "未连接",
   "options.passwordsSetup.link.connected": "连接成功",
-  "options.passwordsSetup.openSettings": "打开设置",
+  "options.passwordsSetup.openKeyward": "打开 Keyward",
+
+  "welcome.title": "欢迎使用 Keyward",
+  "welcome.description":
+    "连接 Passwords、Bitwarden，或者两个都连，就能在网页里填充密码和验证码。",
+  "welcome.connect": "连接",
+  "welcome.signIn": "登录",
+  "welcome.cancel": "取消",
+  "welcome.connected": "已连接",
+  "welcome.signedIn": "已登录",
+  "welcome.apple.description":
+    "使用这台 Mac 上 Passwords app 里保存的密码和验证码。",
+  "welcome.apple.connected":
+    "第一次使用时，Keyward 会请你输入 Mac 上显示的六位验证码。",
+  "welcome.bitwarden.description": "登录 bitwarden.com 或自建服务器上的账号。",
+  "welcome.pin.title": "把 Keyward 固定到工具栏",
+  "welcome.pin.description":
+    "点浏览器右上角的拼图图标，再点 Keyward 旁边的图钉。",
+  "welcome.pin.done": "Keyward 的图标已在工具栏上，点一下就能打开。",
+  "welcome.pin.pinned": "已固定",
+  "welcome.open": "打开 Keyward",
+  "welcome.tip": "在网站的登录页，点输入框里的 Keyward 图标也能填充。",
+  "welcome.connectFirst": "先连接一个密码库。",
+
   "options.onboard.title": "登录 Bitwarden",
   "options.onboard.description": "登录后，这个账号用主密码就能解锁。",
   "options.onboard.backToSettings": "返回设置",

@@ -90,6 +90,43 @@ describe("connecting Passwords", () => {
   })
 })
 
+describe("pages that set Keyward up", () => {
+  const handlers = () =>
+    createHandlers(fakeProviders([]).providers, idleNamedProviders())
+
+  it("lets the welcome page connect vaults but not change them", () => {
+    const all = handlers()
+    const connecting = [
+      "bitwarden.accounts",
+      "bitwarden.signIn",
+      "bitwarden.submitSecondStep",
+      "apple.checkSetup",
+    ] as const
+    for (const type of connecting)
+      expect(all[type].allow).toContain("welcomePage")
+    for (const type of ["bitwarden.signOut", "bitwarden.sync"] as const)
+      expect(all[type].allow).not.toContain("welcomePage")
+  })
+
+  it("opens the popup for the setup pages only", async () => {
+    const all = handlers()
+    expect([...all["page.openPopup"].allow].sort()).toEqual([
+      "connectPage",
+      "welcomePage",
+    ])
+    const openPopup = vi
+      .spyOn(fakeBrowser.action, "openPopup")
+      .mockResolvedValue()
+    await all["page.openPopup"].handle(
+      null as never,
+      {
+        kind: "welcomePage",
+      } as Sender,
+    )
+    expect(openPopup).toHaveBeenCalledOnce()
+  })
+})
+
 describe("request checks", () => {
   it("refuses a vault ID that is not text as invalid input", async () => {
     for (const vaultId of [42, null, { id: accountVault.id }]) {

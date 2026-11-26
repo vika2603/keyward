@@ -1,18 +1,9 @@
-import {
-  ExternalLinkIcon,
-  PencilIcon,
-  PlusIcon,
-  RefreshCwIcon,
-} from "lucide-react"
+import { PencilIcon, PlusIcon, RefreshCwIcon } from "lucide-react"
 import { useCallback, useEffect, useState } from "react"
 import { callBackground } from "@/background/api"
 import { BrandIcon, providerName } from "@/components/keyward/brand-icon"
 import { errorMessage } from "@/components/keyward/errors"
-import {
-  BrowserSelect,
-  CommandBox,
-  pageBrowser,
-} from "@/components/keyward/setup-commands"
+import { RemovalDetails } from "@/components/keyward/passwords-setup"
 import { VaultSelect } from "@/components/keyward/vault-select"
 import {
   AlertDialog,
@@ -35,10 +26,10 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
+import { useSettings } from "@/hooks/use-settings"
 import { openConnectPasswords } from "@/lib/connect-passwords"
 import { currentLanguage, t } from "@/lib/i18n"
 import { isSetupProblem } from "@/lib/providers/apple/helper-port"
-import { removalCommand } from "@/lib/providers/apple/setup-command"
 import { APPLE_VAULT_ID } from "@/lib/providers/apple/vault-id"
 import type { AccountSummary } from "@/lib/providers/bitwarden/bitwarden-provider"
 import { isCloudServer, serverHost } from "@/lib/providers/bitwarden/server"
@@ -54,7 +45,6 @@ import {
   Section,
   useDialogOpening,
 } from "./parts"
-import { useSettings } from "./use-settings"
 
 function lockTimes(): (readonly [AutoLockMinutes | "never", string])[] {
   const labels: Record<AutoLockMinutes, string> = {
@@ -74,7 +64,6 @@ function lockTimes(): (readonly [AutoLockMinutes | "never", string])[] {
 export function VaultsPage() {
   const [settings, update] = useSettings()
   const [accounts, setAccounts] = useState<AccountSummary[]>([])
-  const [message, setMessage] = useState<string | null>(null)
   const [renaming, setRenaming] = useState<AccountSummary | null>(null)
   /** The account whose sign-out waits for confirmation. */
   const [signingOut, setSigningOut] = useState<AccountSummary | null>(null)
@@ -92,7 +81,6 @@ export function VaultsPage() {
 
   /** Whether this Mac has the one-time setup for this browser; null until a check answers. */
   const [appleSetUp, setAppleSetUp] = useState<boolean | null>(null)
-  const [removingSetup, setRemovingSetup] = useState(false)
 
   useEffect(() => {
     const check = () =>
@@ -145,15 +133,6 @@ export function VaultsPage() {
     } finally {
       setSyncing(null)
       load()
-    }
-  }
-
-  const openApp = async () => {
-    setMessage(null)
-    try {
-      await callBackground("apple.openPasswordsApp", {})
-    } catch (error) {
-      setMessage(errorMessage(error))
     }
   }
 
@@ -215,35 +194,13 @@ export function VaultsPage() {
             appleSwitch
           )}
         </Option>
-        {settings.appleEnabled && !appleNeedsSetup && (
-          <Option
-            name={t("options.vaults.apple.actions.name")}
-            description={t("options.vaults.apple.actions.description")}
-          >
-            <Button variant="outline" onClick={() => void openApp()}>
-              <ExternalLinkIcon />
-              {t("options.vaults.apple.openApp")}
-            </Button>
-          </Option>
-        )}
+        {/* Folded under the switch, as it is needed about once per Mac. */}
         {appleSetUp && (
-          <Option
-            name={t("options.vaults.apple.thisMac.name")}
-            description={t("options.vaults.apple.thisMac.description")}
-          >
-            <Button variant="outline" onClick={() => setRemovingSetup(true)}>
-              {t("options.vaults.apple.thisMac.remove")}
-            </Button>
-          </Option>
-        )}
-        {message && (
-          <p className="px-4 pb-3 text-sm text-destructive">{message}</p>
+          <div className="-mt-1 px-4 pb-3">
+            <RemovalDetails />
+          </div>
         )}
       </Card>
-      <RemoveSetupDialog
-        open={removingSetup}
-        onClose={() => setRemovingSetup(false)}
-      />
       <Card>
         <Option
           name={
@@ -513,37 +470,5 @@ function SignOutDialog({
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
-  )
-}
-
-/** Shows the Terminal command that takes the one-time setup away from a browser. */
-function RemoveSetupDialog({
-  open,
-  onClose,
-}: {
-  open: boolean
-  onClose: () => void
-}) {
-  const [targetBrowser, setTargetBrowser] = useState(pageBrowser)
-  return (
-    <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>{t("options.vaults.apple.removal.title")}</DialogTitle>
-          <DialogDescription>
-            {t("options.vaults.apple.removal.description")}
-          </DialogDescription>
-        </DialogHeader>
-        <div className="flex flex-col gap-3">
-          <BrowserSelect value={targetBrowser} onChange={setTargetBrowser} />
-          <CommandBox command={removalCommand(targetBrowser)} />
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose}>
-            {t("common.close")}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
   )
 }

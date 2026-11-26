@@ -95,7 +95,8 @@ function savedAddress(address: string): string {
   return tryNormalizeServerAddress(address) ?? ""
 }
 
-function SignIn({ onSignedIn }: { onSignedIn: () => void }) {
+/** The sign-in form of a Bitwarden account with its second step; the welcome page shows it too. */
+export function SignIn({ onSignedIn }: { onSignedIn: () => void }) {
   const [serverChoice, setServerChoice] = useState<ServerChoice>("us")
   const [selfHosted, setSelfHosted] = useState<SelfHostedServer>({
     address: "",

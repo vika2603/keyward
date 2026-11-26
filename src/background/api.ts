@@ -259,6 +259,8 @@ export type BackgroundApi = {
   }
   /** The folders a new item can be filed in, for a vault that has folders. */
   "popup.folders": { payload: { vaultId: string }; result: Folder[] }
+  /** Opens the toolbar popup, from a page that has just connected a vault. */
+  "page.openPopup": { payload: null; result: null }
   "apple.state": { payload: null; result: AppleState }
   "apple.startPairing": { payload: { restart: boolean }; result: AppleState }
   /**
