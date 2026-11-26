@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest"
-import type { AppleProvider } from "@/lib/providers/apple/apple-provider"
-import type { BitwardenProvider } from "@/lib/providers/bitwarden/bitwarden-provider"
 import { vaultIdOf } from "@/lib/providers/bitwarden/vault-id"
-import type { LoginSummary, VaultInfo } from "@/lib/providers/types"
+import type {
+  LoginSummary,
+  VaultInfo,
+  VaultProvider,
+} from "@/lib/providers/types"
 import { Providers } from "./providers"
 
 const VAULT: VaultInfo = {
@@ -19,6 +21,10 @@ class ListingProvider {
     { id: "item-1", username: "someone", title: "Example" },
   ]
 
+  ownsVault(vaultId: string): boolean {
+    return vaultId === VAULT.id
+  }
+
   async vaults(): Promise<VaultInfo[]> {
     return [VAULT]
   }
@@ -28,14 +34,14 @@ class ListingProvider {
   }
 }
 
-const noVaults = { vaults: async () => [] }
+const noVaults = { ownsVault: () => false, vaults: async () => [] }
 
 describe("Providers.allItems", () => {
   it("lists a whole vault through its provider", async () => {
-    const providers = new Providers(
-      noVaults as unknown as AppleProvider,
-      new ListingProvider() as unknown as BitwardenProvider,
-    )
+    const providers = new Providers([
+      noVaults,
+      new ListingProvider(),
+    ] as unknown as VaultProvider[])
     const [view] = await providers.allItems()
     expect(view?.error).toBeUndefined()
     expect(view?.logins.map((login) => login.id)).toEqual(["item-1"])

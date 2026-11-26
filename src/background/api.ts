@@ -227,9 +227,9 @@ export type BackgroundApi = {
       host: string
       issuer?: string
       account?: string
-      /** Whether the Passwords app can take the key for this site. */
+      /** Whether the Passwords app can take the key for this site; it asks for the login itself. */
       apple: boolean
-      /** Bitwarden accounts that are unlocked, with their logins for the site. */
+      /** Open vaults that take the key into a login picked here, with their logins for the site. */
       vaults: VaultView[]
       /** Vaults that could take the key once paired or unlocked. */
       locked: VaultInfo[]

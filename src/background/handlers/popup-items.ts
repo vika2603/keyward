@@ -10,8 +10,6 @@ import { activePage, popupOnly, popupTab } from "./request-context"
 import { loginEdit, requireBoolean, requireText } from "./validation"
 
 export function popupItemHandlers(providers: Providers) {
-  const { apple } = providers
-
   /** A login's password, read for the popup's own views; it never goes into a page from here. */
   const popupCredential = async (
     vaultId: unknown,
@@ -42,8 +40,10 @@ export function popupItemHandlers(providers: Providers) {
       handle: async () => {
         const requested = await takeRequestedView()
         if (requested) return requested
-        if (apple.helper.getState().phase === "awaitingCode")
-          return { name: "connect", kind: "apple" }
+        const waiting = (await providers.vaults()).find(
+          (vault) => vault.awaitingUser,
+        )
+        if (waiting) return { name: "connect", kind: waiting.kind }
         return { name: "main" }
       },
     },

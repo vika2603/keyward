@@ -1,6 +1,9 @@
 import { vi } from "vitest"
 import { fakeBrowser } from "wxt/testing/fake-browser"
+import { AppleProvider } from "@/lib/providers/apple/apple-provider"
+import { BitwardenProvider } from "@/lib/providers/bitwarden/bitwarden-provider"
 import type {
+  CodeSetup,
   Credential,
   ExistingLogin,
   LoginSummary,
@@ -9,6 +12,7 @@ import type {
   VaultProvider,
 } from "@/lib/providers/types"
 import type { SiteBehavior, SiteRule } from "@/lib/settings"
+import type { NamedProviders } from "./handlers"
 import type { Providers } from "./providers"
 
 /** URLs of frames, keyed by "tabId:frameId", which the mocked `frameUrl` reads. */
@@ -110,6 +114,8 @@ export interface FakeVault {
   /** Logins with one-time codes listed for any page. */
   codeLogins?: LoginSummary[]
   code?: OneTimeCode
+  /** How the vault takes an authenticator key; it takes none when left out. */
+  codeSetup?: CodeSetup
 }
 
 /** Providers with fixed vaults; each vault answers from its fake and records saves. */
@@ -119,9 +125,11 @@ export function fakeProviders(vaults: FakeVault[]) {
     update: vi.fn(),
     credential: vi.fn(),
     oneTimeCode: vi.fn(),
+    setUpCode: vi.fn(),
   }
   const providerFor = (vault: FakeVault): VaultProvider => ({
     kind: vault.info.kind,
+    ownsVault: (vaultId) => vaultId === vault.info.id,
     vaults: async () => [vault.info],
     logins: async () => [],
     search: async () => [],
@@ -140,6 +148,10 @@ export function fakeProviders(vaults: FakeVault[]) {
       return vault.code
     },
     canSave: () => vault.canSave ?? true,
+    codeSetup: () => vault.codeSetup ?? null,
+    setUpCode: async (...args) => {
+      calls.setUpCode(...args)
+    },
     refusesSaving: async () => vault.refusesSaving ?? false,
     save: async (...args) => {
       calls.save(...args)
@@ -184,6 +196,19 @@ export function fakeProviders(vaults: FakeVault[]) {
     },
   } as unknown as Providers
   return { providers, calls }
+}
+
+/**
+ * The named providers for tests of other requests. Neither reaches a helper, a server or the
+ * vault crypto until one of its own requests asks it to.
+ */
+export function idleNamedProviders(): NamedProviders {
+  return {
+    apple: new AppleProvider(),
+    bitwarden: new BitwardenProvider(() =>
+      Promise.reject(new Error("These tests load no vault crypto")),
+    ),
+  }
 }
 
 export const appleVault: VaultInfo = {

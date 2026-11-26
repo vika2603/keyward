@@ -12,12 +12,15 @@ import {
   listHistory,
   SETTLE_DELAY_MS,
 } from "./history"
-import { fakeProviders, pageModule } from "./test-support"
+import { fakeProviders, idleNamedProviders, pageModule } from "./test-support"
 
 vi.mock("./page", async () => (await import("./test-support")).pageModule)
 vi.mock("./clipboard", () => ({ copyText: vi.fn(async () => {}) }))
 
-const handlers = createHandlers(fakeProviders([]).providers)
+const handlers = createHandlers(
+  fakeProviders([]).providers,
+  idleNamedProviders(),
+)
 const popup = { kind: "popup" } as Sender
 
 function request<Type extends keyof BackgroundApi>(

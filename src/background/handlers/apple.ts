@@ -1,14 +1,13 @@
 import type { Handlers } from "@/lib/messaging"
+import type { AppleProvider } from "@/lib/providers/apple/apple-provider"
 import { VaultError } from "@/lib/providers/types"
 import { getSettings, updateSettings } from "@/lib/settings"
 import type { BackgroundApi } from "../api"
 import { MAX_HOST_LENGTH } from "../limits"
-import type { Providers } from "../providers"
 import { connectPages, popupOnly } from "./request-context"
 import { requireText, siteInput } from "./validation"
 
-export function appleHandlers(providers: Providers) {
-  const { apple } = providers
+export function appleHandlers(apple: AppleProvider) {
   return {
     "apple.state": {
       allow: connectPages,

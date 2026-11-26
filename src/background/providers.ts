@@ -1,8 +1,4 @@
 import { ruleForHost } from "@/lib/matching"
-import type { AppleProvider } from "@/lib/providers/apple/apple-provider"
-import { APPLE_VAULT_ID } from "@/lib/providers/apple/vault-id"
-import type { BitwardenProvider } from "@/lib/providers/bitwarden/bitwarden-provider"
-import { isBitwardenVault } from "@/lib/providers/bitwarden/vault-id"
 import {
   type ListOptions,
   type LoginSummary,
@@ -34,21 +30,14 @@ function failedView(vault: VaultInfo, error: unknown): VaultView {
   }
 }
 
-/** All providers behind one lookup by vault ID. Apple comes first, then accounts in sign-in order. */
+/** All providers behind one lookup by vault ID; vaults are listed in the order of their providers. */
 export class Providers {
-  constructor(
-    readonly apple: AppleProvider,
-    readonly bitwarden: BitwardenProvider,
-  ) {}
-
-  private get all(): VaultProvider[] {
-    return [this.apple, this.bitwarden]
-  }
+  constructor(private readonly all: readonly VaultProvider[]) {}
 
   providerOf(vaultId: string): VaultProvider {
-    if (vaultId === APPLE_VAULT_ID) return this.apple
-    if (isBitwardenVault(vaultId)) return this.bitwarden
-    throw new VaultError("Unknown vault", "unknownVault")
+    const provider = this.all.find((candidate) => candidate.ownsVault(vaultId))
+    if (!provider) throw new VaultError("Unknown vault", "unknownVault")
+    return provider
   }
 
   async vaults(): Promise<VaultInfo[]> {

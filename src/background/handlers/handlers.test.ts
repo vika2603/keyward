@@ -4,7 +4,13 @@ import type { Sender } from "@/lib/messaging"
 import type { BackgroundApi } from "../api"
 import { listHistory } from "../history"
 import { menuSessions } from "../overlays"
-import { accountVault, fakeProviders, pageModule } from "../test-support"
+import {
+  accountVault,
+  appleVault,
+  fakeProviders,
+  idleNamedProviders,
+  pageModule,
+} from "../test-support"
 import { createHandlers } from "."
 
 vi.mock("../page", () => pageModule)
@@ -20,7 +26,7 @@ function request<Type extends keyof BackgroundApi>(
   sender: Sender,
   providers = fakeProviders([{ info: accountVault }]).providers,
 ): Promise<unknown> {
-  const handlers = createHandlers(providers)
+  const handlers = createHandlers(providers, idleNamedProviders())
   return Promise.resolve().then(() =>
     handlers[type].handle(payload as never, sender),
   )
@@ -106,6 +112,60 @@ describe("request checks", () => {
         providers,
       ),
     ).rejects.toMatchObject({ code: "noPassword" })
+  })
+
+  it("opens the popup on the connect view of a vault waiting for the user", async () => {
+    const { providers } = fakeProviders([
+      { info: { ...appleVault, status: "locked", awaitingUser: true } },
+      { info: accountVault },
+    ])
+    expect(await request("popup.takeView", {}, popup, providers)).toEqual({
+      name: "connect",
+      kind: "apple",
+    })
+  })
+
+  it("offers a picked authenticator key to the vaults that take one, as each takes it", async () => {
+    await fakeBrowser.storage.session.set({
+      "codeSetup.pending": {
+        uri: "otpauth://totp/Example:someone?secret=JBSWY3DPEHPK3PXP&issuer=Example",
+        pageUrl: "https://example.com/security",
+        at: Date.now(),
+      },
+    })
+    const lockedAccount = {
+      ...accountVault,
+      id: "bitwarden:b",
+      status: "locked" as const,
+    }
+    const noCodes = { ...accountVault, id: "bitwarden:c" }
+    const { providers, calls } = fakeProviders([
+      { info: appleVault, codeSetup: "app" },
+      { info: accountVault, codeSetup: "login" },
+      { info: lockedAccount, codeSetup: "login" },
+      { info: noCodes },
+    ])
+    const setup = (await request("popup.codeSetup", {}, popup, providers)) as {
+      apple: boolean
+      vaults: { id: string }[]
+      locked: { id: string }[]
+    }
+    expect(setup.apple).toBe(true)
+    expect(setup.vaults.map((vault) => vault.id)).toEqual([accountVault.id])
+    expect(setup.locked.map((vault) => vault.id)).toEqual([lockedAccount.id])
+
+    await request(
+      "popup.setUpCode",
+      { vaultId: appleVault.id },
+      popup,
+      providers,
+    )
+    expect(calls.setUpCode).toHaveBeenCalledWith(
+      appleVault.id,
+      null,
+      new URL("https://example.com/security"),
+      expect.stringMatching(/^otpauth:/),
+    )
   })
 
   it("refuses a menu height that is not a number", async () => {

@@ -24,6 +24,8 @@ export interface VaultInfo {
   label: string
   status: VaultStatus
   error?: string
+  /** The user is part way through connecting it, as while the Mac shows a pairing code. */
+  awaitingUser?: boolean
 }
 
 /** Where a Bitwarden item sits; the popup narrows its list by these. */
@@ -226,6 +228,20 @@ export interface ExistingLogin {
   editable?: boolean
 }
 
+/** Everything a vault holds, for providers that can list a whole vault. */
+export interface VaultContents {
+  logins: LoginSummary[]
+  notes: NoteSummary[]
+  groups?: VaultGroups
+  trashed?: TrashedItem[]
+}
+
+/**
+ * How a vault takes an authenticator key a page offers: into a login the user picks in Keyward,
+ * or through the provider's own app, which asks which login gets it.
+ */
+export type CodeSetup = "login" | "app"
+
 export interface ListOptions {
   /**
    * A lookup the user did not ask for, such as the toolbar's count of logins; it does not count as
@@ -236,6 +252,8 @@ export interface ListOptions {
 
 export interface VaultProvider {
   readonly kind: ProviderKind
+  /** Whether a vault ID names one of this provider's vaults. */
+  ownsVault(vaultId: string): boolean
   vaults(): Promise<VaultInfo[]>
   logins(
     vaultId: string,
@@ -276,12 +294,7 @@ export interface VaultProvider {
   /** Earlier passwords of a login, newest first; only providers whose details count them have it. */
   passwordHistory?(vaultId: string, loginId: string): Promise<PastPassword[]>
   /** Every login and note of a vault; only providers that can list a whole vault have it. */
-  allItems?(vaultId: string): Promise<{
-    logins: LoginSummary[]
-    notes: NoteSummary[]
-    groups?: VaultGroups
-    trashed?: TrashedItem[]
-  }>
+  allItems?(vaultId: string): Promise<VaultContents>
   /** Secure notes whose name contains every word of the query; only providers with notes have these. */
   searchNotes?(vaultId: string, query: string): Promise<NoteSummary[]>
   note?(vaultId: string, noteId: string): Promise<NoteDetails>
@@ -310,6 +323,18 @@ export interface VaultProvider {
     vaultId: string,
     itemId: string,
     favorite: boolean,
+  ): Promise<void>
+  /**
+   * How the vault takes an authenticator key for the page, or null when it cannot. A locked vault
+   * answers for once it is open, so the user is offered to open it first.
+   */
+  codeSetup?(vaultId: string, page: URL): CodeSetup | null
+  /** Adds an authenticator key to `loginId`, or through the provider's app for an "app" setup. */
+  setUpCode?(
+    vaultId: string,
+    loginId: string | null,
+    page: URL,
+    uri: string,
   ): Promise<void>
   /** Whether the provider can store a login for this address; a save prompt offers only those that can. */
   canSave(url: URL): boolean

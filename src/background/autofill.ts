@@ -87,7 +87,7 @@ export async function contentConfig(
   const scanCodes = vaults.some(
     (vault) =>
       vault.status === "ready" &&
-      (vault.kind === "bitwarden" || providers.apple.canSetUpCodes()),
+      Boolean(providers.providerOf(vault.id).codeSetup?.(vault.id, page)),
   )
   const takeOverPasskeys =
     settings.takeOverPasskeys && (await hasPasskeySite(page))

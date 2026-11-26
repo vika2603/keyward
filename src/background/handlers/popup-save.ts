@@ -1,16 +1,20 @@
 import type { Handlers } from "@/lib/messaging"
-import { VaultError } from "@/lib/providers/types"
+import { VaultError, type VaultInfo } from "@/lib/providers/types"
 import { keyLabel } from "@/lib/totp"
 import type { BackgroundApi } from "../api"
 import { finishSetup, pendingSetup } from "../code-setup"
 import type { Providers } from "../providers"
 import { defaultTarget, saveTargets } from "../save-targets"
-import { namedVault } from "./capabilities"
+import { namedVault, namedVaultWith } from "./capabilities"
 import { popupOnly, popupTab } from "./request-context"
-import { newLoginDetailsInput, requireText, siteInput } from "./validation"
+import {
+  newLoginDetailsInput,
+  optionalText,
+  requireText,
+  siteInput,
+} from "./validation"
 
 export function popupSaveHandlers(providers: Providers) {
-  const { apple, bitwarden } = providers
   return {
     "popup.saveTargets": {
       allow: popupOnly,
@@ -64,22 +68,18 @@ export function popupSaveHandlers(providers: Providers) {
       handle: async () => {
         const { uri, page } = await pendingSetup()
         const vaults = await providers.loginsForPage(page)
+        const setupOf = (vault: VaultInfo) =>
+          providers.providerOf(vault.id).codeSetup?.(vault.id, page) ?? null
+        const ready = vaults.filter((vault) => vault.status === "ready")
         return {
           host: page.hostname,
           ...keyLabel(uri),
-          apple: apple.canSetUpCodes() && apple.canSave(page),
-          vaults: vaults.filter(
-            (vault) =>
-              vault.kind === "bitwarden" &&
-              vault.status === "ready" &&
-              !vault.error,
+          apple: ready.some((vault) => setupOf(vault) === "app"),
+          vaults: ready.filter(
+            (vault) => setupOf(vault) === "login" && !vault.error,
           ),
           locked: vaults
-            .filter(
-              (vault) =>
-                vault.status === "locked" &&
-                (vault.kind === "bitwarden" || apple.canSave(page)),
-            )
+            .filter((vault) => vault.status === "locked" && setupOf(vault))
             .map(({ logins: _, ...info }) => info),
         }
       },
@@ -88,22 +88,13 @@ export function popupSaveHandlers(providers: Providers) {
       allow: popupOnly,
       handle: async ({ vaultId, loginId }) => {
         const { uri, page } = await pendingSetup()
-        const vault = namedVault(providers, vaultId)
-        if (vault.provider === apple) {
-          if (!apple.canSave(page))
-            throw new VaultError(
-              "Apple Passwords does not store logins for this host",
-              "apple.unsupportedSite",
-            )
-          await apple.setUpCode(page.hostname, uri)
-        } else {
-          await bitwarden.setCode(
-            vault.vaultId,
-            requireText(loginId, "loginId"),
-            page,
-            uri,
-          )
-        }
+        const vault = namedVaultWith(providers, vaultId, "setUpCode")
+        await vault.provider.setUpCode(
+          vault.vaultId,
+          optionalText(loginId, "loginId"),
+          page,
+          uri,
+        )
         await finishSetup()
         return null
       },

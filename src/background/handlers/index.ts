@@ -1,4 +1,6 @@
 import type { Handlers } from "@/lib/messaging"
+import type { AppleProvider } from "@/lib/providers/apple/apple-provider"
+import type { BitwardenProvider } from "@/lib/providers/bitwarden/bitwarden-provider"
 import type { BackgroundApi } from "../api"
 import type { Providers } from "../providers"
 import { appleHandlers } from "./apple"
@@ -11,17 +13,27 @@ import { popupNoteHandlers } from "./popup-notes"
 import { popupSaveHandlers } from "./popup-save"
 import { promptHandlers } from "./prompt"
 
+/** The providers whose own requests, such as pairing or signing in, name them directly. */
+export interface NamedProviders {
+  apple: AppleProvider
+  bitwarden: BitwardenProvider
+}
+
 /**
  * The background's answers to requests from the popup, the options page, the in-page overlays and
- * the content scripts, one module per sender and subject.
+ * the content scripts, one module per sender and subject. Only the requests of one provider reach
+ * it by name; every other request goes through `providers`.
  */
-export function createHandlers(providers: Providers): Handlers<BackgroundApi> {
+export function createHandlers(
+  providers: Providers,
+  named: NamedProviders,
+): Handlers<BackgroundApi> {
   return {
     ...popupItemHandlers(providers),
     ...popupNoteHandlers(providers),
     ...popupSaveHandlers(providers),
-    ...appleHandlers(providers),
-    ...bitwardenHandlers(providers),
+    ...appleHandlers(named.apple),
+    ...bitwardenHandlers(named.bitwarden),
     ...generatorHandlers(),
     ...menuHandlers(providers),
     ...promptHandlers(providers),

@@ -83,9 +83,9 @@ async function runCommand(
 export function startBackground(): void {
   const apple = new AppleProvider()
   const bitwarden = new BitwardenProvider(loadVaultCrypto)
-  const providers = new Providers(apple, bitwarden)
+  const providers = new Providers([apple, bitwarden])
 
-  serveRequests(createHandlers(providers), errorCode)
+  serveRequests(createHandlers(providers, { apple, bitwarden }), errorCode)
   const loginMenus = new LoginMenus(providers)
   const refreshToolbar = watchToolbar(providers, (vaults, tab) =>
     loginMenus.show(vaults, tab),

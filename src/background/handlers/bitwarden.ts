@@ -1,16 +1,16 @@
 import type { Handlers } from "@/lib/messaging"
-import type { AccountSummary } from "@/lib/providers/bitwarden/bitwarden-provider"
+import type {
+  AccountSummary,
+  BitwardenProvider,
+} from "@/lib/providers/bitwarden/bitwarden-provider"
 import { normalizeServerAddress } from "@/lib/providers/bitwarden/server"
 import { VaultError } from "@/lib/providers/types"
 import type { BackgroundApi } from "../api"
 import { MAX_ACCOUNT_NAME_LENGTH, MAX_SECOND_STEP_CODE_LENGTH } from "../limits"
-import type { Providers } from "../providers"
 import { connectPages } from "./request-context"
 import { customEndpointsOf, requireText, secondStepMethod } from "./validation"
 
-export function bitwardenHandlers(providers: Providers) {
-  const { bitwarden } = providers
-
+export function bitwardenHandlers(bitwarden: BitwardenProvider) {
   const knownAccount = async (accountId: unknown): Promise<AccountSummary> => {
     const checkedId = requireText(accountId, "accountId")
     const account = (await bitwarden.accounts()).find(

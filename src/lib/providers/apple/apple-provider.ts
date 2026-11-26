@@ -4,6 +4,7 @@ import { serialQueue } from "@/lib/serial-queue"
 import { getSettings } from "@/lib/settings"
 import { isHostName } from "@/lib/site"
 import {
+  type CodeSetup,
   type Credential,
   type ExistingLogin,
   type LoginDetails,
@@ -67,6 +68,10 @@ export class AppleProvider implements VaultProvider {
 
   constructor(readonly helper = new HelperSession()) {}
 
+  ownsVault(vaultId: string): boolean {
+    return vaultId === APPLE_VAULT_ID
+  }
+
   async vaults(): Promise<VaultInfo[]> {
     if (!this.helper.enabled) return []
     const { phase, error } = this.helper.getState()
@@ -77,6 +82,7 @@ export class AppleProvider implements VaultProvider {
         label: "Apple Passwords",
         status: STATUS_OF_PHASE[phase],
         error,
+        awaitingUser: phase === "awaitingCode",
       },
     ]
   }
@@ -469,25 +475,34 @@ export class AppleProvider implements VaultProvider {
     })
   }
 
-  /** Whether the Passwords app can be handed a verification code to set up right now. */
-  canSetUpCodes(): boolean {
-    return (
-      this.helper.paired && this.helper.capabilities?.scanForOTPURI === true
-    )
+  /**
+   * The Passwords app asks on the Mac which login gets a key. Before pairing the vault is offered
+   * for every site it stores logins for, since pairing comes first.
+   */
+  codeSetup(_vaultId: string, page: URL): CodeSetup | null {
+    if (!this.canSave(page)) return null
+    if (!this.helper.paired) return "app"
+    return this.helper.capabilities?.scanForOTPURI ? "app" : null
   }
 
-  /**
-   * Hands an `otpauth://` URI to the Passwords app, which asks on the Mac which login of the site
-   * gets the verification code.
-   */
-  async setUpCode(site: string, uri: string): Promise<void> {
-    if (!isHostName(site))
-      throw new VaultError("Not a host name", "invalidSite")
-    if (!this.canSetUpCodes())
+  /** Hands an `otpauth://` URI to the Passwords app, which asks which login of the site gets it. */
+  async setUpCode(
+    _vaultId: string,
+    _loginId: string | null,
+    page: URL,
+    uri: string,
+  ): Promise<void> {
+    if (!this.canSave(page)) {
+      throw new VaultError(
+        "Apple Passwords does not store logins for this host",
+        "apple.unsupportedSite",
+      )
+    }
+    if (!this.helper.paired || !this.helper.capabilities?.scanForOTPURI)
       throw new VaultError("Apple Passwords cannot set up codes now", "locked")
     this.helper.post({
       cmd: Cmd.LaunchPasswordsApp,
-      setUpTOTPPageURL: site,
+      setUpTOTPPageURL: page.hostname,
       setUpTOTPURI: uri,
     })
   }

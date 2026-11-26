@@ -2,6 +2,7 @@ import { ruleForHost, uriMatches } from "@/lib/matching"
 import { getSettings } from "@/lib/settings"
 import { oneTimeCode } from "@/lib/totp"
 import {
+  type CodeSetup,
   type Credential,
   type CustomField,
   type EditableLogin,
@@ -20,8 +21,8 @@ import {
   type PastPassword,
   type TabRef,
   type TrashedItem,
+  type VaultContents,
   VaultError,
-  type VaultGroups,
   type VaultInfo,
   type VaultProvider,
 } from "../types"
@@ -61,7 +62,7 @@ import {
   type SignInOutcome,
 } from "./sign-in"
 import { type Vault, VaultCache } from "./vault-cache"
-import { accountIdOfVault, vaultIdOf } from "./vault-id"
+import { accountIdOfVault, isBitwardenVault, vaultIdOf } from "./vault-id"
 
 export type { PendingSignInView, SignInOutcome }
 
@@ -109,6 +110,10 @@ export class BitwardenProvider implements VaultProvider {
       (server, endpoints, signedIn) =>
         this.finishSignIn(server, endpoints, signedIn),
     )
+  }
+
+  ownsVault(vaultId: string): boolean {
+    return isBitwardenVault(vaultId)
   }
 
   /** Calls `listener` after an account is unlocked, locked or synced. */
@@ -304,12 +309,7 @@ export class BitwardenProvider implements VaultProvider {
   }
 
   /** Every login and note of the account, as the popup lists them when browsing the vault. */
-  async allItems(vaultId: string): Promise<{
-    logins: LoginSummary[]
-    notes: NoteSummary[]
-    groups: VaultGroups
-    trashed: TrashedItem[]
-  }> {
+  async allItems(vaultId: string): Promise<VaultContents> {
     const { items, notes, groups, trashed } = await this.vaultOf(vaultId)
     return {
       logins: items.map(summaryOf),
@@ -504,13 +504,19 @@ export class BitwardenProvider implements VaultProvider {
     }
   }
 
+  /** Every account takes an authenticator key into a login the user picks. */
+  codeSetup(): CodeSetup {
+    return "login"
+  }
+
   /** Stores an authenticator key in a login of the page, replacing the one it has. */
-  async setCode(
+  async setUpCode(
     vaultId: string,
-    loginId: string,
+    loginId: string | null,
     page: URL,
     key: string,
   ): Promise<void> {
+    if (!loginId) throw new VaultError("No login was chosen", "invalidInput")
     requireCodeKey(key)
     const { vault, item, cipher } = await this.pageItem(vaultId, loginId, page)
     refuseReprompt(item)
