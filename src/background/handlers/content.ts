@@ -7,7 +7,7 @@ import { menuSessions } from "../overlays"
 import type { Providers } from "../providers"
 import { onSubmitted, showPrompt } from "../save-prompt"
 import { closeMenu, tabFrame } from "./request-context"
-import { fieldKind, requireText } from "./validation"
+import { fieldKind, optionalText, requireText } from "./validation"
 
 export function contentHandlers(providers: Providers) {
   return {
@@ -71,12 +71,17 @@ export function contentHandlers(providers: Providers) {
     },
     "content.submitted": {
       allow: ["contentScript"],
-      handle: async ({ username, password, newPassword }, sender) => {
+      handle: async (
+        { username, password, newPassword, usernameOnPage },
+        sender,
+      ) => {
         const { tabId, frameId } = tabFrame(sender)
         await onSubmitted(providers, tabId, frameId, {
           username: requireText(username, "username"),
           password: requireText(password, "password"),
           newPassword: newPassword === true,
+          usernameOnPage:
+            optionalText(usernameOnPage, "usernameOnPage") ?? undefined,
         })
         return null
       },

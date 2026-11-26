@@ -23,6 +23,8 @@ interface SubmittedLogin {
   password: string
   /** Whether the password was typed into a field for a new password. */
   newPassword?: boolean
+  /** The account the page names without a field for it. */
+  usernameOnPage?: string
 }
 
 interface StoredLogin {
@@ -98,8 +100,12 @@ export async function onSubmitted(
   const behavior = ruleForHost(settings.siteRules, page.hostname)?.behavior
   if (behavior === "noSave" || behavior === "disabled") return
   const site = siteDomainOf(page.hostname)
+  // The username this tab used on the step before is surer than the one the page names.
   const username =
-    submitted.username.trim() || (await recallUsername(tabId, site)) || ""
+    submitted.username.trim() ||
+    (await recallUsername(tabId, site)) ||
+    submitted.usernameOnPage?.trim() ||
+    ""
   if (!submitted.password) {
     if (username) await rememberUsername(tabId, site, username)
     return

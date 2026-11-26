@@ -199,6 +199,24 @@ describe("onSubmitted", () => {
     expect(await promptSessions.get(TAB)).toMatchObject({ username: "someone" })
   })
 
+  it("takes the account the page names when the step before named none", async () => {
+    const { providers } = fakeProviders([{ info: accountVault }])
+    const onPage = {
+      username: "",
+      password: "typed-password",
+      usernameOnPage: "shown@example.com",
+    }
+    await onSubmitted(providers, TAB, 0, onPage)
+    expect(await promptSessions.get(TAB)).toMatchObject({
+      username: "shown@example.com",
+    })
+    // The username typed on the step before is surer than what the page shows.
+    await promptSessions.remove(TAB)
+    await onSubmitted(providers, TAB, 0, { username: "someone", password: "" })
+    await onSubmitted(providers, TAB, 0, onPage)
+    expect(await promptSessions.get(TAB)).toMatchObject({ username: "someone" })
+  })
+
   it("does not carry a remembered username to another site", async () => {
     const { providers } = fakeProviders([{ info: accountVault }])
     await onSubmitted(providers, TAB, 0, { username: "someone", password: "" })

@@ -383,8 +383,16 @@ export type BackgroundApi = {
   "content.passkeyUsed": { payload: null; result: null }
   "content.closeMenu": { payload: null; result: null }
   "content.submitted": {
-    /** `newPassword` when the password was typed into a field for a new one. */
-    payload: { username: string; password: string; newPassword?: boolean }
+    /**
+     * `newPassword` when the password was typed into a field for a new one; `usernameOnPage` the
+     * account the page names without a field for it, for when `username` is empty.
+     */
+    payload: {
+      username: string
+      password: string
+      newPassword?: boolean
+      usernameOnPage?: string
+    }
     result: null
   }
   "content.ready": { payload: null; result: null }

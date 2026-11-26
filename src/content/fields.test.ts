@@ -361,6 +361,53 @@ describe("a change-password form", () => {
   })
 })
 
+describe("the password step of a two-step sign-in", () => {
+  it("reads the account from a hidden field named for it, but not from an ID or token", () => {
+    document.body.innerHTML = `
+      <form>
+        <input type="hidden" name="user_id" value="48213">
+        <input type="hidden" name="login_token" value="a8f3c">
+        <input type="hidden" name="username" value="user@example.com">
+        <input type="password" name="password">
+      </form>`
+    type("password", "{{SECRET_xbfqywla}}")
+    expect(credentialsAround(field("password"))).toMatchObject({
+      username: "",
+      usernameOnPage: "user@example.com",
+    })
+  })
+
+  it("reads an email address the form shows, but not a masked one", () => {
+    document.body.innerHTML = `
+      <form>
+        <p>Recovery address r***@example.org</p>
+        <p>Signed in as <b>user@example.com</b></p>
+        <input type="password" name="password">
+        <button>Next</button>
+      </form>`
+    type("password", "{{SECRET_xbfqywla}}")
+    expect(credentialsAround(field("password"))?.usernameOnPage).toBe(
+      "user@example.com",
+    )
+  })
+
+  it("leaves it out when the form has a username field", () => {
+    document.body.innerHTML = `
+      <form>
+        <p>Questions? support@example.com</p>
+        <input name="username">
+        <input type="password" name="password">
+      </form>`
+    type("username", "someone")
+    type("password", "{{SECRET_xbfqywla}}")
+    expect(credentialsAround(field("password"))).toEqual({
+      username: "someone",
+      password: "{{SECRET_xbfqywla}}",
+      newPassword: false,
+    })
+  })
+})
+
 describe("the first step of a two-step sign-in", () => {
   beforeEach(() => {
     document.body.innerHTML = `
