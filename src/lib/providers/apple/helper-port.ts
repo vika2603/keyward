@@ -8,7 +8,6 @@ const HOST_NAME = "keyward.passwords"
 
 export interface HelperMessage {
   cmd: number
-  tabId?: number
   frameId?: number
   [key: string]: unknown
 }
@@ -20,6 +19,10 @@ export interface HelperPortEvents {
 }
 
 interface Waiter {
+  replyCmd: number
+  /** The frame ID the request carried for the helper to echo; none on requests sent without one. */
+  tag: number | undefined
+  newestOnly: boolean
   resolve: (message: HelperMessage) => void
   reject: (error: Error) => void
   timer: ReturnType<typeof setTimeout> | undefined
@@ -115,26 +118,30 @@ export interface RequestOptions {
   timeoutMs: number | null
   /** The command number of the reply when it differs from the request's. */
   replyCmd?: number
-  /** Match the reply's tabId and frameId, which the helper echoes from the request. */
-  matchTab?: boolean
-}
-
-function waiterKey(
-  cmd: number,
-  tab?: { tabId?: number; frameId?: number },
-): string {
-  return tab ? `${cmd}:${tab.tabId ?? 0}:${tab.frameId ?? 0}` : `${cmd}`
+  /**
+   * Gives the request a frame ID of its own, which the helper echoes in the reply, so the reply
+   * answers this request alone.
+   */
+  tagged?: boolean
+  /**
+   * A new request for the same reply ends this one while it waits, as when the user leaves a
+   * Touch ID prompt unanswered and asks again.
+   */
+  newestOnly?: boolean
 }
 
 /**
- * The native messaging connection to Apple's helper. Replies carry no request ID; they are routed
- * by command number and, where requested, by the tab and frame the helper echoes back. Only one
- * request waits for any given reply; a newer one replaces it. An open port also keeps the
- * extension's service worker running.
+ * The native messaging connection to Apple's helper. Replies carry no request ID. The helper
+ * echoes a request's tab and frame IDs, which Apple's extension uses to send each reply to the
+ * frame that asked; this port puts a number of its own in the frame ID instead, so a reply finds
+ * its request, and one that comes after its request gave up is dropped. Replies without a frame
+ * ID go to the oldest request waiting for that command. An open port also keeps the extension's
+ * service worker running.
  */
 export class HelperPort {
   private port: Browser.runtime.Port | null = null
-  private readonly waiters = new Map<string, Waiter>()
+  private readonly waiters = new Set<Waiter>()
+  private lastTag = 0
 
   constructor(private readonly listeners: HelperPortEvents) {}
 
@@ -188,54 +195,72 @@ export class HelperPort {
     options: RequestOptions,
   ): Promise<HelperMessage> {
     const replyCmd = options.replyCmd ?? message.cmd
-    const key = waiterKey(replyCmd, options.matchTab ? message : undefined)
+    const newestOnly = Boolean(options.newestOnly)
+    if (newestOnly) {
+      for (const earlier of this.waiters) {
+        if (earlier.newestOnly && earlier.replyCmd === replyCmd)
+          this.settle(earlier).reject(
+            new SupersededError("Replaced by a newer request"),
+          )
+      }
+    }
+    const tag = options.tagged ? ++this.lastTag : undefined
     return new Promise((resolve, reject) => {
-      const waiter: Waiter = { resolve, reject, timer: undefined }
+      const waiter: Waiter = {
+        replyCmd,
+        tag,
+        newestOnly,
+        resolve,
+        reject,
+        timer: undefined,
+      }
       if (options.timeoutMs !== null) {
         waiter.timer = setTimeout(() => {
-          if (this.waiters.get(key) === waiter) this.waiters.delete(key)
-          reject(
+          this.settle(waiter).reject(
             new HelperTimeoutError(
               `Apple Passwords helper did not answer command ${message.cmd}`,
             ),
           )
         }, options.timeoutMs)
       }
-      const previous = this.waiters.get(key)
-      if (previous) {
-        clearTimeout(previous.timer)
-        previous.reject(new SupersededError("Replaced by a newer request"))
-      }
-      this.waiters.set(key, waiter)
+      this.waiters.add(waiter)
       try {
-        this.post(message)
+        // Apple's extension sends a tab ID with every frame ID, so this request carries one too.
+        this.post(
+          tag === undefined ? message : { ...message, tabId: 0, frameId: tag },
+        )
       } catch (error) {
-        clearTimeout(waiter.timer)
-        if (this.waiters.get(key) === waiter) this.waiters.delete(key)
-        reject(error instanceof Error ? error : new Error(String(error)))
+        this.settle(waiter).reject(
+          error instanceof Error ? error : new Error(String(error)),
+        )
       }
     })
   }
 
+  /** Stops a waiter from waiting and hands it back to be resolved or rejected. */
+  private settle(waiter: Waiter): Waiter {
+    clearTimeout(waiter.timer)
+    this.waiters.delete(waiter)
+    return waiter
+  }
+
   private dispatch(message: HelperMessage): void {
-    const keys = [waiterKey(message.cmd, message), waiterKey(message.cmd)]
-    for (const key of keys) {
-      const waiter = this.waiters.get(key)
-      if (!waiter) continue
-      this.waiters.delete(key)
-      clearTimeout(waiter.timer)
-      waiter.resolve(message)
-      return
+    const tag =
+      typeof message.frameId === "number" ? message.frameId : undefined
+    for (const waiter of this.waiters) {
+      const answers =
+        waiter.replyCmd === message.cmd &&
+        (tag === undefined || waiter.tag === undefined || waiter.tag === tag)
+      if (answers) {
+        this.settle(waiter).resolve(message)
+        return
+      }
     }
     this.listeners.onUnsolicited(message)
   }
 
   private failAll(error: Error): void {
-    for (const waiter of this.waiters.values()) {
-      clearTimeout(waiter.timer)
-      waiter.reject(error)
-    }
-    this.waiters.clear()
+    for (const waiter of this.waiters) this.settle(waiter).reject(error)
   }
 }
 

@@ -211,16 +211,15 @@ export async function confirmPrompt(
     password: session.password,
     details: { ...choices, notes: "", totp: "", customFields: [] },
   }
-  const tab = { tabId: session.tabId, frameId: 0 }
   if (session.update) {
     const { vaultId, loginId } = session.update
-    await providers.providerOf(vaultId).update(vaultId, loginId, login, tab)
+    await providers.providerOf(vaultId).update(vaultId, loginId, login)
   } else {
     const targets = await promptTargets(providers, url)
     const target = targets.find((candidate) => candidate.id === targetId)
     if (!target)
       throw new VaultError("The chosen place is not available", "unknownVault")
-    await providers.providerOf(target.id).save(target.id, login, tab)
+    await providers.providerOf(target.id).save(target.id, login)
   }
   await closePrompt(session.tabId)
 }

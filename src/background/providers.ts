@@ -1,8 +1,8 @@
 import { ruleForHost } from "@/lib/matching"
 import {
+  type FrameRef,
   type ListOptions,
   type LoginSummary,
-  type TabRef,
   VaultError,
   type VaultInfo,
   type VaultProvider,
@@ -71,9 +71,9 @@ export class Providers {
   }
 
   /** Every vault with the logins that give one-time codes for the page. */
-  codeLoginsForPage(page: URL, tab: TabRef): Promise<VaultView[]> {
+  codeLoginsForPage(page: URL, frame: FrameRef): Promise<VaultView[]> {
     return this.listForPage(page, (provider, vaultId, url) =>
-      provider.codeLogins(vaultId, url, tab),
+      provider.codeLogins(vaultId, url, frame),
     )
   }
 

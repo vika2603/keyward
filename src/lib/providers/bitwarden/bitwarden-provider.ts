@@ -19,7 +19,6 @@ import {
   type NoteSummary,
   type OneTimeCode,
   type PastPassword,
-  type TabRef,
   type TrashedItem,
   type VaultContents,
   VaultError,
@@ -434,7 +433,6 @@ export class BitwardenProvider implements VaultProvider {
     vaultId: string,
     loginId: string,
     page: URL | null,
-    _tab: TabRef,
   ): Promise<Credential> {
     const { vault, item, cipher } = await this.pageItem(vaultId, loginId, page)
     refuseReprompt(item)
@@ -490,7 +488,6 @@ export class BitwardenProvider implements VaultProvider {
     vaultId: string,
     loginId: string,
     page: URL | null,
-    _tab: TabRef,
   ): Promise<OneTimeCode> {
     const { vault, item, cipher } = await this.pageItem(vaultId, loginId, page)
     refuseReprompt(item)
@@ -644,7 +641,7 @@ export class BitwardenProvider implements VaultProvider {
     return groups.folders
   }
 
-  async save(vaultId: string, login: NewLogin, _tab: TabRef): Promise<void> {
+  async save(vaultId: string, login: NewLogin): Promise<void> {
     const { keys, groups } = await this.vaultOf(vaultId)
     const details = login.details
     const totp = details?.totp.trim() ?? ""
@@ -677,7 +674,6 @@ export class BitwardenProvider implements VaultProvider {
     vaultId: string,
     loginId: string,
     login: NewLogin,
-    _tab: TabRef,
   ): Promise<void> {
     const { vault, item, cipher } = await this.pageItem(vaultId, loginId, null)
     refuseEdit(item, cipher)

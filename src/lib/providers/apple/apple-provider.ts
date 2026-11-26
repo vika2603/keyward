@@ -7,46 +7,23 @@ import {
   type CodeSetup,
   type Credential,
   type ExistingLogin,
+  type FrameRef,
   type LoginDetails,
   type LoginSummary,
   type NewLogin,
   type OneTimeCode,
-  type TabRef,
   VaultError,
   type VaultInfo,
   type VaultProvider,
   type VaultStatus,
 } from "../types"
+import { HelperApi } from "./helper-api"
 import { type ApplePhase, HelperSession, needsSetup } from "./helper-session"
-import {
-  type CodeEntry,
-  codeEntryOf,
-  type Entry,
-  entryOf,
-  isCodeFor,
-  loginId,
-  parseLoginId,
-  passwordIn,
-  TOTP_SOURCE,
-} from "./listing"
-import {
-  Action,
-  Cmd,
-  entriesOf,
-  isLoginEntry,
-  isNeverSavedEntry,
-  QueryStatus,
-} from "./protocol"
+import { type Entry, isCodeFor, loginId, parseLoginId } from "./listing"
 import { APPLE_VAULT_ID } from "./vault-id"
 
-const LIST_TIMEOUT_MS = 15_000
-const SAVE_TIMEOUT_MS = 10 * 60_000
 /** Waits between listings after a save, about four seconds in all; a new login can take a moment to show up. */
 const SAVE_CHECK_DELAYS_MS = [0, 250, 500, 750, 1000, 1500]
-/** Saves use frame IDs from here up, so their replies (sent as command 4) never reach a login listing. */
-const SAVE_FRAME_BASE = 1_000_000_000
-/** The tab of a lookup the background makes on its own; the helper uses the tab only to route its reply. */
-const BACKGROUND_TAB: TabRef = { tabId: 0, frameId: 0 }
 
 /** How the vault shows in each phase of the connection to the helper. */
 const STATUS_OF_PHASE: Record<ApplePhase, VaultStatus> = {
@@ -61,12 +38,12 @@ const STATUS_OF_PHASE: Record<ApplePhase, VaultStatus> = {
 /** Apple Passwords, read and written through the system helper's paired session. */
 export class AppleProvider implements VaultProvider {
   readonly kind = "apple" as const
-  private readonly listQueue = serialQueue()
-  private readonly codeQueue = serialQueue()
+  readonly api: HelperApi
   private readonly saveQueue = serialQueue()
-  private saveCount = 0
 
-  constructor(readonly helper = new HelperSession()) {}
+  constructor(readonly helper = new HelperSession()) {
+    this.api = new HelperApi(helper)
+  }
 
   ownsVault(vaultId: string): boolean {
     return vaultId === APPLE_VAULT_ID
@@ -115,9 +92,15 @@ export class AppleProvider implements VaultProvider {
   private async listForPage(host: string): Promise<Entry[]> {
     const { equivalentDomains } = await getSettings()
     const hosts = [host, ...equivalentDomainsOf(host, equivalentDomains)]
+    const listings = await Promise.all(
+      hosts.map(async (listedHost) => ({
+        listedHost,
+        logins: (await this.api.listLogins(listedHost)).logins,
+      })),
+    )
     const entries: Entry[] = []
-    for (const listedHost of hosts) {
-      for (const entry of await this.listEntries(listedHost, BACKGROUND_TAB)) {
+    for (const { listedHost, logins } of listings) {
+      for (const entry of logins) {
         const savedForListedSite =
           listedHost === host ||
           entry.sites.some((site) => isHostOrSubdomain(site, listedHost))
@@ -147,73 +130,27 @@ export class AppleProvider implements VaultProvider {
    * logins are still listed and filled; only the offer to save a new one is left out.
    */
   async refusesSaving(_vaultId: string, page: URL): Promise<boolean> {
-    const entries = await this.listedEntries(page.hostname, BACKGROUND_TAB)
-    return entries.some(isNeverSavedEntry)
+    return (await this.api.listLogins(page.hostname)).neverSaved
   }
 
-  private async listEntries(host: string, tab: TabRef): Promise<Entry[]> {
-    const entries = await this.listedEntries(host, tab)
-    return entries.filter(isLoginEntry).map((entry) => entryOf(entry, host))
-  }
-
-  /** Every entry the helper lists for a host, including the mark of a site never saved. */
-  private async listedEntries(
-    host: string,
-    tab: TabRef,
-  ): Promise<Record<string, unknown>[]> {
-    // The helper has crashed on a request with an empty URL, which also ends the session.
-    if (!isHostName(host)) return []
-    const reply = await this.listQueue(() =>
-      this.helper.query(
-        {
-          cmd: Cmd.GetLoginNamesForUrl,
-          url: host,
-          tabId: tab.tabId,
-          frameId: tab.frameId,
-        },
-        "CmdGetLoginNames4URL",
-        { ACT: Action.GhostSearch, URL: host },
-        { timeoutMs: LIST_TIMEOUT_MS, matchTab: true },
-      ),
-    )
-    if (reply.STATUS === QueryStatus.NoResults) return []
-    return entriesOf(reply)
-  }
-
-  /**
-   * Reads one password. macOS asks for Touch ID first; with the prompt dismissed the helper never
-   * answers, so this waits without a timeout and a newer read replaces it.
-   */
+  /** Reads one password; macOS asks for Touch ID first. */
   async credential(
     _vaultId: string,
     id: string,
     page: URL | null,
-    tab: TabRef,
   ): Promise<Credential> {
     const { username, site } = siteLoginOf(id)
     // The helper's own listing for the page, and for its equivalent sites, decides which logins
     // belong to it.
     if (!(await this.listedLogin(page?.hostname ?? site, username, site)))
       throw new VaultError("The login does not match this page", "notFound")
-    const reply = await this.helper.query(
-      {
-        cmd: Cmd.GetPasswordForLoginName,
-        url: site,
-        tabId: tab.tabId,
-        frameId: tab.frameId,
-      },
-      "CmdGetPassword4LoginName",
-      { ACT: Action.Search, URL: site, USR: username },
-      { timeoutMs: null },
-    )
-    const password = passwordIn(reply, username, site)
-    if (password) return { username, password }
+    const password = await this.api.password(site, username)
     if (password === null)
       throw new VaultError(
         "Apple Passwords has no password for this login",
         "noPassword",
       )
-    throw new VaultError("Apple Passwords returned no password", "notFound")
+    return { username, password }
   }
 
   async details(
@@ -226,7 +163,7 @@ export class AppleProvider implements VaultProvider {
     const entry = await this.listedLogin(target.hostname, username, site)
     if (!entry)
       throw new VaultError("The login does not match this page", "notFound")
-    const codes = await this.codeEntries(target, BACKGROUND_TAB).catch(() => [])
+    const codes = await this.api.codeEntries(target, []).catch(() => [])
     return {
       username,
       name: entry.customTitle,
@@ -238,35 +175,16 @@ export class AppleProvider implements VaultProvider {
     }
   }
 
-  /** Authenticator entries for a page, when the helper can give codes. */
-  private async codeEntries(page: URL, tab: TabRef): Promise<CodeEntry[]> {
-    await this.helper.ensureConnected()
-    if (
-      !this.helper.capabilities?.canFillOneTimeCodes ||
-      !isHostName(page.hostname)
-    )
-      return []
-    const frameURLs = await frameChain(page, tab)
-    const reply = await this.codeQueue(() =>
-      this.helper.query(
-        { cmd: Cmd.GetOneTimeCodes, tabId: tab.tabId, frameId: tab.frameId },
-        "CmdGetOneTimeCodes",
-        { ACT: Action.GhostSearch, TYPE: "oneTimeCodes", frameURLs },
-        { timeoutMs: LIST_TIMEOUT_MS },
-      ),
-    )
-    if (reply.STATUS === QueryStatus.NoResults) return []
-    return entriesOf(reply)
-      .filter((entry) => entry.source === TOTP_SOURCE)
-      .map((entry) => codeEntryOf(entry, page.hostname))
-  }
-
   async codeLogins(
     _vaultId: string,
     page: URL,
-    tab: TabRef,
+    frame: FrameRef,
   ): Promise<LoginSummary[]> {
-    return (await this.codeEntries(page, tab)).map((entry) => ({
+    const entries = await this.api.codeEntries(
+      page,
+      await enclosingFrameURLs(frame),
+    )
+    return entries.map((entry) => ({
       id: loginId(entry.username, entry.domain),
       username: entry.username,
       title: entry.domain,
@@ -276,20 +194,21 @@ export class AppleProvider implements VaultProvider {
   }
 
   /**
-   * Reads the current code of an authenticator entry the helper offers for the page. macOS may ask
-   * for Touch ID first, so this waits without a timeout and a newer read replaces it.
+   * Reads the current code of an authenticator entry the helper offers for the page; macOS may ask
+   * for Touch ID first.
    */
   async oneTimeCode(
     _vaultId: string,
     id: string,
     requested: URL | null,
-    tab: TabRef,
+    frame?: FrameRef,
   ): Promise<OneTimeCode> {
     const { username, site } = parseLoginId(id)
     if (!requested && !isHostName(site))
       throw new VaultError("The login has no site", "unknownLogin")
     const page = requested ?? new URL(`https://${site}`)
-    const entries = await this.codeEntries(page, tab)
+    const enclosingFrames = await enclosingFrameURLs(frame)
+    const entries = await this.api.codeEntries(page, enclosingFrames)
     // The menu's IDs name the entry's own domain; the popup's name the login's site, which an
     // entry for a subdomain or parent domain may serve.
     const entry =
@@ -298,29 +217,7 @@ export class AppleProvider implements VaultProvider {
           candidate.username === username && candidate.domain === site,
       ) ?? entries.find((candidate) => isCodeFor(candidate, username, site))
     if (!entry) throw new VaultError("The login has no one-time code", "noCode")
-    const reply = await this.helper.query(
-      { cmd: Cmd.DidFillOneTimeCode, tabId: tab.tabId, frameId: tab.frameId },
-      "CmdDidFillOneTimeCode",
-      {
-        ACT: Action.Search,
-        TYPE: "oneTimeCodes",
-        frameURLs: await frameChain(page, tab),
-        ...(entry.username ? { username: entry.username } : {}),
-      },
-      { timeoutMs: null },
-    )
-    const match = entriesOf(reply).find((candidate) => {
-      const listed = codeEntryOf(candidate, page.hostname)
-      return (
-        candidate.source === TOTP_SOURCE &&
-        listed.username === entry.username &&
-        listed.domain === entry.domain
-      )
-    })
-    const code = match?.code
-    if (typeof code !== "string" && typeof code !== "number")
-      throw new VaultError("Apple Passwords returned no code", "noCode")
-    return { code: String(code) }
+    return { code: await this.api.currentCode(page, enclosingFrames, entry) }
   }
 
   /**
@@ -341,7 +238,7 @@ export class AppleProvider implements VaultProvider {
    * stored; an update of an existing login cannot be told from a cancelled save. Logins it cannot
    * store are refused before the confirmation is shown.
    */
-  save(_vaultId: string, login: NewLogin, tab: TabRef): Promise<void> {
+  save(_vaultId: string, login: NewLogin): Promise<void> {
     const host = login.url.hostname
     const username = login.username.trim()
     if (!isHostName(host))
@@ -377,32 +274,14 @@ export class AppleProvider implements VaultProvider {
     }
     return this.saveQueue(async () => {
       const entryKey = (entry: Entry) => loginId(entry.username, entry.site)
+      const listedLogins = async () => (await this.api.listLogins(host)).logins
       const entriesBefore = username
         ? new Set<string>()
-        : new Set((await this.listEntries(host, tab)).map(entryKey))
-      this.saveCount += 1
-      const frameId = SAVE_FRAME_BASE + this.saveCount
-      await this.helper.query(
-        { cmd: Cmd.SetPasswordForLoginNameAndUrl, tabId: tab.tabId, frameId },
-        "CmdSetPassword4LoginName_URL",
-        {
-          ACT: Action.MaybeAdd,
-          URL: "",
-          USR: "",
-          PWD: "",
-          NURL: host,
-          NUSR: username,
-          NPWD: login.password,
-        },
-        {
-          timeoutMs: SAVE_TIMEOUT_MS,
-          replyCmd: Cmd.GetLoginNamesForUrl,
-          matchTab: true,
-        },
-      )
+        : new Set((await listedLogins()).map(entryKey))
+      await this.api.offerLogin(host, username, login.password)
       for (const delay of SAVE_CHECK_DELAYS_MS) {
         await new Promise((resolve) => setTimeout(resolve, delay))
-        const saved = await this.listEntries(host, tab)
+        const saved = await listedLogins()
         const stored = saved.some((entry) =>
           username
             ? entry.username === username
@@ -423,13 +302,8 @@ export class AppleProvider implements VaultProvider {
     })
   }
 
-  update(
-    vaultId: string,
-    _loginId: string,
-    login: NewLogin,
-    tab: TabRef,
-  ): Promise<void> {
-    return this.save(vaultId, login, tab)
+  update(vaultId: string, _loginId: string, login: NewLogin): Promise<void> {
+    return this.save(vaultId, login)
   }
 
   async findExisting(
@@ -437,8 +311,8 @@ export class AppleProvider implements VaultProvider {
     page: URL,
     username: string,
   ): Promise<ExistingLogin | null> {
-    const entries = await this.listEntries(page.hostname, BACKGROUND_TAB)
-    const entry = entries.find((candidate) => candidate.username === username)
+    const { logins } = await this.api.listLogins(page.hostname)
+    const entry = logins.find((candidate) => candidate.username === username)
     return entry
       ? {
           loginId: loginId(entry.username, entry.site),
@@ -457,30 +331,13 @@ export class AppleProvider implements VaultProvider {
   }
 
   /** Opens the Passwords app, searching for a site when one is given. */
-  async openPasswordsApp(site?: string): Promise<void> {
-    await this.helper.ensureConnected()
-    this.helper.post(
-      site && isHostName(site)
-        ? { cmd: Cmd.LaunchPasswordsApp, searchQueryURL: `https://${site}` }
-        : { cmd: Cmd.LaunchPasswordsApp },
-    )
+  openPasswordsApp(site?: string): Promise<void> {
+    return this.api.openApp(site)
   }
 
   /** Opens the Passwords app's form for a new password, with the site filled in. */
-  async openNewPasswordSheet(site: string): Promise<void> {
-    await this.helper.ensureConnected()
-    if (!this.helper.capabilities?.canOpenPasswordsAppToNewPasswordSheet) {
-      throw new VaultError(
-        "This Passwords app cannot open its new password form",
-        "apple.unsupported",
-      )
-    }
-    if (!isHostName(site))
-      throw new VaultError("Not a web address", "invalidSite")
-    this.helper.post({
-      cmd: Cmd.LaunchPasswordsApp,
-      newPasswordWithSuggestedURL: `https://${site}`,
-    })
+  openNewPasswordSheet(site: string): Promise<void> {
+    return this.api.openNewPasswordSheet(site)
   }
 
   /**
@@ -506,13 +363,7 @@ export class AppleProvider implements VaultProvider {
         "apple.unsupportedSite",
       )
     }
-    if (!this.helper.paired || !this.helper.capabilities?.scanForOTPURI)
-      throw new VaultError("Apple Passwords cannot set up codes now", "locked")
-    this.helper.post({
-      cmd: Cmd.LaunchPasswordsApp,
-      setUpTOTPPageURL: page.hostname,
-      setUpTOTPURI: uri,
-    })
+    await this.api.setUpCode(page.hostname, uri)
   }
 }
 
@@ -525,22 +376,23 @@ function siteLoginOf(id: string): { username: string; site: string } {
 }
 
 /**
- * The URL of the frame a request is for, followed by those of the frames that contain it, as the
- * helper expects for one-time codes. Without the frame tree only the frame's own URL is sent.
+ * The URLs of the frames around a frame, innermost first, which the helper takes after the frame's
+ * own URL when it lists one-time codes. A top frame has none, and so does a request from the popup,
+ * which names no frame; without the tab's frame tree none are known.
  */
-async function frameChain(page: URL, tab: TabRef): Promise<string[]> {
-  const urls = [page.href]
-  if (tab.frameId === 0) return urls
+async function enclosingFrameURLs(frame?: FrameRef): Promise<string[]> {
+  if (!frame || frame.frameId === 0) return []
   const frames = await browser.webNavigation
-    .getAllFrames({ tabId: tab.tabId })
+    .getAllFrames({ tabId: frame.tabId })
     .catch(() => null)
-  const byId = new Map((frames ?? []).map((frame) => [frame.frameId, frame]))
-  let parent = byId.get(tab.frameId)?.parentFrameId ?? -1
-  while (parent >= 0 && urls.length <= byId.size) {
-    const frame = byId.get(parent)
-    if (!frame) break
-    urls.push(frame.url)
-    parent = frame.parentFrameId
+  const byId = new Map((frames ?? []).map((each) => [each.frameId, each]))
+  const urls: string[] = []
+  let parent = byId.get(frame.frameId)?.parentFrameId ?? -1
+  while (parent >= 0 && urls.length < byId.size) {
+    const enclosing = byId.get(parent)
+    if (!enclosing) break
+    urls.push(enclosing.url)
+    parent = enclosing.parentFrameId
   }
   return urls
 }

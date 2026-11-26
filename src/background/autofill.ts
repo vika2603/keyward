@@ -170,7 +170,7 @@ export async function fillLogin(
   )
   const credential = await providers
     .providerOf(vaultId)
-    .credential(vaultId, loginId, page, { tabId, frameId })
+    .credential(vaultId, loginId, page)
   await requireSameOrigin(tabId, frameId, page)
   await sendToFrame(tabId, frameId, {
     type: "fill",

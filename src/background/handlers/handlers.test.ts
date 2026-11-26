@@ -186,7 +186,6 @@ describe("request checks", () => {
     expect(calls.save).toHaveBeenCalledWith(
       accountVault.id,
       expect.objectContaining({ username: "someone", password: "" }),
-      expect.anything(),
     )
     await expect(save("  ")).rejects.toMatchObject({ code: "invalidInput" })
     expect(calls.save).toHaveBeenCalledOnce()

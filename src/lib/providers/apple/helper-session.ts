@@ -25,10 +25,15 @@ import {
   Cmd,
   capabilitiesOf,
   type HelperCapabilities,
+  QUERY_IDS,
+  type QueryCmd,
   QueryStatus,
   SecureSession,
 } from "./protocol"
 import { BinaryCodec, SrpClient } from "./srp"
+
+/** How a query waits for its reply. */
+export type QueryOptions = Omit<RequestOptions, "tagged">
 
 export type ApplePhase =
   | "disabled"
@@ -274,25 +279,26 @@ export class HelperSession {
   }
 
   /**
-   * Sends an encrypted query over the paired session and opens its reply. A query that a newer
-   * one waiting for the same reply replaces fails as cancelled.
+   * Sends an encrypted query over the paired session and opens its reply. The request carries a
+   * frame ID of its own, so only its own reply answers it. A query that a newer one replaces fails
+   * as cancelled.
    */
   async query(
-    envelope: HelperMessage,
-    qid: string,
+    request: { cmd: QueryCmd; url?: string },
     body: object,
-    options: RequestOptions,
+    options: QueryOptions,
   ): Promise<Record<string, unknown>> {
     await this.ensureConnected()
     const session = this.session
     if (!session)
       throw new VaultError("Apple Passwords needs pairing", "locked")
     const smsg = await session.seal(body)
+    const payload = JSON.stringify({ QID: QUERY_IDS[request.cmd], SMSG: smsg })
     let reply: HelperMessage
     try {
       reply = await this.port.request(
-        { ...envelope, payload: JSON.stringify({ QID: qid, SMSG: smsg }) },
-        options,
+        { ...request, payload },
+        { ...options, tagged: true },
       )
     } catch (error) {
       if (error instanceof SupersededError)

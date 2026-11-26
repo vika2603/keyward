@@ -1,7 +1,7 @@
 import { storage } from "wxt/utils/storage"
 import { generatePassword, getGeneratorOptions } from "@/lib/generator"
 import { type Language, resolveLanguage } from "@/lib/i18n/language"
-import type { ProviderKind, TabRef } from "@/lib/providers/types"
+import type { FrameRef, ProviderKind } from "@/lib/providers/types"
 import { serialQueue } from "@/lib/serial-queue"
 import { getSettings } from "@/lib/settings"
 import type { VaultView } from "./api"
@@ -191,7 +191,7 @@ export class LoginMenus {
     action: Action,
     entry: Entry,
     page: URL | null,
-    tab: TabRef,
+    tab: FrameRef,
   ): Promise<void> {
     const { vaultId, loginId } = entry
     const provider = this.providers.providerOf(vaultId)
@@ -210,12 +210,7 @@ export class LoginMenus {
         await copyText(entry.username, false)
         return
       case "copyPassword": {
-        const credential = await provider.credential(
-          vaultId,
-          loginId,
-          page,
-          tab,
-        )
+        const credential = await provider.credential(vaultId, loginId, page)
         // An empty copy would clear what the clipboard holds.
         if (credential.password) await copyText(credential.password, true)
         return

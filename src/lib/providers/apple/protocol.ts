@@ -28,6 +28,17 @@ export const Action = {
   GhostSearch: 5,
 } as const
 
+/** The commands that carry an encrypted query, each with the ID its query goes by. */
+export const QUERY_IDS = {
+  [Cmd.GetLoginNamesForUrl]: "CmdGetLoginNames4URL",
+  [Cmd.GetPasswordForLoginName]: "CmdGetPassword4LoginName",
+  [Cmd.SetPasswordForLoginNameAndUrl]: "CmdSetPassword4LoginName_URL",
+  [Cmd.GetOneTimeCodes]: "CmdGetOneTimeCodes",
+  [Cmd.DidFillOneTimeCode]: "CmdDidFillOneTimeCode",
+} as const
+
+export type QueryCmd = keyof typeof QUERY_IDS
+
 export const QueryStatus = {
   Success: 0,
   GenericError: 1,

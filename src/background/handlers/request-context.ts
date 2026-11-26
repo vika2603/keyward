@@ -1,5 +1,5 @@
 import type { Sender } from "@/lib/messaging"
-import { type TabRef, VaultError } from "@/lib/providers/types"
+import { VaultError } from "@/lib/providers/types"
 import { menuSessions } from "../overlays"
 import { activeTab, sendToFrame, webPage } from "../page"
 
@@ -36,10 +36,4 @@ export async function activePage(): Promise<{
 
 export async function activeHost(): Promise<string | null> {
   return (await activePage()).page?.hostname ?? null
-}
-
-/** The tab a popup read is reported for; Apple's helper only uses it to route its reply. */
-export async function popupTab(): Promise<TabRef> {
-  const tab = await activeTab()
-  return { tabId: tab?.id ?? 0, frameId: 0 }
 }

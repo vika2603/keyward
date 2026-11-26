@@ -301,7 +301,6 @@ describe("confirmPrompt", () => {
           folderId: "folder-1",
         }),
       }),
-      expect.anything(),
     )
   })
 

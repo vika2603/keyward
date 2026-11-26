@@ -52,7 +52,6 @@ describe("fillLogin", () => {
       accountVault.id,
       "item-1",
       new URL("https://accounts.example.com/login"),
-      { tabId: TAB, frameId: 0 },
     )
     expect(pageModule.sendToFrame).toHaveBeenCalledWith(TAB, 0, {
       type: "fill",
@@ -203,7 +202,6 @@ describe("fillFirst", () => {
       accountVault.id,
       "item-2",
       expect.any(URL),
-      expect.anything(),
     )
   })
 

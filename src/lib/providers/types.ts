@@ -153,8 +153,11 @@ export type FillField =
   | { name: string; text: string }
   | { name: string; checked: boolean }
 
-/** Where a request comes from, passed through to providers that report it to their host. */
-export interface TabRef {
+/**
+ * A frame of a tab, which one-time codes are listed or filled for. Apple's helper is told the URLs of
+ * the frames around it.
+ */
+export interface FrameRef {
   tabId: number
   frameId: number
 }
@@ -277,7 +280,6 @@ export interface VaultProvider {
     vaultId: string,
     loginId: string,
     page: URL | null,
-    tab: TabRef,
   ): Promise<Credential>
   /** Describes one login; `page` as for `credential`. */
   details(
@@ -285,14 +287,21 @@ export interface VaultProvider {
     loginId: string,
     page: URL | null,
   ): Promise<LoginDetails>
-  /** Logins of the page that give one-time codes. */
-  codeLogins(vaultId: string, page: URL, tab: TabRef): Promise<LoginSummary[]>
-  /** The current one-time code of a login; may ask the user to authenticate. `page` as for `credential`. */
+  /** Logins of the frame's page that give one-time codes. */
+  codeLogins(
+    vaultId: string,
+    page: URL,
+    frame: FrameRef,
+  ): Promise<LoginSummary[]>
+  /**
+   * The current one-time code of a login; may ask the user to authenticate. `page` as for
+   * `credential`; `frame` is the frame the code goes into, and none for Keyward's own views.
+   */
   oneTimeCode(
     vaultId: string,
     loginId: string,
     page: URL | null,
-    tab: TabRef,
+    frame?: FrameRef,
   ): Promise<OneTimeCode>
   /** Earlier passwords of a login, newest first; only providers whose details count them have it. */
   passwordHistory?(vaultId: string, loginId: string): Promise<PastPassword[]>
@@ -343,13 +352,8 @@ export interface VaultProvider {
   canSave(url: URL): boolean
   /** Whether the user told the provider never to save logins for the page's site; a save prompt leaves it out. */
   refusesSaving?(vaultId: string, page: URL): Promise<boolean>
-  save(vaultId: string, login: NewLogin, tab: TabRef): Promise<void>
-  update(
-    vaultId: string,
-    loginId: string,
-    login: NewLogin,
-    tab: TabRef,
-  ): Promise<void>
+  save(vaultId: string, login: NewLogin): Promise<void>
+  update(vaultId: string, loginId: string, login: NewLogin): Promise<void>
   findExisting(
     vaultId: string,
     page: URL,

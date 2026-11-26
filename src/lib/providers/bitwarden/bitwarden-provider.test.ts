@@ -168,13 +168,12 @@ describe("search", () => {
 describe("reads from Keyward's own views", () => {
   it("reads any login without a page, and only the page's logins with one", async () => {
     const bw = provider()
-    const tab = { tabId: 1, frameId: 0 }
-    expect((await bw.credential(VAULT, "item-2", null, tab)).password).toBe(
+    expect((await bw.credential(VAULT, "item-2", null)).password).toBe(
       "second-test-value",
     )
     expect((await bw.details(VAULT, "item-2", null)).editable).toBe(true)
     await expect(
-      bw.credential(VAULT, "item-2", new URL("https://example.com/"), tab),
+      bw.credential(VAULT, "item-2", new URL("https://example.com/")),
     ).rejects.toMatchObject({ code: "notFound" })
   })
 })
@@ -231,7 +230,6 @@ describe("edit", () => {
 })
 
 describe("save", () => {
-  const tab = { tabId: 1, frameId: 0 }
   const login = {
     url: new URL("https://new.example.com/signup"),
     username: "newcomer",
@@ -239,7 +237,7 @@ describe("save", () => {
   }
 
   it("names a login after its site when nothing else is given", async () => {
-    await provider().save(VAULT, login, tab)
+    await provider().save(VAULT, login)
     const body = writes()[0]?.body as Record<string, unknown> & {
       login: Record<string, unknown>
     }
@@ -250,20 +248,16 @@ describe("save", () => {
   })
 
   it("keeps the name, notes, authenticator key, fields and folder given", async () => {
-    await provider().save(
-      VAULT,
-      {
-        ...login,
-        details: {
-          name: "New Example",
-          notes: "made for a test",
-          totp: "JBSWY3DPEHPK3PXP",
-          customFields: [{ kind: "text", name: "Member", value: "42" }],
-          folderId: null,
-        },
+    await provider().save(VAULT, {
+      ...login,
+      details: {
+        name: "New Example",
+        notes: "made for a test",
+        totp: "JBSWY3DPEHPK3PXP",
+        customFields: [{ kind: "text", name: "Member", value: "42" }],
+        folderId: null,
       },
-      tab,
-    )
+    })
     const body = writes()[0]?.body as Record<string, unknown> & {
       login: Record<string, unknown>
       fields: Record<string, unknown>[]
@@ -283,18 +277,16 @@ describe("save", () => {
       folderId: null,
     }
     await expect(
-      provider().save(
-        VAULT,
-        { ...login, details: { ...details, totp: "not a key!" } },
-        tab,
-      ),
+      provider().save(VAULT, {
+        ...login,
+        details: { ...details, totp: "not a key!" },
+      }),
     ).rejects.toMatchObject({ code: "invalidCodeKey" })
     await expect(
-      provider().save(
-        VAULT,
-        { ...login, details: { ...details, folderId: "folder-9" } },
-        tab,
-      ),
+      provider().save(VAULT, {
+        ...login,
+        details: { ...details, folderId: "folder-9" },
+      }),
     ).rejects.toMatchObject({ code: "notFound" })
     expect(writes()).toEqual([])
   })
@@ -326,19 +318,18 @@ describe("passReprompt", () => {
   it("keeps an item that asks for the master password closed until it is entered", async () => {
     const bw = provider()
     const page = new URL("https://guarded.test/")
-    const tab = { tabId: 1, frameId: 0 }
     expect((await bw.details(VAULT, "item-6", null)).secretsWithheld).toBe(true)
     await expect(
       bw.passReprompt(VAULT, "item-6", "wrong password"),
     ).rejects.toMatchObject({ code: "bitwarden.wrongPassword" })
-    await expect(
-      bw.credential(VAULT, "item-6", page, tab),
-    ).rejects.toMatchObject({ code: "bitwarden.reprompt" })
+    await expect(bw.credential(VAULT, "item-6", page)).rejects.toMatchObject({
+      code: "bitwarden.reprompt",
+    })
     await bw.passReprompt(VAULT, "item-6", masterPassword)
     expect((await bw.details(VAULT, "item-6", null)).secretsWithheld).toBe(
       false,
     )
-    expect((await bw.credential(VAULT, "item-6", page, tab)).password).toBe(
+    expect((await bw.credential(VAULT, "item-6", page)).password).toBe(
       "{{SECRET_7pyhp5ym}}",
     )
     // The pass opens that item only.
@@ -641,12 +632,11 @@ describe("logins Keyward may not change", () => {
       await bw.findExisting(VAULT, example, "someone@example.com", "x"),
     ).toMatchObject({ loginId: "item-1", editable: true })
     await expect(
-      bw.update(
-        VAULT,
-        "item-3",
-        { url: example, username: "reader", password: "new password" },
-        { tabId: 1, frameId: 0 },
-      ),
+      bw.update(VAULT, "item-3", {
+        url: example,
+        username: "reader",
+        password: "new password",
+      }),
     ).rejects.toMatchObject({ code: "notEditable" })
     expect(writes()).toEqual([])
   })

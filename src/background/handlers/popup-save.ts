@@ -6,7 +6,7 @@ import { finishSetup, pendingSetup } from "../code-setup"
 import type { Providers } from "../providers"
 import { defaultTarget, saveTargets } from "../save-targets"
 import { namedVault, namedVaultWith } from "./capabilities"
-import { popupOnly, popupTab } from "./request-context"
+import { popupOnly } from "./request-context"
 import {
   newLoginDetailsInput,
   optionalText,
@@ -50,16 +50,12 @@ export function popupSaveHandlers(providers: Providers) {
             "unknownVault",
           )
         }
-        await vault.provider.save(
-          vault.vaultId,
-          {
-            url,
-            username: checkedUsername,
-            password: checkedPassword,
-            details: newLoginDetailsInput(details),
-          },
-          await popupTab(),
-        )
+        await vault.provider.save(vault.vaultId, {
+          url,
+          username: checkedUsername,
+          password: checkedPassword,
+          details: newLoginDetailsInput(details),
+        })
         return null
       },
     },

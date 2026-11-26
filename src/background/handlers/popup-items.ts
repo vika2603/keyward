@@ -6,7 +6,7 @@ import { MAX_COPIED_TEXT_LENGTH, MAX_SEARCH_LENGTH } from "../limits"
 import { takeRequestedView } from "../popup-window"
 import type { Providers } from "../providers"
 import { namedVault, namedVaultWith } from "./capabilities"
-import { activePage, popupOnly, popupTab } from "./request-context"
+import { activePage, popupOnly } from "./request-context"
 import { loginEdit, requireBoolean, requireText } from "./validation"
 
 export function popupItemHandlers(providers: Providers) {
@@ -20,7 +20,6 @@ export function popupItemHandlers(providers: Providers) {
       vault.vaultId,
       requireText(loginId, "loginId"),
       null,
-      await popupTab(),
     )
   }
 
@@ -98,7 +97,6 @@ export function popupItemHandlers(providers: Providers) {
           vault.vaultId,
           requireText(loginId, "loginId"),
           null,
-          await popupTab(),
         )
       },
     },

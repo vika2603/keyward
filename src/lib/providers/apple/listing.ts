@@ -86,7 +86,7 @@ export function isCodeFor(
 /**
  * What a reply to a password read says about one login: its password, `null` when the helper has
  * none for it, as for a login with only a passkey, or `undefined` when the reply is about other
- * logins, as a late answer to a replaced read is.
+ * logins.
  */
 export function passwordIn(
   reply: Record<string, unknown>,

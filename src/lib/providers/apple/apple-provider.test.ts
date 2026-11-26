@@ -2,27 +2,34 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 import { fakeBrowser } from "wxt/testing/fake-browser"
 import { updateSettings } from "@/lib/settings"
 import { AppleProvider } from "./apple-provider"
+import type { SiteListing } from "./helper-api"
 import type { HelperCapabilities } from "./protocol"
-import { Cmd } from "./protocol"
 
-/** A provider whose helper answers each query with `answer`; nothing reaches a real helper. */
-function providerAnswering(
-  answer: (envelope: { cmd: number; url?: unknown }) => Record<string, unknown>,
+/** A provider whose helper lists what `listingOf` gives for each host; nothing reaches a real helper. */
+function providerListing(
+  listingOf: (host: string) => SiteListing,
   capabilities: HelperCapabilities = {},
 ) {
   const apple = new AppleProvider()
-  const query = vi
-    .spyOn(apple.helper, "query")
-    .mockImplementation(async (envelope) => answer(envelope))
+  const listLogins = vi
+    .spyOn(apple.api, "listLogins")
+    .mockImplementation(async (host) => listingOf(host))
+  const offerLogin = vi
+    .spyOn(apple.api, "offerLogin")
+    .mockResolvedValue(undefined)
   vi.spyOn(apple.helper, "capabilities", "get").mockReturnValue(capabilities)
-  return { apple, query }
+  return { apple, listLogins, offerLogin }
 }
 
-/** A listing reply with one login per username, saved for `site`. */
-function listing(site: string, ...users: string[]) {
+/** A listing with one login per username, each saved for its own site. */
+function listing(...logins: [username: string, site: string][]): SiteListing {
   return {
-    STATUS: 0,
-    Entries: users.map((USR) => ({ USR, PWD: "Not Included", sites: [site] })),
+    logins: logins.map(([username, site]) => ({
+      username,
+      site,
+      sites: [site],
+    })),
+    neverSaved: false,
   }
 }
 
@@ -52,25 +59,18 @@ describe("AppleProvider.logins", () => {
     await updateSettings({
       equivalentDomains: [["example.com", "www.example.org"]],
     })
-    const listings: Record<string, { username: string; site: string }[]> = {
-      "accounts.example.com": [{ username: "me", site: "example.com" }],
-      "example.org": [
-        { username: "me", site: "example.com" },
-        { username: "other", site: "example.org" },
-      ],
+    const listings: Record<string, SiteListing> = {
+      "accounts.example.com": listing(["me", "example.com"]),
+      "example.org": listing(["me", "example.com"], ["other", "example.org"]),
     }
-    const { apple, query } = providerAnswering(({ url }) => ({
-      STATUS: 0,
-      Entries: (listings[String(url)] ?? []).map((entry) => ({
-        USR: entry.username,
-        sites: [entry.site],
-      })),
-    }))
+    const { apple, listLogins } = providerListing(
+      (host) => listings[host] ?? listing(),
+    )
     const logins = await apple.logins(
       "apple",
       new URL("https://accounts.example.com/login"),
     )
-    expect(query.mock.calls.map(([envelope]) => envelope.url)).toEqual([
+    expect(listLogins.mock.calls.map(([host]) => host)).toEqual([
       "accounts.example.com",
       "example.org",
     ])
@@ -81,19 +81,13 @@ describe("AppleProvider.logins", () => {
   })
 
   it("lists only the logins of a subdomain Apple's list shares, not its parent domain's", async () => {
-    const listings: Record<string, { username: string; site: string }[]> = {
-      "shop.univision.com": [
-        { username: "shopper", site: "shop.univision.com" },
-        { username: "viewer", site: "univision.com" },
-      ],
+    const listings: Record<string, SiteListing> = {
+      "shop.univision.com": listing(
+        ["shopper", "shop.univision.com"],
+        ["viewer", "univision.com"],
+      ),
     }
-    const { apple } = providerAnswering(({ url }) => ({
-      STATUS: 0,
-      Entries: (listings[String(url)] ?? []).map((entry) => ({
-        USR: entry.username,
-        sites: [entry.site],
-      })),
-    }))
+    const { apple } = providerListing((host) => listings[host] ?? listing())
     const logins = await apple.logins("apple", new URL("https://meh.com/"))
     expect(logins.map((login) => [login.username, login.host])).toEqual([
       ["shopper", "shop.univision.com"],
@@ -101,49 +95,30 @@ describe("AppleProvider.logins", () => {
   })
 })
 
-describe("AppleProvider.refusesSaving", () => {
-  it("tells a site set never to save, while its logins are still listed", async () => {
-    const { apple } = providerAnswering(() =>
-      listing("example.com", "someone", "Passwords not saved"),
-    )
-    const page = new URL("https://example.com/login")
-    expect(await apple.refusesSaving("apple", page)).toBe(true)
-    expect(
-      (await apple.logins("apple", page)).map((login) => login.username),
-    ).toEqual(["someone"])
-  })
-
-  it("takes a site with only logins as one that saves", async () => {
-    const { apple } = providerAnswering(() => listing("example.com", "someone"))
-    expect(
-      await apple.refusesSaving("apple", new URL("https://example.com/")),
-    ).toBe(false)
-  })
-})
-
 describe("AppleProvider.save", () => {
-  const tab = { tabId: 1, frameId: 0 }
   const url = new URL("https://example.com/")
 
   /** A helper whose listing turns from `before` into `after` once asked to save. */
   function saving(before: string[], after: string[]) {
-    let listed = before
-    return providerAnswering(
-      ({ cmd }) => {
-        if (cmd !== Cmd.SetPasswordForLoginNameAndUrl)
-          return listing("example.com", ...listed)
-        listed = after
-        return { STATUS: 0 }
-      },
-      { canSaveAccountWithEmptyUserName: true },
-    )
+    const listed = (usernames: string[]) =>
+      listing(
+        ...usernames.map((name): [string, string] => [name, "example.com"]),
+      )
+    let current = listed(before)
+    const fake = providerListing(() => current, {
+      canSaveAccountWithEmptyUserName: true,
+    })
+    fake.offerLogin.mockImplementation(async () => {
+      current = listed(after)
+    })
+    return fake
   }
 
   async function saveOutcome(apple: AppleProvider, username: string) {
     vi.useFakeTimers()
     try {
       const outcome = apple
-        .save("apple", { url, username, password: "pw" }, tab)
+        .save("apple", { url, username, password: "pw" })
         .then(
           () => "stored",
           (error: { code: string }) => error.code,
@@ -166,20 +141,18 @@ describe("AppleProvider.save", () => {
   })
 
   it("takes a user name of only spaces as none", async () => {
-    const { apple, query } = saving(["someone"], ["someone"])
+    const { apple, offerLogin } = saving(["someone"], ["someone"])
     expect(await saveOutcome(apple, "  ")).toBe("apple.saveUnconfirmed")
-    const offered = query.mock.calls.find(
-      ([envelope]) => envelope.cmd === Cmd.SetPasswordForLoginNameAndUrl,
-    )
-    expect(offered?.[2]).toMatchObject({ NUSR: "" })
+    expect(offerLogin).toHaveBeenCalledWith("example.com", "", "pw")
   })
 
   it("refuses a login without a password before asking the helper", async () => {
-    const { apple, query } = saving([], ["me"])
+    const { apple, listLogins, offerLogin } = saving([], ["me"])
     await expect(
-      apple.save("apple", { url, username: "me", password: "" }, tab),
+      apple.save("apple", { url, username: "me", password: "" }),
     ).rejects.toMatchObject({ code: "apple.emptyPassword" })
-    expect(query).not.toHaveBeenCalled()
+    expect(listLogins).not.toHaveBeenCalled()
+    expect(offerLogin).not.toHaveBeenCalled()
   })
 
   it("reports a named login the listing lacks as not stored", async () => {
