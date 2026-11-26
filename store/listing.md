@@ -18,7 +18,8 @@ Keyward fills, generates and saves passwords with the vaults you already use: th
 
 Fill
 • Sign-in fields show the Keyward icon and a menu of the logins saved for the site. Choose one to fill it.
-• Fills verification codes, and offers passkey sign-in in the same menu on sites where you use passkeys.
+• Fills verification codes, and offers passkey sign-in in the same menu on sites that support it.
+• When a site, such as a router's admin page, asks for a login in the browser's own sign-in dialog, Keyward's popup lists the site's logins first.
 • A keyboard shortcut fills a login for the current site; press it again for the next one.
 
 Save
@@ -45,7 +46,8 @@ Keyward 用你已经在用的密码库填充、生成和保存密码：Mac 上�
 
 填充
 • 登录框里显示 Keyward 图标和本站已保存登录的菜单，选中一个即可填入。
-• 填充验证码；在你使用通行密钥的网站上，同一个菜单里也能用通行密钥登录。
+• 填充验证码；网站支持通行密钥时，同一个菜单里也能用通行密钥登录。
+• 网站（如路由器管理页）用浏览器自带的登录对话框要求登录时，Keyward 弹窗会先列出这个网站的登录。
 • 用快捷键填充当前网站的登录，再按一次换下一个。
 
 保存
