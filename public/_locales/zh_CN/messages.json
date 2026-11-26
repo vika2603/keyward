@@ -1,0 +1,11 @@
+{
+  "extName": { "message": "Keyward" },
+  "extDescription": {
+    "message": "用 Passwords App 和 Bitwarden 填充、生成和保存密码。"
+  },
+  "commandFillFirst": {
+    "message": "填充当前站点的登录，再按一次换下一个"
+  },
+  "commandOpenGenerator": { "message": "打开生成器" },
+  "commandLockAll": { "message": "锁定全部密码库" }
+}

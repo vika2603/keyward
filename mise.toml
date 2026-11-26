@@ -10,6 +10,10 @@ run = "pnpm install"
 description = "Build the extension into .output/chrome-mv3"
 run = "pnpm build"
 
+[tasks.zip]
+description = "Package the extension for the Chrome Web Store into .output, without the manifest key"
+run = "pnpm zip"
+
 [tasks.lint]
 description = "Check formatting and lint rules with Biome"
 run = "pnpm lint"

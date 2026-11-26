@@ -1,0 +1,11 @@
+{
+  "extName": { "message": "Keyward" },
+  "extDescription": {
+    "message": "Fills, generates and saves passwords with the Passwords app and Bitwarden."
+  },
+  "commandFillFirst": {
+    "message": "Fill a login for the current site; press again for the next"
+  },
+  "commandOpenGenerator": { "message": "Open the generator" },
+  "commandLockAll": { "message": "Lock all vaults" }
+}
