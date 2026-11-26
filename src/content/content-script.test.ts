@@ -103,6 +103,32 @@ describe("placing the field icons", () => {
     input("[name=password]").focus()
     expect(await inputLayoutReadsOnResize()).toBeGreaterThan(0)
   })
+
+  it("ends the icon where a wider right padding keeps room for the page's own control", async () => {
+    document.body.innerHTML = `
+      <form>
+        <input name="username" style="padding: 0 43px 0 16px; border: 1px solid">
+        <input type="password" name="password" style="padding: 0 12px">
+      </form>`
+    const shadowRoots = vi.spyOn(HTMLElement.prototype, "attachShadow")
+    ;({ ctx } = await startContentScript({ config: { menuTrigger: "click" } }))
+    const iconRoot = shadowRoots.mock.results[
+      shadowRoots.mock.contexts.indexOf(
+        document.querySelector("keyward-field-icons"),
+      )
+    ]?.value as ShadowRoot
+    const shownIconLeft = async (field: HTMLInputElement) => {
+      field.focus()
+      await vi.advanceTimersByTimeAsync(100)
+      return [...iconRoot.querySelectorAll("button")].find(
+        (icon) => icon.style.display === "flex",
+      )?.style.left
+    }
+
+    // Each field spans 10 to 210; the icon is 24 wide.
+    expect(await shownIconLeft(input("[name=username]"))).toBe("142px")
+    expect(await shownIconLeft(input("[name=password]"))).toBe("180px")
+  })
 })
 
 const OTHER_ORIGIN = "https://other.example"

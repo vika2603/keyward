@@ -53,6 +53,20 @@ button:hover, button[aria-expanded="true"] {
 }
 `
 
+const px = (value: string) => Number.parseFloat(value) || 0
+
+/**
+ * How far before the field's right edge the icon ends. A right padding wider than the left one is
+ * room the page keeps for a control of its own, such as Apple's arrow button, which may take no
+ * pointer events and so escape `coveringElement`; the icon ends where that room begins.
+ */
+function endInset(style: CSSStyleDeclaration): number {
+  const paddingRight = px(style.paddingRight)
+  return paddingRight > px(style.paddingLeft)
+    ? Math.max(INSET, px(style.borderRightWidth) + paddingRight)
+    : INSET
+}
+
 /**
  * The page element drawn over a point of the field, such as a "show password" button, taken at the
  * outermost ancestor that does not contain the field. Wide covers, such as floating labels laid
@@ -186,9 +200,16 @@ export class FieldIcons {
     })
   }
 
-  /** The right edge for the icon: inside the field, left of page controls drawn over its end. */
-  private freeRight(field: HTMLInputElement, rect: DOMRect): number {
-    let right = rect.right - INSET
+  /**
+   * The right edge for the icon: inside the field, before the room its padding keeps for a page
+   * control, and left of page controls drawn over its end.
+   */
+  private freeRight(
+    field: HTMLInputElement,
+    rect: DOMRect,
+    style: CSSStyleDeclaration,
+  ): number {
+    let right = rect.right - endInset(style)
     const middleY = rect.top + rect.height / 2
     for (let step = 0; step < MAX_COVERS; step++) {
       const iconMiddleX = right - SIZE / 2
@@ -227,12 +248,13 @@ export class FieldIcons {
         rect.left < innerWidth
       icon.style.display = shown ? "flex" : "none"
       if (!shown) continue
+      const style = getComputedStyle(field)
       // The field's own text color keeps the icon readable on light and dark pages.
-      icon.style.color = getComputedStyle(field).color
+      icon.style.color = style.color
       icon.style.left = `${Math.round(
         outside
           ? Math.min(rect.right + OUTSIDE_GAP, innerWidth - SIZE)
-          : this.freeRight(field, rect) - SIZE,
+          : this.freeRight(field, rect, style) - SIZE,
       )}px`
       icon.style.top = `${Math.round(rect.top + (rect.height - SIZE) / 2)}px`
     }
