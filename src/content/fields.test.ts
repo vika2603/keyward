@@ -415,6 +415,19 @@ describe("a checkout form", () => {
       </form>`
     expect(names(scan().login)).toEqual(new Set(["mobile"]))
   })
+
+  it("judges a lone phone field outside a form by the buttons beside it", () => {
+    document.body.innerHTML = `
+      <section>
+        <div><input type="tel" name="shipping-phone" placeholder="Phone"></div>
+        <div><button type="button">Place order</button></div>
+      </section>
+      <section>
+        <div><input type="tel" name="mobile" placeholder="Mobile number"></div>
+        <div><div role="button">Sign in</div></div>
+      </section>`
+    expect(names(scan().login)).toEqual(new Set(["mobile"]))
+  })
 })
 
 describe("a form with other secrets in password fields", () => {

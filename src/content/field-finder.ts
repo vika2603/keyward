@@ -80,9 +80,15 @@ const SUBMIT_CONTROLS =
 const BUTTONS =
   'button, input[type="submit"], input[type="button"], [role="button"]'
 
-/** The labels of the controls in a form that match `selector`, with runs of white space collapsed. */
-function controlLabels(form: HTMLFormElement, selector: string): string[] {
-  return [...form.querySelectorAll<HTMLElement>(selector)].map((control) =>
+/**
+ * How many levels with more than one child a search climbs from a field outside a form to its
+ * buttons; wrappers around a single element do not count.
+ */
+const MAX_BRANCHING_LEVELS = 5
+
+/** The labels of the controls in `container` that match `selector`, with runs of white space collapsed. */
+function controlLabels(container: Element, selector: string): string[] {
+  return [...container.querySelectorAll<HTMLElement>(selector)].map((control) =>
     (control instanceof HTMLInputElement
       ? control.value
       : (control.textContent ?? "")
@@ -107,14 +113,34 @@ function submitsSignUp(field: HTMLInputElement): boolean {
 }
 
 /**
+ * The element whose buttons go with a field: its form, or for a field outside a form the nearest
+ * ancestor with a button, as pages built without forms group a field with its buttons. Null when
+ * no such ancestor is close.
+ */
+function buttonGroupOf(field: HTMLInputElement): Element | null {
+  const form = formOf(field)
+  if (form) return form
+  let levels = 0
+  for (
+    let node = composedParent(field);
+    node && node !== field.ownerDocument.body;
+    node = composedParent(node)
+  ) {
+    if (node.querySelector(BUTTONS)) return node
+    if (node.childElementCount > 1 && ++levels >= MAX_BRANCHING_LEVELS) break
+  }
+  return null
+}
+
+/**
  * Whether a lone field that only looks like a phone number belongs to a sign-in: checkout,
- * contact and sign-up forms ask for a phone too, so its form must have a button to sign in.
- * Outside a form there is nothing to tell them apart by, and the field counts.
+ * contact and sign-up forms ask for a phone too, so the buttons that go with it must include one
+ * to sign in. A field with no buttons near counts, as nothing tells it apart.
  */
 function phoneSignsIn(field: HTMLInputElement): boolean {
-  const form = formOf(field)
-  if (!form) return true
-  return controlLabels(form, BUTTONS).some((label) =>
+  const group = buttonGroupOf(field)
+  if (!group) return true
+  return controlLabels(group, BUTTONS).some((label) =>
     SIGN_IN_SUBMIT.test(label),
   )
 }

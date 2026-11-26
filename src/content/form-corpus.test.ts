@@ -62,9 +62,9 @@ const FLOORS = {
 /** Scores of false detection, where lower is better, with their ceilings. */
 const CEILINGS = {
   /** Typed fields of other data, or without a label, taken for a login, new password or code field. */
-  otherFields: 70,
+  otherFields: 65,
   /** Pages without a login, password or code field that still get the field icon. */
-  pagesWithoutLogins: 8,
+  pagesWithoutLogins: 4,
   /** Current passwords taken for new ones, which a suggested password would overwrite. */
   currentAsNew: 1,
 }
