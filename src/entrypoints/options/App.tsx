@@ -63,7 +63,7 @@ export function App() {
     <div className="flex min-h-screen flex-col bg-canvas md:flex-row">
       <nav
         aria-label={t("options.nav.label")}
-        className="flex flex-col gap-2 border-b border-sidebar-border bg-sidebar p-3 md:w-64 md:shrink-0 md:border-r md:border-b-0"
+        className="flex flex-col gap-2 border-b border-sidebar-border bg-sidebar p-3 md:sticky md:top-0 md:h-svh md:w-64 md:shrink-0 md:self-start md:overflow-y-auto md:border-r md:border-b-0"
       >
         <div className="flex items-center gap-2.5 px-2.5 pt-1.5 pb-2 text-sm font-semibold tracking-tight">
           <img
