@@ -1,0 +1,348 @@
+import {
+  CheckIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  CopyIcon,
+  LoaderCircleIcon,
+  RotateCwIcon,
+} from "lucide-react"
+import { type ReactNode, useCallback, useEffect, useRef, useState } from "react"
+import { callBackground } from "@/background/api"
+import { ApplePairing } from "@/components/keyward/apple-pairing"
+import { BrandIcon } from "@/components/keyward/brand-icon"
+import { errorMessage } from "@/components/keyward/errors"
+import { FormError } from "@/components/keyward/form-field"
+import { Button } from "@/components/ui/button"
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible"
+import {
+  COPIED_FEEDBACK_MS,
+  useTransientValue,
+} from "@/hooks/use-transient-value"
+import { t } from "@/lib/i18n"
+import type {
+  ApplePhase,
+  AppleState,
+} from "@/lib/providers/apple/helper-session"
+import {
+  removalCommand,
+  SETUP_SCRIPT_PAGE,
+  setupCommand,
+} from "@/lib/providers/apple/setup-command"
+import { cn } from "@/lib/utils"
+import { navigate } from "./navigation"
+
+/** How often the page looks again while it waits for the command to run. */
+const CHECK_INTERVAL_MS = 2000
+
+/** The phases in which the browser reaches the helper, so pairing can start. */
+const REACHED_PHASES: ReadonlySet<ApplePhase> = new Set([
+  "unpaired",
+  "awaitingCode",
+  "paired",
+])
+
+/** Where the one-time setup of this Mac stands. */
+type SetupStatus =
+  | "checking"
+  /** The command has not run yet. */
+  | "waiting"
+  /** The command ran for another copy of Keyward, with another extension ID. */
+  | "otherExtension"
+  | "helperStopped"
+  /** The helper cannot be reached for a reason the browser does not tell. */
+  | "failed"
+  | "notMac"
+  | "done"
+
+function statusOf(state: AppleState): SetupStatus {
+  if (REACHED_PHASES.has(state.phase)) return "done"
+  if (state.phase !== "unavailable") return "checking"
+  switch (state.problem) {
+    case "notSetUp":
+      return "waiting"
+    case "otherExtension":
+      return "otherExtension"
+    case "helperStopped":
+      return "helperStopped"
+    default:
+      return "failed"
+  }
+}
+
+/**
+ * Checks whether the browser reaches the Passwords helper, and keeps checking while the page is
+ * shown and waits for the command, so the page moves on by itself once it has run.
+ */
+function useSetupStatus() {
+  const [status, setStatus] = useState<SetupStatus>("checking")
+  const [message, setMessage] = useState<string | null>(null)
+  const checking = useRef(false)
+
+  const check = useCallback(async () => {
+    if (checking.current) return
+    checking.current = true
+    try {
+      setStatus(statusOf(await callBackground("apple.checkSetup", null)))
+      setMessage(null)
+    } catch (error) {
+      setStatus("failed")
+      setMessage(errorMessage(error))
+    } finally {
+      checking.current = false
+    }
+  }, [])
+
+  useEffect(() => {
+    void browser.runtime.getPlatformInfo().then(
+      ({ os }) => (os === "mac" ? check() : setStatus("notMac")),
+      () => check(),
+    )
+  }, [check])
+
+  useEffect(() => {
+    if (status !== "waiting" && status !== "otherExtension") return
+    const checkWhileShown = () => {
+      if (document.visibilityState === "visible") void check()
+    }
+    const timer = setInterval(checkWhileShown, CHECK_INTERVAL_MS)
+    // Coming back from Terminal is when the command has most likely run.
+    window.addEventListener("focus", checkWhileShown)
+    document.addEventListener("visibilitychange", checkWhileShown)
+    return () => {
+      clearInterval(timer)
+      window.removeEventListener("focus", checkWhileShown)
+      document.removeEventListener("visibilitychange", checkWhileShown)
+    }
+  }, [status, check])
+
+  return { status, message, check }
+}
+
+/**
+ * Sets up Passwords in two steps: a Terminal command lets the browser start the helper that comes
+ * with macOS, then the Mac shows a code to pair with. The command needs a tab of its own, since the
+ * popup closes as soon as Terminal takes the focus.
+ */
+export function PasswordsSetupPage() {
+  const { status, message, check } = useSetupStatus()
+  const [paired, setPaired] = useState(false)
+  const setUp = status === "done"
+
+  return (
+    <div className="flex min-h-screen flex-col items-center bg-muted px-4 pt-6 pb-16">
+      <main className="flex w-full max-w-[560px] flex-col gap-4">
+        <div>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="-ml-2 text-muted-foreground"
+            onClick={() => navigate("vaults")}
+          >
+            <ChevronLeftIcon />
+            {t("options.passwordsSetup.back")}
+          </Button>
+        </div>
+        <header className="flex flex-col items-center gap-1.5 pb-2 text-center">
+          <div className="mb-2 flex size-12 items-center justify-center rounded-xl bg-card ring-1 ring-foreground/10">
+            <BrandIcon kind="apple" className="size-6" />
+          </div>
+          <h1 className="text-2xl leading-8 font-semibold tracking-tight">
+            {t("options.passwordsSetup.title")}
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            {t("options.passwordsSetup.description")}
+          </p>
+        </header>
+        <Step
+          number={1}
+          title={t("options.passwordsSetup.setUp.title")}
+          done={setUp}
+        >
+          {!setUp && (
+            <SetUpStep
+              status={status}
+              message={message}
+              onCheckAgain={() => void check()}
+            />
+          )}
+        </Step>
+        {status !== "notMac" && (
+          <Step number={2} title={t("pairing.title")} done={paired}>
+            {paired && (
+              <p className="text-sm text-muted-foreground">
+                {t("options.passwordsSetup.paired")}
+              </p>
+            )}
+            {setUp && !paired && (
+              <ApplePairing
+                onPaired={() => setPaired(true)}
+                showHeading={false}
+              />
+            )}
+            {!setUp && (
+              <p className="text-sm text-muted-foreground">
+                {t("options.passwordsSetup.pairAfterSetUp")}
+              </p>
+            )}
+          </Step>
+        )}
+      </main>
+    </div>
+  )
+}
+
+function Step({
+  number,
+  title,
+  done,
+  children,
+}: {
+  number: number
+  title: string
+  done: boolean
+  children?: ReactNode
+}) {
+  return (
+    <section className="flex flex-col gap-3 rounded-xl bg-card p-4 ring-1 ring-foreground/10">
+      <h2 className="flex items-center gap-3 text-sm font-medium">
+        <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-muted text-xs">
+          {done ? <CheckIcon className="size-3.5" /> : number}
+        </span>
+        <span className="min-w-0 flex-1">{title}</span>
+        {done && (
+          <span className="text-xs font-normal text-muted-foreground">
+            {t("options.passwordsSetup.done")}
+          </span>
+        )}
+      </h2>
+      {children && <div className="flex flex-col gap-3 pl-9">{children}</div>}
+    </section>
+  )
+}
+
+function SetUpStep({
+  status,
+  message,
+  onCheckAgain,
+}: {
+  status: SetupStatus
+  message: string | null
+  onCheckAgain: () => void
+}) {
+  if (status === "notMac") {
+    return (
+      <p className="text-sm text-muted-foreground">
+        {t("options.passwordsSetup.notMac")}
+      </p>
+    )
+  }
+  if (status === "checking") {
+    return (
+      <p className="flex items-center gap-2 text-sm text-muted-foreground">
+        <LoaderCircleIcon className="size-4 animate-spin" aria-hidden="true" />
+        {t("options.passwordsSetup.checking")}
+      </p>
+    )
+  }
+  const stopped = status === "helperStopped" || status === "failed"
+  return (
+    <>
+      <p className="text-sm text-muted-foreground">
+        {t("options.passwordsSetup.setUp.description")}
+      </p>
+      <CommandBox command={setupCommand(browser.runtime.id)} />
+      <p className="text-sm text-muted-foreground">
+        {t("options.passwordsSetup.terminal")}
+      </p>
+      {status === "otherExtension" && (
+        <FormError>{t("options.passwordsSetup.otherExtension")}</FormError>
+      )}
+      {stopped ? (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+          <FormError className="min-w-0 flex-1">
+            {status === "helperStopped"
+              ? t("options.passwordsSetup.helperStopped")
+              : (message ?? t("error.apple.unavailable"))}
+          </FormError>
+          <Button variant="outline" size="sm" onClick={onCheckAgain}>
+            <RotateCwIcon />
+            {t("options.passwordsSetup.checkAgain")}
+          </Button>
+        </div>
+      ) : (
+        <p className="flex items-center gap-2 text-sm text-muted-foreground">
+          <LoaderCircleIcon
+            className="size-4 shrink-0 animate-spin"
+            aria-hidden="true"
+          />
+          {t("options.passwordsSetup.waiting")}
+        </p>
+      )}
+      <CommandDetails />
+    </>
+  )
+}
+
+/** A command to paste into Terminal, with a button that copies it. */
+function CommandBox({ command }: { command: string }) {
+  const [copied, showCopied] = useTransientValue<true>(COPIED_FEEDBACK_MS)
+  const label = copied
+    ? t("options.passwordsSetup.copied")
+    : t("options.passwordsSetup.copy")
+  const copy = () =>
+    navigator.clipboard.writeText(command).then(
+      () => showCopied(true),
+      // The command can still be selected and copied by hand.
+      () => {},
+    )
+
+  return (
+    <div className="flex items-start gap-2 rounded-lg bg-muted py-1.5 pr-1.5 pl-3">
+      <code className="min-w-0 flex-1 py-1 font-mono text-xs leading-5 break-all select-all">
+        {command}
+      </code>
+      <Button
+        variant="ghost"
+        size="icon-sm"
+        aria-label={label}
+        title={label}
+        onClick={() => void copy()}
+      >
+        {copied ? <CheckIcon /> : <CopyIcon />}
+      </Button>
+    </div>
+  )
+}
+
+function CommandDetails() {
+  const [open, setOpen] = useState(false)
+  return (
+    <Collapsible open={open} onOpenChange={setOpen}>
+      <CollapsibleTrigger className="flex items-center gap-1 rounded-md text-sm text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50">
+        <ChevronRightIcon
+          className={cn("size-4 transition-transform", open && "rotate-90")}
+        />
+        {t("options.passwordsSetup.details")}
+      </CollapsibleTrigger>
+      <CollapsibleContent>
+        <div className="flex flex-col gap-2 pt-2 text-sm text-muted-foreground">
+          <p>{t("options.passwordsSetup.detailsText")}</p>
+          <p>{t("options.passwordsSetup.removal")}</p>
+          <CommandBox command={removalCommand()} />
+          <a
+            href={SETUP_SCRIPT_PAGE}
+            target="_blank"
+            rel="noreferrer"
+            className="w-fit text-foreground underline-offset-4 hover:underline"
+          >
+            {t("options.passwordsSetup.viewScript")}
+          </a>
+        </div>
+      </CollapsibleContent>
+    </Collapsible>
+  )
+}

@@ -8,6 +8,13 @@ import { connectPages, popupOnly } from "./request-context"
 import { requireText, siteInput } from "./validation"
 
 export function appleHandlers(apple: AppleProvider) {
+  /** Turns Passwords on, as using it from a page means, and connects to the helper. */
+  const enable = async () => {
+    if (!(await getSettings()).appleEnabled)
+      await updateSettings({ appleEnabled: true })
+    await apple.helper.setEnabled(true)
+  }
+
   return {
     "apple.state": {
       allow: connectPages,
@@ -16,10 +23,15 @@ export function appleHandlers(apple: AppleProvider) {
     "apple.startPairing": {
       allow: connectPages,
       handle: async ({ restart }) => {
-        if (!(await getSettings()).appleEnabled)
-          await updateSettings({ appleEnabled: true })
-        await apple.helper.setEnabled(true)
+        await enable()
         await apple.helper.startPairing(Boolean(restart))
+        return apple.helper.getState()
+      },
+    },
+    "apple.checkSetup": {
+      allow: connectPages,
+      handle: async () => {
+        await enable()
         return apple.helper.getState()
       },
     },

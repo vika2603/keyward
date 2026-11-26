@@ -1,6 +1,10 @@
 import { Cmd } from "./protocol"
 
-const HOST_NAME = "com.apple.passwordmanager"
+/**
+ * The host that scripts/setup.sh registers for Keyward. It starts the same helper as
+ * Apple's own host, com.apple.passwordmanager, which admits only Apple's extensions.
+ */
+const HOST_NAME = "keyward.passwords"
 
 export interface HelperMessage {
   cmd: number
@@ -23,6 +27,25 @@ interface Waiter {
 
 class HelperDisconnectedError extends Error {}
 class HelperTimeoutError extends Error {}
+
+/**
+ * Why the browser could not reach the helper: no host manifest names Keyward's host yet, the one
+ * there admits other extension IDs, or the helper started and stopped without answering.
+ */
+export type HelperProblem = "notSetUp" | "otherExtension" | "helperStopped"
+
+/** Tells the problem from Chrome's messages for a native host, which are not translated. */
+export function helperProblemOf(failure: unknown): HelperProblem | undefined {
+  if (failure instanceof HelperTimeoutError) return "helperStopped"
+  const message = failure instanceof Error ? failure.message : String(failure)
+  if (message.includes("native messaging host not found")) return "notSetUp"
+  if (message.includes("native messaging host is forbidden"))
+    return "otherExtension"
+  if (/Native host has exited|Failed to start native messaging/.test(message))
+    return "helperStopped"
+  return undefined
+}
+
 /** A newer request waiting for the same reply replaced this one. */
 export class SupersededError extends Error {}
 

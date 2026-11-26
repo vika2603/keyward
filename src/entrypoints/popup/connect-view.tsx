@@ -25,7 +25,10 @@ export function ConnectView({
       <BackHeader onBack={onDone} />
       <div className="flex min-h-0 flex-1 flex-col justify-center overflow-y-auto px-4 pb-12">
         {kind === "apple" ? (
-          <ApplePairing onPaired={onDone} />
+          <ApplePairing
+            onPaired={onDone}
+            onSetUp={() => openOptions("passwords")}
+          />
         ) : (
           <BitwardenUnlock
             initialAccountId={accountId}

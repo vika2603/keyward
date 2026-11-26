@@ -108,7 +108,9 @@ export function ListArea({
       key={vault.id}
       vault={vault}
       onClick={() =>
-        onNavigate({ name: "connect", kind: vault.kind, vaultId: vault.id })
+        vault.needsSetup
+          ? openOptions("passwords")
+          : onNavigate({ name: "connect", kind: vault.kind, vaultId: vault.id })
       }
     />
   ))

@@ -21,7 +21,7 @@ A Chrome extension that fills, generates and saves passwords from two kinds of v
 ## Requirements
 
 - [mise](https://mise.jdx.dev), which installs the Node and pnpm versions in `mise.toml` and runs the development tasks.
-- For Passwords: macOS with the Passwords app. The system helper only accepts the extension ID of Apple's iCloud Passwords extension, so the build needs that extension's public key (see below).
+- For Passwords: macOS 14 or later, which comes with the Passwords helper, and the one-time step below on each Mac.
 
 ## Setup
 
@@ -30,13 +30,19 @@ mise install     # Node and pnpm
 mise run setup   # dependencies
 ```
 
-To use Passwords, create `.env.local` with the `key` value from the `manifest.json` of the iCloud Passwords extension:
+A browser starts the Passwords helper only for the extensions that a host manifest names. Keyward's setup page, which the popup and the Vaults settings open while Passwords is not set up, shows a Terminal command with the extension's ID. The command downloads `scripts/setup.sh` from this repository's `main` branch and runs it; the script writes `keyward.passwords.json`, which names that ID and points at the system helper, into the `NativeMessagingHosts` folder of Chrome and of the other Chromium browsers in `~/Library/Application Support`. It needs no administrator password. From a checkout:
+
+```sh
+scripts/setup.sh <extension ID>
+scripts/setup.sh --user-data-dir <folder> <extension ID>  # a browser started with --user-data-dir
+scripts/setup.sh --uninstall
+```
+
+An unpacked build gets its ID from the folder it is loaded from, so the command has to run again after the folder moves. To keep one ID, create `.env.local` with a public key, which the build adds to the manifest as `key`:
 
 ```sh
 KEYWARD_MANIFEST_KEY=<public key>
 ```
-
-The built extension then has the same ID as iCloud Passwords, so the two cannot be installed in the same Chrome profile. Without the key, the Bitwarden part still works.
 
 ## Build and load
 

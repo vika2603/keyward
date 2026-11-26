@@ -59,8 +59,8 @@ export default defineConfig({
         description: "Lock all vaults",
       },
     },
-    // Apple's native messaging host only accepts its own extension IDs. With the public key of Apple's
-    // extension this build gets the same ID; it is kept out of the repository in .env.local.
+    // A public key gives the build one extension ID wherever it is loaded from, so the host manifest
+    // that the Passwords setup command writes for that ID keeps applying. It stays in .env.local.
     ...(process.env.KEYWARD_MANIFEST_KEY
       ? { key: process.env.KEYWARD_MANIFEST_KEY }
       : {}),

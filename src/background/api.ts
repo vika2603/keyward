@@ -260,6 +260,11 @@ export type BackgroundApi = {
   "popup.folders": { payload: { vaultId: string }; result: Folder[] }
   "apple.state": { payload: null; result: AppleState }
   "apple.startPairing": { payload: { restart: boolean }; result: AppleState }
+  /**
+   * Turns Passwords on and connects to the helper again if it is not connected, without pairing,
+   * so nothing shows on the Mac; the state says whether the one-time setup is still missing.
+   */
+  "apple.checkSetup": { payload: null; result: AppleState }
   "apple.submitCode": { payload: { code: string }; result: AppleState }
   /** Opens the Passwords app, searching for a site when one is given. */
   "apple.openPasswordsApp": { payload: { site?: string }; result: null }

@@ -27,6 +27,8 @@ export interface VaultInfo {
   error?: string
   /** The user is part way through connecting it, as while the Mac shows a pairing code. */
   awaitingUser?: boolean
+  /** It cannot connect until a one-time setup outside the browser is done. */
+  needsSetup?: boolean
 }
 
 /** Where a Bitwarden item sits; the popup narrows its list by these. */

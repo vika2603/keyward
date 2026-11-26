@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { fakeBrowser } from "wxt/testing/fake-browser"
 import type { Sender } from "@/lib/messaging"
+import { getSettings } from "@/lib/settings"
 import type { BackgroundApi } from "../api"
 import { listHistory } from "../history"
 import { menuSessions } from "../overlays"
@@ -35,6 +36,23 @@ function request<Type extends keyof BackgroundApi>(
 
 beforeEach(() => {
   fakeBrowser.reset()
+})
+
+describe("apple.checkSetup", () => {
+  it("turns Passwords on and answers with the helper's state", async () => {
+    const named = idleNamedProviders()
+    const setEnabled = vi
+      .spyOn(named.apple.helper, "setEnabled")
+      .mockResolvedValue()
+    const unreachable = { phase: "unavailable", problem: "notSetUp" } as const
+    vi.spyOn(named.apple.helper, "getState").mockReturnValue(unreachable)
+    const handlers = createHandlers(fakeProviders([]).providers, named)
+    await expect(
+      handlers["apple.checkSetup"].handle(null as never, popup),
+    ).resolves.toEqual(unreachable)
+    expect(setEnabled).toHaveBeenCalledWith(true)
+    expect((await getSettings()).appleEnabled).toBe(true)
+  })
 })
 
 describe("request checks", () => {

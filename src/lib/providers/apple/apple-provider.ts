@@ -17,7 +17,7 @@ import {
   type VaultProvider,
   type VaultStatus,
 } from "../types"
-import { type ApplePhase, HelperSession } from "./helper-session"
+import { type ApplePhase, HelperSession, needsSetup } from "./helper-session"
 import {
   type CodeEntry,
   codeEntryOf,
@@ -74,7 +74,8 @@ export class AppleProvider implements VaultProvider {
 
   async vaults(): Promise<VaultInfo[]> {
     if (!this.helper.enabled) return []
-    const { phase, error } = this.helper.getState()
+    const state = this.helper.getState()
+    const { phase, error } = state
     return [
       {
         id: APPLE_VAULT_ID,
@@ -83,6 +84,7 @@ export class AppleProvider implements VaultProvider {
         status: STATUS_OF_PHASE[phase],
         error,
         awaitingUser: phase === "awaitingCode",
+        needsSetup: needsSetup(state),
       },
     ]
   }

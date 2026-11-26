@@ -18,6 +18,10 @@ export const en = {
   "options.vaults.apple.actions.description":
     "List accounts for the current site, fill, copy passwords and save new ones. Other management is done in the Passwords app.",
   "options.vaults.apple.openApp": "Open Passwords app",
+  "options.vaults.apple.setUp.name": "Setup on this Mac",
+  "options.vaults.apple.setUp.description":
+    "Not set up yet. The browser can reach Passwords after one command in Terminal.",
+  "options.vaults.apple.setUp.action": "Set up",
   "options.vaults.bitwarden.signedInDescription":
     "You can sign in to several accounts at once, and their items are shown together. When locked, unlock each account with its master password in the popup.",
   "options.vaults.bitwarden.signedOutDescription":
@@ -182,6 +186,36 @@ export const en = {
   "options.keys.import.failed":
     "Couldn't import: the file isn't a Keyward settings export.",
 
+  "options.passwordsSetup.title": "Connect Passwords",
+  "options.passwordsSetup.description":
+    "Keyward reads Passwords through a helper that comes with macOS. Set up this Mac once, then pair.",
+  "options.passwordsSetup.back": "Back to settings",
+  "options.passwordsSetup.done": "Done",
+  "options.passwordsSetup.setUp.title": "Let the browser reach Passwords",
+  "options.passwordsSetup.setUp.description":
+    "Run this command in Terminal. It writes a small configuration file into your own Library folder for each browser; it needs no administrator password and installs nothing.",
+  "options.passwordsSetup.copy": "Copy command",
+  "options.passwordsSetup.copied": "Copied",
+  "options.passwordsSetup.terminal":
+    "To open Terminal, press ⌘ Space, type Terminal and press Return. Paste the command there and press Return.",
+  "options.passwordsSetup.checking": "Checking this Mac…",
+  "options.passwordsSetup.waiting":
+    "This step finishes by itself once the command has run.",
+  "options.passwordsSetup.otherExtension":
+    "This Mac is set up for another copy of Keyward. Run the command again for this one.",
+  "options.passwordsSetup.helperStopped":
+    "The Passwords helper stopped without answering. It needs macOS 14 or later.",
+  "options.passwordsSetup.checkAgain": "Check again",
+  "options.passwordsSetup.notMac": "Passwords is only available on macOS.",
+  "options.passwordsSetup.details": "What the command does",
+  "options.passwordsSetup.detailsText":
+    "It finds the Passwords helper that comes with macOS and writes keyward.passwords.json into the NativeMessagingHosts folder of Chrome and of the other Chromium browsers you have. The file lets only this extension start the helper.",
+  "options.passwordsSetup.removal": "To undo it, run:",
+  "options.passwordsSetup.viewScript": "View the script",
+  "options.passwordsSetup.pairAfterSetUp":
+    "After the first step, enter the six-digit code your Mac shows here.",
+  "options.passwordsSetup.paired":
+    "Passwords is connected. Its logins now show in the popup and in login fields.",
   "options.onboard.title": "Sign in to Bitwarden",
   "options.onboard.description":
     "After signing in, the account is unlocked with its master password.",
@@ -244,6 +278,10 @@ export const zhCN: Record<keyof typeof en, string> = {
   "options.vaults.apple.actions.description":
     "按当前站点列出账号、填充、复制密码和保存新密码。其余管理操作在 Passwords App 中完成。",
   "options.vaults.apple.openApp": "打开 Passwords App",
+  "options.vaults.apple.setUp.name": "本机设置",
+  "options.vaults.apple.setUp.description":
+    "还没设置。在终端运行一条命令后，浏览器才能连接 Passwords。",
+  "options.vaults.apple.setUp.action": "去设置",
   "options.vaults.bitwarden.signedInDescription":
     "可以同时登录多个账号，条目一起显示。锁定后在弹窗里逐个输入主密码解锁。",
   "options.vaults.bitwarden.signedOutDescription":
@@ -400,6 +438,35 @@ export const zhCN: Record<keyof typeof en, string> = {
   "options.keys.import.done": "已导入。",
   "options.keys.import.failed": "无法导入：文件不是 Keyward 导出的配置。",
 
+  "options.passwordsSetup.title": "连接 Passwords",
+  "options.passwordsSetup.description":
+    "Keyward 通过 macOS 自带的组件读取 Passwords。在这台 Mac 上设置一次，然后配对。",
+  "options.passwordsSetup.back": "返回设置",
+  "options.passwordsSetup.done": "已完成",
+  "options.passwordsSetup.setUp.title": "允许浏览器连接 Passwords",
+  "options.passwordsSetup.setUp.description":
+    "在终端里运行下面的命令。它只在你自己的资源库文件夹里为每个浏览器写一个小配置文件，不需要管理员密码，也不安装任何程序。",
+  "options.passwordsSetup.copy": "复制命令",
+  "options.passwordsSetup.copied": "已复制",
+  "options.passwordsSetup.terminal":
+    "打开终端：按 ⌘ 空格，输入“终端”后回车。把命令粘贴进去，再按回车。",
+  "options.passwordsSetup.checking": "正在检查这台 Mac…",
+  "options.passwordsSetup.waiting": "命令运行后，这一步会自动完成。",
+  "options.passwordsSetup.otherExtension":
+    "这台 Mac 是为另一份 Keyward 设置的，为这一份再运行一次命令即可。",
+  "options.passwordsSetup.helperStopped":
+    "Passwords 组件没有响应就退出了。它需要 macOS 14 或更新版本。",
+  "options.passwordsSetup.checkAgain": "重新检测",
+  "options.passwordsSetup.notMac": "Passwords 只能在 macOS 上使用。",
+  "options.passwordsSetup.details": "命令会做什么",
+  "options.passwordsSetup.detailsText":
+    "它找到 macOS 自带的 Passwords 组件，把 keyward.passwords.json 写进 Chrome 和你装的其他 Chromium 浏览器的 NativeMessagingHosts 文件夹。这个文件只允许本插件启动该组件。",
+  "options.passwordsSetup.removal": "要撤销，运行：",
+  "options.passwordsSetup.viewScript": "查看脚本",
+  "options.passwordsSetup.pairAfterSetUp":
+    "完成第一步后，在这里输入 Mac 上显示的六位验证码。",
+  "options.passwordsSetup.paired":
+    "Passwords 已连接，它的登录会出现在弹窗和网页的登录框里。",
   "options.onboard.title": "登录 Bitwarden",
   "options.onboard.description": "登录后，这个账号用主密码就能解锁。",
   "options.onboard.backToSettings": "返回设置",

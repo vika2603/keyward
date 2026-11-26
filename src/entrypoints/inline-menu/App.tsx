@@ -1,4 +1,5 @@
 import {
+  ChevronRightIcon,
   FingerprintPatternIcon,
   KeyRoundIcon,
   PlusIcon,
@@ -15,6 +16,7 @@ import {
 import type { BackgroundApi, VaultView } from "@/background/api"
 import { useAppearance } from "@/components/keyward/appearance"
 import { BrandIcon, vaultLabel } from "@/components/keyward/brand-icon"
+import { connectTexts } from "@/components/keyward/connect-texts"
 import { errorMessage } from "@/components/keyward/errors"
 import { useLanguage } from "@/components/keyward/language"
 import { FADE_IN, LoginListSkeleton } from "@/components/keyward/loading"
@@ -25,7 +27,6 @@ import {
   useReportHeight,
 } from "@/components/keyward/overlay-frame"
 import { SiteIcon } from "@/components/keyward/site-icon"
-import { Button } from "@/components/ui/button"
 import { t } from "@/lib/i18n"
 import { cn } from "@/lib/utils"
 
@@ -87,10 +88,10 @@ export function App() {
 
   if (!language) return null
   const allVaults = state?.vaults ?? []
-  // Once one vault is open, the others are paired or unlocked from the popup instead.
+  // Once one vault is open, the others are paired, unlocked or set up from the popup instead.
   const anyReady = allVaults.some((vault) => vault.status === "ready")
   const shownVaults = allVaults.filter((vault) => {
-    if (vault.status === "locked") return !anyReady
+    if (waitsForUser(vault)) return !anyReady
     const hasLogins = vault.logins.length > 0
     return vault.status !== "ready" || Boolean(vault.error) || hasLogins
   })
@@ -159,8 +160,22 @@ export function App() {
                 </button>
               </div>
             )}
-            {shownVaults.map((vault) =>
-              vault.status !== "ready" || vault.error ? (
+            {shownVaults.map((vault) => {
+              if (waitsForUser(vault))
+                return (
+                  <fieldset
+                    key={vault.id}
+                    aria-label={vaultLabel(vault)}
+                    className="min-w-0 p-1"
+                  >
+                    <ConnectRow
+                      vault={vault}
+                      disabled={busy !== null}
+                      onClick={() => connect(vault)}
+                    />
+                  </fieldset>
+                )
+              return vault.status !== "ready" || vault.error ? (
                 <fieldset
                   key={vault.id}
                   aria-labelledby={headingId(vault)}
@@ -171,28 +186,11 @@ export function App() {
                     id={headingId(vault)}
                     className="min-w-0 flex-1"
                   />
-                  {vault.status === "locked" ? (
-                    <Button
-                      role="menuitem"
-                      variant="outline"
-                      size="sm"
-                      onClick={() =>
-                        void callOverlay("menu.connect", {
-                          vaultId: vault.id,
-                        }).catch(() => {})
-                      }
-                    >
-                      {vault.kind === "apple"
-                        ? t("vault.pair")
-                        : t("vault.unlock")}
-                    </Button>
-                  ) : (
-                    <span className="py-1.5" title={vault.error}>
-                      {vault.status === "ready"
-                        ? t("vault.failed")
-                        : t("vault.unavailable")}
-                    </span>
-                  )}
+                  <span className="py-1.5" title={vault.error}>
+                    {vault.status === "ready"
+                      ? t("vault.failed")
+                      : t("vault.unavailable")}
+                  </span>
                 </fieldset>
               ) : (
                 <fieldset
@@ -243,8 +241,8 @@ export function App() {
                     ))}
                   </div>
                 </fieldset>
-              ),
-            )}
+              )
+            })}
             {state.passkey && (
               <div className="border-t p-1 first:border-t-0">
                 <MenuRow
@@ -309,6 +307,34 @@ function MenuRow({
     >
       {children}
     </button>
+  )
+}
+
+/**
+ * The row of a vault that needs the user before it lists logins. It keeps the full size whatever
+ * the density, since it usually stands alone in the menu.
+ */
+function ConnectRow({
+  vault,
+  disabled,
+  onClick,
+}: {
+  vault: VaultView
+  disabled: boolean
+  onClick: () => void
+}) {
+  const { title, detail } = connectTexts(vault)
+  return (
+    <MenuRow compact={false} disabled={disabled} busy={false} onClick={onClick}>
+      <IconTile compact={false}>
+        <BrandIcon kind={vault.kind} className="size-4" />
+      </IconTile>
+      <span className="flex min-w-0 flex-1 flex-col">
+        <span className="truncate text-sm font-medium">{title}</span>
+        <span className="truncate text-xs text-muted-foreground">{detail}</span>
+      </span>
+      <ChevronRightIcon className="size-4 shrink-0 text-muted-foreground" />
+    </MenuRow>
   )
 }
 
@@ -384,6 +410,27 @@ function useMenuKeyboard(card: RefObject<HTMLElement | null>): void {
     addEventListener("keydown", onKey)
     return () => removeEventListener("keydown", onKey)
   }, [card])
+}
+
+/** A vault that lists logins only once the user pairs it, unlocks it or sets it up. */
+function waitsForUser(vault: VaultView): boolean {
+  return vault.status === "locked" || Boolean(vault.needsSetup)
+}
+
+/**
+ * Setup runs a Terminal command, so it opens in a tab of its own; pairing and unlocking open the
+ * popup on the vault.
+ */
+function connect(vault: VaultView): void {
+  if (!vault.needsSetup) {
+    // The background closes the menu as it opens the popup.
+    void callOverlay("menu.connect", { vaultId: vault.id }).catch(() => {})
+    return
+  }
+  void browser.tabs.create({
+    url: browser.runtime.getURL("/options.html#passwords"),
+  })
+  void callOverlay("menu.close", {}).catch(() => {})
 }
 
 /** The busy markers of the suggested password's and the passkey's rows; login IDs never take this form. */

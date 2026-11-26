@@ -19,7 +19,7 @@ export interface MainLists {
   shownReady: boolean
   /** Whether the tab lists whole vaults beside the site's logins. */
   browsing: boolean
-  /** Vaults that get a large button to pair or unlock. */
+  /** Vaults that get a large button to pair, unlock or set up. */
   locked: VaultView[]
   /** Vaults that list their logins, or say why they cannot. */
   listed: VaultView[]
@@ -68,12 +68,10 @@ export function mainLists({
   // Vaults to pair or unlock get a large button each, except on the "all" tab once one is open:
   // each is then unlocked from its own tab. The others list their logins or say why they cannot.
   const locked =
-    activeTab === "all" && tabsShown
-      ? []
-      : shown.filter((vault) => vault.status === "locked")
+    activeTab === "all" && tabsShown ? [] : shown.filter(waitsForUser)
   const listed = shown.filter(
     (vault) =>
-      vault.status !== "locked" &&
+      !waitsForUser(vault) &&
       (vault.status !== "ready" ||
         vault.error ||
         vault.logins.length ||
@@ -108,4 +106,9 @@ export function mainLists({
     siteItemCount,
     appleSearchHint,
   }
+}
+
+/** A vault that opens only once the user pairs it, unlocks it or sets it up. */
+function waitsForUser(vault: VaultView): boolean {
+  return vault.status === "locked" || Boolean(vault.needsSetup)
 }

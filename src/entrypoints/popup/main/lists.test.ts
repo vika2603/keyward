@@ -33,6 +33,22 @@ describe("mainLists", () => {
     expect(lists.shown.map((vault) => vault.kind)).toEqual(["bitwarden"])
   })
 
+  it("gives Passwords a large card while it needs setup", () => {
+    const lists = mainLists({
+      ...noSearch,
+      vaults: [
+        { ...appleVault("unavailable"), needsSetup: true },
+        bitwardenVault("locked"),
+      ],
+      tab: "all",
+    })
+    expect(lists.locked.map((vault) => vault.kind)).toEqual([
+      "apple",
+      "bitwarden",
+    ])
+    expect(lists.listed).toEqual([])
+  })
+
   it("shows every vault once locking hides the tabs", () => {
     const lists = mainLists({
       ...noSearch,

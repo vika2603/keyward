@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest"
 import type { HelperMessage, HelperPortEvents } from "./helper-port"
-import { HelperSession } from "./helper-session"
+import { HelperSession, needsSetup } from "./helper-session"
 import { Cmd, decodePake, encodePake } from "./protocol"
 
 /**
@@ -35,6 +35,30 @@ function sessionWithFakeHelper() {
   return { helper, port, unsolicited }
 }
 
+/** A session whose port closes at once with Chrome's `reason`, as before the helper says hello. */
+function sessionWithUnreachableHelper(reason: string) {
+  let events: HelperPortEvents | null = null
+  const port = {
+    connected: false,
+    connect: () => {
+      port.connected = true
+    },
+    disconnect: () => {
+      port.connected = false
+    },
+    post: vi.fn(),
+    request: vi.fn(async (): Promise<HelperMessage> => {
+      port.connected = false
+      events?.onDisconnect(reason)
+      throw new Error(reason)
+    }),
+  }
+  return new HelperSession((given) => {
+    events = given
+    return port
+  })
+}
+
 async function waitingForCode() {
   const fake = sessionWithFakeHelper()
   await fake.helper.setEnabled(true)
@@ -42,6 +66,25 @@ async function waitingForCode() {
   expect(fake.helper.getState().phase).toBe("awaitingCode")
   return fake
 }
+
+describe("HelperSession problems", () => {
+  it.each([
+    ["Specified native messaging host not found.", "notSetUp", true],
+    [
+      "Access to the specified native messaging host is forbidden.",
+      "otherExtension",
+      true,
+    ],
+    ["Native host has exited.", "helperStopped", false],
+    ["Something else went wrong.", undefined, false],
+  ])("tells %j apart", async (reason, problem, setupNeeded) => {
+    const helper = sessionWithUnreachableHelper(reason)
+    await helper.setEnabled(true)
+    const state = helper.getState()
+    expect(state).toMatchObject({ phase: "unavailable", problem })
+    expect(needsSetup(state)).toBe(setupNeeded)
+  })
+})
 
 describe("HelperSession.cancelPairing", () => {
   it("tells the helper to close its code window and forgets the attempt", async () => {

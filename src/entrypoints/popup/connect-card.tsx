@@ -1,6 +1,6 @@
 import { ChevronRightIcon } from "lucide-react"
 import { BrandIcon } from "@/components/keyward/brand-icon"
-import { t } from "@/lib/i18n"
+import { connectTexts } from "@/components/keyward/connect-texts"
 import type { ProviderKind, VaultInfo } from "@/lib/providers/types"
 
 /** A large button leading to pairing, unlocking or signing in. */
@@ -37,7 +37,7 @@ export function ConnectCard({
   )
 }
 
-/** The card that pairs Passwords or unlocks a locked Bitwarden account. */
+/** The card that pairs or sets up Passwords, or unlocks a locked Bitwarden account. */
 export function LockedVaultCard({
   vault,
   onClick,
@@ -45,14 +45,12 @@ export function LockedVaultCard({
   vault: VaultInfo
   onClick: () => void
 }) {
-  const apple = vault.kind === "apple"
+  const { title, detail } = connectTexts(vault)
   return (
     <ConnectCard
       kind={vault.kind}
-      title={
-        apple ? t("popup.main.pairApple") : t("popup.main.unlockBitwarden")
-      }
-      detail={apple ? t("popup.main.pairAppleDetail") : vault.label}
+      title={title}
+      detail={detail}
       onClick={onClick}
     />
   )

@@ -4,6 +4,8 @@ import {
   type HelperMessage,
   HelperPort,
   type HelperPortEvents,
+  type HelperProblem,
+  helperProblemOf,
   payloadOf,
   type RequestOptions,
   SupersededError,
@@ -39,6 +41,16 @@ export type ApplePhase =
 export interface AppleState {
   phase: ApplePhase
   error?: string
+  /** Why the helper is unavailable, when the browser says. */
+  problem?: HelperProblem
+}
+
+/** Whether the helper cannot be reached until the one-time setup on the Mac is done. */
+export function needsSetup(state: AppleState): boolean {
+  return (
+    state.phase === "unavailable" &&
+    (state.problem === "notSetUp" || state.problem === "otherExtension")
+  )
 }
 
 /** The parts of the helper port a session uses. */
@@ -76,7 +88,11 @@ export class HelperSession {
       onDisconnect: (reason) => {
         this.forgetHelper()
         if (this.state.phase !== "disabled")
-          this.setState({ phase: "unavailable", error: reason })
+          this.setState({
+            phase: "unavailable",
+            error: reason,
+            problem: helperProblemOf(reason),
+          })
       },
     })
   }
@@ -142,7 +158,11 @@ export class HelperSession {
     } catch (error) {
       this.port.disconnect()
       this.forgetHelper()
-      this.setState({ phase: "unavailable", error: errorText(error) })
+      this.setState({
+        phase: "unavailable",
+        error: errorText(error),
+        problem: helperProblemOf(error),
+      })
       throw new VaultError(
         "The Apple Passwords helper is not available",
         "apple.unavailable",

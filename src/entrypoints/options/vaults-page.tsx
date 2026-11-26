@@ -31,6 +31,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
 import { currentLanguage, t } from "@/lib/i18n"
+import { needsSetup } from "@/lib/providers/apple/helper-session"
 import { APPLE_VAULT_ID } from "@/lib/providers/apple/vault-id"
 import type { AccountSummary } from "@/lib/providers/bitwarden/bitwarden-provider"
 import { isCloudServer, serverHost } from "@/lib/providers/bitwarden/server"
@@ -81,6 +82,26 @@ export function VaultsPage() {
     )
   }, [])
   useEffect(load, [load])
+
+  /** Whether Passwords is on but this Mac lacks the one-time setup. */
+  const [appleNeedsSetup, setAppleNeedsSetup] = useState(false)
+  const appleEnabled = settings?.appleEnabled === true
+  useEffect(() => {
+    let current = true
+    const check = async () => {
+      try {
+        const state = await callBackground("apple.checkSetup", null)
+        if (current) setAppleNeedsSetup(needsSetup(state))
+      } catch {
+        // Without an answer the row stays hidden; pairing in the popup still offers the setup.
+      }
+    }
+    if (appleEnabled) void check()
+    else setAppleNeedsSetup(false)
+    return () => {
+      current = false
+    }
+  }, [appleEnabled])
 
   if (!settings) return null
 
@@ -161,6 +182,16 @@ export function VaultsPage() {
             onCheckedChange={(checked) => update({ appleEnabled: checked })}
           />
         </Option>
+        {settings.appleEnabled && appleNeedsSetup && (
+          <Option
+            name={t("options.vaults.apple.setUp.name")}
+            description={t("options.vaults.apple.setUp.description")}
+          >
+            <Button variant="outline" onClick={() => navigate("passwords")}>
+              {t("options.vaults.apple.setUp.action")}
+            </Button>
+          </Option>
+        )}
         {settings.appleEnabled && (
           <Option
             name={t("options.vaults.apple.actions.name")}

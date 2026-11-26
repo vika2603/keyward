@@ -3,6 +3,7 @@ import {
   LaptopMinimalCheckIcon,
   LaptopMinimalIcon,
   RotateCwIcon,
+  SquareTerminalIcon,
 } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
 import { APPLE_PAIRING_PORT, callBackground } from "@/background/api"
@@ -13,7 +14,10 @@ import {
   InputOTPSlot,
 } from "@/components/ui/input-otp"
 import { t } from "@/lib/i18n"
-import type { AppleState } from "@/lib/providers/apple/helper-session"
+import {
+  type AppleState,
+  needsSetup,
+} from "@/lib/providers/apple/helper-session"
 import { errorCodeOf, errorMessage } from "./errors"
 import { FormError } from "./form-field"
 
@@ -31,7 +35,17 @@ function pairingStatus(phase: AppleState["phase"] | undefined): string {
  * Pairs with Apple Passwords: the helper shows a six-digit code on the Mac, which the user types
  * here. A wrong code ends the attempt, so one new attempt starts and the Mac shows a new code.
  */
-export function ApplePairing({ onPaired }: { onPaired: () => void }) {
+export function ApplePairing({
+  onPaired,
+  onSetUp,
+  showHeading = true,
+}: {
+  onPaired: () => void
+  /** Opens the setup page; given, it is offered while this Mac is not set up yet. */
+  onSetUp?: () => void
+  /** False where the surrounding page already names the step. */
+  showHeading?: boolean
+}) {
   const [state, setState] = useState<AppleState | null>(null)
   const [code, setCode] = useState("")
   const [busy, setBusy] = useState(false)
@@ -121,16 +135,37 @@ export function ApplePairing({ onPaired }: { onPaired: () => void }) {
     }
   }, [ready])
 
+  if (onSetUp && state && needsSetup(state)) {
+    return (
+      <div className="flex flex-col items-center gap-4 text-center">
+        <div className="flex flex-col items-center gap-2">
+          <div className="mb-1 flex size-11 items-center justify-center rounded-xl bg-muted text-foreground">
+            <SquareTerminalIcon className="size-6" aria-hidden="true" />
+          </div>
+          <h2 className="text-base font-medium">{t("pairing.setUp.title")}</h2>
+          <p className="text-sm text-muted-foreground">
+            {t("pairing.setUp.description")}
+          </p>
+        </div>
+        <Button onClick={onSetUp}>{t("pairing.setUp.action")}</Button>
+      </div>
+    )
+  }
+
   const paired = phase === "paired"
   const MacIcon = paired ? LaptopMinimalCheckIcon : LaptopMinimalIcon
 
   return (
     <div className="flex flex-col items-center gap-4 text-center">
       <div className="flex flex-col items-center gap-2">
-        <div className="mb-1 flex size-11 items-center justify-center rounded-xl bg-muted text-foreground">
-          <MacIcon className="size-6" aria-hidden="true" />
-        </div>
-        <h2 className="text-base font-medium">{t("pairing.title")}</h2>
+        {showHeading && (
+          <>
+            <div className="mb-1 flex size-11 items-center justify-center rounded-xl bg-muted text-foreground">
+              <MacIcon className="size-6" aria-hidden="true" />
+            </div>
+            <h2 className="text-base font-medium">{t("pairing.title")}</h2>
+          </>
+        )}
         <p className="text-sm text-muted-foreground">{pairingStatus(phase)}</p>
       </div>
       <InputOTP

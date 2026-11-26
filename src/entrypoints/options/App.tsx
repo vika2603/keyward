@@ -7,6 +7,7 @@ import { FillPage } from "./fill-page"
 import { KeysPage } from "./keys-page"
 import { currentHash } from "./navigation"
 import { OnboardPage } from "./onboard-page"
+import { PasswordsSetupPage } from "./passwords-setup-page"
 import { SitesPage } from "./sites-page"
 import { VaultsPage } from "./vaults-page"
 
@@ -30,6 +31,7 @@ export function App() {
 
   if (!language) return null
   if (hash === "onboard") return <OnboardPage />
+  if (hash === "passwords") return <PasswordsSetupPage />
 
   const page = PAGES.find((candidate) => candidate.hash === hash) ?? PAGES[0]
   return (
