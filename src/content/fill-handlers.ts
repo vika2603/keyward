@@ -143,7 +143,7 @@ export class FillHandlers {
       ],
     ])
     if (!anchor) return []
-    return anchor.type === "password" && !isNewPassword(anchor)
+    return isPasswordField(anchor) && !isNewPassword(anchor)
       ? [anchor]
       : newPasswordTargets(anchor, this.fields.newPassword)
   }

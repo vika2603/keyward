@@ -80,8 +80,10 @@ function nearForgotPassword(password: HTMLInputElement): boolean {
   for (let node = composedParent(password); node; node = composedParent(node)) {
     const text = textUpTo(node, SURROUNDING_TEXT_MAX)
     if (text.length > SURROUNDING_TEXT_MAX) return false
-    const others = node.querySelectorAll('input[type="password"]')
-    if ([...others].some((field) => field !== password)) return false
+    const closerPassword = [...node.querySelectorAll("input")].some(
+      (field) => field !== password && isPasswordField(field),
+    )
+    if (closerPassword) return false
     if (FORGOT_PASSWORD_HINT.test(text)) return true
   }
   return false

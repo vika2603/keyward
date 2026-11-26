@@ -7,7 +7,12 @@ const ACCOUNT_HINT =
 const PHONE_HINT = /phone|mobile|手机/i
 /** "address" counts as a postal address unless it follows "mail", as in "Email address" and "mailAddress". */
 const EXCLUDED_HINT =
-  /search|filter|title|captcha|otp|one-time|verification|code|coupon|promo|card|cvv|zip|postal|(?<!mail[\s_.-]*)address|验证码|驗證碼/i
+  /search|filter|title|captcha|otp|one-time|verification|coupon|promo|cvv|zip|postal|(?<!mail[\s_.-]*)address|验证码|驗證碼/i
+/**
+ * Words of a code or a card number. A field named so is rarely a login on its own, but banks and
+ * schools sign in with one before the password, as in "Card number" or "Person code".
+ */
+const CODE_OR_CARD_HINT = /code|card/i
 const CODE_TYPES = new Set(["text", "tel", "number", "password", ""])
 const CODE_HINT =
   /one-?time|otp|2fa|mfa|two-?factor|totp|authenticator|verif\w*[\s_-]*code|auth\w*[\s_-]*code|passcode|验证码|驗證碼|动态码|動態碼|校验码/i
@@ -59,18 +64,29 @@ export const NAME_PART_HINT =
   /\b(first|last|given|family|middle|sur) ?name\b|\b[fl]name\b|名字|姓氏/i
 
 /**
- * A field that takes a password: a password-type field that is not marked or named for another
- * secret that only hides like one, such as a card's security code, nor a one-character box of a
- * PIN or code.
+ * Password-type fields seen so far, which stay password fields while the page shows them in plain
+ * text.
+ */
+const seenPasswordFields = new WeakSet<HTMLInputElement>()
+
+/**
+ * A field that takes a password: a password-type field, or one that was until its page showed the
+ * password in plain text, that is not marked or named for another secret that only hides like
+ * one, such as a card's security code, nor a one-character box of a PIN or code. A text field is
+ * not taken for one by its names or marks, which pages also put on fields that hold no password.
  */
 export function isPasswordField(
   element: EventTarget | null,
 ): element is HTMLInputElement {
-  if (!(element instanceof HTMLInputElement) || element.type !== "password")
-    return false
-  if (element.maxLength === 1) return false
-  if (marksOtherData(element) || hasCodeAutocomplete(element)) return false
-  const words = hintWords(element)
+  return element instanceof HTMLInputElement && takesPassword(element)
+}
+
+function takesPassword(input: HTMLInputElement): boolean {
+  if (input.type === "password") seenPasswordFields.add(input)
+  else if (input.type !== "text" || !seenPasswordFields.has(input)) return false
+  if (input.maxLength === 1) return false
+  if (marksOtherData(input) || hasCodeAutocomplete(input)) return false
+  const words = hintWords(input)
   return !OTHER_SECRET_HINT.test(words) || PASSWORD_WORD_HINT.test(words)
 }
 
@@ -165,10 +181,12 @@ function marksUsername(input: HTMLInputElement): boolean {
 
 /**
  * Whether a field takes text that may be a username. The page's mark for a username overrules
- * the words of the field's names, and lets in a search field that carries it.
+ * the words of the field's names, and lets in a search field that carries it. A password the page
+ * shows in plain text is left out.
  */
 export function isTextField(input: HTMLInputElement): boolean {
   if (hasCodeAutocomplete(input) || marksOtherData(input)) return false
+  if (takesPassword(input)) return false
   if (marksUsername(input))
     return TEXT_TYPES.has(input.type) || input.type === "search"
   return TEXT_TYPES.has(input.type) && !EXCLUDED_HINT.test(hintText(input))
@@ -180,6 +198,7 @@ export function looksLikeUsername(input: HTMLInputElement): boolean {
   if (marksUsername(input)) return true
   if (marksNewPassword(input)) return false
   const text = hintText(input)
+  if (CODE_OR_CARD_HINT.test(text)) return false
   return (
     input.type === "email" || ACCOUNT_HINT.test(text) || PHONE_HINT.test(text)
   )

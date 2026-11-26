@@ -73,6 +73,44 @@ describe("a sign-in form", () => {
     })
   })
 
+  it("keeps its password field while the page shows the password in plain text", () => {
+    scan()
+    field("password").type = "text"
+    expect(names(scan().login)).toEqual(new Set(["email", "password"]))
+    expect(fillTargets(field("email")).password).toBe(field("password"))
+    type("email", "user@example.com")
+    type("password", "{{SECRET_xbfqywla}}")
+    expect(credentialsAround(field("password"))?.password).toBe("{{SECRET_xbfqywla}}")
+  })
+
+  it("keeps a sign-up form beside it new while the page shows its password in plain text", () => {
+    document.body.innerHTML = `
+      <form>
+        <input name="acct" autocomplete="username">
+        <input type="password" name="pw" autocomplete="current-password">
+        <input type="submit" value="login">
+      </form>
+      <a href="forgot">Forgot your password?</a>
+      <form>
+        <input name="account" autocomplete="username">
+        <input type="password" name="secret" autocomplete="new-password">
+        <input type="submit" value="create account">
+      </form>`
+    scan()
+    field("pw").type = "text"
+    expect(names(scan().newPassword)).toEqual(new Set(["secret"]))
+  })
+
+  it("takes no text field for a password by its name or marks alone", () => {
+    document.body.innerHTML = `
+      <form>
+        <input type="email" name="email">
+        <input type="text" name="password" autocomplete="new-password">
+      </form>`
+    expect(scan().newPassword).toEqual([])
+    expect(fillTargets(field("email")).password).toBeNull()
+  })
+
   it("leaves out fields that are hidden, disabled or read-only", () => {
     document.body.innerHTML = `
       <form>
@@ -629,6 +667,24 @@ describe("a form with other secrets in password fields", () => {
         <input type="password" name="password">
       </form>`
     expect(fillTargets(field("password")).username).toBe(field("memberId"))
+  })
+
+  it("signs in with a card number or a code before the password, but not with one alone", () => {
+    document.body.innerHTML = `
+      <form>
+        <input name="cardNumber" aria-label="Card number">
+        <input type="password" name="password">
+      </form>
+      <form>
+        <input name="login" placeholder="Person code">
+        <input type="password" name="pass">
+      </form>
+      <form>
+        <input name="accountCode">
+      </form>`
+    expect(names(scan().login)).toEqual(
+      new Set(["cardNumber", "password", "login", "pass"]),
+    )
   })
 })
 
