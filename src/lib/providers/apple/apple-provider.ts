@@ -2,7 +2,7 @@ import { parse as parseHost } from "tldts"
 import { equivalentDomainsOf } from "@/lib/matching"
 import { serialQueue } from "@/lib/serial-queue"
 import { getSettings } from "@/lib/settings"
-import { isHostName } from "@/lib/site"
+import { isHostName, isHostOrSubdomain } from "@/lib/site"
 import {
   type CodeSetup,
   type Credential,
@@ -107,8 +107,10 @@ export class AppleProvider implements VaultProvider {
   }
 
   /**
-   * Logins the helper lists for a page's host and for each site the settings make equivalent to it.
-   * The helper matches sites itself, so an equivalent site takes a listing of its own.
+   * Logins the helper lists for a page's host and for each site equivalent to it. The helper
+   * matches sites itself, so an equivalent site takes a listing of its own, in which only logins
+   * saved for that site or under it count: Apple's list may name a subdomain, such as
+   * shop.univision.com, for it alone, while the helper may match its parent domain too.
    */
   private async listForPage(host: string): Promise<Entry[]> {
     const { equivalentDomains } = await getSettings()
@@ -116,11 +118,14 @@ export class AppleProvider implements VaultProvider {
     const entries: Entry[] = []
     for (const listedHost of hosts) {
       for (const entry of await this.listEntries(listedHost, BACKGROUND_TAB)) {
+        const savedForListedSite =
+          listedHost === host ||
+          entry.sites.some((site) => isHostOrSubdomain(site, listedHost))
         const listedBefore = entries.some(
           (seen) =>
             seen.username === entry.username && seen.site === entry.site,
         )
-        if (!listedBefore) entries.push(entry)
+        if (savedForListedSite && !listedBefore) entries.push(entry)
       }
     }
     return entries

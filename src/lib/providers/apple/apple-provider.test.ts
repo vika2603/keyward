@@ -79,6 +79,26 @@ describe("AppleProvider.logins", () => {
       ["other", "example.org"],
     ])
   })
+
+  it("lists only the logins of a subdomain Apple's list shares, not its parent domain's", async () => {
+    const listings: Record<string, { username: string; site: string }[]> = {
+      "shop.univision.com": [
+        { username: "shopper", site: "shop.univision.com" },
+        { username: "viewer", site: "univision.com" },
+      ],
+    }
+    const { apple } = providerAnswering(({ url }) => ({
+      STATUS: 0,
+      Entries: (listings[String(url)] ?? []).map((entry) => ({
+        USR: entry.username,
+        sites: [entry.site],
+      })),
+    }))
+    const logins = await apple.logins("apple", new URL("https://meh.com/"))
+    expect(logins.map((login) => [login.username, login.host])).toEqual([
+      ["shopper", "shop.univision.com"],
+    ])
+  })
 })
 
 describe("AppleProvider.refusesSaving", () => {
