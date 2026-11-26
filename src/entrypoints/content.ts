@@ -12,12 +12,14 @@ import {
   listenToExtension,
   notifyBackground,
 } from "@/content/extension-messages"
+import { fieldRulesOf, newPasswordTargets } from "@/content/field-finder"
 import { FieldTracker } from "@/content/field-tracker"
 import { FillHandlers } from "@/content/fill-handlers"
 import { FieldIcons } from "@/content/icons"
 import { InlineMenu, SavePrompt } from "@/content/overlays"
 import { PasskeySteering } from "@/content/passkey-steering"
 import { watchSubmissions } from "@/content/submit"
+import type { FieldRules } from "@/lib/password-rules"
 import { isDarkTheme } from "@/lib/theme"
 
 export default defineContentScript({
@@ -89,10 +91,14 @@ export default defineContentScript({
       }
       menu.close()
       lastMenuField = field
+      const newPassword = fields.isNewPassword(field)
       const session = await callBackground("content.openMenu", {
         kind: fields.isCode(field) ? "code" : "login",
-        newPassword: fields.isNewPassword(field),
+        newPassword,
         passkey: passkeys.waiting && fields.isLogin(field),
+        fieldRules: newPassword
+          ? fieldRulesOf(newPasswordTargets(field, fields.newPassword))
+          : undefined,
       }).catch(() => null)
       if (opening !== menuOpenings || !session) return
       // The page may have stopped offering logins while the session was requested.
@@ -131,7 +137,9 @@ export default defineContentScript({
       },
     )
 
-    function handle(message: ContentMessage): FieldInfo | boolean | undefined {
+    function handle(
+      message: ContentMessage,
+    ): FieldInfo | FieldRules | boolean | null | undefined {
       switch (message.type) {
         case "fill":
           fills.fill(message)
@@ -141,6 +149,8 @@ export default defineContentScript({
           return
         case "fillNew":
           return fills.fillNew(message)
+        case "newPasswordRules":
+          return fills.newPasswordRules()
         case "usePasskey":
           passkeys.use()
           return

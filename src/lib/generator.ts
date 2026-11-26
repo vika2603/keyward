@@ -110,11 +110,34 @@ export const generatedItem = storage.defineItem<
   Partial<Record<GeneratorKind, string>>
 >("session:generator.shown", { fallback: {} })
 
-const UPPER = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-const LOWER = "abcdefghijklmnopqrstuvwxyz"
-const DIGITS = "0123456789"
+export const UPPER = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+export const LOWER = "abcdefghijklmnopqrstuvwxyz"
+export const DIGITS = "0123456789"
+/** The printable ASCII characters other than letters and digits; a space is left out. */
+export const SPECIAL = String.fromCharCode(
+  ...Array.from({ length: 0x7e - 0x21 + 1 }, (_, index) => 0x21 + index),
+).replace(/[A-Za-z0-9]/g, "")
 // Avoiding ambiguous characters leaves out the same ones Bitwarden does: I, O, l, 0 and 1.
 const AMBIGUOUS = /[IOl01]/g
+const AMBIGUOUS_CHARACTER = /^[IOl01]$/
+/**
+ * Tries at generating a password with no longer run of one character than a site allows. The
+ * strictest sites in Apple's list allow runs of two among 60 or more characters, where a longer
+ * run comes once in hundreds of passwords.
+ */
+const MAX_RUN_ATTEMPTS = 100
+
+/** What a site or a page's field allows of a password, beyond the user's options. */
+export interface PasswordLimits {
+  minLength: number | null
+  maxLength: number | null
+  /** The most times one character may appear in a row. */
+  maxConsecutive: number | null
+  /** Sets of characters the password must have at least one character of each. */
+  required: string[]
+  /** Every character the password may have; null allows every character. */
+  allowed: string | null
+}
 
 /** A uniformly random integer in [0, count), without modulo bias. */
 function randomIndex(count: number): number {
@@ -143,6 +166,8 @@ interface CharacterClass {
   characters: string[]
   /** How many characters of a password must come from this class. */
   required: number
+  /** Whether the class holds one of a site's required sets, so it keeps at least one character. */
+  forSite?: boolean
 }
 
 /** The character classes the options enable; lowercase stands in when none is usable. */
@@ -189,14 +214,116 @@ export function passwordLength(options: GeneratorOptions): number {
   )
 }
 
-/** A password with the required characters of every enabled class, the rest drawn from all of them. */
-export function generatePassword(options: GeneratorOptions): string {
+/**
+ * A password with the required characters of every enabled class, the rest drawn from all of them.
+ * With `limits`, the options give way where a site or field needs it: see `classesWithin`.
+ */
+export function generatePassword(
+  options: GeneratorOptions,
+  limits?: PasswordLimits | null,
+): string {
+  if (!limits)
+    return passwordFrom(characterClasses(options), passwordLength(options))
+  const length = Math.min(
+    limits.maxLength ?? LENGTH_MAX,
+    Math.max(limits.minLength ?? 0, passwordLength(options)),
+  )
+  const classes = classesWithin(options, limits, length)
+  let password = passwordFrom(classes, length)
+  for (
+    let attempt = 1;
+    attempt < MAX_RUN_ATTEMPTS &&
+    limits.maxConsecutive !== null &&
+    longestRun(password) > limits.maxConsecutive;
+    attempt++
+  )
+    password = passwordFrom(classes, length)
+  return password
+}
+
+/**
+ * The options' character classes within a site's limits: each keeps only the characters the site
+ * allows, and each of the site's required sets that no class keeps to gets a class of its own,
+ * with the user's symbols where the set has some. When the classes require more characters than
+ * `length`, the minimums above one give way first, then the user's own classes, which still
+ * lend their characters to the rest of the password.
+ */
+function classesWithin(
+  options: GeneratorOptions,
+  limits: PasswordLimits,
+  length: number,
+): CharacterClass[] {
+  const allowed = limits.allowed === null ? null : new Set(limits.allowed)
+  const isAllowed = (character: string) => !allowed || allowed.has(character)
+  const unambiguous = (characters: string[]) => {
+    const clear = characters.filter(
+      (character) => !AMBIGUOUS_CHARACTER.test(character),
+    )
+    return options.avoidAmbiguousCharacters && clear.length ? clear : characters
+  }
   const classes = characterClasses(options)
+    .map((characterClass) => ({
+      ...characterClass,
+      characters: characterClass.characters.filter(isAllowed),
+    }))
+    .filter((characterClass) => characterClass.characters.length)
+  const userSymbols = symbolChars(options.symbolSet)
+  for (const set of limits.required) {
+    const members = new Set(set)
+    const holder = classes.find((characterClass) =>
+      characterClass.characters.every((character) => members.has(character)),
+    )
+    if (holder) {
+      holder.forSite = true
+      continue
+    }
+    const candidates = [...members].filter(isAllowed)
+    const preferred = candidates.filter(
+      (character) =>
+        !SPECIAL.includes(character) || userSymbols.includes(character),
+    )
+    const characters = unambiguous(preferred.length ? preferred : candidates)
+    if (characters.length)
+      classes.push({ characters, required: 1, forSite: true })
+  }
+  if (!classes.length)
+    classes.push({
+      characters: unambiguous([...(limits.allowed ?? LOWER)]),
+      required: 1,
+    })
+  let excess =
+    classes.reduce((sum, characterClass) => sum + characterClass.required, 0) -
+    length
+  for (const characterClass of classes)
+    while (excess > 0 && characterClass.required > 1) {
+      characterClass.required--
+      excess--
+    }
+  for (const characterClass of classes)
+    if (excess > 0 && !characterClass.forSite && characterClass.required) {
+      characterClass.required = 0
+      excess--
+    }
+  return classes
+}
+
+/** The length of the longest run of one character. */
+function longestRun(password: string): number {
+  let longest = 0
+  let run = 0
+  for (let index = 0; index < password.length; index++) {
+    run = password[index] === password[index - 1] ? run + 1 : 1
+    longest = Math.max(longest, run)
+  }
+  return longest
+}
+
+/** The classes' required characters, then characters from all of them up to `length`, shuffled. */
+function passwordFrom(classes: CharacterClass[], length: number): string {
   const pool = classes.flatMap((characterClass) => characterClass.characters)
   const chars = classes.flatMap(({ characters, required }) =>
     Array.from({ length: required }, () => randomItem(characters)),
   )
-  const length = passwordLength(options)
   while (chars.length < length) chars.push(randomItem(pool))
   for (let last = chars.length - 1; last > 0; last--) {
     const other = randomIndex(last + 1)

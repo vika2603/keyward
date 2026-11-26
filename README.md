@@ -11,6 +11,7 @@ A Chrome extension that fills, generates and saves passwords from two kinds of v
 - One-time codes (TOTP), filled into code fields or copied.
 - Takes over the page's conditional passkey requests on sites where you signed in with a passkey; can be turned off in settings.
 - Offers to save or update a login after you sign in.
+- On sign-up and change-password forms, offers a generated password that keeps to the field's length limits and `passwordrules` attribute, or to the rules Apple's [password-manager-resources](https://github.com/apple/password-manager-resources) lists for the site.
 - Generator for passwords, passphrases and usernames, with a history of generated passwords that ends with the browser session.
 - Popup with search across all vaults, login details, and for Bitwarden: a list of every item on its tab, secure notes, editing, deleting, custom fields and password history.
 - Keyboard shortcuts: open the popup (Ctrl+Shift+L), fill the first login (Ctrl+Shift+U), open the generator (Ctrl+Shift+G).
@@ -69,4 +70,4 @@ mise run format  # fix formatting
 
 Keyward's own code is under the MIT License; see [LICENSE](LICENSE).
 
-The built extension also contains `@bitwarden/sdk-internal`, which is under GPL-3.0.
+The built extension also contains `@bitwarden/sdk-internal`, which is under GPL-3.0, and data from Apple's password-manager-resources in `src/lib/site-data`, which is under the MIT License; see [its license](src/lib/site-data/LICENSE.apple.md). `mise run site-data` updates that data.

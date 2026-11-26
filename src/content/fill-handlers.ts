@@ -1,6 +1,7 @@
 import type { ContentMessage } from "@/background/api"
+import type { FieldRules } from "@/lib/password-rules"
 import { deepActiveElement } from "./deep-dom"
-import { fillTargets, newPasswordTargets } from "./field-finder"
+import { fieldRulesOf, fillTargets, newPasswordTargets } from "./field-finder"
 import { isPasswordField } from "./field-hints"
 import type { FieldTracker } from "./field-tracker"
 import {
@@ -107,6 +108,22 @@ export class FillHandlers {
    */
   fillNew(message: Message<"fillNew">): boolean {
     if (location.origin !== message.origin) return false
+    const targets = this.targetsForNewPassword()
+    this.menu.close()
+    this.whileFilling(() => {
+      for (const field of targets) setFieldValue(field, message.password)
+    })
+    return targets.length > 0
+  }
+
+  /** What the fields `fillNew` would fill now set for a password; null when there are none. */
+  newPasswordRules(): FieldRules | null {
+    const targets = this.targetsForNewPassword()
+    return targets.length ? fieldRulesOf(targets) : null
+  }
+
+  /** The fields a generated password goes into now, as `fillNew` describes. */
+  private targetsForNewPassword(): HTMLInputElement[] {
     const isNewPassword = (field: HTMLInputElement) =>
       this.fields.isNewPassword(field)
     const anchor = resolveAnchor([
@@ -117,16 +134,10 @@ export class FillHandlers {
         (field) => field.isConnected && isNewPassword(field),
       ],
     ])
-    this.menu.close()
-    if (!anchor) return false
-    const targets =
-      anchor.type === "password" && !isNewPassword(anchor)
-        ? [anchor]
-        : newPasswordTargets(anchor, this.fields.newPassword)
-    this.whileFilling(() => {
-      for (const field of targets) setFieldValue(field, message.password)
-    })
-    return targets.length > 0
+    if (!anchor) return []
+    return anchor.type === "password" && !isNewPassword(anchor)
+      ? [anchor]
+      : newPasswordTargets(anchor, this.fields.newPassword)
   }
 
   private whileFilling(fill: () => void): void {

@@ -26,6 +26,18 @@ run = "pnpm compile"
 description = "Run the unit tests"
 run = "pnpm test"
 
+[tasks.site-data]
+description = "Update the data from Apple's password-manager-resources in src/lib/site-data"
+run = """
+set -eu
+dir=src/lib/site-data
+base=https://raw.githubusercontent.com/apple/password-manager-resources/main
+curl -fsSL "$base/quirks/password-rules.json" -o "$dir/apple-password-rules.json"
+curl -fsSL "$base/quirks/shared-credentials.json" -o "$dir/apple-shared-credentials.json"
+curl -fsSL "$base/LICENSE.md" -o "$dir/LICENSE.apple.md"
+pnpm biome format --write "$dir"
+"""
+
 [tasks.corpus]
 description = "Score field detection on DuckDuckGo's annotated forms, downloaded into .cache/form-corpus"
 run = """

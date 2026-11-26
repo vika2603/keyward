@@ -1,4 +1,5 @@
 import type { Handlers } from "@/lib/messaging"
+import { fieldRulesFrom } from "@/lib/password-rules"
 import type { BackgroundApi } from "../api"
 import { contentConfig, hasCodes, notePasskeyUsed } from "../autofill"
 import { offerCandidate } from "../code-setup"
@@ -26,7 +27,7 @@ export function contentHandlers(providers: Providers) {
     },
     "content.openMenu": {
       allow: ["contentScript"],
-      handle: async ({ kind, newPassword, passkey }, sender) => {
+      handle: async ({ kind, newPassword, fieldRules, passkey }, sender) => {
         const { tabId, frameId } = tabFrame(sender)
         const open = await menuSessions.get(tabId)
         if (open && open.frameId !== frameId) await closeMenu(tabId)
@@ -38,6 +39,7 @@ export function contentHandlers(providers: Providers) {
           overlayFrameId: null,
           kind: fieldKind(kind),
           newPassword: newPassword === true,
+          fieldRules: fieldRulesFrom(fieldRules),
           passkey: passkey === true && fieldKind(kind) === "login",
         })
         return { token }

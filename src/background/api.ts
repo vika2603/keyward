@@ -1,6 +1,7 @@
 import type { GeneratorKind } from "@/lib/generator"
 import type { Language } from "@/lib/i18n/language"
 import { sendRequest } from "@/lib/messaging"
+import type { FieldRules } from "@/lib/password-rules"
 import type { AppleState } from "@/lib/providers/apple/helper-session"
 import type { SecondStepMethod } from "@/lib/providers/bitwarden/auth"
 import type {
@@ -360,10 +361,15 @@ export type BackgroundApi = {
   }
   "content.openMenu": {
     /**
-     * `newPassword` for a field that takes a new password, which gets a generated one offered;
-     * `passkey` when the page waits for a passkey sign-in.
+     * `newPassword` for a field that takes a new password, which gets a generated one offered
+     * within `fieldRules`; `passkey` when the page waits for a passkey sign-in.
      */
-    payload: { kind: FieldKind; newPassword?: boolean; passkey?: boolean }
+    payload: {
+      kind: FieldKind
+      newPassword?: boolean
+      fieldRules?: FieldRules
+      passkey?: boolean
+    }
     result: { token: string }
   }
   /** Whether a ready vault has one-time codes for the frame, asked once the frame has a code field. */
@@ -400,6 +406,8 @@ export type ContentMessage =
   | { type: "fillCode"; origin: string; code: string }
   /** A generated password for the new-password fields of the menu's form. */
   | { type: "fillNew"; origin: string; password: string }
+  /** What the fields `fillNew` would fill set for a password, answered with `FieldRules` or null. */
+  | { type: "newPasswordRules" }
   | { type: "usePasskey" }
   | { type: "menu.resize"; height: number }
   | { type: "menu.close" }

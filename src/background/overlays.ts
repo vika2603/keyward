@@ -1,5 +1,6 @@
 import { storage } from "wxt/utils/storage"
 import type { Sender } from "@/lib/messaging"
+import type { FieldRules } from "@/lib/password-rules"
 import { VaultError } from "@/lib/providers/types"
 import type { FieldKind } from "./api"
 
@@ -66,6 +67,8 @@ interface MenuSession extends OverlayBase {
   kind: FieldKind
   /** Whether the field takes a new password. */
   newPassword?: boolean
+  /** What the field sets for a password, which the generated one keeps to. */
+  fieldRules?: FieldRules | null
   /** The generated password the menu offers, kept so the fill uses the one shown. */
   suggestion?: string
   /** Whether the page waits for a passkey sign-in, which the menu offers. */

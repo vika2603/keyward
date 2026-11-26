@@ -1,5 +1,6 @@
 /** Finding the login, new-password and one-time code fields of a page, and the fields beside them. */
 
+import type { FieldRules } from "@/lib/password-rules"
 import { composedParent, deepInputs, formOf, scopeOf } from "./deep-dom"
 import {
   CONFIRM_PASSWORD_HINT,
@@ -335,6 +336,27 @@ export function fillTargets(anchor: HTMLInputElement): {
   if (isPasswordField(anchor))
     return { username: index.usernameFor(anchor), password: anchor }
   return { username: anchor, password: index.passwordFor(anchor) }
+}
+
+/**
+ * What new-password fields set for a password: the first `passwordrules` attribute among them
+ * and the strictest length limits, which apply as the same password goes into each.
+ */
+export function fieldRulesOf(fields: readonly HTMLInputElement[]): FieldRules {
+  const minimums = fields
+    .map((field) => field.minLength)
+    .filter((length) => length > 0)
+  const maximums = fields
+    .map((field) => field.maxLength)
+    .filter((length) => length > 0)
+  return {
+    rules:
+      fields
+        .map((field) => field.getAttribute("passwordrules"))
+        .find((rules) => rules?.trim()) ?? null,
+    minLength: minimums.length ? Math.max(...minimums) : null,
+    maxLength: maximums.length ? Math.min(...maximums) : null,
+  }
 }
 
 /** The fields a generated password goes into: `anchor` and the others of its form, such as a confirmation. */

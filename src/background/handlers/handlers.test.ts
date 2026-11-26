@@ -10,6 +10,7 @@ import {
   fakeProviders,
   idleNamedProviders,
   pageModule,
+  setFrame,
 } from "../test-support"
 import { createHandlers } from "."
 
@@ -166,6 +167,30 @@ describe("request checks", () => {
       new URL("https://example.com/security"),
       expect.stringMatching(/^otpauth:/),
     )
+  })
+
+  it("offers a suggested password within what the field and the site allow", async () => {
+    setFrame(TAB, 0, "https://mail.163.com/register")
+    const contentScript = {
+      kind: "contentScript",
+      tab: { id: TAB },
+      frameId: 0,
+    } as Sender
+    const { token } = (await request(
+      "content.openMenu",
+      {
+        kind: "login",
+        newPassword: true,
+        // The page writes these; a malformed part is left out.
+        fieldRules: { rules: 5, minLength: -1, maxLength: 12 },
+      },
+      contentScript,
+    )) as { token: string }
+    const state = (await request("menu.state", { token }, menuFrame)) as {
+      suggestion?: string
+    }
+    // Apple's list allows 6 to 16 characters on 163.com; the field allows 12.
+    expect(state.suggestion).toHaveLength(12)
   })
 
   it("refuses a menu height that is not a number", async () => {

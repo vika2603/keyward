@@ -2,12 +2,16 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 import { fakeBrowser } from "wxt/testing/fake-browser"
 import { updateSettings } from "@/lib/settings"
 import type { VaultView } from "./api"
-import { fillLogin, fillNewPassword } from "./autofill"
+import { fillLogin, fillNewPassword, passwordForFrame } from "./autofill"
 import { copyText } from "./clipboard"
 import { LoginMenus } from "./login-menus"
 import { accountVault, fakeContextMenus, fakeProviders } from "./test-support"
 
-vi.mock("./autofill", () => ({ fillLogin: vi.fn(), fillNewPassword: vi.fn() }))
+vi.mock("./autofill", () => ({
+  fillLogin: vi.fn(),
+  fillNewPassword: vi.fn(),
+  passwordForFrame: vi.fn(() => Promise.resolve("generated-for-the-field")),
+}))
 vi.mock("./clipboard", () => ({ copyText: vi.fn() }))
 
 const TAB = 4
@@ -192,11 +196,15 @@ describe("LoginMenus", () => {
       { menuItemId: "loginMenus.generateFill", frameId: 2 },
       tab,
     )
+    // The password is made for the frame's field, within what the field and its site allow.
     await vi.waitFor(() =>
-      expect(fillNewPassword).toHaveBeenCalledWith(TAB, 2, expect.any(String)),
+      expect(fillNewPassword).toHaveBeenCalledWith(
+        TAB,
+        2,
+        "generated-for-the-field",
+      ),
     )
-    const password = vi.mocked(fillNewPassword).mock.calls[0]?.[2] ?? ""
-    expect(password.length).toBeGreaterThanOrEqual(8)
+    expect(passwordForFrame).toHaveBeenCalledWith(TAB, 2)
     expect(copyText).not.toHaveBeenCalled()
   })
 

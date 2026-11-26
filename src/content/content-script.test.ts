@@ -429,6 +429,29 @@ describe("filling a generated password", () => {
     })
   })
 
+  it("tells the background what its fields allow, when the menu opens and when asked", async () => {
+    document.body.innerHTML = `
+      <form>
+        <input type="password" name="password" autocomplete="new-password" maxlength="20" passwordrules="required: digit;">
+        <input type="password" name="confirm" autocomplete="new-password" minlength="8" maxlength="16">
+      </form>`
+    const page = await startContentScript()
+    ctx = page.ctx
+    await openMenuOn(input("[name=password]"))
+
+    // The same password goes into both fields, so the stricter length limits apply.
+    const fieldRules = {
+      rules: "required: digit;",
+      minLength: 8,
+      maxLength: 16,
+    }
+    expect(
+      page.requests.find((request) => request.type === "content.openMenu")
+        ?.payload,
+    ).toMatchObject({ newPassword: true, fieldRules })
+    expect(await page.send({ type: "newPasswordRules" })).toEqual(fieldRules)
+  })
+
   it("reports that no field took it when no field was used", async () => {
     document.body.innerHTML = SIGN_UP
     const page = await startContentScript()

@@ -1,5 +1,6 @@
 import { generatePassword, getGeneratorOptions } from "@/lib/generator"
 import type { Handlers } from "@/lib/messaging"
+import { passwordLimitsFor } from "@/lib/password-rules"
 import { VaultError } from "@/lib/providers/types"
 import { siteDomainOf } from "@/lib/site"
 import type { BackgroundApi } from "../api"
@@ -32,7 +33,10 @@ export function menuHandlers(providers: Providers) {
         if (kind === "login") {
           let suggestion = session.suggestion
           if (session.newPassword && !suggestion) {
-            suggestion = generatePassword(await getGeneratorOptions())
+            suggestion = generatePassword(
+              await getGeneratorOptions(),
+              passwordLimitsFor(page.hostname, session.fieldRules ?? null),
+            )
             await menuSessions.set({ ...session, suggestion })
           }
           return {

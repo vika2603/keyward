@@ -5,7 +5,7 @@ import type { ProviderKind, TabRef } from "@/lib/providers/types"
 import { serialQueue } from "@/lib/serial-queue"
 import { getSettings } from "@/lib/settings"
 import type { VaultView } from "./api"
-import { fillLogin, fillNewPassword } from "./autofill"
+import { fillLogin, fillNewPassword, passwordForFrame } from "./autofill"
 import { copyText } from "./clipboard"
 import { addHistory } from "./history"
 import { webPage } from "./page"
@@ -164,11 +164,15 @@ export class LoginMenus {
     frameId: number,
     tabUrl: string | undefined,
   ): Promise<void> {
-    if (menuItemId === GENERATE_FILL_ID || menuItemId === GENERATE_ID) {
-      const password = generatePassword(await getGeneratorOptions())
-      const filled =
-        menuItemId === GENERATE_FILL_ID &&
-        (await fillNewPassword(tabId, frameId, password).catch(() => false))
+    if (menuItemId === GENERATE_ID) {
+      await copyGenerated(generatePassword(await getGeneratorOptions()), tabUrl)
+      return
+    }
+    if (menuItemId === GENERATE_FILL_ID) {
+      const password = await passwordForFrame(tabId, frameId)
+      const filled = await fillNewPassword(tabId, frameId, password).catch(
+        () => false,
+      )
       // Without a field to take it, or where filling is turned off, the password is copied instead,
       // so choosing the entry is never lost.
       if (!filled) await copyGenerated(password, tabUrl)

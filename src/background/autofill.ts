@@ -1,6 +1,8 @@
 import { storage } from "wxt/utils/storage"
+import { generatePassword, getGeneratorOptions } from "@/lib/generator"
 import { resolveLanguage } from "@/lib/i18n/language"
 import { ruleForHost } from "@/lib/matching"
+import { fieldRulesFrom, passwordLimitsFor } from "@/lib/password-rules"
 import { VaultError } from "@/lib/providers/types"
 import { serialQueue } from "@/lib/serial-queue"
 import { getSettings, type Settings, type SiteBehavior } from "@/lib/settings"
@@ -214,6 +216,24 @@ export async function fillNewPassword(
     password,
   })
   return filled === true
+}
+
+/**
+ * A generated password for the frame's new-password fields: the generator's options within what
+ * the fields and the site allow, as the frame's content script reads the fields' rules.
+ */
+export async function passwordForFrame(
+  tabId: number,
+  frameId: number,
+): Promise<string> {
+  const page = await frameUrl(tabId, frameId)
+  const rules = await sendToFrame<unknown>(tabId, frameId, {
+    type: "newPasswordRules",
+  }).catch(() => null)
+  const limits = page
+    ? passwordLimitsFor(page.hostname, fieldRulesFrom(rules))
+    : null
+  return generatePassword(await getGeneratorOptions(), limits)
 }
 
 /**
