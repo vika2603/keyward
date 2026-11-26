@@ -2,10 +2,11 @@
 # Sets up this Mac for Keyward: lets the extension reach the Passwords helper that comes with macOS.
 #
 # A browser starts a native helper only for the extensions that a host manifest names, and looks
-# for the user's manifests in the NativeMessagingHosts folder of its own data folder. Apple's
-# manifest names only Apple's extensions, so this writes keyward.passwords.json, which names
-# Keyward and points at the same helper, into the data folder of one browser: Chrome unless
-# --browser names another. It needs no administrator password and installs nothing.
+# for the user's manifests in the NativeMessagingHosts folder of its own data folder; ego lite
+# looks in Google Chrome's. Apple's manifest names only Apple's extensions, so this writes
+# keyward.passwords.json, which names Keyward and points at the same helper, into that folder for
+# one browser: Chrome unless --browser names another. It needs no administrator password and
+# installs nothing.
 #
 # Usage:
 #   setup.sh [--browser NAME | --user-data-dir DIR] EXTENSION_ID...   write the manifest
@@ -102,12 +103,21 @@ else
   data_dir="$SUPPORT/$folder"
 fi
 [ -d "$data_dir" ] || fail "No browser data was found in $data_dir. Is the browser installed and opened once?"
-manifest_path="$data_dir/NativeMessagingHosts/$HOST.json"
+hosts_dir="$data_dir/NativeMessagingHosts"
+shared_note=""
+# ego lite reads the user's host manifests from Google Chrome's folder, not its own (checked on
+# ego lite 0.6.3.17), so it shares Chrome's manifest and needs no Chrome installed.
+if [ "$browser" = ego ] && [ -z "$user_data_dir" ]; then
+  hosts_dir="$SUPPORT/Google/Chrome/NativeMessagingHosts"
+  shared_note="ego lite reads this file from Google Chrome's folder, so Google Chrome shares it."
+fi
+manifest_path="$hosts_dir/$HOST.json"
 
 if [ "$uninstall" = true ]; then
   if [ -f "$manifest_path" ]; then
     rm "$manifest_path"
     echo "Removed $manifest_path"
+    [ -z "$shared_note" ] || echo "$shared_note"
   fi
   echo "Keyward in this browser can no longer reach Passwords."
   exit 0
@@ -117,8 +127,9 @@ fi
 helper=$(helper_path) ||
   fail "The Passwords helper was not found. It comes with macOS 14 and later."
 
-mkdir -p "$data_dir/NativeMessagingHosts"
+mkdir -p "$hosts_dir"
 printf '{"name":"%s","description":"Lets Keyward reach the Passwords helper that comes with macOS","path":"%s","type":"stdio","allowed_origins":[%s]}\n' \
   "$HOST" "$helper" "$origins" >"$manifest_path"
 echo "Wrote $manifest_path"
+[ -z "$shared_note" ] || echo "$shared_note"
 echo "Done. Go back to Keyward; its connect page continues by itself."
