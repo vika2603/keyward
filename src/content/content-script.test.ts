@@ -562,14 +562,55 @@ describe("moving keyboard focus between the field and the menu", () => {
     const token = (posted[0] as { keywardOverlay: string }).keywardOverlay
     expect(posted[1]).toEqual({ keywardOverlayFocus: token })
 
-    username.blur()
+    iframe.focus()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(menuIsOpen()).toBe(true)
     await page.send({ type: "menu.focusField" })
     expect(document.activeElement).toBe(username)
     expect(menuIsOpen()).toBe(true)
 
-    username.blur()
+    iframe.focus()
     await page.send({ type: "menu.close", focusField: true })
     expect(menuIsOpen()).toBe(false)
     expect(document.activeElement).toBe(username)
+  })
+})
+
+describe("closing the menu when its field loses the focus", () => {
+  it("closes when the focus moves on to the page, as with the Tab key", async () => {
+    document.body.innerHTML = SIGN_IN
+    const page = await startContentScript()
+    ctx = page.ctx
+    const username = input("[name=username]")
+    username.focus()
+    await openMenuOn(username)
+    document.querySelector("button")?.focus()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(menuIsOpen()).toBe(false)
+  })
+
+  it("closes when the field's frame loses the focus, as on a click outside a sign-in iframe", async () => {
+    document.body.innerHTML = SIGN_IN
+    const page = await startContentScript()
+    ctx = page.ctx
+    const username = input("[name=username]")
+    username.focus()
+    await openMenuOn(username)
+    vi.spyOn(document, "hasFocus").mockReturnValue(false)
+    username.dispatchEvent(new FocusEvent("focusout", { bubbles: true }))
+    await vi.advanceTimersByTimeAsync(0)
+    expect(menuIsOpen()).toBe(false)
+  })
+
+  it("stays open while the focus is in the menu", async () => {
+    document.body.innerHTML = SIGN_IN
+    const page = await startContentScript()
+    ctx = page.ctx
+    const username = input("[name=username]")
+    username.focus()
+    await openMenuOn(username)
+    document.querySelector("iframe")?.focus()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(menuIsOpen()).toBe(true)
   })
 })

@@ -1,6 +1,6 @@
 import type { ContentScriptContext } from "wxt/utils/content-script-context"
 import { createIframeUi } from "wxt/utils/content-script-ui/iframe"
-import { eventOrigin } from "./deep-dom"
+import { deepActiveElement, eventOrigin } from "./deep-dom"
 import { PROMPT_WIDTH } from "./overlay-size"
 
 /** Room around the overlay's card for its shadow, inside the iframe. */
@@ -292,6 +292,28 @@ export class InlineMenu {
           !isOwnElement(event.target)
         )
           this.close()
+      },
+      { capture: true },
+    )
+    // Losing the focus to anything but the menu or Keyward's own elements closes the menu too. A
+    // click outside the frame the field is in, as around a sign-in form in an iframe, reaches no
+    // pointerdown here, and neither does the Tab key.
+    ctx.addEventListener(
+      document,
+      "focusout",
+      (event) => {
+        const field = this.field
+        if (!field || eventOrigin(event) !== field) return
+        // The focus has moved on by the next task.
+        setTimeout(() => {
+          if (this.field !== field) return
+          const active = deepActiveElement()
+          const backInField = active === field && document.hasFocus()
+          const inOwnElement =
+            active !== null &&
+            (this.overlay.owns(active) || isOwnElement(active))
+          if (!backInField && !inOwnElement) this.close()
+        })
       },
       { capture: true },
     )
