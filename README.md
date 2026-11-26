@@ -69,4 +69,4 @@ mise run format  # fix formatting
 
 Keyward's own code is under the MIT License; see [LICENSE](LICENSE).
 
-The built extension also contains `@bitwarden/sdk-internal`, which is under GPL-3.0. Whoever distributes the built extension, the SDK included, does so under the terms of GPL-3.0; the source for it is this repository.
+The built extension also contains `@bitwarden/sdk-internal`, which is under GPL-3.0.
