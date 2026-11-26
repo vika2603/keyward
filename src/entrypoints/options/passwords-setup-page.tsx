@@ -5,11 +5,11 @@ import {
   CopyIcon,
   LoaderCircleIcon,
   RotateCwIcon,
+  SquareTerminalIcon,
 } from "lucide-react"
 import { type ReactNode, useCallback, useEffect, useRef, useState } from "react"
 import keywardIcon from "@/assets/icon.svg"
 import { callBackground } from "@/background/api"
-import { ApplePairing } from "@/components/keyward/apple-pairing"
 import { BrandIcon } from "@/components/keyward/brand-icon"
 import { errorMessage } from "@/components/keyward/errors"
 import { FormError } from "@/components/keyward/form-field"
@@ -39,7 +39,7 @@ import { navigate } from "./navigation"
 /** How often the page looks again while it waits for the command to run. */
 const CHECK_INTERVAL_MS = 2000
 
-/** The phases in which the browser reaches the helper, so pairing can start. */
+/** The phases in which the browser reaches the helper, so pairing can start when Passwords is used. */
 const REACHED_PHASES: ReadonlySet<ApplePhase> = new Set([
   "unpaired",
   "awaitingCode",
@@ -62,8 +62,8 @@ type SetupStatus =
 /** How the header shows the link between Keyward and Passwords. */
 type Link = "connecting" | "stopped" | "connected"
 
-function linkOf(status: SetupStatus, paired: boolean): Link {
-  if (paired) return "connected"
+function linkOf(status: SetupStatus): Link {
+  if (status === "done") return "connected"
   if (status === "helperStopped" || status === "failed" || status === "notMac")
     return "stopped"
   return "connecting"
@@ -137,13 +137,12 @@ function useSetupStatus() {
 }
 
 /**
- * Sets up Passwords in two steps: a Terminal command lets the browser start the helper that comes
- * with macOS, then the Mac shows a code to pair with. The command needs a tab of its own, since the
- * popup closes as soon as Terminal takes the focus.
+ * Lets the browser reach Passwords: a Terminal command lets it start the helper that comes with
+ * macOS. Pairing waits until Passwords is first used, in the popup or a login field's menu. The
+ * command needs a tab of its own, since the popup closes as soon as Terminal takes the focus.
  */
 export function PasswordsSetupPage() {
   const { status, message, check } = useSetupStatus()
-  const [paired, setPaired] = useState(false)
   const setUp = status === "done"
 
   return (
@@ -161,7 +160,7 @@ export function PasswordsSetupPage() {
           </Button>
         </div>
         <header className="flex flex-col items-center gap-1.5 pb-2 text-center">
-          <ConnectionIcons link={linkOf(status, paired)} />
+          <ConnectionIcons link={linkOf(status)} />
           <h1 className="text-2xl leading-8 font-semibold tracking-tight">
             {t("options.passwordsSetup.title")}
           </h1>
@@ -169,39 +168,19 @@ export function PasswordsSetupPage() {
             {t("options.passwordsSetup.description")}
           </p>
         </header>
-        <Step
-          number={1}
-          title={t("options.passwordsSetup.setUp.title")}
-          done={setUp}
-        >
-          {!setUp && (
+        <SetupCard done={setUp}>
+          {setUp ? (
+            <p className="text-sm text-muted-foreground">
+              {t("options.passwordsSetup.pairLater")}
+            </p>
+          ) : (
             <SetUpStep
               status={status}
               message={message}
               onCheckAgain={() => void check()}
             />
           )}
-        </Step>
-        {status !== "notMac" && (
-          <Step number={2} title={t("pairing.title")} done={paired}>
-            {paired && (
-              <p className="text-sm text-muted-foreground">
-                {t("options.passwordsSetup.paired")}
-              </p>
-            )}
-            {setUp && !paired && (
-              <ApplePairing
-                onPaired={() => setPaired(true)}
-                showHeading={false}
-              />
-            )}
-            {!setUp && (
-              <p className="text-sm text-muted-foreground">
-                {t("options.passwordsSetup.pairAfterSetUp")}
-              </p>
-            )}
-          </Step>
-        )}
+        </SetupCard>
       </main>
     </div>
   )
@@ -237,31 +216,28 @@ function ConnectionIcons({ link }: { link: Link }) {
   )
 }
 
-function Step({
-  number,
-  title,
-  done,
-  children,
-}: {
-  number: number
-  title: string
-  done: boolean
-  children?: ReactNode
-}) {
+/** The card of the setup, whose icon turns into a check once the browser reaches Passwords. */
+function SetupCard({ done, children }: { done: boolean; children: ReactNode }) {
   return (
     <section className="flex flex-col gap-3 rounded-xl bg-card p-4 ring-1 ring-foreground/10">
       <h2 className="flex items-center gap-3 text-sm font-medium">
-        <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-muted text-xs">
-          {done ? <CheckIcon className="size-3.5" /> : number}
+        <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-muted">
+          {done ? (
+            <CheckIcon className="size-3.5" />
+          ) : (
+            <SquareTerminalIcon className="size-3.5" />
+          )}
         </span>
-        <span className="min-w-0 flex-1">{title}</span>
+        <span className="min-w-0 flex-1">
+          {t("options.passwordsSetup.setUp.title")}
+        </span>
         {done && (
           <span className="text-xs font-normal text-muted-foreground">
             {t("options.passwordsSetup.done")}
           </span>
         )}
       </h2>
-      {children && <div className="flex flex-col gap-3 pl-9">{children}</div>}
+      <div className="flex flex-col gap-3 pl-9">{children}</div>
     </section>
   )
 }

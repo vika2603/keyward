@@ -188,7 +188,7 @@ export const en = {
 
   "options.passwordsSetup.title": "Connect Passwords",
   "options.passwordsSetup.description":
-    "Keyward reads Passwords through a helper that comes with macOS. Set up this Mac once, then pair.",
+    "Keyward reads Passwords through a helper that comes with macOS. Each Mac needs this once.",
   "options.passwordsSetup.back": "Back to settings",
   "options.passwordsSetup.done": "Done",
   "options.passwordsSetup.setUp.title": "Let the browser reach Passwords",
@@ -212,10 +212,8 @@ export const en = {
     "It finds the Passwords helper that comes with macOS and writes keyward.passwords.json into the NativeMessagingHosts folder of each browser that has Keyward installed. The file lets only this extension start the helper.",
   "options.passwordsSetup.removal": "To undo it, run:",
   "options.passwordsSetup.viewScript": "View the script",
-  "options.passwordsSetup.pairAfterSetUp":
-    "After the first step, enter the six-digit code your Mac shows here.",
-  "options.passwordsSetup.paired":
-    "Passwords is connected. Its logins now show in the popup and in login fields.",
+  "options.passwordsSetup.pairLater":
+    "The browser now reaches Passwords. The first time you use it, enter the six-digit code your Mac shows to pair.",
   "options.onboard.title": "Sign in to Bitwarden",
   "options.onboard.description":
     "After signing in, the account is unlocked with its master password.",
@@ -440,7 +438,7 @@ export const zhCN: Record<keyof typeof en, string> = {
 
   "options.passwordsSetup.title": "连接 Passwords",
   "options.passwordsSetup.description":
-    "Keyward 通过 macOS 自带的组件读取 Passwords。在这台 Mac 上设置一次，然后配对。",
+    "Keyward 通过 macOS 自带的组件读取 Passwords。每台 Mac 只需设置一次。",
   "options.passwordsSetup.back": "返回设置",
   "options.passwordsSetup.done": "已完成",
   "options.passwordsSetup.setUp.title": "允许浏览器连接 Passwords",
@@ -463,10 +461,8 @@ export const zhCN: Record<keyof typeof en, string> = {
     "它找到 macOS 自带的 Passwords 组件，把 keyward.passwords.json 写进装了 Keyward 的浏览器的 NativeMessagingHosts 文件夹。这个文件只允许本插件启动该组件。",
   "options.passwordsSetup.removal": "要撤销，运行：",
   "options.passwordsSetup.viewScript": "查看脚本",
-  "options.passwordsSetup.pairAfterSetUp":
-    "完成第一步后，在这里输入 Mac 上显示的六位验证码。",
-  "options.passwordsSetup.paired":
-    "Passwords 已连接，它的登录会出现在弹窗和网页的登录框里。",
+  "options.passwordsSetup.pairLater":
+    "浏览器已经能连接 Passwords。第一次使用时，输入 Mac 上显示的六位验证码完成配对。",
   "options.onboard.title": "登录 Bitwarden",
   "options.onboard.description": "登录后，这个账号用主密码就能解锁。",
   "options.onboard.backToSettings": "返回设置",
