@@ -1,7 +1,6 @@
-import { CheckIcon, SquareTerminalIcon } from "lucide-react"
-import { type ReactNode, useEffect, useState } from "react"
+import { CheckIcon } from "lucide-react"
+import { useEffect, useState } from "react"
 import keywardIcon from "@/assets/icon.svg"
-import { callBackground } from "@/background/api"
 import { useAppearance } from "@/components/keyward/appearance"
 import { BrandIcon } from "@/components/keyward/brand-icon"
 import { useLanguage } from "@/components/keyward/language"
@@ -13,7 +12,6 @@ import {
   useSetupStatus,
 } from "@/components/keyward/passwords-setup"
 import { pageBrowser } from "@/components/keyward/setup-commands"
-import { Button } from "@/components/ui/button"
 import { t } from "@/lib/i18n"
 import { cn } from "@/lib/utils"
 
@@ -49,36 +47,24 @@ function ConnectPasswords() {
   const [targetBrowser, setTargetBrowser] = useState(pageBrowser)
   const setUp = status === "done"
 
+  const link = linkOf(status)
+
   return (
-    <div className="flex min-h-screen flex-col items-center bg-muted px-4 pt-12 pb-16">
-      <main className="flex w-full max-w-[560px] flex-col gap-4">
-        <header className="flex flex-col items-center gap-1.5 text-center">
-          <h1 className="text-2xl leading-8 font-semibold tracking-tight">
+    <div className="flex min-h-screen flex-col items-center bg-muted px-4 pt-16 pb-16">
+      <main className="flex w-full max-w-[520px] flex-col gap-8">
+        <header className="flex flex-col items-center gap-1 text-center">
+          <ConnectionIcons link={link} />
+          <h1 className="mt-5 text-2xl leading-8 font-semibold tracking-tight">
             {t("options.passwordsSetup.title")}
           </h1>
-          <p className="text-sm text-muted-foreground">
-            {t("options.passwordsSetup.description")}
-          </p>
-          <div className="flex flex-col items-center gap-3 pt-8 pb-6">
-            <ConnectionIcons link={linkOf(status)} />
-            <LinkStatus link={linkOf(status)} />
-          </div>
+          <LinkStatus link={link} />
         </header>
-        <SetupCard done={setUp}>
+        <section className="flex flex-col gap-4 rounded-xl bg-card p-5 ring-1 ring-foreground/10">
           {setUp ? (
             <>
               <p className="text-sm text-muted-foreground">
                 {t("options.passwordsSetup.connected")}
               </p>
-              <Button
-                className="w-fit"
-                // An older background without the request leaves the toolbar icon to the user.
-                onClick={() =>
-                  void callBackground("page.openPopup", null).catch(() => {})
-                }
-              >
-                {t("options.passwordsSetup.openKeyward")}
-              </Button>
               <RemovalDetails />
             </>
           ) : (
@@ -90,7 +76,7 @@ function ConnectPasswords() {
               onCheckAgain={() => void check()}
             />
           )}
-        </SetupCard>
+        </section>
       </main>
     </div>
   )
@@ -100,8 +86,8 @@ function ConnectPasswords() {
 function ConnectionIcons({ link }: { link: Link }) {
   return (
     <div className="flex items-center gap-3" aria-hidden="true">
-      <img src={keywardIcon} alt="" draggable={false} className="size-12" />
-      <div className="flex w-14 items-center justify-center gap-2">
+      <img src={keywardIcon} alt="" draggable={false} className="size-14" />
+      <div className="flex w-16 items-center justify-center gap-2">
         {link === "connected" ? (
           // The check pops in and sends out a ring, as a chime would sound.
           <span className="relative flex size-6 items-center justify-center">
@@ -125,7 +111,7 @@ function ConnectionIcons({ link }: { link: Link }) {
           ))
         )}
       </div>
-      <BrandIcon kind="apple" className="size-12" />
+      <BrandIcon kind="apple" className="size-14" />
     </div>
   )
 }
@@ -150,39 +136,5 @@ function LinkStatus({ link }: { link: Link }) {
     >
       {t(LINK_STATUS_KEYS[link])}
     </p>
-  )
-}
-
-/** The card of the setup, whose icon turns into a check once the browser reaches Passwords. */
-function SetupCard({ done, children }: { done: boolean; children: ReactNode }) {
-  return (
-    <section className="flex flex-col gap-3 rounded-xl bg-card p-4 ring-1 ring-foreground/10">
-      <h2 className="flex items-center gap-3 text-sm font-medium">
-        <span
-          className={cn(
-            "flex size-6 shrink-0 items-center justify-center rounded-full",
-            done ? "bg-success/15 text-success" : "bg-muted",
-          )}
-        >
-          {done ? (
-            <CheckIcon
-              className="size-3.5 animate-connected-pop motion-reduce:animate-none"
-              strokeWidth={3}
-            />
-          ) : (
-            <SquareTerminalIcon className="size-3.5" />
-          )}
-        </span>
-        <span className="min-w-0 flex-1">
-          {t("options.passwordsSetup.setUp.title")}
-        </span>
-        {done && (
-          <span className="text-xs font-normal text-muted-foreground">
-            {t("options.passwordsSetup.done")}
-          </span>
-        )}
-      </h2>
-      <div className="flex flex-col gap-3 pl-9">{children}</div>
-    </section>
   )
 }

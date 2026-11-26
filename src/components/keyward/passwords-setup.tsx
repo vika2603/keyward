@@ -131,17 +131,20 @@ export function useSetupStatus() {
 /** Whether Passwords can be connected on this computer: not at all, after its setup, or now. */
 export type PasswordsAvailability = "unsupported" | "needsSetup" | "ready"
 
-/** Where Passwords stands on this computer, null until the check answers. */
+/**
+ * Where Passwords stands on this computer, null until the check answers. It checks again when the
+ * page comes back to the front, as the setup is done or removed in another tab and in Terminal.
+ */
 export function usePasswordsAvailability(): PasswordsAvailability | null {
   const [availability, setAvailability] =
     useState<PasswordsAvailability | null>(null)
   useEffect(() => {
-    void (async () => {
+    const check = async () => {
       if (!(await isMac())) return setAvailability("unsupported")
       try {
-        const check = await callBackground("apple.checkSetup", null)
+        const answer = await callBackground("apple.checkSetup", null)
         setAvailability(
-          !check.reached && isSetupProblem(check.problem)
+          !answer.reached && isSetupProblem(answer.problem)
             ? "needsSetup"
             : "ready",
         )
@@ -149,7 +152,14 @@ export function usePasswordsAvailability(): PasswordsAvailability | null {
         // Pairing finds out about the setup by itself.
         setAvailability("ready")
       }
-    })()
+    }
+    const checkWhenShown = () => {
+      if (document.visibilityState === "visible") void check()
+    }
+    void check()
+    document.addEventListener("visibilitychange", checkWhenShown)
+    return () =>
+      document.removeEventListener("visibilitychange", checkWhenShown)
   }, [])
   return availability
 }
@@ -202,7 +212,7 @@ export function SetUpStep({
       {status === "otherExtension" && (
         <FormError>{t("options.passwordsSetup.otherExtension")}</FormError>
       )}
-      {stopped ? (
+      {stopped && (
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
           <FormError className="min-w-0 flex-1">
             {status === "helperStopped"
@@ -214,14 +224,6 @@ export function SetUpStep({
             {t("options.passwordsSetup.checkAgain")}
           </Button>
         </div>
-      ) : (
-        <p className="flex items-center gap-2 text-sm text-muted-foreground">
-          <LoaderCircleIcon
-            className="size-4 shrink-0 animate-spin"
-            aria-hidden="true"
-          />
-          {t("options.passwordsSetup.waiting")}
-        </p>
       )}
       <CommandDetails />
     </>

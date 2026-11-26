@@ -185,20 +185,14 @@ export const en = {
     "Couldn't import: the file isn't a Keyward settings export.",
 
   "options.passwordsSetup.title": "Connect Passwords",
-  "options.passwordsSetup.description":
-    "Keyward reads Passwords through a helper that comes with macOS. Each Mac needs this once.",
-  "options.passwordsSetup.done": "Done",
-  "options.passwordsSetup.setUp.title": "Let the browser reach Passwords",
   "options.passwordsSetup.setUp.description":
-    "Pick the browser you are using, then run the command in Terminal. It writes one small configuration file into that browser's data folder; it needs no administrator password and installs nothing.",
+    "Run this command in Terminal once, for the browser you use. It needs no administrator password and installs nothing.",
   "options.passwordsSetup.browser": "Browser",
   "options.passwordsSetup.copy": "Copy command",
   "options.passwordsSetup.copied": "Copied",
   "options.passwordsSetup.terminal":
     "To open Terminal, press ⌘ Space, type Terminal and press Return. Paste the command there and press Return.",
   "options.passwordsSetup.checking": "Checking this Mac…",
-  "options.passwordsSetup.waiting":
-    "This step finishes by itself once the command has run.",
   "options.passwordsSetup.otherExtension":
     "This Mac is set up for another copy of Keyward. Run the command again for this one.",
   "options.passwordsSetup.helperStopped":
@@ -210,11 +204,10 @@ export const en = {
     "It finds the Passwords helper that comes with macOS and writes keyward.passwords.json into the NativeMessagingHosts folder of the chosen browser. The file lets only this extension start the helper. The Vaults settings show how to remove it.",
   "options.passwordsSetup.viewScript": "View the script",
   "options.passwordsSetup.connected":
-    "Passwords is on. The first time you use it, Keyward asks for the six-digit code your Mac shows.",
+    "Passwords is on. The first time you use it, Keyward asks for the six-digit code your Mac shows. You can close this page.",
   "options.passwordsSetup.link.connecting": "Connecting…",
   "options.passwordsSetup.link.stopped": "Not connected",
   "options.passwordsSetup.link.connected": "Connected",
-  "options.passwordsSetup.openKeyward": "Open Keyward",
 
   "welcome.title": "Welcome to Keyward",
   "welcome.description":
@@ -460,19 +453,14 @@ export const zhCN: Record<keyof typeof en, string> = {
   "options.keys.import.failed": "无法导入：文件不是 Keyward 导出的配置。",
 
   "options.passwordsSetup.title": "连接 Passwords",
-  "options.passwordsSetup.description":
-    "Keyward 通过 macOS 自带的组件读取 Passwords。每台 Mac 只需设置一次。",
-  "options.passwordsSetup.done": "已完成",
-  "options.passwordsSetup.setUp.title": "允许浏览器连接 Passwords",
   "options.passwordsSetup.setUp.description":
-    "选择你正在用的浏览器，然后在终端里运行下面的命令。它只在这个浏览器的数据文件夹里写一个小配置文件，不需要管理员密码，也不安装任何程序。",
+    "在终端里为你在用的浏览器运行一次这条命令。不需要管理员密码，也不安装任何程序。",
   "options.passwordsSetup.browser": "浏览器",
   "options.passwordsSetup.copy": "复制命令",
   "options.passwordsSetup.copied": "已复制",
   "options.passwordsSetup.terminal":
     "打开终端：按 ⌘ 空格，输入“终端”后回车。把命令粘贴进去，再按回车。",
   "options.passwordsSetup.checking": "正在检查这台 Mac…",
-  "options.passwordsSetup.waiting": "命令运行后，这一步会自动完成。",
   "options.passwordsSetup.otherExtension":
     "这台 Mac 是为另一份 Keyward 设置的，为这一份再运行一次命令即可。",
   "options.passwordsSetup.helperStopped":
@@ -484,11 +472,10 @@ export const zhCN: Record<keyof typeof en, string> = {
     "它找到 macOS 自带的 Passwords 组件，把 keyward.passwords.json 写进所选浏览器的 NativeMessagingHosts 文件夹。这个文件只允许本插件启动该组件。移除方法在设置的密码库页里。",
   "options.passwordsSetup.viewScript": "查看脚本",
   "options.passwordsSetup.connected":
-    "Passwords 已打开。第一次使用时，Keyward 会请你输入 Mac 上显示的六位验证码。",
+    "Passwords 已打开。第一次使用时，Keyward 会请你输入 Mac 上显示的六位验证码。现在可以关闭这个页面了。",
   "options.passwordsSetup.link.connecting": "连接中…",
   "options.passwordsSetup.link.stopped": "未连接",
   "options.passwordsSetup.link.connected": "连接成功",
-  "options.passwordsSetup.openKeyward": "打开 Keyward",
 
   "welcome.title": "欢迎使用 Keyward",
   "welcome.description":

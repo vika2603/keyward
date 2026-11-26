@@ -5,16 +5,11 @@ import { callBackground } from "@/background/api"
 import { useAppearance } from "@/components/keyward/appearance"
 import { BrandIcon, providerName } from "@/components/keyward/brand-icon"
 import { useLanguage } from "@/components/keyward/language"
-import {
-  RemovalDetails,
-  SetUpStep,
-  usePasswordsAvailability,
-  useSetupStatus,
-} from "@/components/keyward/passwords-setup"
-import { pageBrowser } from "@/components/keyward/setup-commands"
+import { usePasswordsAvailability } from "@/components/keyward/passwords-setup"
 import { Button } from "@/components/ui/button"
 import { SignIn } from "@/entrypoints/options/onboard-page"
 import { useSettings } from "@/hooks/use-settings"
+import { openConnectPasswords } from "@/lib/connect-passwords"
 import { t } from "@/lib/i18n"
 import type { AccountSummary } from "@/lib/providers/bitwarden/bitwarden-provider"
 
@@ -28,8 +23,8 @@ export function App() {
 }
 
 /**
- * The page a new install opens. It connects Passwords, Bitwarden or both in one place, asks for the
- * toolbar pin that keeps the popup at hand, and opens the popup. Pairing Passwords waits for its
+ * The page a new install opens. It leads to connecting Passwords, signs in to Bitwarden, asks for
+ * the toolbar pin that keeps the popup at hand, and opens the popup. Pairing Passwords waits for its
  * first use in the popup, as a pairing lasts only while the browser runs.
  */
 function Welcome() {
@@ -85,61 +80,44 @@ function Welcome() {
   )
 }
 
-/** Connects Passwords once asked to, or shows it connected when it is on already. */
+/**
+ * Passwords, connected once it is on and the browser reaches the helper. Connecting takes the
+ * Connect Passwords page in a tab of its own, so this page stays for the other steps.
+ */
 function PasswordsCard({ enabled }: { enabled: boolean }) {
   const availability = usePasswordsAvailability()
-  const [connecting, setConnecting] = useState(false)
+  const icon = <BrandIcon kind="apple" className="size-6" />
 
   if (availability === "unsupported") {
     return (
       <StepCard
-        icon={<BrandIcon kind="apple" className="size-6" />}
+        icon={icon}
         title={providerName("apple")}
         description={t("options.passwordsSetup.notMac")}
       />
     )
   }
-  if (enabled || connecting) return <PasswordsSetupCard />
+  if (enabled && availability === "ready") {
+    return (
+      <StepCard
+        icon={icon}
+        title={providerName("apple")}
+        description={t("welcome.apple.connected")}
+        side={<DoneMark label={t("welcome.connected")} />}
+      />
+    )
+  }
   return (
     <StepCard
-      icon={<BrandIcon kind="apple" className="size-6" />}
+      icon={icon}
       title={providerName("apple")}
       description={t("welcome.apple.description")}
       side={
-        <Button variant="outline" onClick={() => setConnecting(true)}>
+        <Button variant="outline" onClick={() => void openConnectPasswords()}>
           {t("welcome.connect")}
         </Button>
       }
     />
-  )
-}
-
-function PasswordsSetupCard() {
-  const { status, message, check } = useSetupStatus()
-  const [targetBrowser, setTargetBrowser] = useState(pageBrowser)
-  const done = status === "done"
-
-  return (
-    <StepCard
-      icon={<BrandIcon kind="apple" className="size-6" />}
-      title={providerName("apple")}
-      description={
-        done ? t("welcome.apple.connected") : t("welcome.apple.description")
-      }
-      side={done && <DoneMark label={t("welcome.connected")} />}
-    >
-      {done ? (
-        <RemovalDetails />
-      ) : (
-        <SetUpStep
-          status={status}
-          message={message}
-          targetBrowser={targetBrowser}
-          onBrowserChange={setTargetBrowser}
-          onCheckAgain={() => void check()}
-        />
-      )}
-    </StepCard>
   )
 }
 

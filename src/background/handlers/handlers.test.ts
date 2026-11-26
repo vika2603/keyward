@@ -108,12 +108,9 @@ describe("pages that set Keyward up", () => {
       expect(all[type].allow).not.toContain("welcomePage")
   })
 
-  it("opens the popup for the setup pages only", async () => {
+  it("opens the popup for the welcome page only", async () => {
     const all = handlers()
-    expect([...all["page.openPopup"].allow].sort()).toEqual([
-      "connectPage",
-      "welcomePage",
-    ])
+    expect(all["page.openPopup"].allow).toEqual(["welcomePage"])
     const openPopup = vi
       .spyOn(fakeBrowser.action, "openPopup")
       .mockResolvedValue()
