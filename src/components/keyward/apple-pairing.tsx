@@ -3,7 +3,6 @@ import {
   LaptopMinimalCheckIcon,
   LaptopMinimalIcon,
   RotateCwIcon,
-  SquareTerminalIcon,
 } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
 import { APPLE_PAIRING_PORT, callBackground } from "@/background/api"
@@ -41,7 +40,7 @@ export function ApplePairing({
   showHeading = true,
 }: {
   onPaired: () => void
-  /** Opens the setup page; given, it is offered while this Mac is not set up yet. */
+  /** Opens the setup page; given, pairing goes there at once while this Mac is not set up yet. */
   onSetUp?: () => void
   /** False where the surrounding page already names the step. */
   showHeading?: boolean
@@ -51,6 +50,7 @@ export function ApplePairing({
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
   const started = useRef(false)
+  const sentToSetup = useRef(false)
   const codeInputRef = useRef<HTMLInputElement>(null)
 
   const start = async (restart: boolean) => {
@@ -103,6 +103,14 @@ export function ApplePairing({
     }
   }
 
+  const setupMissing = state !== null && needsSetup(state)
+  // Pairing needs the one-time setup first, which runs in a page of its own.
+  useEffect(() => {
+    if (!onSetUp || !setupMissing || sentToSetup.current) return
+    sentToSetup.current = true
+    onSetUp()
+  }, [onSetUp, setupMissing])
+
   const phase = state?.phase
   const waiting = phase === "awaitingCode"
   const ready = waiting && !busy
@@ -135,22 +143,7 @@ export function ApplePairing({
     }
   }, [ready])
 
-  if (onSetUp && state && needsSetup(state)) {
-    return (
-      <div className="flex flex-col items-center gap-4 text-center">
-        <div className="flex flex-col items-center gap-2">
-          <div className="mb-1 flex size-11 items-center justify-center rounded-xl bg-muted text-foreground">
-            <SquareTerminalIcon className="size-6" aria-hidden="true" />
-          </div>
-          <h2 className="text-base font-medium">{t("pairing.setUp.title")}</h2>
-          <p className="text-sm text-muted-foreground">
-            {t("pairing.setUp.description")}
-          </p>
-        </div>
-        <Button onClick={onSetUp}>{t("pairing.setUp.action")}</Button>
-      </div>
-    )
-  }
+  if (onSetUp && setupMissing) return null
 
   const paired = phase === "paired"
   const MacIcon = paired ? LaptopMinimalCheckIcon : LaptopMinimalIcon

@@ -7,6 +7,7 @@ import {
   RotateCwIcon,
 } from "lucide-react"
 import { type ReactNode, useCallback, useEffect, useRef, useState } from "react"
+import keywardIcon from "@/assets/icon.svg"
 import { callBackground } from "@/background/api"
 import { ApplePairing } from "@/components/keyward/apple-pairing"
 import { BrandIcon } from "@/components/keyward/brand-icon"
@@ -57,6 +58,19 @@ type SetupStatus =
   | "failed"
   | "notMac"
   | "done"
+
+/** How the header shows the link between Keyward and Passwords. */
+type Link = "connecting" | "stopped" | "connected"
+
+function linkOf(status: SetupStatus, paired: boolean): Link {
+  if (paired) return "connected"
+  if (status === "helperStopped" || status === "failed" || status === "notMac")
+    return "stopped"
+  return "connecting"
+}
+
+/** The start of each dot's animation, so they light up one after another. */
+const DOT_DELAYS = ["0ms", "200ms", "400ms"]
 
 function statusOf(state: AppleState): SetupStatus {
   if (REACHED_PHASES.has(state.phase)) return "done"
@@ -147,9 +161,7 @@ export function PasswordsSetupPage() {
           </Button>
         </div>
         <header className="flex flex-col items-center gap-1.5 pb-2 text-center">
-          <div className="mb-2 flex size-12 items-center justify-center rounded-xl bg-card ring-1 ring-foreground/10">
-            <BrandIcon kind="apple" className="size-6" />
-          </div>
+          <ConnectionIcons link={linkOf(status, paired)} />
           <h1 className="text-2xl leading-8 font-semibold tracking-tight">
             {t("options.passwordsSetup.title")}
           </h1>
@@ -191,6 +203,36 @@ export function PasswordsSetupPage() {
           </Step>
         )}
       </main>
+    </div>
+  )
+}
+
+/** Keyward and Passwords side by side; the dots between them move while the two connect. */
+function ConnectionIcons({ link }: { link: Link }) {
+  return (
+    <div className="mb-3 flex items-center gap-3" aria-hidden="true">
+      <img src={keywardIcon} alt="" draggable={false} className="size-12" />
+      <div className="flex w-14 items-center justify-center gap-2">
+        {link === "connected" ? (
+          <span className="flex size-5 items-center justify-center rounded-full bg-foreground text-background">
+            <CheckIcon className="size-3" strokeWidth={3} />
+          </span>
+        ) : (
+          DOT_DELAYS.map((delay) => (
+            <span
+              key={delay}
+              style={{ animationDelay: delay }}
+              className={cn(
+                "size-2 rounded-full bg-muted-foreground",
+                link === "connecting"
+                  ? "animate-connecting-dot motion-reduce:animate-none"
+                  : "opacity-40",
+              )}
+            />
+          ))
+        )}
+      </div>
+      <BrandIcon kind="apple" className="size-12" />
     </div>
   )
 }

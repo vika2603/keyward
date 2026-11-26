@@ -105,6 +105,19 @@ export function VaultsPage() {
 
   if (!settings) return null
 
+  /** Turning Passwords on leads to its setup page while this Mac still needs the one-time setup. */
+  const setAppleEnabled = (enabled: boolean) => {
+    update({ appleEnabled: enabled })
+    if (!enabled) return
+    callBackground("apple.checkSetup", null).then(
+      (state) => {
+        if (needsSetup(state)) navigate("passwords")
+      },
+      // The setup row below offers the page once a check gets an answer.
+      () => {},
+    )
+  }
+
   const signOut = async (account: AccountSummary) => {
     setAccountsMessage(null)
     try {
@@ -179,7 +192,7 @@ export function VaultsPage() {
           <Switch
             aria-label={t("options.vaults.apple.toggle")}
             checked={settings.appleEnabled}
-            onCheckedChange={(checked) => update({ appleEnabled: checked })}
+            onCheckedChange={setAppleEnabled}
           />
         </Option>
         {settings.appleEnabled && appleNeedsSetup && (

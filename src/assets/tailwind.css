@@ -52,6 +52,24 @@
   --color-secret-symbol: var(--secret-symbol);
 }
 
+@theme {
+  /* The dots between Keyward and a vault while the two connect. */
+  --animate-connecting-dot: connecting-dot 1.4s ease-in-out infinite both;
+
+  @keyframes connecting-dot {
+    0%,
+    80%,
+    100% {
+      opacity: 0.25;
+      transform: scale(0.75);
+    }
+    40% {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+}
+
 :root {
   --radius: 0.625rem;
   --background: oklch(1 0 0);

@@ -67,9 +67,6 @@ export const en = {
   "pairing.connecting": "Connecting to Passwords…",
   "pairing.paired": "Paired.",
   "pairing.setUp.title": "Set up Passwords first",
-  "pairing.setUp.description":
-    "One command in Terminal lets the browser reach the Passwords helper that comes with macOS. The setup page shows it.",
-  "pairing.setUp.action": "Open setup page",
   "unlock.noAccount": "No Bitwarden account is signed in yet.",
   "unlock.signIn": "Sign in",
   "unlock.title": "Unlock Bitwarden",
@@ -149,9 +146,6 @@ export const zhCN: Record<keyof typeof en, string> = {
   "pairing.connecting": "正在连接 Passwords…",
   "pairing.paired": "已配对。",
   "pairing.setUp.title": "先设置 Passwords",
-  "pairing.setUp.description":
-    "需要在终端运行一条命令，浏览器才能连接 macOS 自带的 Passwords 组件。设置页里有这条命令。",
-  "pairing.setUp.action": "打开设置页",
   "unlock.noAccount": "还没有登录 Bitwarden 账号。",
   "unlock.signIn": "登录",
   "unlock.title": "解锁 Bitwarden",
