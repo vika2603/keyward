@@ -391,6 +391,25 @@ describe("the password step of a two-step sign-in", () => {
     )
   })
 
+  it("passes over a flag in a hidden field, and addresses offered for help", () => {
+    document.body.innerHTML = `
+      <form>
+        <input type="hidden" name="login_type" value="password">
+        <input type="password" name="password">
+      </form>`
+    type("password", "{{SECRET_xbfqywla}}")
+    expect(credentialsAround(field("password"))?.usernameOnPage).toBeUndefined()
+    document.body.innerHTML = `
+      <form>
+        <p>Locked out? <a href="mailto:help@example.com">help@example.com</a></p>
+        <input type="password" name="password">
+        <p>Questions? support@example.com</p>
+        <button>Next</button>
+      </form>`
+    type("password", "{{SECRET_xbfqywla}}")
+    expect(credentialsAround(field("password"))?.usernameOnPage).toBeUndefined()
+  })
+
   it("leaves it out when the form has a username field", () => {
     document.body.innerHTML = `
       <form>

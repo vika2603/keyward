@@ -17,6 +17,8 @@ const NOT_ACCOUNT_HINT =
 /** Text this long or shorter, such as "Signed in as …", may name the account; longer text is prose. */
 const MAX_ACCOUNT_TEXT = 70
 const EMAIL_ADDRESS = /[^\s@<>()",;:]+@[a-z\d-]+(\.[a-z\d-]+)+/i
+/** Elements whose text does not name the account, such as a link to a support address. */
+const NOT_ACCOUNT_TEXT = "a, script, style, noscript"
 /** Characters a page masks part of an address with, as in "u***@example.com". */
 const MASK = /[*•·]/
 /** Longer values are not a username. */
@@ -34,11 +36,22 @@ export interface SubmittedLogin {
   usernameOnPage?: string
 }
 
+/** Whether `node` comes after `field` in the same tree. */
+function follows(node: Node, field: HTMLInputElement): boolean {
+  const position = node.compareDocumentPosition(field)
+  return (
+    !(position & Node.DOCUMENT_POSITION_DISCONNECTED) &&
+    (position & Node.DOCUMENT_POSITION_PRECEDING) !== 0
+  )
+}
+
 /**
  * The account a form's password step names without a field for it, after DuckDuckGo's autofill:
- * a hidden field named for it, else an email address in the short texts of the form, or of the
- * elements its buttons are in, such as "Signed in as user@example.com". Masked addresses are
- * passed over. Empty when there is none.
+ * an email address in a hidden field named for it, else one in the short texts before the password
+ * field, within its form or the elements its buttons are in, such as "Signed in as
+ * user@example.com". Hidden fields named for a login also hold flags such as `login_type=password`,
+ * and links and text after the field give addresses for help, so neither counts. Masked addresses
+ * are passed over. Empty when there is none.
  */
 function usernameOnPage(
   password: HTMLInputElement,
@@ -50,12 +63,17 @@ function usernameOnPage(
     return HIDDEN_ACCOUNT_HINT.test(words) && !NOT_ACCOUNT_HINT.test(words)
   })
   const hiddenValue = hidden?.value.trim() ?? ""
-  if (hiddenValue && hiddenValue.length <= MAX_USERNAME_LENGTH)
+  if (
+    hiddenValue.length <= MAX_USERNAME_LENGTH &&
+    hiddenValue.match(EMAIL_ADDRESS)?.[0] === hiddenValue
+  )
     return hiddenValue
   const group = buttonGroupOf(password)
   if (!group) return ""
   const walker = document.createTreeWalker(group, NodeFilter.SHOW_TEXT)
   for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+    if (follows(node, password)) break
+    if (node.parentElement?.closest(NOT_ACCOUNT_TEXT)) continue
     const text = (node.textContent ?? "").trim()
     if (text.length > MAX_ACCOUNT_TEXT) continue
     const address = text.match(EMAIL_ADDRESS)?.[0]
