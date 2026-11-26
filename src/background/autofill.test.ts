@@ -343,6 +343,28 @@ describe("fillCode", () => {
   })
 })
 
+describe("contentConfig", () => {
+  const configFor = async () =>
+    contentConfig(fakeProviders([{ info: accountVault }]).providers, TAB, 0)
+
+  it("lets a site's rule turn the menu off or back on", async () => {
+    await updateSettings({ siteRules: [siteRule("menuOff")] })
+    expect((await configFor()).menuTrigger).toBe("off")
+    await updateSettings({
+      menuTrigger: "off",
+      siteRules: [siteRule("menuOnClick")],
+    })
+    expect((await configFor()).menuTrigger).toBe("click")
+  })
+
+  it("keeps no passkey request for a menu that is off", async () => {
+    await notePasskeyUsed(TAB, 0)
+    expect((await configFor()).takeOverPasskeys).toBe(true)
+    await updateSettings({ menuTrigger: "off" })
+    expect((await configFor()).takeOverPasskeys).toBe(false)
+  })
+})
+
 describe("passkey sites", () => {
   const takesOver = async (url: string, frameId = 0) => {
     setFrame(TAB, frameId, url)

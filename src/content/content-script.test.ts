@@ -104,6 +104,27 @@ describe("placing the field icons", () => {
     expect(await inputLayoutReadsOnResize()).toBeGreaterThan(0)
   })
 
+  it("leaves the fields without the icon and the menu while the menu is off, and still fills", async () => {
+    document.body.innerHTML = SIGN_IN
+    const page = await startContentScript({ config: { menuTrigger: "off" } })
+    ctx = page.ctx
+    focusByUser(input("[name=username]"))
+    input("[name=username]").focus()
+    await vi.advanceTimersByTimeAsync(SETTLE_MS)
+    expect(document.querySelector("keyward-field-icons")).toBeNull()
+    expect(document.querySelector("iframe")).toBeNull()
+
+    await page.send({
+      type: "fill",
+      origin: location.origin,
+      username: "user@example.com",
+      password: "{{SECRET_xbfqywla}}",
+      fields: [],
+      autoSubmit: false,
+    })
+    expect(input("[name=password]").value).toBe("{{SECRET_xbfqywla}}")
+  })
+
   it("ends the icon where a wider right padding keeps room for the page's own control", async () => {
     document.body.innerHTML = `
       <form>

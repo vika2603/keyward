@@ -53,7 +53,11 @@ export default defineContentScript({
           callBackground("content.hasCodes", null).catch(() => false),
         ),
       onScan: (found) => {
-        icons.update([...found.login, ...found.newPassword, ...found.code])
+        icons.update(
+          configuration.current.menuTrigger === "off"
+            ? []
+            : [...found.login, ...found.newPassword, ...found.code],
+        )
         steerPasskeys()
       },
     })
@@ -111,6 +115,7 @@ export default defineContentScript({
 
     function applyConfig(config: ContentConfig, previous: ContentConfig): void {
       icons.setLanguage(config.language)
+      if (config.menuTrigger === "off") menu.close()
       fields.forgetCodes()
       if (config.active === previous.active) {
         if (config.active) fields.scan()

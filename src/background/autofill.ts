@@ -70,6 +70,7 @@ function menuTriggerFor(
 ): Settings["menuTrigger"] {
   if (behavior === "menuOnFocus") return "focus"
   if (behavior === "menuOnClick") return "click"
+  if (behavior === "menuOff") return "off"
   return fallback
 }
 
@@ -97,12 +98,16 @@ export async function contentConfig(
       vault.status === "ready" &&
       Boolean(providers.providerOf(vault.id).codeSetup?.(vault.id, page)),
   )
+  const menuTrigger = menuTriggerFor(rule?.behavior, settings.menuTrigger)
+  // A passkey request kept for the menu would wait for a menu that never opens.
   const takeOverPasskeys =
-    settings.takeOverPasskeys && (await hasPasskeySite(page))
+    menuTrigger !== "off" &&
+    settings.takeOverPasskeys &&
+    (await hasPasskeySite(page))
   return {
     ...off,
     active: true,
-    menuTrigger: menuTriggerFor(rule?.behavior, settings.menuTrigger),
+    menuTrigger,
     scanCodes,
     takeOverPasskeys,
   }

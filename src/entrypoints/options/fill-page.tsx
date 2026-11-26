@@ -79,6 +79,7 @@ export function FillPage() {
               options={[
                 ["click", t("options.fill.menuTrigger.click")],
                 ["focus", t("options.fill.menuTrigger.focus")],
+                ["off", t("options.fill.menuTrigger.off")],
               ]}
               onChange={(menuTrigger) => update({ menuTrigger })}
             />

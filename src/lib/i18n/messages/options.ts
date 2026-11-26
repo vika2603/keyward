@@ -60,9 +60,10 @@ export const en = {
   "options.fill.menu.title": "In-page menu",
   "options.fill.menuTrigger.name": "When to show the menu",
   "options.fill.menuTrigger.description":
-    "The icon appears in the fields of login and sign-up forms. If you choose On icon click, the menu won't pop up by itself and cover the page.",
+    "The icon appears in the fields of login and sign-up forms. If you choose On icon click, the menu won't pop up by itself and cover the page. If you choose Off, fields get no icon, and you fill from the toolbar button, the keyboard shortcut or the right-click menu.",
   "options.fill.menuTrigger.click": "On icon click",
   "options.fill.menuTrigger.focus": "On field focus",
+  "options.fill.menuTrigger.off": "Off",
   "options.fill.crossSiteFrames.name": "Show in frames from other sites",
   "options.fill.crossSiteFrames.description":
     "Also offer logins in a login form another site embeds, matched to that site. Frames of the page's own site, such as Apple's sign-in, always get them.",
@@ -113,6 +114,7 @@ export const en = {
   "options.sites.behavior.default": "Default",
   "options.sites.behavior.menuOnClick": "Show menu on icon click",
   "options.sites.behavior.menuOnFocus": "Show menu on field focus",
+  "options.sites.behavior.menuOff": "Don't show the menu",
   "options.sites.behavior.noSave": "Don't ask to save",
   "options.sites.behavior.disabled": "Don't fill or ask to save",
   "options.sites.defaultMatch.name": "Default match detection",
@@ -169,6 +171,9 @@ export const en = {
     "In compact mode, the account name and the site (for Bitwarden, the item name) share one line, so more items fit on screen.",
   "options.keys.density.standard": "Standard",
   "options.keys.density.compact": "Compact",
+  "options.keys.loginCountBadge.name": "Login count on the toolbar icon",
+  "options.keys.loginCountBadge.description":
+    "Shows on Keyward's toolbar icon how many logins the current page has.",
   "options.keys.language.name": "Language",
   "options.keys.language.system": "Follow browser",
   "options.keys.language.zhCN": "简体中文",
@@ -338,9 +343,10 @@ export const zhCN: Record<keyof typeof en, string> = {
   "options.fill.menu.title": "页面内菜单",
   "options.fill.menuTrigger.name": "何时显示候选菜单",
   "options.fill.menuTrigger.description":
-    "图标显示在登录和注册表单的输入框里。选择点击图标时，菜单不会自动弹出遮挡页面。",
+    "图标显示在登录和注册表单的输入框里。选择点击图标时，菜单不会自动弹出遮挡页面。选择不显示时，输入框里没有图标，从工具栏按钮、快捷键或右键菜单填充。",
   "options.fill.menuTrigger.click": "点击图标时",
   "options.fill.menuTrigger.focus": "输入框获得焦点时",
+  "options.fill.menuTrigger.off": "不显示",
   "options.fill.crossSiteFrames.name": "在其他网站的框架中显示",
   "options.fill.crossSiteFrames.description":
     "登录框是从其他网站嵌进来的，也提供候选，按那个网站匹配。同一网站的框架（例如 Apple 的登录框）始终提供。",
@@ -389,6 +395,7 @@ export const zhCN: Record<keyof typeof en, string> = {
   "options.sites.behavior.default": "默认",
   "options.sites.behavior.menuOnClick": "点击图标时显示菜单",
   "options.sites.behavior.menuOnFocus": "获得焦点时显示菜单",
+  "options.sites.behavior.menuOff": "不显示菜单",
   "options.sites.behavior.noSave": "不询问保存",
   "options.sites.behavior.disabled": "不填充，不询问保存",
   "options.sites.defaultMatch.name": "默认匹配方式",
@@ -443,6 +450,9 @@ export const zhCN: Record<keyof typeof en, string> = {
     "紧凑时账号名和站点（Bitwarden 为条目名称）显示在同一行，一屏能放更多条目。",
   "options.keys.density.standard": "标准",
   "options.keys.density.compact": "紧凑",
+  "options.keys.loginCountBadge.name": "工具栏图标显示登录数量",
+  "options.keys.loginCountBadge.description":
+    "在工具栏的 Keyward 图标上显示当前页面有几个可用的登录。",
   "options.keys.language.name": "语言",
   "options.keys.language.system": "跟随浏览器",
   "options.keys.language.zhCN": "简体中文",

@@ -53,6 +53,7 @@ function behaviorNames(): [SiteBehavior, string][] {
     ["default", t("options.sites.behavior.default")],
     ["menuOnClick", t("options.sites.behavior.menuOnClick")],
     ["menuOnFocus", t("options.sites.behavior.menuOnFocus")],
+    ["menuOff", t("options.sites.behavior.menuOff")],
     ["noSave", t("options.sites.behavior.noSave")],
     ["disabled", t("options.sites.behavior.disabled")],
   ]

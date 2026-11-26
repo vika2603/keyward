@@ -2,6 +2,7 @@ import { ExternalLinkIcon } from "lucide-react"
 import { type ChangeEvent, useEffect, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Kbd, KbdGroup } from "@/components/ui/kbd"
+import { Switch } from "@/components/ui/switch"
 import { useSettings } from "@/hooks/use-settings"
 import { type MessageKey, t } from "@/lib/i18n"
 import {
@@ -144,6 +145,18 @@ export function KeysPage() {
                 ["compact", t("options.keys.density.compact")],
               ]}
               onChange={(density) => update({ density })}
+            />
+          </Option>
+          <Option
+            name={t("options.keys.loginCountBadge.name")}
+            description={t("options.keys.loginCountBadge.description")}
+          >
+            <Switch
+              aria-label={t("options.keys.loginCountBadge.name")}
+              checked={settings.loginCountBadge}
+              onCheckedChange={(checked) =>
+                update({ loginCountBadge: checked })
+              }
             />
           </Option>
           <Option name={t("options.keys.language.name")}>

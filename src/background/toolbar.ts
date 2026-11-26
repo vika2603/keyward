@@ -1,3 +1,4 @@
+import { getSettings } from "@/lib/settings"
 import type { VaultView } from "./api"
 import { activeTab, webPage } from "./page"
 import type { Providers } from "./providers"
@@ -40,7 +41,7 @@ function fadedIcon(): Promise<Record<number, ImageData>> {
 
 /**
  * Keeps the toolbar button current: faded while no vault is paired or unlocked, and the active
- * tab's number of logins on its badge. Returns a function that asks for a refresh, for changes the
+ * tab's number of logins on its badge while the settings ask for it. Returns a function that asks for a refresh, for changes the
  * tab events do not cover, such as an unlock.
  */
 export function watchToolbar(
@@ -75,9 +76,10 @@ export function watchToolbar(
     }
     if (tab?.id === undefined) return
     const count = vaults.reduce((sum, vault) => sum + vault.logins.length, 0)
+    const { loginCountBadge } = await getSettings()
     await browser.action.setBadgeText({
       tabId: tab.id,
-      text: count ? String(count) : "",
+      text: count && loginCountBadge ? String(count) : "",
     })
   }
   const refresh = () => {

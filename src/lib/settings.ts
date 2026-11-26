@@ -16,6 +16,7 @@ export const SITE_BEHAVIORS = [
   "default",
   "menuOnFocus",
   "menuOnClick",
+  "menuOff",
   "noSave",
   "disabled",
 ] as const
@@ -24,7 +25,11 @@ export type SiteBehavior = (typeof SITE_BEHAVIORS)[number]
 export const RULE_PROVIDERS = ["all", "apple", "bitwarden"] as const
 export type RuleProvider = (typeof RULE_PROVIDERS)[number]
 
-export const MENU_TRIGGERS = ["click", "focus"] as const
+/**
+ * When the in-page menu opens: on a field's focus, on a click on its icon, or never, which leaves
+ * the fields without the icon and filling to the toolbar button, the shortcut and the context menu.
+ */
+export const MENU_TRIGGERS = ["click", "focus", "off"] as const
 export type MenuTrigger = (typeof MENU_TRIGGERS)[number]
 
 /** The delays the settings offer for clearing a copied password, in seconds. */
@@ -71,6 +76,8 @@ export interface Settings {
   autoLockMinutes: AutoLockMinutes | null
   /** Whether Bitwarden accounts lock when the computer's screen locks. */
   lockOnSystemLock: boolean
+  /** Whether the toolbar button shows how many logins the active tab's page has. */
+  loginCountBadge: boolean
   theme: "system" | "light" | "dark"
   density: "standard" | "compact"
   /** Interface language; "system" follows the browser. */
@@ -94,6 +101,7 @@ export const defaultSettings: Settings = {
   defaultSaveTarget: null,
   autoLockMinutes: 15,
   lockOnSystemLock: true,
+  loginCountBadge: true,
   theme: "system",
   density: "standard",
   language: "system",

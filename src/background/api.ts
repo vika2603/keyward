@@ -29,6 +29,7 @@ import type {
   VaultGroups,
   VaultInfo,
 } from "@/lib/providers/types"
+import type { MenuTrigger } from "@/lib/settings"
 
 export interface VaultView extends VaultInfo {
   logins: LoginSummary[]
@@ -94,7 +95,7 @@ export interface ContentConfig {
   active: boolean
   /** Whether a vault can take an authenticator key, so QR codes under the pointer are read. */
   scanCodes: boolean
-  menuTrigger: "click" | "focus"
+  menuTrigger: MenuTrigger
   /**
    * Whether the frame keeps a page's passkey request for the menu while it has login fields: when
    * the setting is on and a passkey sign-in succeeded on the site before.
