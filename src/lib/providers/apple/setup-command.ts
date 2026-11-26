@@ -15,7 +15,7 @@ export const SETUP_BROWSERS = ["chrome", "dia", "edge", "brave"] as const
 export type SetupBrowser = (typeof SETUP_BROWSERS)[number]
 
 export const SETUP_BROWSER_NAMES: Record<SetupBrowser, string> = {
-  chrome: "Google Chrome / ego lite",
+  chrome: "Chrome",
   dia: "Dia",
   edge: "Microsoft Edge",
   brave: "Brave",
