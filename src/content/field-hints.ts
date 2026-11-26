@@ -3,8 +3,9 @@
 const TEXT_TYPES = new Set(["text", "email", "tel", ""])
 const USERNAME_HINT =
   /user|email|e-mail|login|account|identifier|phone|mobile|账号|帳號|用户|手机|邮箱|邮件|郵件/i
+/** "address" counts as a postal address unless it follows "mail", as in "Email address" and "mailAddress". */
 const EXCLUDED_HINT =
-  /search|captcha|otp|one-time|verification|code|coupon|promo|card|cvv|zip|postal|address|验证码|驗證碼/i
+  /search|captcha|otp|one-time|verification|code|coupon|promo|card|cvv|zip|postal|(?<!mail[\s_.-]*)address|验证码|驗證碼/i
 const CODE_TYPES = new Set(["text", "tel", "number", "password", ""])
 const CODE_HINT =
   /one-?time|otp|2fa|mfa|two-?factor|totp|authenticator|verif\w*[\s_-]*code|auth\w*[\s_-]*code|passcode|验证码|驗證碼|动态码|動態碼|校验码/i
@@ -52,7 +53,7 @@ export function hasAutocomplete(
 }
 
 /** Whether the page marks the field for something other than a login, such as an address or a card. */
-function marksOtherData(input: HTMLInputElement): boolean {
+export function marksOtherData(input: HTMLInputElement): boolean {
   return autocompleteValues(input).some(
     (value) =>
       CHECKOUT_AUTOCOMPLETE.has(value) || OTHER_DATA_AUTOCOMPLETE.test(value),

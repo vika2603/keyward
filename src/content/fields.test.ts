@@ -85,6 +85,20 @@ describe("a sign-in form", () => {
     expect(names(scan().login)).toEqual(new Set(["password"]))
   })
 
+  it("takes a field for an email address as the username, but not one for a street address", () => {
+    document.body.innerHTML = `
+      <form>
+        <input name="street" placeholder="Street address">
+        <input type="email" name="email" placeholder="Email address">
+        <input type="password" name="password">
+      </form>
+      <form>
+        <input name="login" aria-label="Username or email address">
+      </form>`
+    expect(names(scan().login)).toEqual(new Set(["email", "password", "login"]))
+    expect(fillTargets(field("password")).username).toBe(field("email"))
+  })
+
   it("keeps a password marked new-password as the login's when a forgot-password link is near", () => {
     document.body.innerHTML = `
       <div>
@@ -140,6 +154,37 @@ describe("a sign-up form", () => {
       </form>`
     expect(names(scan().newPassword)).toEqual(new Set(["first", "second"]))
     expect(scan().login).toEqual([])
+  })
+
+  it("takes a form's only password field as new when the form submits with a sign-up button", () => {
+    document.body.innerHTML = `
+      <form>
+        <input type="email" name="email">
+        <input type="password" name="password">
+        <button>
+          Create account
+        </button>
+      </form>`
+    expect(names(scan().newPassword)).toEqual(new Set(["password"]))
+    expect(scan().login).toEqual([])
+  })
+
+  it("keeps a form's only password field the login's beside a sign-in button or a forgot-password link", () => {
+    document.body.innerHTML = `
+      <form>
+        <input type="password" name="beside-sign-in">
+        <button type="submit">Sign up</button>
+        <input type="submit" value="Log in">
+      </form>
+      <form>
+        <input type="password" name="beside-forgot">
+        <a href="/forgot">Forgot password?</a>
+        <button>Join</button>
+      </form>`
+    expect(names(scan().login)).toEqual(
+      new Set(["beside-sign-in", "beside-forgot"]),
+    )
+    expect(scan().newPassword).toEqual([])
   })
 
   it("reads the new password it submits", () => {
@@ -316,6 +361,22 @@ describe("a checkout form", () => {
         <input name="card" autocomplete="cc-number">
       </form>`
     expect(scan()).toEqual({ login: [], newPassword: [], code: [] })
+  })
+
+  it("does not offer logins on a phone or email field among fields for other data", () => {
+    document.body.innerHTML = `
+      <form>
+        <input type="tel" name="phone" autocomplete="tel">
+        <input name="street" autocomplete="street-address">
+      </form>
+      <form>
+        <input name="first-name">
+        <input name="last-name">
+        <input name="company">
+        <input type="email" name="email">
+        <input type="tel" name="mobile">
+      </form>`
+    expect(scan().login).toEqual([])
   })
 })
 

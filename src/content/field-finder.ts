@@ -1,6 +1,6 @@
 /** Finding the login, new-password and one-time code fields of a page, and the fields beside them. */
 
-import { composedParent, deepInputs, scopeOf } from "./deep-dom"
+import { composedParent, deepInputs, formOf, scopeOf } from "./deep-dom"
 import {
   CONFIRM_PASSWORD_HINT,
   CURRENT_PASSWORD_HINT,
@@ -12,6 +12,7 @@ import {
   isTextField,
   looksLikeUsername,
   marksNewPassword,
+  marksOtherData,
   NEW_PASSWORD_HINT,
 } from "./field-hints"
 
@@ -23,6 +24,14 @@ const MAX_HIDDEN_OPACITY = 0.05
 const FORGOT_PASSWORD_HINT = /\bforgot\b|忘记密码|忘記密碼|找回密码|找回密碼/i
 /** Text beyond this length belongs to more of the page than a form and its own links. */
 const SURROUNDING_TEXT_MAX = 2000
+/** Submit button text of sign-up and sign-in forms, matched with runs of white space collapsed. */
+const SIGN_UP_SUBMIT =
+  /\b(sign ?up|register|create( an| my| your)? account|join)\b|注册|註冊|创建账号|创建帐号|建立帳號/i
+const SIGN_IN_SUBMIT = /\b(log ?in|sign ?in)\b|登录|登入|登陆|登錄/i
+/** Input types that take typed text, counted to tell a login step from a longer form. */
+const TYPED_TYPES = new Set(["text", "email", "tel", "number", "search", "url"])
+/** The most typed fields a login step has beside its username field. */
+const MAX_FIELDS_BESIDE_USERNAME = 3
 
 export function isVisible(element: HTMLElement): boolean {
   if (!element.isConnected) return false
@@ -61,6 +70,31 @@ function nearForgotPassword(password: HTMLInputElement): boolean {
     if (FORGOT_PASSWORD_HINT.test(text)) return true
   }
   return false
+}
+
+/**
+ * Whether a field's form submits with a sign-up button and has none for signing in. Only the
+ * form's own submit controls count; a page's other buttons may belong to any of its forms.
+ */
+function submitsSignUp(field: HTMLInputElement): boolean {
+  const form = formOf(field)
+  if (!form) return false
+  const texts = [
+    ...form.querySelectorAll<HTMLButtonElement | HTMLInputElement>(
+      'button[type="submit"], button:not([type]), input[type="submit"]',
+    ),
+  ].map((control) =>
+    (control instanceof HTMLInputElement
+      ? control.value
+      : (control.textContent ?? "")
+    )
+      .replace(/\s+/g, " ")
+      .trim(),
+  )
+  return (
+    texts.some((text) => SIGN_UP_SUBMIT.test(text)) &&
+    !texts.some((text) => SIGN_IN_SUBMIT.test(text))
+  )
 }
 
 export interface FoundFields {
@@ -118,7 +152,9 @@ export class FieldIndex {
    * confirmation. Two are either a new password and its confirmation, as on sign-up, or the current
    * password and a new one; the first field counts as new only when the second asks to confirm it
    * or a username comes before it. Taking a current password for a new one would let a suggested
-   * password overwrite it, so the unclear case keeps the first field as the current one.
+   * password overwrite it, so the unclear case keeps the first field as the current one. A form's
+   * only password field is new when the form submits with a sign-up button and no forgot-password
+   * link sits around it.
    */
   isNewPassword(input: HTMLInputElement): boolean {
     if (hasAutocomplete(input, "current-password")) return false
@@ -131,7 +167,9 @@ export class FieldIndex {
     if (NEW_PASSWORD_HINT.test(text)) return true
     const passwords = this.inputs(scopeOf(input)).filter(isPasswordField)
     const index = passwords.indexOf(input)
-    if (index < 0 || passwords.length < 2) return false
+    if (index < 0) return false
+    if (passwords.length === 1)
+      return submitsSignUp(input) && !nearForgotPassword(input)
     if (index > 0) return true
     if (passwords.length > 2) return false
     const second = passwords[1] as HTMLInputElement
@@ -157,12 +195,29 @@ export class FieldIndex {
       if (
         !fields.has(input) &&
         looksLikeUsername(input) &&
-        !this.inputs(scopeOf(input)).some(isPasswordField)
+        !this.inputs(scopeOf(input)).some(isPasswordField) &&
+        !this.inLongerForm(input)
       ) {
         fields.add(input)
       }
     }
     return [...fields]
+  }
+
+  /**
+   * Whether a field's form asks for more than a login step: other fields there are marked for
+   * other data, such as an address or a card, or there are more typed fields than a login step
+   * has. Outside a form the document holds every field of the page, so they are not counted.
+   */
+  private inLongerForm(input: HTMLInputElement): boolean {
+    const form = formOf(input)
+    if (!form) return false
+    const others = this.inputs(form).filter(
+      (field) => field !== input && TYPED_TYPES.has(field.type),
+    )
+    return (
+      others.length > MAX_FIELDS_BESIDE_USERNAME || others.some(marksOtherData)
+    )
   }
 
   newPasswordFields(root: Document): HTMLInputElement[] {
