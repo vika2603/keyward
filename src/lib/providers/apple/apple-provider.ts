@@ -80,7 +80,7 @@ export class AppleProvider implements VaultProvider {
       {
         id: APPLE_VAULT_ID,
         kind: "apple",
-        label: "Apple Passwords",
+        label: "Passwords",
         status: STATUS_OF_PHASE[phase],
         error,
         awaitingUser: phase === "awaitingCode",

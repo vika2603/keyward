@@ -214,7 +214,7 @@ export function idleNamedProviders(): NamedProviders {
 export const appleVault: VaultInfo = {
   id: "apple",
   kind: "apple",
-  label: "Apple Passwords",
+  label: "Passwords",
   status: "ready",
 }
 
