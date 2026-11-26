@@ -95,7 +95,11 @@ describe("AppleProvider.logins", () => {
 
 /** The provider's private parts these tests stand in for or look at. */
 interface ProviderInternals {
-  query: (...args: unknown[]) => Promise<Record<string, unknown>>
+  query: (
+    envelope: { cmd: number },
+    ...rest: unknown[]
+  ) => Promise<Record<string, unknown>>
+  capabilities: Record<string, unknown> | null
   port: { connected: boolean; post: (message: unknown) => void }
   state: { phase: string }
   pairing: object | null
@@ -179,5 +183,60 @@ describe("AppleProvider.onCodesChanged", () => {
     apple.onCodesChanged(listener)
     internalsOf(apple).onUnsolicited({ cmd: 15 })
     expect(listener).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe("AppleProvider.save", () => {
+  const tab = { tabId: 1, frameId: 0 }
+  const url = new URL("https://example.com/")
+
+  /** A helper whose listing turns from `before` into `after` once asked to save. */
+  function saving(before: string[], after: string[]) {
+    const apple = new AppleProvider()
+    const internals = internalsOf(apple)
+    internals.capabilities = { canSaveAccountWithEmptyUserName: true }
+    let listed = before
+    vi.spyOn(internals, "query").mockImplementation(async ({ cmd }) => {
+      if (cmd === 6) {
+        listed = after
+        return { STATUS: 0 }
+      }
+      return {
+        STATUS: 0,
+        Entries: listed.map((USR) => ({ USR, sites: ["example.com"] })),
+      }
+    })
+    return apple
+  }
+
+  async function saveOutcome(apple: AppleProvider, username: string) {
+    vi.useFakeTimers()
+    try {
+      const outcome = apple
+        .save("apple", { url, username, password: "pw" }, tab)
+        .then(
+          () => "stored",
+          (error: { code: string }) => error.code,
+        )
+      await vi.runAllTimersAsync()
+      return await outcome
+    } finally {
+      vi.useRealTimers()
+    }
+  }
+
+  it("takes a new entry as stored when macOS asked for the user name", async () => {
+    const apple = saving(["someone"], ["someone", "typed-on-the-mac"])
+    expect(await saveOutcome(apple, "")).toBe("stored")
+  })
+
+  it("cannot tell an unchanged listing apart when no user name was sent", async () => {
+    const apple = saving(["someone"], ["someone"])
+    expect(await saveOutcome(apple, "")).toBe("apple.saveUnconfirmed")
+  })
+
+  it("reports a named login the listing lacks as not stored", async () => {
+    const apple = saving(["someone"], ["someone"])
+    expect(await saveOutcome(apple, "me")).toBe("apple.notSaved")
   })
 })

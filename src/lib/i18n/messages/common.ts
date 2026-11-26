@@ -40,6 +40,8 @@ export const en = {
   "error.apple.noPairing": "The pairing has expired. Start again.",
   "error.apple.notSaved":
     "Passwords doesn't have this login. It may have been cancelled in the confirmation on the Mac.",
+  "error.apple.saveUnconfirmed":
+    "Can't tell whether Passwords saved this login. Check it in the Passwords app.",
   "error.apple.emptyUsername": "Passwords needs a username.",
   "error.apple.unsupportedSite":
     "Passwords doesn't save logins for local or reserved addresses such as localhost, .local or .test.",
@@ -117,6 +119,8 @@ export const zhCN: Record<keyof typeof en, string> = {
   "error.apple.noPairing": "配对已失效，请重新开始。",
   "error.apple.notSaved":
     "Passwords 里没有找到这个登录，可能在 Mac 的确认窗口里取消了。",
+  "error.apple.saveUnconfirmed":
+    "无法确认 Passwords 是否保存了这个登录，请到 Passwords App 里查看。",
   "error.apple.emptyUsername": "Passwords 需要填写用户名。",
   "error.apple.unsupportedSite":
     "Passwords 不保存 localhost、.local、.test 这类本地或保留地址的登录。",

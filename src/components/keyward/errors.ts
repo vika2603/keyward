@@ -27,6 +27,7 @@ const MESSAGES: Record<string, MessageKey> = {
   "apple.unsupported": "error.apple.unsupported",
   "apple.noPairing": "error.apple.noPairing",
   "apple.notSaved": "error.apple.notSaved",
+  "apple.saveUnconfirmed": "error.apple.saveUnconfirmed",
   "apple.emptyUsername": "error.apple.emptyUsername",
   "apple.unsupportedSite": "error.apple.unsupportedSite",
   "apple.query": "error.apple.query",

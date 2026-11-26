@@ -671,7 +671,9 @@ export class AppleProvider implements VaultProvider {
   /**
    * Offers a login to Apple Passwords. macOS shows its own confirmation; the helper answers once
    * the user has chosen, and the answer does not say what was chosen, so the result is checked by
-   * listing. Logins it cannot store are refused before the confirmation is shown.
+   * listing. Without a user name macOS asks for one, so only a new entry shows the login was
+   * stored; an update of an existing login cannot be told from a cancelled save. Logins it cannot
+   * store are refused before the confirmation is shown.
    */
   save(_vaultId: string, login: NewLogin, tab: TabRef): Promise<void> {
     const host = login.url.hostname
@@ -697,6 +699,10 @@ export class AppleProvider implements VaultProvider {
       )
     }
     return this.serialized("save", async () => {
+      const entryKey = (entry: Entry) => loginId(entry.username, entry.site)
+      const entriesBefore = login.username
+        ? new Set<string>()
+        : new Set((await this.listEntries(host, tab)).map(entryKey))
       this.saveCount += 1
       const frameId = SAVE_FRAME_BASE + this.saveCount
       await this.query(
@@ -720,7 +726,18 @@ export class AppleProvider implements VaultProvider {
       for (const delay of SAVE_CHECK_DELAYS_MS) {
         await new Promise((resolve) => setTimeout(resolve, delay))
         const saved = await this.listEntries(host, tab)
-        if (saved.some((entry) => entry.username === login.username)) return
+        const stored = saved.some((entry) =>
+          login.username
+            ? entry.username === login.username
+            : !entriesBefore.has(entryKey(entry)),
+        )
+        if (stored) return
+      }
+      if (!login.username) {
+        throw new VaultError(
+          "Whether Apple Passwords stored the login cannot be told",
+          "apple.saveUnconfirmed",
+        )
       }
       throw new VaultError(
         "Apple Passwords did not store the login",
