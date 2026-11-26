@@ -37,7 +37,7 @@ import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
 import { openConnectPasswords } from "@/lib/connect-passwords"
 import { currentLanguage, t } from "@/lib/i18n"
-import { needsSetup } from "@/lib/providers/apple/helper-session"
+import { isSetupProblem } from "@/lib/providers/apple/helper-port"
 import { removalCommand } from "@/lib/providers/apple/setup-command"
 import { APPLE_VAULT_ID } from "@/lib/providers/apple/vault-id"
 import type { AccountSummary } from "@/lib/providers/bitwarden/bitwarden-provider"
@@ -97,7 +97,8 @@ export function VaultsPage() {
   useEffect(() => {
     const check = () =>
       callBackground("apple.checkSetup", null).then(
-        (state) => setAppleSetUp(!needsSetup(state)),
+        (answer) =>
+          setAppleSetUp(answer.reached || !isSetupProblem(answer.problem)),
         // Without an answer the row keeps what it shows.
         () => {},
       )

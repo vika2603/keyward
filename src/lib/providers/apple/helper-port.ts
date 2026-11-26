@@ -46,6 +46,67 @@ export function helperProblemOf(failure: unknown): HelperProblem | undefined {
   return undefined
 }
 
+/** Whether the problem goes away only with the one-time setup on the Mac. */
+export function isSetupProblem(problem: HelperProblem | undefined): boolean {
+  return problem === "notSetUp" || problem === "otherExtension"
+}
+
+/** Whether the browser starts the helper and gets its hello, or why not. */
+export type HelperCheck =
+  | { reached: true }
+  | { reached: false; problem?: HelperProblem; error: string }
+
+/**
+ * Starts the helper on a port of its own and waits for its hello, then lets it go. A session on
+ * another port stays as it is, and the answer does not rest on a connection made before the host
+ * manifest changed: an open port keeps working after the manifest is removed.
+ */
+export function checkHelper(timeoutMs: number): Promise<HelperCheck> {
+  return new Promise((resolve) => {
+    let port: Browser.runtime.Port
+    try {
+      port = browser.runtime.connectNative(HOST_NAME)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      resolve({
+        reached: false,
+        problem: helperProblemOf(message),
+        error: message,
+      })
+      return
+    }
+    const finish = (check: HelperCheck) => {
+      clearTimeout(timer)
+      port.disconnect()
+      resolve(check)
+    }
+    const timer = setTimeout(
+      () =>
+        finish({
+          reached: false,
+          problem: "helperStopped",
+          error: "Apple Passwords helper did not answer",
+        }),
+      timeoutMs,
+    )
+    port.onMessage.addListener((message: HelperMessage) => {
+      if (message.cmd === Cmd.Hello) finish({ reached: true })
+    })
+    port.onDisconnect.addListener(() => {
+      clearTimeout(timer)
+      const reason =
+        browser.runtime.lastError?.message ??
+        "Apple Passwords helper disconnected"
+      resolve({
+        reached: false,
+        problem: helperProblemOf(reason),
+        error: reason,
+      })
+    })
+    port.postMessage({ cmd: Cmd.Hello })
+  })
+}
+
 /** A newer request waiting for the same reply replaced this one. */
 export class SupersededError extends Error {}
 

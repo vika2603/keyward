@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 import { fakeBrowser } from "wxt/testing/fake-browser"
 import type { Sender } from "@/lib/messaging"
 import type { AppleState } from "@/lib/providers/apple/helper-session"
-import { getSettings, updateSettings } from "@/lib/settings"
+import { getSettings } from "@/lib/settings"
 import type { BackgroundApi } from "../api"
 import { listHistory } from "../history"
 import { menuSessions } from "../overlays"
@@ -51,41 +51,23 @@ describe("connecting Passwords", () => {
       .mockResolvedValue()
     vi.spyOn(named.apple.helper, "getState").mockReturnValue(state)
     const handlers = createHandlers(fakeProviders([]).providers, named)
-    return { handlers, setEnabled, startPairing }
+    return { handlers, setEnabled, startPairing, named }
   }
   const notSetUp: AppleState = { phase: "unavailable", problem: "notSetUp" }
 
-  it("leaves Passwords off while this Mac lacks the setup", async () => {
-    const { handlers, setEnabled } = appleHandlers(notSetUp)
+  it("checks the setup apart from the session and the switch", async () => {
+    const { handlers, setEnabled, named } = appleHandlers({ phase: "paired" })
+    const missing = {
+      reached: false,
+      problem: "notSetUp",
+      error: "gone",
+    } as const
+    vi.spyOn(named.apple.helper, "checkSetup").mockResolvedValue(missing)
     await expect(
       handlers["apple.checkSetup"].handle(null as never, popup),
-    ).resolves.toEqual(notSetUp)
-    expect(setEnabled.mock.calls).toEqual([[true], [false]])
+    ).resolves.toEqual(missing)
+    expect(setEnabled).not.toHaveBeenCalled()
     expect((await getSettings()).appleEnabled).toBe(false)
-  })
-
-  it("leaves the switch to the user once the helper answers", async () => {
-    const { handlers, setEnabled } = appleHandlers({ phase: "unpaired" })
-    await handlers["apple.checkSetup"].handle(null as never, popup)
-    expect(setEnabled.mock.calls).toEqual([[true], [false]])
-    expect((await getSettings()).appleEnabled).toBe(false)
-  })
-
-  it("keeps the helper connected when Passwords is on", async () => {
-    await updateSettings({ appleEnabled: true })
-    const { handlers, setEnabled } = appleHandlers({ phase: "unpaired" })
-    await handlers["apple.checkSetup"].handle(null as never, popup)
-    expect(setEnabled.mock.calls).toEqual([[true]])
-  })
-
-  it("turns Passwords on when pairing starts on a Mac with the setup", async () => {
-    const { handlers, startPairing } = appleHandlers({ phase: "unpaired" })
-    await handlers["apple.startPairing"].handle(
-      { restart: false } as never,
-      popup,
-    )
-    expect(startPairing).toHaveBeenCalledOnce()
-    expect((await getSettings()).appleEnabled).toBe(true)
   })
 
   it("asks for no pairing code while this Mac lacks the setup", async () => {

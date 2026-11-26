@@ -2,6 +2,7 @@ import type { GeneratorKind } from "@/lib/generator"
 import type { Language } from "@/lib/i18n/language"
 import { sendRequest } from "@/lib/messaging"
 import type { FieldRules } from "@/lib/password-rules"
+import type { HelperCheck } from "@/lib/providers/apple/helper-port"
 import type { AppleState } from "@/lib/providers/apple/helper-session"
 import type { SecondStepMethod } from "@/lib/providers/bitwarden/auth"
 import type {
@@ -261,10 +262,10 @@ export type BackgroundApi = {
   "apple.state": { payload: null; result: AppleState }
   "apple.startPairing": { payload: { restart: boolean }; result: AppleState }
   /**
-   * Whether the browser reaches the helper: connects without pairing, so nothing shows on the Mac,
-   * and leaves the Passwords switch as the user set it.
+   * Whether the browser reaches the helper: starts it on a port of its own for its hello, so
+   * nothing shows on the Mac, and leaves the session and the Passwords switch alone.
    */
-  "apple.checkSetup": { payload: null; result: AppleState }
+  "apple.checkSetup": { payload: null; result: HelperCheck }
   "apple.submitCode": { payload: { code: string }; result: AppleState }
   /** Opens the Passwords app, searching for a site when one is given. */
   "apple.openPasswordsApp": { payload: { site?: string }; result: null }

@@ -13,6 +13,7 @@ import { BrandIcon } from "@/components/keyward/brand-icon"
 import { errorMessage } from "@/components/keyward/errors"
 import { FormError } from "@/components/keyward/form-field"
 import { useLanguage } from "@/components/keyward/language"
+import { FADE_IN } from "@/components/keyward/loading"
 import {
   BrowserSelect,
   CommandBox,
@@ -25,10 +26,7 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible"
 import { t } from "@/lib/i18n"
-import type {
-  ApplePhase,
-  AppleState,
-} from "@/lib/providers/apple/helper-session"
+import type { HelperCheck } from "@/lib/providers/apple/helper-port"
 import {
   SETUP_SCRIPT_PAGE,
   type SetupBrowser,
@@ -38,13 +36,6 @@ import { cn } from "@/lib/utils"
 
 /** How often the page looks again while it waits for the command to run. */
 const CHECK_INTERVAL_MS = 2000
-
-/** The phases in which the browser reaches the helper, so pairing can start when Passwords is used. */
-const REACHED_PHASES: ReadonlySet<ApplePhase> = new Set([
-  "unpaired",
-  "awaitingCode",
-  "paired",
-])
 
 /** Where the one-time setup of this Mac stands. */
 type SetupStatus =
@@ -72,10 +63,9 @@ function linkOf(status: SetupStatus): Link {
 /** The start of each dot's animation, so they light up one after another. */
 const DOT_DELAYS = ["0ms", "200ms", "400ms"]
 
-function statusOf(state: AppleState): SetupStatus {
-  if (REACHED_PHASES.has(state.phase)) return "done"
-  if (state.phase !== "unavailable") return "checking"
-  switch (state.problem) {
+function statusOf(check: HelperCheck): SetupStatus {
+  if (check.reached) return "done"
+  switch (check.problem) {
     case "notSetUp":
       return "waiting"
     case "otherExtension":
@@ -160,6 +150,7 @@ function ConnectPasswords() {
       <main className="flex w-full max-w-[560px] flex-col gap-4">
         <header className="flex flex-col items-center gap-1.5 pb-2 text-center">
           <ConnectionIcons link={linkOf(status)} />
+          <LinkStatus link={linkOf(status)} />
           <h1 className="text-2xl leading-8 font-semibold tracking-tight">
             {t("options.passwordsSetup.title")}
           </h1>
@@ -205,8 +196,8 @@ function ConnectionIcons({ link }: { link: Link }) {
         {link === "connected" ? (
           // The check pops in and sends out a ring, as a chime would sound.
           <span className="relative flex size-6 items-center justify-center">
-            <span className="absolute inset-0 animate-connected-ring rounded-full bg-foreground motion-reduce:hidden" />
-            <span className="relative flex size-6 animate-connected-pop items-center justify-center rounded-full bg-foreground text-background motion-reduce:animate-none">
+            <span className="absolute inset-0 animate-connected-ring rounded-full bg-success motion-reduce:hidden" />
+            <span className="relative flex size-6 animate-connected-pop items-center justify-center rounded-full bg-success text-success-foreground motion-reduce:animate-none">
               <CheckIcon className="size-3.5" strokeWidth={3} />
             </span>
           </span>
@@ -230,14 +221,45 @@ function ConnectionIcons({ link }: { link: Link }) {
   )
 }
 
+const LINK_STATUS_KEYS = {
+  connecting: "options.passwordsSetup.link.connecting",
+  stopped: "options.passwordsSetup.link.stopped",
+  connected: "options.passwordsSetup.link.connected",
+} as const
+
+/** Says in words what the icons above show; it is announced as it changes. */
+function LinkStatus({ link }: { link: Link }) {
+  return (
+    <p
+      key={link}
+      role="status"
+      className={cn(
+        "-mt-1 mb-2 text-sm font-medium",
+        link === "connected" ? "text-success" : "text-muted-foreground",
+        FADE_IN,
+      )}
+    >
+      {t(LINK_STATUS_KEYS[link])}
+    </p>
+  )
+}
+
 /** The card of the setup, whose icon turns into a check once the browser reaches Passwords. */
 function SetupCard({ done, children }: { done: boolean; children: ReactNode }) {
   return (
     <section className="flex flex-col gap-3 rounded-xl bg-card p-4 ring-1 ring-foreground/10">
       <h2 className="flex items-center gap-3 text-sm font-medium">
-        <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-muted">
+        <span
+          className={cn(
+            "flex size-6 shrink-0 items-center justify-center rounded-full",
+            done ? "bg-success/15 text-success" : "bg-muted",
+          )}
+        >
           {done ? (
-            <CheckIcon className="size-3.5 animate-connected-pop motion-reduce:animate-none" />
+            <CheckIcon
+              className="size-3.5 animate-connected-pop motion-reduce:animate-none"
+              strokeWidth={3}
+            />
           ) : (
             <SquareTerminalIcon className="size-3.5" />
           )}

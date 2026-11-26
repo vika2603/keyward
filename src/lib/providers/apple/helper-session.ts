@@ -1,11 +1,14 @@
 import { serialQueue } from "@/lib/serial-queue"
 import { VaultError } from "../types"
 import {
+  checkHelper,
+  type HelperCheck,
   type HelperMessage,
   HelperPort,
   type HelperPortEvents,
   type HelperProblem,
   helperProblemOf,
+  isSetupProblem,
   payloadOf,
   type RequestOptions,
   SupersededError,
@@ -47,10 +50,7 @@ export interface AppleState {
 
 /** Whether the helper cannot be reached until the one-time setup on the Mac is done. */
 export function needsSetup(state: AppleState): boolean {
-  return (
-    state.phase === "unavailable" &&
-    (state.problem === "notSetUp" || state.problem === "otherExtension")
-  )
+  return state.phase === "unavailable" && isSetupProblem(state.problem)
 }
 
 /** The parts of the helper port a session uses. */
@@ -121,6 +121,11 @@ export class HelperSession {
 
   get paired(): boolean {
     return this.session !== null
+  }
+
+  /** Whether the browser reaches the helper now, checked apart from this session. */
+  checkSetup(): Promise<HelperCheck> {
+    return checkHelper(HELLO_TIMEOUT_MS)
   }
 
   async setEnabled(enabled: boolean): Promise<void> {

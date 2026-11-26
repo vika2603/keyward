@@ -218,7 +218,10 @@ export const en = {
     "It finds the Passwords helper that comes with macOS and writes keyward.passwords.json into the NativeMessagingHosts folder of the chosen browser. The file lets only this extension start the helper. The Vaults settings show how to remove it.",
   "options.passwordsSetup.viewScript": "View the script",
   "options.passwordsSetup.connected":
-    "Set up. Turn Passwords on in the settings to use it; the first time, enter the six-digit code your Mac shows to pair.",
+    "Turn Passwords on in the settings to use it. The first time, enter the six-digit code your Mac shows to pair.",
+  "options.passwordsSetup.link.connecting": "Connecting…",
+  "options.passwordsSetup.link.stopped": "Not connected",
+  "options.passwordsSetup.link.connected": "Connected",
   "options.passwordsSetup.openSettings": "Open settings",
   "options.onboard.title": "Sign in to Bitwarden",
   "options.onboard.description":
@@ -472,7 +475,10 @@ export const zhCN: Record<keyof typeof en, string> = {
     "它找到 macOS 自带的 Passwords 组件，把 keyward.passwords.json 写进所选浏览器的 NativeMessagingHosts 文件夹。这个文件只允许本插件启动该组件。移除方法在设置的密码库页里。",
   "options.passwordsSetup.viewScript": "查看脚本",
   "options.passwordsSetup.connected":
-    "设置完成。在设置里打开 Passwords 开关即可使用；第一次使用时，输入 Mac 上显示的六位验证码完成配对。",
+    "在设置里打开 Passwords 开关即可使用。第一次使用时，输入 Mac 上显示的六位验证码完成配对。",
+  "options.passwordsSetup.link.connecting": "连接中…",
+  "options.passwordsSetup.link.stopped": "未连接",
+  "options.passwordsSetup.link.connected": "连接成功",
   "options.passwordsSetup.openSettings": "打开设置",
   "options.onboard.title": "登录 Bitwarden",
   "options.onboard.description": "登录后，这个账号用主密码就能解锁。",

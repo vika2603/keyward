@@ -50,6 +50,8 @@
   --color-sidebar-ring: var(--sidebar-ring);
   --color-secret-digit: var(--secret-digit);
   --color-secret-symbol: var(--secret-symbol);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
 }
 
 @theme {
@@ -132,6 +134,9 @@
   /* Digits and symbols of a revealed secret, set apart from its letters. */
   --secret-digit: oklch(54.6% 0.245 262.881);
   --secret-symbol: oklch(55.5% 0.163 48.998);
+  /* A finished step, such as Passwords once the browser reaches it. */
+  --success: oklch(52.7% 0.154 150.069);
+  --success-foreground: oklch(0.985 0 0);
 }
 
 .dark {
@@ -168,6 +173,8 @@
   --sidebar-ring: oklch(0.556 0 0);
   --secret-digit: oklch(70.7% 0.165 254.624);
   --secret-symbol: oklch(82.8% 0.189 84.429);
+  --success: oklch(79.2% 0.209 151.711);
+  --success-foreground: oklch(0.145 0 0);
 }
 
 @layer base {

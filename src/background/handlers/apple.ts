@@ -45,11 +45,7 @@ export function appleHandlers(apple: AppleProvider) {
     },
     "apple.checkSetup": {
       allow: [...connectPages, "connectPage"],
-      handle: async () => {
-        const state = await reach()
-        await followSwitch()
-        return state
-      },
+      handle: () => apple.helper.checkSetup(),
     },
     "apple.submitCode": {
       allow: connectPages,
