@@ -44,6 +44,27 @@ function collapsed(text: string | null | undefined): string {
   return (text ?? "").replace(/\s+/g, " ").trim()
 }
 
+/**
+ * An element's text with runs of white space collapsed, read only until it is longer than `limit`,
+ * so a form that wraps a whole page does not have the page's text read on every scan.
+ */
+export function textUpTo(element: Element, limit: number): string {
+  const walker = element.ownerDocument.createTreeWalker(
+    element,
+    NodeFilter.SHOW_TEXT,
+  )
+  let text = ""
+  for (
+    let node = walker.nextNode();
+    node && text.length <= limit;
+    node = walker.nextNode()
+  ) {
+    const piece = (node.nodeValue ?? "").replace(/\s+/g, " ")
+    text += text === "" || text.endsWith(" ") ? piece.trimStart() : piece
+  }
+  return text.trimEnd()
+}
+
 function labelOf(control: HTMLElement): string {
   return collapsed(
     control instanceof HTMLInputElement ? control.value : control.textContent,
@@ -101,7 +122,7 @@ export function buttonPoints(group: Element): number {
 
 /** Points for a sign-up when a group states requirements for a new password. */
 export function requirementPoints(group: Element): number {
-  const text = collapsed(group.textContent).slice(0, MAX_FORM_TEXT)
+  const text = textUpTo(group, MAX_FORM_TEXT).slice(0, MAX_FORM_TEXT)
   return PASSWORD_REQUIREMENTS.test(text) ? REQUIREMENT_POINTS : 0
 }
 

@@ -45,9 +45,9 @@ interface Score {
 /** Scores where higher is better, with their floors. */
 const FLOORS = {
   /** Username and email fields on sign-in pages that offer logins. */
-  signInUsernames: 278,
+  signInUsernames: 279,
   /** Sign-in passwords whose login fill reaches the annotated username of the same form. */
-  pairedUsernames: 256,
+  pairedUsernames: 257,
   /** Unlabelled password fields on sign-up pages that read as new. */
   signUpPasswords: 158,
   /** Fields labelled as a new password that read as new. */
