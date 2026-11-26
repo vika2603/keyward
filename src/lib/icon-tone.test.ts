@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { iconToneOf } from "./icon-tone"
+import { iconToneOf, isGreyIcon } from "./icon-tone"
 
 type Pixel = [number, number, number, number]
 
@@ -34,5 +34,21 @@ describe("iconToneOf", () => {
   it("has no tone for a coloured icon or one with no opaque pixels", () => {
     expect(iconToneOf(icon([RED, 100], [BLUE, 100]))).toBeNull()
     expect(iconToneOf(icon([CLEAR, 256]))).toBeNull()
+  })
+})
+
+describe("isGreyIcon", () => {
+  const DARK_GREY: Pixel = [36, 41, 47, 255]
+  const PALE_YELLOW: Pixel = [255, 236, 150, 255]
+
+  it("finds a glyph drawn in greys, as GitHub's black or white octocat", () => {
+    expect(isGreyIcon(icon([DARK_GREY, 120], [CLEAR, 136]))).toBe(true)
+    expect(isGreyIcon(icon([WHITE, 110], [BLACK, 10], [CLEAR, 136]))).toBe(true)
+  })
+
+  it("keeps the colours of a coloured icon, even a light one", () => {
+    expect(isGreyIcon(icon([PALE_YELLOW, 120], [CLEAR, 136]))).toBe(false)
+    expect(isGreyIcon(icon([WHITE, 140], [RED, 35], [BLUE, 35]))).toBe(false)
+    expect(isGreyIcon(icon([CLEAR, 256]))).toBe(false)
   })
 })

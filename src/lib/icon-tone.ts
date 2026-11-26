@@ -14,6 +14,8 @@ const LIGHT_LUMINANCE = 0.75
 const DARK_LUMINANCE = 0.3
 /** The least alpha, out of 255, of a pixel that counts; clearer ones are skipped. */
 const MINIMUM_ALPHA = 128
+/** The largest gap, out of 255, between two colour channels of a pixel that counts as grey. */
+const GREY_SPREAD = 48
 
 /** The tone of an icon from its RGBA pixels, as a canvas reads them; mostly clear pixels are skipped. */
 export function iconToneOf(pixels: ArrayLike<number>): IconTone {
@@ -35,4 +37,24 @@ export function iconToneOf(pixels: ArrayLike<number>): IconTone {
   if (light / opaque >= ONE_TONE_SHARE) return "light"
   if (dark / opaque >= ONE_TONE_SHARE) return "dark"
   return null
+}
+
+/**
+ * Whether an icon is drawn in greys only, as GitHub's black or white octocat is, so that it can take
+ * the theme's foreground without losing anything; mostly clear pixels are skipped.
+ */
+export function isGreyIcon(pixels: ArrayLike<number>): boolean {
+  let opaque = 0
+  let grey = 0
+  for (let offset = 0; offset + 3 < pixels.length; offset += 4) {
+    if ((pixels[offset + 3] ?? 0) < MINIMUM_ALPHA) continue
+    const channels = [
+      pixels[offset] ?? 0,
+      pixels[offset + 1] ?? 0,
+      pixels[offset + 2] ?? 0,
+    ]
+    opaque++
+    if (Math.max(...channels) - Math.min(...channels) <= GREY_SPREAD) grey++
+  }
+  return opaque > 0 && grey / opaque >= ONE_TONE_SHARE
 }

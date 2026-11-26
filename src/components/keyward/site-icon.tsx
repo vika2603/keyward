@@ -1,24 +1,30 @@
 import { useEffect, useState } from "react"
-import { type IconTone, iconToneOf } from "@/lib/icon-tone"
+import { type IconTone, iconToneOf, isGreyIcon } from "@/lib/icon-tone"
 import { iconHostsOf } from "@/lib/site"
 import { cn } from "@/lib/utils"
 
+interface IconLook {
+  tone: IconTone
+  grey: boolean
+}
+
 /**
- * The tone of a loaded favicon. The browser keeps the variant a site served for the tab strip's
+ * How a loaded favicon is drawn. The browser keeps the variant a site served for the tab strip's
  * colour at the time of the visit, so the same site's icon may be black or white.
  */
-function toneOf(image: HTMLImageElement): IconTone {
+function lookOf(image: HTMLImageElement): IconLook {
   const size = 16
   const canvas = document.createElement("canvas")
   canvas.width = size
   canvas.height = size
   const context = canvas.getContext("2d", { willReadFrequently: true })
-  if (!context) return null
+  if (!context) return { tone: null, grey: false }
   try {
     context.drawImage(image, 0, 0, size, size)
-    return iconToneOf(context.getImageData(0, 0, size, size).data)
+    const pixels = context.getImageData(0, 0, size, size).data
+    return { tone: iconToneOf(pixels), grey: isGreyIcon(pixels) }
   } catch {
-    return null
+    return { tone: null, grey: false }
   }
 }
 
@@ -109,10 +115,14 @@ export function SiteIcon({
 }) {
   const icon = useFavicon(host)
   const [failed, setFailed] = useState(false)
-  const [tone, setTone] = useState<IconTone>(null)
+  const [look, setLook] = useState<IconLook>({ tone: null, grey: false })
   const letter =
     [...text.replace(/^www\./i, "").trim()][0]?.toUpperCase() ?? "?"
   const favicon = Boolean(icon) && !failed
+  // A one-tone grey glyph is drawn black, or white on the dark theme, whichever variant the
+  // browser kept; a one-tone coloured icon keeps its colours on a tile of the other tone.
+  const recolored = favicon && look.tone !== null && look.grey
+  const tileTone = favicon && !look.grey ? look.tone : null
   return (
     <span
       aria-hidden="true"
@@ -120,16 +130,16 @@ export function SiteIcon({
         "inline-flex size-8 shrink-0 items-center justify-center rounded-md bg-muted text-xs font-medium text-muted-foreground",
         className,
         // A dark icon on a light tile and a light one on a dark tile, hovered or not.
-        favicon && tone === "dark" && "dark:bg-neutral-100!",
-        favicon && tone === "light" && "bg-neutral-800!",
+        tileTone === "dark" && "dark:bg-neutral-100!",
+        tileTone === "light" && "bg-neutral-800!",
       )}
     >
       {favicon ? (
         <img
           alt=""
-          className="size-4"
+          className={cn("size-4", recolored && "brightness-0 dark:invert")}
           src={icon ?? undefined}
-          onLoad={(event) => setTone(toneOf(event.currentTarget))}
+          onLoad={(event) => setLook(lookOf(event.currentTarget))}
           onError={() => setFailed(true)}
         />
       ) : (
