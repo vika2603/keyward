@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 import { ContentScriptContext } from "wxt/utils/content-script-context"
 import { isSignInRequest, submitControlOf, watchSubmissions } from "./submit"
 import type { SubmittedLogin } from "./submitted-login"
-import { stubLayout } from "./test-support"
+import { stubLayout, trusted } from "./test-support"
 
 let ctx: ContentScriptContext | undefined
 
@@ -52,13 +52,28 @@ describe("the control a click submits with", () => {
     expect(pressed("show")).toBeNull()
     expect(pressed("help")).toBeNull()
   })
+
+  it("is not a link that offers help with signing in or leads to signing up", () => {
+    document.body.innerHTML = `
+      <a id="cannot" href="#">Can't log in?</a>
+      <a id="help" class="btn-link" href="#">Need help signing in</a>
+      <a id="sign-up" href="javascript:void(0)">Not registered? Sign up</a>`
+    expect(pressed("cannot")).toBeNull()
+    expect(pressed("help")).toBeNull()
+    expect(pressed("sign-up")).toBeNull()
+  })
 })
 
-/** A resource entry as the browser records a request the page sent. */
-function request(initiatorType: string, path: string): PerformanceEntry {
+/** A resource entry as the browser records a request the page sent, started at `startTime`. */
+function request(
+  initiatorType: string,
+  path: string,
+  startTime = 0,
+): PerformanceEntry {
   return {
     initiatorType,
     name: `https://example.com${path}`,
+    startTime,
   } as unknown as PerformanceEntry
 }
 
@@ -92,14 +107,29 @@ describe("a sign-in a script sends", () => {
     }
   }
 
+  /** A filled sign-in form whose button shows only an arrow. */
   function signInForm(): void {
     document.body.innerHTML = `
       <form>
         <input name="username" value="someone">
         <input type="password" name="password" value="typed-password">
-        <div class="sign-in-box">Continue to your account</div>
-      </form>
-      <input name="search">`
+        <span id="go" class="icon-button">→</span>
+      </form>`
+  }
+
+  /** Presses the form's button as the user would; returns when. */
+  function press(): number {
+    const pressedAt = performance.now()
+    document
+      .getElementById("go")
+      ?.dispatchEvent(trusted(new MouseEvent("click", { bubbles: true })))
+    return pressedAt
+  }
+
+  const typed = {
+    username: "someone",
+    password: "typed-password",
+    newPassword: false,
   }
 
   it("is told by its path and by being a fetch or XHR request", () => {
@@ -111,23 +141,26 @@ describe("a sign-in a script sends", () => {
     expect(isSignInRequest(request("fetch", "/api/profile"))).toBe(false)
   })
 
-  it("reports the form with the filled password once the user has left it", () => {
+  it("reports the form when it starts right after the user pressed a control", () => {
     signInForm()
     const { reports, deliver } = watch()
-    document.querySelector<HTMLInputElement>("[name=search]")?.focus()
-    deliver(request("fetch", "/api/profile"))
+    const pressedAt = press()
+    deliver(request("fetch", "/api/profile", pressedAt + 100))
     expect(reports).toEqual([])
-    deliver(request("fetch", "/api/session/login"))
-    expect(reports).toEqual([
-      { username: "someone", password: "typed-password", newPassword: false },
-    ])
+    deliver(request("fetch", "/api/session/login", pressedAt + 100))
+    expect(reports).toEqual([typed])
   })
 
-  it("waits while the focus is still in a field of the form", () => {
+  it("is passed over when no press came just before it, or the page polls its path", () => {
     signInForm()
     const { reports, deliver } = watch()
-    document.querySelector<HTMLInputElement>("[name=password]")?.focus()
-    deliver(request("xmlhttprequest", "/login"))
+    deliver(request("fetch", "/api/session/login"))
+    const pressedAt = press()
+    deliver(request("fetch", "/qrcode/login/poll", pressedAt - 1000))
+    deliver(request("fetch", "/qrcode/login/poll", pressedAt + 100))
+    deliver(request("fetch", "/users/sign_in", pressedAt + 3000))
     expect(reports).toEqual([])
+    deliver(request("fetch", "/api/account/login", pressedAt + 200))
+    expect(reports).toEqual([typed])
   })
 })
