@@ -1,7 +1,6 @@
 import {
   CheckIcon,
   ChevronRightIcon,
-  CopyIcon,
   LoaderCircleIcon,
   RotateCwIcon,
   SquareTerminalIcon,
@@ -14,24 +13,25 @@ import { BrandIcon } from "@/components/keyward/brand-icon"
 import { errorMessage } from "@/components/keyward/errors"
 import { FormError } from "@/components/keyward/form-field"
 import { useLanguage } from "@/components/keyward/language"
+import {
+  BrowserSelect,
+  CommandBox,
+  pageBrowser,
+} from "@/components/keyward/setup-commands"
 import { Button } from "@/components/ui/button"
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible"
-import {
-  COPIED_FEEDBACK_MS,
-  useTransientValue,
-} from "@/hooks/use-transient-value"
 import { t } from "@/lib/i18n"
 import type {
   ApplePhase,
   AppleState,
 } from "@/lib/providers/apple/helper-session"
 import {
-  removalCommand,
   SETUP_SCRIPT_PAGE,
+  type SetupBrowser,
   setupCommand,
 } from "@/lib/providers/apple/setup-command"
 import { cn } from "@/lib/utils"
@@ -152,6 +152,7 @@ export function App() {
  */
 function ConnectPasswords() {
   const { status, message, check } = useSetupStatus()
+  const [targetBrowser, setTargetBrowser] = useState(pageBrowser)
   const setUp = status === "done"
 
   return (
@@ -168,13 +169,24 @@ function ConnectPasswords() {
         </header>
         <SetupCard done={setUp}>
           {setUp ? (
-            <p className="text-sm text-muted-foreground">
-              {t("options.passwordsSetup.pairLater")}
-            </p>
+            <>
+              <p className="text-sm text-muted-foreground">
+                {t("options.passwordsSetup.connected")}
+              </p>
+              <Button
+                variant="outline"
+                className="w-fit"
+                onClick={() => void browser.runtime.openOptionsPage()}
+              >
+                {t("options.passwordsSetup.openSettings")}
+              </Button>
+            </>
           ) : (
             <SetUpStep
               status={status}
               message={message}
+              targetBrowser={targetBrowser}
+              onBrowserChange={setTargetBrowser}
               onCheckAgain={() => void check()}
             />
           )}
@@ -191,8 +203,12 @@ function ConnectionIcons({ link }: { link: Link }) {
       <img src={keywardIcon} alt="" draggable={false} className="size-12" />
       <div className="flex w-14 items-center justify-center gap-2">
         {link === "connected" ? (
-          <span className="flex size-5 items-center justify-center rounded-full bg-foreground text-background">
-            <CheckIcon className="size-3" strokeWidth={3} />
+          // The check pops in and sends out a ring, as a chime would sound.
+          <span className="relative flex size-6 items-center justify-center">
+            <span className="absolute inset-0 animate-connected-ring rounded-full bg-foreground motion-reduce:hidden" />
+            <span className="relative flex size-6 animate-connected-pop items-center justify-center rounded-full bg-foreground text-background motion-reduce:animate-none">
+              <CheckIcon className="size-3.5" strokeWidth={3} />
+            </span>
           </span>
         ) : (
           DOT_DELAYS.map((delay) => (
@@ -221,7 +237,7 @@ function SetupCard({ done, children }: { done: boolean; children: ReactNode }) {
       <h2 className="flex items-center gap-3 text-sm font-medium">
         <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-muted">
           {done ? (
-            <CheckIcon className="size-3.5" />
+            <CheckIcon className="size-3.5 animate-connected-pop motion-reduce:animate-none" />
           ) : (
             <SquareTerminalIcon className="size-3.5" />
           )}
@@ -243,10 +259,15 @@ function SetupCard({ done, children }: { done: boolean; children: ReactNode }) {
 function SetUpStep({
   status,
   message,
+  targetBrowser,
+  onBrowserChange,
   onCheckAgain,
 }: {
   status: SetupStatus
   message: string | null
+  /** The browser the command sets up. */
+  targetBrowser: SetupBrowser
+  onBrowserChange: (browser: SetupBrowser) => void
   onCheckAgain: () => void
 }) {
   if (status === "notMac") {
@@ -270,7 +291,8 @@ function SetUpStep({
       <p className="text-sm text-muted-foreground">
         {t("options.passwordsSetup.setUp.description")}
       </p>
-      <CommandBox command={setupCommand(browser.runtime.id)} />
+      <BrowserSelect value={targetBrowser} onChange={onBrowserChange} />
+      <CommandBox command={setupCommand(browser.runtime.id, targetBrowser)} />
       <p className="text-sm text-muted-foreground">
         {t("options.passwordsSetup.terminal")}
       </p>
@@ -303,37 +325,6 @@ function SetUpStep({
   )
 }
 
-/** A command to paste into Terminal, with a button that copies it. */
-function CommandBox({ command }: { command: string }) {
-  const [copied, showCopied] = useTransientValue<true>(COPIED_FEEDBACK_MS)
-  const label = copied
-    ? t("options.passwordsSetup.copied")
-    : t("options.passwordsSetup.copy")
-  const copy = () =>
-    navigator.clipboard.writeText(command).then(
-      () => showCopied(true),
-      // The command can still be selected and copied by hand.
-      () => {},
-    )
-
-  return (
-    <div className="flex items-start gap-2 rounded-lg bg-muted py-1.5 pr-1.5 pl-3">
-      <code className="min-w-0 flex-1 py-1 font-mono text-xs leading-5 break-all select-all">
-        {command}
-      </code>
-      <Button
-        variant="ghost"
-        size="icon-sm"
-        aria-label={label}
-        title={label}
-        onClick={() => void copy()}
-      >
-        {copied ? <CheckIcon /> : <CopyIcon />}
-      </Button>
-    </div>
-  )
-}
-
 function CommandDetails() {
   const [open, setOpen] = useState(false)
   return (
@@ -347,8 +338,6 @@ function CommandDetails() {
       <CollapsibleContent>
         <div className="flex flex-col gap-2 pt-2 text-sm text-muted-foreground">
           <p>{t("options.passwordsSetup.detailsText")}</p>
-          <p>{t("options.passwordsSetup.removal")}</p>
-          <CommandBox command={removalCommand()} />
           <a
             href={SETUP_SCRIPT_PAGE}
             target="_blank"

@@ -12,21 +12,15 @@ import { connectPages, popupOnly } from "./request-context"
 import { requireText, siteInput } from "./validation"
 
 export function appleHandlers(apple: AppleProvider) {
-  /**
-   * Connects to the helper and turns Passwords on, as using it from a page means. While this Mac
-   * lacks the one-time setup, Passwords stays as it was, so no view offers a vault that cannot
-   * connect unless the user had turned it on.
-   */
-  const connect = async (): Promise<AppleState> => {
-    const wasEnabled = (await getSettings()).appleEnabled
+  /** Connects to the helper without pairing, so nothing shows on the Mac. */
+  const reach = async (): Promise<AppleState> => {
     await apple.helper.setEnabled(true)
-    const state = apple.helper.getState()
-    if (needsSetup(state)) {
-      if (!wasEnabled) await apple.helper.setEnabled(false)
-      return state
-    }
-    if (!wasEnabled) await updateSettings({ appleEnabled: true })
-    return state
+    return apple.helper.getState()
+  }
+  /** Leaves the helper off again unless Passwords is on by now; the user may turn it on meanwhile. */
+  const followSwitch = async () => {
+    if (!(await getSettings()).appleEnabled)
+      await apple.helper.setEnabled(false)
   }
 
   return {
@@ -37,15 +31,25 @@ export function appleHandlers(apple: AppleProvider) {
     "apple.startPairing": {
       allow: connectPages,
       handle: async ({ restart }) => {
-        const state = await connect()
-        if (needsSetup(state)) return state
+        const state = await reach()
+        if (needsSetup(state)) {
+          await followSwitch()
+          return state
+        }
+        // Pairing from a page is using Passwords, so it turns Passwords on.
+        if (!(await getSettings()).appleEnabled)
+          await updateSettings({ appleEnabled: true })
         await apple.helper.startPairing(Boolean(restart))
         return apple.helper.getState()
       },
     },
     "apple.checkSetup": {
       allow: [...connectPages, "connectPage"],
-      handle: () => connect(),
+      handle: async () => {
+        const state = await reach()
+        await followSwitch()
+        return state
+      },
     },
     "apple.submitCode": {
       allow: connectPages,

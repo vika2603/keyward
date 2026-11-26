@@ -1,6 +1,5 @@
 import {
   ExternalLinkIcon,
-  LoaderCircleIcon,
   PencilIcon,
   PlusIcon,
   RefreshCwIcon,
@@ -9,6 +8,11 @@ import { useCallback, useEffect, useState } from "react"
 import { callBackground } from "@/background/api"
 import { BrandIcon, providerName } from "@/components/keyward/brand-icon"
 import { errorMessage } from "@/components/keyward/errors"
+import {
+  BrowserSelect,
+  CommandBox,
+  pageBrowser,
+} from "@/components/keyward/setup-commands"
 import { VaultSelect } from "@/components/keyward/vault-select"
 import {
   AlertDialog,
@@ -34,6 +38,7 @@ import { Switch } from "@/components/ui/switch"
 import { openConnectPasswords } from "@/lib/connect-passwords"
 import { currentLanguage, t } from "@/lib/i18n"
 import { needsSetup } from "@/lib/providers/apple/helper-session"
+import { removalCommand } from "@/lib/providers/apple/setup-command"
 import { APPLE_VAULT_ID } from "@/lib/providers/apple/vault-id"
 import type { AccountSummary } from "@/lib/providers/bitwarden/bitwarden-provider"
 import { isCloudServer, serverHost } from "@/lib/providers/bitwarden/server"
@@ -85,52 +90,36 @@ export function VaultsPage() {
   }, [])
   useEffect(load, [load])
 
-  /** Whether the browser reaches the Passwords helper; null until a check answers. */
-  const [appleReachable, setAppleReachable] = useState<boolean | null>(null)
-  const [appleConnecting, setAppleConnecting] = useState(false)
-  const appleEnabled = settings?.appleEnabled === true
-
-  const checkApple = useCallback(async () => {
-    try {
-      const state = await callBackground("apple.checkSetup", null)
-      setAppleReachable(!needsSetup(state))
-      return state
-    } catch {
-      // Without an answer the row keeps what it shows.
-      return null
-    }
-  }, [])
+  /** Whether this Mac has the one-time setup for this browser; null until a check answers. */
+  const [appleSetUp, setAppleSetUp] = useState<boolean | null>(null)
+  const [removingSetup, setRemovingSetup] = useState(false)
 
   useEffect(() => {
-    if (!appleEnabled) {
-      setAppleReachable(null)
-      return
-    }
-    void checkApple()
-    // The setup may get done in the connect page or in Terminal while this page waits behind them.
+    const check = () =>
+      callBackground("apple.checkSetup", null).then(
+        (state) => setAppleSetUp(!needsSetup(state)),
+        // Without an answer the row keeps what it shows.
+        () => {},
+      )
+    void check()
+    // The setup gets done or removed in the connect page and in Terminal, behind this page.
     const checkWhenShown = () => {
-      if (document.visibilityState === "visible") void checkApple()
+      if (document.visibilityState === "visible") void check()
     }
     document.addEventListener("visibilitychange", checkWhenShown)
     return () =>
       document.removeEventListener("visibilitychange", checkWhenShown)
-  }, [appleEnabled, checkApple])
+  }, [])
 
   if (!settings) return null
 
-  /** Connects Passwords, or opens the connect page while this Mac lacks the one-time setup. */
-  const connectApple = async () => {
-    setAppleConnecting(true)
-    const state = await checkApple()
-    setAppleConnecting(false)
-    if (state && needsSetup(state)) void openConnectPasswords()
-  }
-  // Passwords offers a switch once it is connected, and a way to connect until then.
-  const appleConnected = settings.appleEnabled && appleReachable !== false
+  // Passwords is set up before its switch can be turned on.
+  const appleNeedsSetup = appleSetUp === false
   const appleSwitch = (
     <Switch
       aria-label={t("options.vaults.apple.toggle")}
       checked={settings.appleEnabled}
+      disabled={appleSetUp === null && !settings.appleEnabled}
       onCheckedChange={(checked) => update({ appleEnabled: checked })}
     />
   )
@@ -205,34 +194,27 @@ export function VaultsPage() {
             </span>
           }
           description={
-            appleConnected
-              ? t("options.vaults.apple.description")
-              : t("options.vaults.apple.notConnected")
+            appleNeedsSetup
+              ? t("options.vaults.apple.notSetUp")
+              : t("options.vaults.apple.description")
           }
         >
-          {appleConnected ? (
-            appleSwitch
-          ) : (
+          {appleNeedsSetup ? (
             <div className="flex items-center gap-3">
               <Button
                 variant="outline"
-                disabled={appleConnecting}
-                onClick={() => void connectApple()}
+                onClick={() => void openConnectPasswords()}
               >
-                {appleConnecting && (
-                  <LoaderCircleIcon
-                    data-icon="inline-start"
-                    className="animate-spin"
-                  />
-                )}
-                {t("options.vaults.apple.connect")}
+                {t("options.vaults.apple.setUp")}
               </Button>
-              {/* On, yet the Mac's setup is gone: it can still be turned off. */}
+              {/* On, yet the setup is gone: it can still be turned off. */}
               {settings.appleEnabled && appleSwitch}
             </div>
+          ) : (
+            appleSwitch
           )}
         </Option>
-        {appleConnected && (
+        {settings.appleEnabled && !appleNeedsSetup && (
           <Option
             name={t("options.vaults.apple.actions.name")}
             description={t("options.vaults.apple.actions.description")}
@@ -243,10 +225,24 @@ export function VaultsPage() {
             </Button>
           </Option>
         )}
+        {appleSetUp && (
+          <Option
+            name={t("options.vaults.apple.thisMac.name")}
+            description={t("options.vaults.apple.thisMac.description")}
+          >
+            <Button variant="outline" onClick={() => setRemovingSetup(true)}>
+              {t("options.vaults.apple.thisMac.remove")}
+            </Button>
+          </Option>
+        )}
         {message && (
           <p className="px-4 pb-3 text-sm text-destructive">{message}</p>
         )}
       </Card>
+      <RemoveSetupDialog
+        open={removingSetup}
+        onClose={() => setRemovingSetup(false)}
+      />
       <Card>
         <Option
           name={
@@ -516,5 +512,37 @@ function SignOutDialog({
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
+  )
+}
+
+/** Shows the Terminal command that takes the one-time setup away from a browser. */
+function RemoveSetupDialog({
+  open,
+  onClose,
+}: {
+  open: boolean
+  onClose: () => void
+}) {
+  const [targetBrowser, setTargetBrowser] = useState(pageBrowser)
+  return (
+    <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{t("options.vaults.apple.removal.title")}</DialogTitle>
+          <DialogDescription>
+            {t("options.vaults.apple.removal.description")}
+          </DialogDescription>
+        </DialogHeader>
+        <div className="flex flex-col gap-3">
+          <BrowserSelect value={targetBrowser} onChange={setTargetBrowser} />
+          <CommandBox command={removalCommand(targetBrowser)} />
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>
+            {t("common.close")}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }

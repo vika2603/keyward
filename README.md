@@ -30,12 +30,13 @@ mise install     # Node and pnpm
 mise run setup   # dependencies
 ```
 
-A browser starts the Passwords helper only for the extensions that a host manifest names. Connect in the Vaults settings opens Keyward's Connect Passwords page while this Mac lacks that step; the page shows a Terminal command with the extension's ID. The command downloads `scripts/setup.sh` from this repository's `main` branch and runs it; the script writes `keyward.passwords.json`, which names that ID and points at the system helper, into the `NativeMessagingHosts` folder of each Chromium browser that has the extension installed: the browser's usual data folder under `~/Library/Application Support`, or the folder that a running browser was started with through `--user-data-dir`. It needs no administrator password. From a checkout:
+A browser starts the Passwords helper only for the extensions that a host manifest names. Until this step is done, the Vaults settings offer Set up in place of the Passwords switch; it opens Keyward's Connect Passwords page, which shows a Terminal command with the extension's ID for the browser you pick. The command downloads `scripts/setup.sh` from this repository's `main` branch and runs it; the script writes `keyward.passwords.json`, which names that ID and points at the system helper, into the `NativeMessagingHosts` folder of that one browser's data folder under `~/Library/Application Support`. It sets up Google Chrome unless `--browser` names Dia, Edge, Brave or ego, and needs no administrator password. The Vaults settings show the command that removes it again. From a checkout:
 
 ```sh
-scripts/setup.sh <extension ID>
-scripts/setup.sh --user-data-dir <folder> <extension ID>  # that folder only, without looking for the extension
-scripts/setup.sh --uninstall
+scripts/setup.sh <extension ID>                           # Google Chrome
+scripts/setup.sh --browser dia <extension ID>             # dia, edge, brave or ego
+scripts/setup.sh --user-data-dir <folder> <extension ID>  # a browser started with --user-data-dir
+scripts/setup.sh --browser dia --uninstall
 ```
 
 An unpacked build gets its ID from the folder it is loaded from, so the command has to run again after the folder moves. To keep one ID, create `.env.local` with a public key, which the build adds to the manifest as `key`:

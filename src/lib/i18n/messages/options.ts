@@ -18,9 +18,16 @@ export const en = {
   "options.vaults.apple.actions.description":
     "List accounts for the current site, fill, copy passwords and save new ones. Other management is done in the Passwords app.",
   "options.vaults.apple.openApp": "Open Passwords app",
-  "options.vaults.apple.notConnected":
-    "Connect to fill and save logins from Passwords on this Mac.",
-  "options.vaults.apple.connect": "Connect",
+  "options.vaults.apple.notSetUp":
+    "Not set up for this browser yet. Set it up once, then turn it on.",
+  "options.vaults.apple.setUp": "Set up",
+  "options.vaults.apple.thisMac.name": "Setup on this Mac",
+  "options.vaults.apple.thisMac.description":
+    "This browser can reach the Passwords helper. Remove the setup when you no longer need it.",
+  "options.vaults.apple.thisMac.remove": "Remove setup",
+  "options.vaults.apple.removal.title": "Remove the setup",
+  "options.vaults.apple.removal.description":
+    "Run this command in Terminal. Keyward in the chosen browser then can no longer reach Passwords.",
   "options.vaults.bitwarden.signedInDescription":
     "You can sign in to several accounts at once, and their items are shown together. When locked, unlock each account with its master password in the popup.",
   "options.vaults.bitwarden.signedOutDescription":
@@ -191,7 +198,8 @@ export const en = {
   "options.passwordsSetup.done": "Done",
   "options.passwordsSetup.setUp.title": "Let the browser reach Passwords",
   "options.passwordsSetup.setUp.description":
-    "Run this command in Terminal. It writes a small configuration file into the data folder of the browser Keyward is installed in; it needs no administrator password and installs nothing.",
+    "Pick the browser you are using, then run the command in Terminal. It writes one small configuration file into that browser's data folder; it needs no administrator password and installs nothing.",
+  "options.passwordsSetup.browser": "Browser",
   "options.passwordsSetup.copy": "Copy command",
   "options.passwordsSetup.copied": "Copied",
   "options.passwordsSetup.terminal":
@@ -207,11 +215,11 @@ export const en = {
   "options.passwordsSetup.notMac": "Passwords is only available on macOS.",
   "options.passwordsSetup.details": "What the command does",
   "options.passwordsSetup.detailsText":
-    "It finds the Passwords helper that comes with macOS and writes keyward.passwords.json into the NativeMessagingHosts folder of each browser that has Keyward installed. The file lets only this extension start the helper.",
-  "options.passwordsSetup.removal": "To undo it, run:",
+    "It finds the Passwords helper that comes with macOS and writes keyward.passwords.json into the NativeMessagingHosts folder of the chosen browser. The file lets only this extension start the helper. The Vaults settings show how to remove it.",
   "options.passwordsSetup.viewScript": "View the script",
-  "options.passwordsSetup.pairLater":
-    "The browser now reaches Passwords. The first time you use it, enter the six-digit code your Mac shows to pair.",
+  "options.passwordsSetup.connected":
+    "Set up. Turn Passwords on in the settings to use it; the first time, enter the six-digit code your Mac shows to pair.",
+  "options.passwordsSetup.openSettings": "Open settings",
   "options.onboard.title": "Sign in to Bitwarden",
   "options.onboard.description":
     "After signing in, the account is unlocked with its master password.",
@@ -274,9 +282,15 @@ export const zhCN: Record<keyof typeof en, string> = {
   "options.vaults.apple.actions.description":
     "按当前站点列出账号、填充、复制密码和保存新密码。其余管理操作在 Passwords App 中完成。",
   "options.vaults.apple.openApp": "打开 Passwords App",
-  "options.vaults.apple.notConnected":
-    "连接后，可以填充和保存这台 Mac 上 Passwords 里的密码。",
-  "options.vaults.apple.connect": "连接",
+  "options.vaults.apple.notSetUp": "这个浏览器还没设置。设置一次后才能打开。",
+  "options.vaults.apple.setUp": "设置",
+  "options.vaults.apple.thisMac.name": "本机设置",
+  "options.vaults.apple.thisMac.description":
+    "这个浏览器已能连接 Passwords 组件。不再需要时可以移除设置。",
+  "options.vaults.apple.thisMac.remove": "移除设置",
+  "options.vaults.apple.removal.title": "移除本机设置",
+  "options.vaults.apple.removal.description":
+    "在终端运行下面的命令。之后所选浏览器里的 Keyward 就不能再连接 Passwords。",
   "options.vaults.bitwarden.signedInDescription":
     "可以同时登录多个账号，条目一起显示。锁定后在弹窗里逐个输入主密码解锁。",
   "options.vaults.bitwarden.signedOutDescription":
@@ -439,7 +453,8 @@ export const zhCN: Record<keyof typeof en, string> = {
   "options.passwordsSetup.done": "已完成",
   "options.passwordsSetup.setUp.title": "允许浏览器连接 Passwords",
   "options.passwordsSetup.setUp.description":
-    "在终端里运行下面的命令。它只在装了 Keyward 的浏览器的数据文件夹里写一个小配置文件，不需要管理员密码，也不安装任何程序。",
+    "选择你正在用的浏览器，然后在终端里运行下面的命令。它只在这个浏览器的数据文件夹里写一个小配置文件，不需要管理员密码，也不安装任何程序。",
+  "options.passwordsSetup.browser": "浏览器",
   "options.passwordsSetup.copy": "复制命令",
   "options.passwordsSetup.copied": "已复制",
   "options.passwordsSetup.terminal":
@@ -454,11 +469,11 @@ export const zhCN: Record<keyof typeof en, string> = {
   "options.passwordsSetup.notMac": "Passwords 只能在 macOS 上使用。",
   "options.passwordsSetup.details": "命令会做什么",
   "options.passwordsSetup.detailsText":
-    "它找到 macOS 自带的 Passwords 组件，把 keyward.passwords.json 写进装了 Keyward 的浏览器的 NativeMessagingHosts 文件夹。这个文件只允许本插件启动该组件。",
-  "options.passwordsSetup.removal": "要撤销，运行：",
+    "它找到 macOS 自带的 Passwords 组件，把 keyward.passwords.json 写进所选浏览器的 NativeMessagingHosts 文件夹。这个文件只允许本插件启动该组件。移除方法在设置的密码库页里。",
   "options.passwordsSetup.viewScript": "查看脚本",
-  "options.passwordsSetup.pairLater":
-    "浏览器已经能连接 Passwords。第一次使用时，输入 Mac 上显示的六位验证码完成配对。",
+  "options.passwordsSetup.connected":
+    "设置完成。在设置里打开 Passwords 开关即可使用；第一次使用时，输入 Mac 上显示的六位验证码完成配对。",
+  "options.passwordsSetup.openSettings": "打开设置",
   "options.onboard.title": "登录 Bitwarden",
   "options.onboard.description": "登录后，这个账号用主密码就能解锁。",
   "options.onboard.backToSettings": "返回设置",
