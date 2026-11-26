@@ -30,3 +30,6 @@ design/
 
 # Local build settings, such as the manifest key
 .env*.local
+
+# Downloaded test data, such as the form corpus of `mise run corpus`
+.cache/

@@ -26,6 +26,23 @@ run = "pnpm compile"
 description = "Run the unit tests"
 run = "pnpm test"
 
+[tasks.corpus]
+description = "Score field detection on DuckDuckGo's annotated forms, downloaded into .cache/form-corpus"
+run = """
+set -eu
+dir=.cache/form-corpus
+commit=e456864774efa83446790277a746f347e7cca772
+if [ "$(git -C "$dir" rev-parse HEAD 2>/dev/null || true)" != "$commit" ]; then
+  rm -rf "$dir"
+  git init -q "$dir"
+  git -C "$dir" remote add origin https://github.com/duckduckgo/duckduckgo-autofill.git
+  git -C "$dir" sparse-checkout set --no-cone /test-forms/
+  git -C "$dir" fetch -q --depth 1 --filter=blob:none origin "$commit"
+  git -C "$dir" checkout -q FETCH_HEAD
+fi
+KEYWARD_FORM_CORPUS="$dir/test-forms" pnpm vitest run --silent=false src/content/form-corpus.test.ts
+"""
+
 [tasks.check]
 description = "Run lint, type check and tests"
 depends = ["lint", "typecheck", "test"]
