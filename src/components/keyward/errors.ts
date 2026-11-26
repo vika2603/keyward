@@ -1,7 +1,24 @@
+import type { ErrorCode } from "@/lib/error-codes"
 import { type MessageKey, t } from "@/lib/i18n"
 import { RequestError } from "@/lib/messaging"
 
-const MESSAGES: Record<string, MessageKey> = {
+/** Codes that mean the user replaced or closed the action; they need no message. */
+type SilentCode = "cancelled" | "overlay.closed"
+
+const SILENT_CODES: ReadonlySet<string> = new Set<SilentCode>([
+  "cancelled",
+  "overlay.closed",
+])
+
+/**
+ * Codes whose message is the error's own text: an unexpected failure, and a server error, which
+ * the message quotes.
+ */
+type OwnTextCode = "internal" | "bitwarden.api"
+
+type MessagedCode = Exclude<ErrorCode, SilentCode | OwnTextCode>
+
+const MESSAGES: Record<MessagedCode, MessageKey> = {
   forbidden: "error.forbidden",
   locked: "error.locked",
   network: "error.network",
@@ -42,15 +59,15 @@ const MESSAGES: Record<string, MessageKey> = {
   "bitwarden.noData": "error.bitwarden.noData",
 }
 
-/** Codes that mean the user replaced or closed the action; they need no message. */
-const SILENT = new Set(["cancelled", "overlay.closed"])
+function isMessagedCode(code: string): code is MessagedCode {
+  return Object.hasOwn(MESSAGES, code)
+}
 
 /** A message for the user, or null when the error needs none. */
 export function errorMessage(error: unknown): string | null {
   if (error instanceof RequestError) {
-    if (SILENT.has(error.code)) return null
-    const known = MESSAGES[error.code]
-    if (known) return t(known)
+    if (SILENT_CODES.has(error.code)) return null
+    if (isMessagedCode(error.code)) return t(MESSAGES[error.code])
     if (error.code === "bitwarden.api")
       return t("error.bitwarden.api", { message: error.message })
   }

@@ -1,3 +1,4 @@
+import { VaultError } from "../types"
 import type { KdfConfig } from "./crypto"
 import type { ServerUrls } from "./server"
 
@@ -10,25 +11,40 @@ const CLIENT_VERSION = "2026.11.0"
 const DEVICE_TYPE_CHROME_EXTENSION = 2
 const NEW_DEVICE_VERIFICATION_REQUIRED = "new device verification required"
 
-export class ApiError extends Error {
+/** The server answered with an error; one about the account's tokens or sign-in is an auth error. */
+export class ApiError extends VaultError {
   constructor(
     readonly status: number,
     readonly body: Record<string, unknown> | null,
   ) {
-    super(apiErrorMessage(status, body))
+    super(
+      apiErrorMessage(status, body),
+      isAuthReply(status, body) ? "bitwarden.auth" : "bitwarden.api",
+    )
   }
 
   /** The refresh token or access token is no longer accepted. */
   get isAuthError(): boolean {
-    return (
-      this.status === 401 ||
-      (this.status === 400 && valueAt(this.body, "error") === "invalid_grant")
-    )
+    return this.code === "bitwarden.auth"
   }
 }
 
+function isAuthReply(
+  status: number,
+  body: Record<string, unknown> | null,
+): boolean {
+  return (
+    status === 401 ||
+    (status === 400 && valueAt(body, "error") === "invalid_grant")
+  )
+}
+
 /** The server could not be reached: no network, a refused connection or an address that does not answer. */
-export class NetworkError extends Error {}
+export class NetworkError extends VaultError {
+  constructor(message: string, options?: ErrorOptions) {
+    super(message, "network", options)
+  }
+}
 
 function apiErrorMessage(
   status: number,

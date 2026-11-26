@@ -4,6 +4,8 @@
  * embed the two web-accessible pages, so those senders only reach the requests made for them.
  */
 
+import type { ErrorCode } from "./error-codes"
+
 export type SenderKind =
   | "popup"
   | "options"
@@ -87,7 +89,7 @@ export function senderKind(
 
 export function serveRequests<Api extends ApiShape>(
   handlers: Handlers<Api>,
-  errorCode: (error: unknown) => string,
+  errorCode: (error: unknown) => ErrorCode,
 ): void {
   browser.runtime.onMessage.addListener(
     (message: unknown, sender, sendResponse) => {
@@ -151,7 +153,7 @@ function fieldsOf(payload: unknown): Record<string, unknown> {
     : {}
 }
 
-function errorReply(error: string, code: string): Reply<never> {
+function errorReply(error: string, code: ErrorCode): Reply<never> {
   return { ok: false, error, code }
 }
 

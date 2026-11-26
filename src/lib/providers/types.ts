@@ -5,6 +5,7 @@
  * signed-in Bitwarden account is another.
  */
 
+import type { ErrorCode } from "@/lib/error-codes"
 import type { MatchType } from "@/lib/settings"
 
 export type ProviderKind = "apple" | "bitwarden"
@@ -358,11 +359,13 @@ export interface VaultProvider {
   lockAll(): Promise<void>
 }
 
+/** A failure a request reports to its page by code; providers throw it, or a kind of it, for theirs. */
 export class VaultError extends Error {
   constructor(
     message: string,
-    readonly code: string,
+    readonly code: ErrorCode,
+    options?: ErrorOptions,
   ) {
-    super(message)
+    super(message, options)
   }
 }

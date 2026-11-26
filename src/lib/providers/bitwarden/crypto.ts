@@ -1,4 +1,5 @@
 import type { Kdf, PureCrypto } from "@bitwarden/sdk-internal"
+import { VaultError } from "../types"
 
 export const KdfType = { Pbkdf2Sha256: 0, Argon2id: 1 } as const
 
@@ -37,9 +38,9 @@ export interface VaultCrypto {
   decapsulateKey(encapsulated: string, privateKey: Uint8Array): Uint8Array
 }
 
-export class WrongPasswordError extends Error {
+export class WrongPasswordError extends VaultError {
   constructor() {
-    super("The master password is incorrect")
+    super("The master password is incorrect", "bitwarden.wrongPassword")
   }
 }
 
