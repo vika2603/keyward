@@ -224,7 +224,9 @@ export function generatePassword(
 ): string {
   if (!limits)
     return passwordFrom(characterClasses(options), passwordLength(options))
+  // A page sets the limits, so the generator's own maximum still holds.
   const length = Math.min(
+    LENGTH_MAX,
     limits.maxLength ?? LENGTH_MAX,
     Math.max(limits.minLength ?? 0, passwordLength(options)),
   )

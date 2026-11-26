@@ -3,6 +3,7 @@ import {
   defaultGeneratorOptions,
   type GeneratorOptions,
   generatePassword,
+  LENGTH_MAX,
 } from "./generator"
 import {
   parsePasswordRules,
@@ -103,6 +104,14 @@ describe("generatePassword within a site's rules", () => {
     many(options, "maxlength: 6;", (password) => {
       expect(password).toHaveLength(6)
     })
+  })
+
+  it("is no longer than the generator allows, whatever length a page asks for", () => {
+    const password = generatePassword(
+      defaultGeneratorOptions,
+      parsePasswordRules("minlength: 1000000000; maxlength: 1000000000;"),
+    )
+    expect(password).toHaveLength(LENGTH_MAX)
   })
 
   it("has no longer run of one character than the site allows", () => {
