@@ -443,9 +443,12 @@ export type BackgroundApi = {
   }
   "bitwarden.cancelSignIn": { payload: null; result: null }
   "generator.copy": { payload: { password: string }; result: null }
-  /** A value the generator view shows; it enters the history once it settles, or at once when it is copied. */
+  /**
+   * A value the generator view shows. It enters the history at once, or with `settle` once no other
+   * value of its kind follows it for a moment, as while an option changes.
+   */
   "generator.shown": {
-    payload: { value: string; kind: GeneratorKind; copied?: boolean }
+    payload: { value: string; kind: GeneratorKind; settle?: boolean }
     result: null
   }
   /** Keeps a password generated in the add view in the history; the popup may close before it is saved. */

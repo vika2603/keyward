@@ -48,10 +48,36 @@ afterEach(() => {
 })
 
 describe("values the generator shows", () => {
-  it("keeps only the value that stays shown, with its kind and the page's host", async () => {
+  it("keeps values generated on opening or on request at once, in the order shown", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] })
+    await request("generator.shown", {
+      value: "opened-value",
+      kind: "password",
+    })
+    await request("generator.shown", {
+      value: "dragged-value",
+      kind: "password",
+      settle: true,
+    })
+    await request("generator.shown", {
+      value: "regenerated-value",
+      kind: "password",
+    })
+    await vi.advanceTimersByTimeAsync(SETTLE_DELAY_MS)
+    expect(await listHistory()).toMatchObject([
+      { value: "regenerated-value", kind: "password", host: "example.com" },
+      { value: "opened-value", kind: "password", host: "example.com" },
+    ])
+  })
+
+  it("keeps only the value an option change stops at, with its kind and the page's host", async () => {
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] })
     for (const value of ["first-value", "second-value", "settled-value"]) {
-      await request("generator.shown", { value, kind: "passphrase" })
+      await request("generator.shown", {
+        value,
+        kind: "passphrase",
+        settle: true,
+      })
       await vi.advanceTimersByTimeAsync(SETTLE_DELAY_MS / 2)
     }
     expect(await listHistory()).toEqual([])
@@ -65,13 +91,17 @@ describe("values the generator shows", () => {
 
   it("keeps a value copied before it settles, once", async () => {
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] })
-    await request("generator.shown", { value: "copied-name", kind: "username" })
     await request("generator.shown", {
       value: "copied-name",
       kind: "username",
-      copied: true,
+      settle: true,
     })
-    await request("generator.shown", { value: "later-name", kind: "username" })
+    await request("generator.shown", { value: "copied-name", kind: "username" })
+    await request("generator.shown", {
+      value: "later-name",
+      kind: "username",
+      settle: true,
+    })
     expect(await listHistory()).toMatchObject([
       { value: "copied-name", kind: "username" },
     ])
@@ -85,7 +115,11 @@ describe("values the generator shows", () => {
   })
 
   it("lists a value that has not settled yet when the history opens", async () => {
-    await request("generator.shown", { value: "just-shown", kind: "password" })
+    await request("generator.shown", {
+      value: "just-shown",
+      kind: "password",
+      settle: true,
+    })
     expect(await request("history.list", null)).toMatchObject([
       { value: "just-shown", kind: "password" },
     ])
@@ -101,11 +135,7 @@ describe("values the generator shows", () => {
       },
       ["ninelongs"],
     )
-    await request("generator.shown", {
-      value: passphrase,
-      kind: "passphrase",
-      copied: true,
-    })
+    await request("generator.shown", { value: passphrase, kind: "passphrase" })
     await request("generator.copy", { password: passphrase })
     expect(copyText).toHaveBeenCalledWith(passphrase, true)
     expect(await listHistory()).toMatchObject([
@@ -138,6 +168,16 @@ describe("the history", () => {
     expect((await listHistory()).map((entry) => entry.value)).toEqual(
       [...values].reverse(),
     )
+  })
+
+  it("adds a value already listed only once", async () => {
+    for (const value of ["first-value", "second-value", "first-value"]) {
+      await addHistory(value, null)
+    }
+    expect((await listHistory()).map((entry) => entry.value)).toEqual([
+      "second-value",
+      "first-value",
+    ])
   })
 
   it("keeps the newest entries up to the limit", async () => {

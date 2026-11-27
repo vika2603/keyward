@@ -23,16 +23,26 @@ import {
 type ShownValues = Partial<Record<GeneratorKind, string>>
 
 /**
+ * When a shown value enters the history: at once, or, for a value that follows an option as it
+ * changes, once no other value replaces it for a moment.
+ */
+type Recording = "now" | "whenSettled"
+
+/**
  * Puts a shown value in the history. A background from before the history kept every value lacks
  * the request; copying still records the value there, so the generator carries on without it.
  */
 export async function recordShown(
   value: string,
   kind: GeneratorKind,
-  copied = false,
+  recording: Recording = "now",
 ): Promise<void> {
   try {
-    await callBackground("generator.shown", { value, kind, copied })
+    await callBackground("generator.shown", {
+      value,
+      kind,
+      settle: recording === "whenSettled",
+    })
   } catch (error) {
     if (!isUnsupportedRequest(error)) throw error
   }
@@ -80,14 +90,14 @@ export function useGeneratorState() {
   }, [needsWords, words])
 
   const show = useCallback(
-    (which: GeneratorKind, value: string | null) => {
+    (which: GeneratorKind, value: string | null, recording: Recording) => {
       const next = { ...values }
       if (value === null) delete next[which]
       else next[which] = value
       setValues(next)
       void generatedItem.setValue(next)
       if (value !== null)
-        void recordShown(value, which).catch((error) =>
+        void recordShown(value, which, recording).catch((error) =>
           setMessage(errorMessage(error)),
         )
     },
@@ -114,7 +124,7 @@ export function useGeneratorState() {
   useEffect(() => {
     if (!passwordOptions || !choices || values[kind] !== undefined) return
     const value = generate(kind, passwordOptions, choices)
-    if (value !== null) show(kind, value)
+    if (value !== null) show(kind, value, "now")
   }, [passwordOptions, choices, values, kind, generate, show])
 
   if (!passwordOptions || !choices) return null
@@ -125,12 +135,13 @@ export function useGeneratorState() {
     const next = { ...changed, length: passwordLength(changed) }
     setPasswordOptions(next)
     void generatorOptionsItem.setValue(next)
-    show("password", generatePassword(next))
+    show("password", generatePassword(next), "whenSettled")
   }
   const updateChoices = (next: GeneratorChoices, regenerate: boolean) => {
     setChoices(next)
     void generatorChoicesItem.setValue(next)
-    if (regenerate) show(next.kind, generate(next.kind, passwordOptions, next))
+    if (regenerate)
+      show(next.kind, generate(next.kind, passwordOptions, next), "whenSettled")
   }
 
   const generateForwardedAlias = async () => {
@@ -164,7 +175,7 @@ export function useGeneratorState() {
         void generateForwardedAlias()
         return
       }
-      show(kind, generate(kind, passwordOptions, choices))
+      show(kind, generate(kind, passwordOptions, choices), "now")
     },
     chooseKind: (next: GeneratorKind) =>
       updateChoices({ ...choices, kind: next }, false),

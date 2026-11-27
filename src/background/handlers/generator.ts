@@ -53,15 +53,13 @@ export function generatorHandlers(forwarding: ForwardingStore) {
     },
     "generator.shown": {
       allow: popupOnly,
-      handle: async ({ value, kind, copied }) => {
+      handle: async ({ value, kind, settle }) => {
         const checkedValue = requireText(value, "value")
         const checkedKind = generatorKind(kind)
-        if (copied === true) {
-          await addShownNow(checkedValue, checkedKind, await activeHost())
-        } else {
-          // Nothing is awaited before this, so values wait to settle in the order the popup showed them.
+        // Nothing is awaited before these, so values are taken in the order the popup showed them.
+        if (settle === true)
           addWhenSettled(checkedValue, checkedKind, activeHost)
-        }
+        else await addShownNow(checkedValue, checkedKind, activeHost)
         return null
       },
     },
@@ -123,7 +121,7 @@ export function generatorHandlers(forwarding: ForwardingStore) {
           baseUrl: settings.baseUrl || undefined,
           website: host ?? undefined,
         })
-        await addShownNow(alias, "username", host)
+        await addShownNow(alias, "username", async () => host)
         return { alias }
       },
     },

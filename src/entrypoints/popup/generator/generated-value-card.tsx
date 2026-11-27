@@ -53,7 +53,7 @@ export function GeneratedValueCard({
     onMessage(null)
     try {
       // Kept with its kind right away, since another value may replace it before it settles.
-      await recordShown(value, kind, true)
+      await recordShown(value, kind)
       if (kind === "username")
         await callBackground("popup.copyText", { text: value })
       else await callBackground("generator.copy", { password: value })
@@ -74,6 +74,7 @@ export function GeneratedValueCard({
         {value !== null ? (
           <div
             ref={valueRef}
+            data-testid="generated-value"
             className={cn(
               "font-mono text-base leading-relaxed select-all",
               kind === "password" ? "break-all" : "[overflow-wrap:anywhere]",

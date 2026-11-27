@@ -48,7 +48,8 @@ async function prepend(
   kind: GeneratorKind,
 ): Promise<void> {
   const entries = await listHistory()
-  if (entries[0]?.value === value) return
+  // A value already listed keeps its place, so copying or filling it again adds nothing.
+  if (entries.some((listed) => listed.value === value)) return
   const entry: HistoryEntry = {
     id: crypto.randomUUID(),
     value,
@@ -60,9 +61,10 @@ async function prepend(
 }
 
 /**
- * Adds a value the generator shows once no other value of its kind has followed it for
- * SETTLE_DELAY_MS, so dragging the length slider adds only the length it stops at. The wait runs
- * here rather than in the popup, so the value still settles when the popup closes right away.
+ * Adds a value the generator shows for a changed option once no other value of its kind has
+ * followed it for SETTLE_DELAY_MS, so dragging the length slider adds only the length it stops at.
+ * The wait runs here rather than in the popup, so the value still settles when the popup closes
+ * right away.
  */
 export function addWhenSettled(
   value: string,
@@ -82,18 +84,21 @@ export function addWhenSettled(
   unsettled.set(kind, { value, host, timer })
 }
 
-/** Adds a shown value at once, as when it is copied before it settles. */
-export async function addShownNow(
+/**
+ * Adds a value the generator shows at once: one it generates on opening or on request, or one
+ * copied before it settles. A different value of its kind still waiting to settle was replaced too
+ * soon to count, so it is dropped. The change is queued before the host is looked up, so values
+ * enter the history in the order they were shown.
+ */
+export function addShownNow(
   value: string,
   kind: GeneratorKind,
-  host: string | null,
+  host: () => Promise<string | null>,
 ): Promise<void> {
   const waiting = unsettled.get(kind)
-  if (waiting?.value === value) {
-    clearTimeout(waiting.timer)
-    unsettled.delete(kind)
-  }
-  await addHistory(value, host, kind)
+  if (waiting) clearTimeout(waiting.timer)
+  unsettled.delete(kind)
+  return historyChange(async () => prepend(value, await host(), kind))
 }
 
 /** Adds the values still waiting to settle, so a history read right after generating includes them. */

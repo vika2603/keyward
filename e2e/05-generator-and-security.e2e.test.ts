@@ -18,6 +18,21 @@ describe("E2E 05 — Generator, Strength Meter, History, Forwarded Aliases & Sec
     await bitwarden?.close()
   })
 
+  /** The generator history as stored, for checking which values entered it. */
+  const historyText = () =>
+    extension.serviceWorker.evaluate(async () => {
+      const { storage } = (
+        globalThis as unknown as {
+          chrome: {
+            storage: {
+              session: { get(key: string): Promise<Record<string, unknown>> }
+            }
+          }
+        }
+      ).chrome
+      return JSON.stringify(await storage.session.get("generator.history"))
+    })
+
   it("generates passwords, passphrases, and usernames, tracks generator history, and exposes all 6 forwarding services", async () => {
     bitwarden.reset({ ciphers: [] })
     await extension.seedBitwarden({ server: bitwarden })
@@ -28,6 +43,14 @@ describe("E2E 05 — Generator, Strength Meter, History, Forwarded Aliases & Sec
     await popup
       .getByTestId("password-strength-meter")
       .waitFor({ state: "visible", timeout: 5000 })
+
+    // The value shown on opening stays in the history when another replaces it at once.
+    const generatedValue = popup.getByTestId("generated-value")
+    const opened = (await generatedValue.textContent()) ?? ""
+    expect(opened).not.toBe("")
+    await popup.getByRole("button", { name: "Regenerate" }).click()
+    await expect.poll(() => generatedValue.textContent()).not.toBe(opened)
+    await expect.poll(historyText).toContain(opened)
 
     // Copy password -> records entry into Generator History.
     await popup.getByRole("button", { name: "Copy", exact: true }).click()
