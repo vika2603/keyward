@@ -146,6 +146,8 @@ export interface Credential {
   password: string
   /** Custom fields that go into the page fields of the same name. */
   fields?: FillField[]
+  /** Whether the login has an HTTPS address for this site, so filling on HTTP warns first. */
+  hasHttpsUri?: boolean
 }
 
 /** A custom field to fill: text for a text field, or the state of a check box. */

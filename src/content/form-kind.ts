@@ -31,6 +31,12 @@ const SUBMIT_POINTS = 3
 const OTHER_BUTTON_POINTS = 1
 /** Points the requirements for a new password give, such as "at least 8 characters". */
 const REQUIREMENT_POINTS = 2
+/** Links to social/SSO providers do not flip polarity like a "Create an account" link does. */
+const SOCIAL_LOGIN_LINK =
+  /\b(with|via|using|con|mit|met|avec)\s+(google|apple|github|microsoft|facebook|twitter|x|sso|okta|linkedin|amazon|slack|discord)\b|使用.{1,12}登录/i
+/** Forgot-password links stay sign-in signals and must not flip polarity. */
+const RESET_PASSWORD_LINK =
+  /\b(forgot|reset)\b|忘记密码|忘記密碼|找回密码|重置密码/i
 /** Points a page's title, a main heading or the page's address gives. */
 const PAGE_POINTS = 1
 /** Headings beyond this length are prose rather than the page's name. */
@@ -105,8 +111,10 @@ function signUpPoints(text: string, points: number): number {
 }
 
 /**
- * Points for a sign-up from the buttons of a field's group, below zero for a sign-in. Without a
- * submitting button, the others count as the submitting one would.
+ * Points for a sign-up from the buttons and outbound links of a field's group, below zero for a
+ * sign-in. Without a submitting button, the others count as the submitting one would. Outbound
+ * links inside a form flip polarity (e.g. a "Create an account" link inside a sign-in form
+ * signals sign-in), except forgot-password and third-party SSO links.
  */
 export function buttonPoints(group: Element): number {
   const buttons = [...group.querySelectorAll<HTMLElement>(BUTTONS)]
@@ -115,9 +123,36 @@ export function buttonPoints(group: Element): number {
   const pointsOf = (list: HTMLElement[], points: number) =>
     list.reduce((sum, button) => sum + signUpPoints(labelOf(button), points), 0)
   if (!submits.length) return pointsOf(others, SUBMIT_POINTS)
-  return (
-    pointsOf(submits, SUBMIT_POINTS) - pointsOf(others, OTHER_BUTTON_POINTS)
+  const submitScore = pointsOf(submits, SUBMIT_POINTS)
+  // When the submit button already names sign-up or sign-in, outbound links only add noise
+  // (e.g. a "Create a business account" link on a personal sign-up form). Flip outbound links
+  // only when the submit button is generic (e.g. "Continue", "Next").
+  if (submitScore !== 0)
+    return submitScore - pointsOf(others, OTHER_BUTTON_POINTS)
+  const outboundLinks = [
+    ...group.querySelectorAll<HTMLAnchorElement>("a[href]"),
+  ]
+    .filter((link) => {
+      if (link.matches(BUTTONS)) return false
+      const href = (link.getAttribute("href") ?? "").trim()
+      return href !== "" && !href.startsWith("#") && !/^javascript:/i.test(href)
+    })
+    .map(labelOf)
+    .filter(
+      (label) =>
+        label.length > 0 &&
+        !RESET_PASSWORD_LINK.test(label) &&
+        !SOCIAL_LOGIN_LINK.test(label),
+    )
+  const rawFlippedLinks = outboundLinks.reduce(
+    (sum, label) => sum - signUpPoints(label, OTHER_BUTTON_POINTS),
+    0,
   )
+  const flippedLinkPoints = Math.max(
+    -OTHER_BUTTON_POINTS,
+    Math.min(OTHER_BUTTON_POINTS, rawFlippedLinks),
+  )
+  return -pointsOf(others, OTHER_BUTTON_POINTS) + flippedLinkPoints
 }
 
 /** Points for a sign-up when a group states requirements for a new password. */

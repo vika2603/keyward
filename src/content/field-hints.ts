@@ -120,12 +120,26 @@ export function hasCodeAutocomplete(input: HTMLInputElement): boolean {
   return hasAutocomplete(input, "one-time-code")
 }
 
+/**
+ * Whether `text` merely repeats what the user already typed into `input` (as inline-editable
+ * titles do when mirroring their text into `aria-label`).
+ */
+export function isInputOwnValue(
+  input: HTMLInputElement,
+  text: string | null | undefined,
+): boolean {
+  const value = input.value.trim()
+  if (!value || !text) return false
+  return text.trim().toLowerCase() === value.toLowerCase()
+}
+
 function hintText(input: HTMLInputElement): string {
+  const ariaLabel = input.getAttribute("aria-label")
   return [
     input.name,
     input.id,
     input.placeholder,
-    input.getAttribute("aria-label") ?? "",
+    isInputOwnValue(input, ariaLabel) ? "" : (ariaLabel ?? ""),
   ].join(" ")
 }
 
@@ -146,7 +160,10 @@ export function hintWords(input: HTMLInputElement): string {
 function wordsWithLabels(input: HTMLInputElement): string {
   const labels = [...(input.labels ?? [])]
     .map((label) => (label.textContent ?? "").replace(/\s+/g, " ").trim())
-    .filter((text) => text.length <= MAX_LABEL_LENGTH)
+    .filter(
+      (text) =>
+        text.length <= MAX_LABEL_LENGTH && !isInputOwnValue(input, text),
+    )
   return [hintWords(input), ...labels].join(" ")
 }
 

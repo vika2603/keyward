@@ -350,10 +350,18 @@ export type BackgroundApi = {
       suggestion?: string
       /** Whether the page waits for a passkey sign-in, which the menu offers. */
       passkey?: boolean
+      /** Set when the form lives in a cross-site iframe, naming the frame's host for clarity. */
+      embeddedInHost?: string
     }
   }
   "menu.fill": {
-    payload: { token: string; vaultId: string; loginId: string }
+    payload: {
+      token: string
+      vaultId: string
+      loginId: string
+      /** Confirms filling an HTTPS-saved login onto an unencrypted HTTP page. */
+      confirmInsecure?: boolean
+    }
     result: null
   }
   /** Fills the offered password into the new-password fields of the menu's form. */
@@ -450,6 +458,8 @@ export type ContentMessage =
   | { type: "fillNew"; origin: string; password: string }
   /** What the fields `fillNew` would fill set for a password, answered with `FieldRules` or null. */
   | { type: "newPasswordRules" }
+  /** Identifier (`id`, `name`, label, etc.) of the right-clicked or focused editable control. */
+  | { type: "elementIdentifier" }
   | { type: "usePasskey" }
   | { type: "menu.resize"; height: number }
   | { type: "menu.close"; focusField?: boolean }

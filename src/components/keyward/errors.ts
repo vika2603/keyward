@@ -29,6 +29,7 @@ const MESSAGES: Record<MessagedCode, MessageKey> = {
   unknownVault: "error.unknownVault",
   notWebPage: "error.notWebPage",
   fillDisabled: "error.fillDisabled",
+  insecureHttp: "error.insecureHttp",
   pageChanged: "error.pageChanged",
   noResponse: "error.unsupported",
   unsupported: "error.unsupported",

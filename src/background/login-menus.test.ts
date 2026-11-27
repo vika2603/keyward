@@ -5,7 +5,14 @@ import type { VaultView } from "./api"
 import { fillLogin, fillNewPassword, passwordForFrame } from "./autofill"
 import { copyText } from "./clipboard"
 import { LoginMenus } from "./login-menus"
-import { accountVault, fakeContextMenus, fakeProviders } from "./test-support"
+import {
+  accountVault,
+  fakeContextMenus,
+  fakeProviders,
+  pageModule,
+} from "./test-support"
+
+vi.mock("./page", async () => (await import("./test-support")).pageModule)
 
 vi.mock("./autofill", () => ({
   fillLogin: vi.fn(),
@@ -75,6 +82,7 @@ describe("LoginMenus", () => {
       "---",
       expect.any(String),
       expect.any(String),
+      expect.any(String),
     ])
     expect(contextMenus.created[0]?.enabled).toBe(false)
     const actions = (title: string) =>
@@ -88,7 +96,7 @@ describe("LoginMenus", () => {
       "copyCode",
     ])
     expect(actions("Shared account")).toEqual(["fill", "copyPassword"])
-    expect(contextMenus.created.at(-1)?.id).toBe("loginMenus.generate")
+    expect(contextMenus.created.at(-1)?.id).toBe("loginMenus.copyIdentifier")
   })
 
   it("puts each vault's logins under its own heading, and removes the earlier menus first", async () => {
@@ -271,16 +279,33 @@ describe("LoginMenus", () => {
     )
   })
 
-  it("shows only the generator without logins, and nothing when turned off", async () => {
+  it("shows only the generator and element identifier without logins, and nothing when turned off", async () => {
     const { menus } = setUp()
     await menus.show([], tab)
     expect(contextMenus.created.map((item) => item.id)).toEqual([
       "loginMenus.generateFill",
       "loginMenus.generate",
+      "loginMenus.copyIdentifier",
     ])
     contextMenus.created.length = 0
     await updateSettings({ contextMenu: false })
     await menus.show([], tab)
     expect(contextMenus.created).toEqual([])
+  })
+
+  it("copies the right-clicked field's identifier from the frame", async () => {
+    const { menus } = setUp()
+    await menus.show([], tab)
+    pageModule.sendToFrame.mockResolvedValueOnce("tenant_code")
+    contextMenus.click(
+      { menuItemId: "loginMenus.copyIdentifier", frameId: 2 },
+      tab,
+    )
+    await vi.waitFor(() =>
+      expect(copyText).toHaveBeenCalledWith("tenant_code", false),
+    )
+    expect(pageModule.sendToFrame).toHaveBeenCalledWith(tab.id, 2, {
+      type: "elementIdentifier",
+    })
   })
 })

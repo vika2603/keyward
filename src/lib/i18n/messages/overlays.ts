@@ -9,6 +9,12 @@ export const en = {
   "overlay.menu.suggest": "Use a strong password",
   "overlay.menu.passkey": "Sign in with a passkey",
   "overlay.menu.confirmTouchId": "Confirm with Touch ID or your Mac password.",
+  "overlay.menu.embeddedFrame": "Embedded form on {host}",
+  "overlay.menu.insecureHttpTitle": "Unencrypted HTTP page",
+  "overlay.menu.insecureHttpBody":
+    "This login is saved for HTTPS, but {host} uses HTTP. Fill anyway?",
+  "overlay.menu.fillAnyway": "Fill anyway",
+  "overlay.menu.cancel": "Cancel",
   "overlay.prompt.guard":
     "The prompt had just appeared, moved or was covered by the page. Click again.",
   "overlay.prompt.updateTitle": "Update the saved password?",
@@ -37,6 +43,12 @@ export const zhCN: Record<keyof typeof en, string> = {
   "overlay.menu.suggest": "使用强密码",
   "overlay.menu.passkey": "使用通行密钥登录",
   "overlay.menu.confirmTouchId": "用触控 ID 或 Mac 密码确认。",
+  "overlay.menu.embeddedFrame": "嵌入自 {host} 的表单",
+  "overlay.menu.insecureHttpTitle": "未加密的 HTTP 页面",
+  "overlay.menu.insecureHttpBody":
+    "这条登录保存的是 HTTPS 地址，但当前 {host} 使用 HTTP。仍要填充吗？",
+  "overlay.menu.fillAnyway": "仍要填充",
+  "overlay.menu.cancel": "取消",
   "overlay.prompt.guard": "提示刚出现、移动过或被页面遮挡，请再点一次。",
   "overlay.prompt.updateTitle": "更新已保存的密码？",
   "overlay.prompt.saveTitle": "保存这个登录？",

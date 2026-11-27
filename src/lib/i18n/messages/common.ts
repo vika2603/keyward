@@ -17,6 +17,8 @@ export const en = {
   "error.unknownVault": "This vault is not available right now.",
   "error.notWebPage": "This page is not a web page.",
   "error.fillDisabled": "Filling is not allowed on this page.",
+  "error.insecureHttp":
+    "This page uses unencrypted HTTP, while this login is saved for HTTPS.",
   "error.pageChanged": "The page changed, so nothing was filled.",
   "error.unsupported": "This isn't available yet",
   "error.unsupported.detail":
@@ -99,6 +101,8 @@ export const zhCN: Record<keyof typeof en, string> = {
   "error.unknownVault": "这个密码库当前不可用。",
   "error.notWebPage": "当前页面不是网页。",
   "error.fillDisabled": "这个页面不允许填充。",
+  "error.insecureHttp":
+    "当前页面使用未加密的 HTTP，而这条登录保存的是 HTTPS 地址。",
   "error.pageChanged": "页面已经变化，没有填入。",
   "error.unsupported": "这项功能暂时不能用",
   "error.unsupported.detail":

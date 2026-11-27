@@ -28,6 +28,13 @@ import {
   SIGN_IN_LABEL,
   textUpTo,
 } from "./form-kind"
+import {
+  type ActiveSiteFixes,
+  forcedBoundaryOf,
+  forcedFieldKind,
+  forcedFormKind,
+  siteFixesFor,
+} from "./site-fixes"
 
 /** Elements smaller than this, in CSS pixels, either way are taken as hidden. */
 const MIN_VISIBLE_SIZE = 8
@@ -47,17 +54,99 @@ const MAX_FIELDS_BESIDE_USERNAME = 3
 /** More points than a sign-up button alone gives, which a form needs to overrule a page's mark. */
 const CLEAR_SIGN_UP_POINTS = 3
 
+/** Zero-area clip-path shapes pages or clickjackers use to hide inputs while keeping layout size. */
+const ZERO_CLIP_PATH =
+  /^inset\(\s*(?:50%|100%)(?:\s|\)|$)|^circle\(\s*0(?:px|%|em|rem)?(?:\s|\)|$)|^ellipse\(\s*0(?:px|%|em|rem)?(?:\s|\)|$)|^polygon\(\s*0(?:px|%)?\s+0(?:px|%)?(?:\s*,\s*0(?:px|%)?\s+0(?:px|%)?)*\s*\)/i
+const ZERO_LEGACY_CLIP =
+  /^rect\(\s*0(?:px)?[\s,]+0(?:px)?[\s,]+0(?:px)?[\s,]+0(?:px)?\s*\)$/i
+
+function isClippedOut(
+  element: HTMLElement,
+  style: CSSStyleDeclaration,
+): boolean {
+  const clipPath =
+    style.clipPath ||
+    style.getPropertyValue("clip-path") ||
+    element.style.clipPath
+  if (clipPath && clipPath !== "none" && ZERO_CLIP_PATH.test(clipPath.trim()))
+    return true
+  const clip =
+    style.clip || style.getPropertyValue("clip") || element.style.clip
+  return Boolean(clip && clip !== "auto" && ZERO_LEGACY_CLIP.test(clip.trim()))
+}
+
+function hasHiddenOpacity(style: CSSStyleDeclaration): boolean {
+  if (style.opacity === "") return false
+  const value = Number(style.opacity)
+  return !(value > MAX_HIDDEN_OPACITY)
+}
+
 export function isVisible(element: HTMLElement): boolean {
   if (!element.isConnected) return false
   const rect = element.getBoundingClientRect()
   if (rect.width < MIN_VISIBLE_SIZE || rect.height < MIN_VISIBLE_SIZE)
     return false
   const style = getComputedStyle(element)
-  return (
-    style.visibility !== "hidden" &&
-    style.display !== "none" &&
-    Number(style.opacity) > MAX_HIDDEN_OPACITY
+  if (
+    style.visibility === "hidden" ||
+    style.visibility === "collapse" ||
+    style.display === "none" ||
+    hasHiddenOpacity(style) ||
+    isClippedOut(element, style)
   )
+    return false
+  for (
+    let ancestor = composedParent(element);
+    ancestor && ancestor !== element.ownerDocument.documentElement;
+    ancestor = composedParent(ancestor)
+  ) {
+    if (!(ancestor instanceof HTMLElement)) continue
+    const ancestorStyle = getComputedStyle(ancestor)
+    if (
+      ancestorStyle.display === "none" ||
+      hasHiddenOpacity(ancestorStyle) ||
+      isClippedOut(ancestor, ancestorStyle)
+    )
+      return false
+  }
+  return true
+}
+
+/**
+ * Whether another page element covers the center of `element` in the viewport (e.g. a modal
+ * backdrop or clickjacking overlay). Returns false when off-screen or when the runtime has no
+ * layout hit-testing.
+ */
+export function isOccluded(
+  element: HTMLElement,
+  isOwnNode?: (node: Node) => boolean,
+): boolean {
+  const rect = element.getBoundingClientRect()
+  if (rect.width < MIN_VISIBLE_SIZE || rect.height < MIN_VISIBLE_SIZE)
+    return true
+  const centerX = rect.left + rect.width / 2
+  const centerY = rect.top + rect.height / 2
+  if (
+    centerX < 0 ||
+    centerY < 0 ||
+    centerX > window.innerWidth ||
+    centerY > window.innerHeight
+  )
+    return false
+  const root = element.getRootNode() as Partial<DocumentOrShadowRoot>
+  if (typeof root.elementFromPoint !== "function") return false
+  const hit = root.elementFromPoint(centerX, centerY)
+  if (!hit) return false
+  if (hit === element || element.contains(hit)) return false
+  if (isOwnNode?.(hit)) return false
+  if (
+    element instanceof HTMLInputElement &&
+    [...(element.labels ?? [])].some(
+      (label) => label === hit || label.contains(hit),
+    )
+  )
+    return false
+  return true
 }
 
 /** Whether the user could type into the field now. Hidden inputs are left out before any layout read. */
@@ -122,14 +211,47 @@ export interface FoundFields {
 /** The fillable inputs of each scope, a form or the document, found once per lookup. */
 export class FieldIndex {
   private readonly cache = new Map<ParentNode, HTMLInputElement[]>()
+  private readonly fixes: ActiveSiteFixes
+
+  constructor(
+    root: Document = document,
+    private readonly onShadowRoot?: (root: ShadowRoot) => void,
+    fixes?: ActiveSiteFixes,
+  ) {
+    this.fixes = fixes ?? siteFixesFor(root.location)
+  }
+
+  private scope(element: Element): ParentNode {
+    return scopeOf(element, forcedBoundaryOf(element, this.fixes))
+  }
 
   inputs(scope: ParentNode): HTMLInputElement[] {
     let inputs = this.cache.get(scope)
     if (!inputs) {
-      inputs = deepInputs(scope).filter(isFillable)
+      const limit =
+        scope.nodeType === Node.DOCUMENT_NODE
+          ? this.fixes.maxInputsPerPage
+          : this.fixes.maxInputsPerForm
+      if (limit <= 0) {
+        inputs = []
+      } else {
+        const fillable = deepInputs(scope, this.onShadowRoot).filter(isFillable)
+        const textLikeCount = fillable.filter(
+          (input) => input.type === "password" || TYPED_TYPES.has(input.type),
+        ).length
+        inputs = textLikeCount > limit ? [] : fillable
+      }
       this.cache.set(scope, inputs)
     }
     return inputs
+  }
+
+  private isEffectivePassword(input: HTMLInputElement): boolean {
+    const forced = forcedFieldKind(input, this.fixes)
+    if (forced === "currentPassword" || forced === "newPassword") return true
+    if (forced === "unknown" || forced === "username" || forced === "code")
+      return false
+    return isPasswordField(input)
   }
 
   /**
@@ -138,27 +260,39 @@ export class FieldIndex {
    * ask for a last name between it and the password.
    */
   usernameFor(password: HTMLInputElement): HTMLInputElement | null {
-    const inputs = this.inputs(scopeOf(password))
+    const inputs = this.inputs(this.scope(password))
     for (let index = inputs.indexOf(password) - 1; index >= 0; index--) {
       const input = inputs[index]
-      if (input && isTextField(input) && !NAME_PART_HINT.test(hintWords(input)))
+      if (!input) continue
+      const forced = forcedFieldKind(input, this.fixes)
+      if (forced === "username") return input
+      if (forced !== null) continue
+      if (isTextField(input) && !NAME_PART_HINT.test(hintWords(input)))
         return input
     }
     return null
   }
 
-  /** The first password field after a username field in the same form. */
+  /**
+   * The first current-password field after a username field in the same form. New-password fields
+   * are skipped so filling a saved login never overwrites a registration or password-change field.
+   */
   passwordFor(username: HTMLInputElement): HTMLInputElement | null {
-    const inputs = this.inputs(scopeOf(username))
+    const inputs = this.inputs(this.scope(username))
     return (
-      inputs.slice(inputs.indexOf(username) + 1).find(isPasswordField) ?? null
+      inputs
+        .slice(inputs.indexOf(username) + 1)
+        .find(
+          (field) =>
+            this.isEffectivePassword(field) && !this.isNewPassword(field),
+        ) ?? null
     )
   }
 
   /**
-   * Whether a password field takes a new password: the page or the field's name says so, or its
-   * form has more password fields. A page's `new-password` mark is overruled by a forgot-password
-   * link around the field. Three fields are the current password, a new one and its
+   * Whether a password field takes a new password: site rules, the page or the field's name say so,
+   * or its form has more password fields. A page's `new-password` mark is overruled by a
+   * forgot-password link around the field. Three fields are the current password, a new one and its
    * confirmation. Two are either a new password and its confirmation, as on sign-up, or the current
    * password and a new one; the first field counts as new only when the second asks to confirm it
    * or a username comes before it. Taking a current password for a new one would let a suggested
@@ -167,13 +301,22 @@ export class FieldIndex {
    * mark gives way only to a form that clearly signs up, as on Twitch's sign-up form.
    */
   isNewPassword(input: HTMLInputElement): boolean {
+    const forced = forcedFieldKind(input, this.fixes)
+    if (forced === "newPassword") return true
+    if (forced === "currentPassword" || forced === "unknown") return false
+    const forcedForm = forcedFormKind(input, this.fixes)
+    if (forcedForm === "signup") return true
+    if (forcedForm === "login") return false
+
     if (hasAutocomplete(input, "current-password"))
       return this.signUpPoints(input) > CLEAR_SIGN_UP_POINTS
     if (marksNewPassword(input))
       return namesNewPassword(input) || !nearForgotPassword(input)
     if (namesCurrentPassword(input)) return false
     if (namesNewPassword(input)) return true
-    const passwords = this.inputs(scopeOf(input)).filter(isPasswordField)
+    const passwords = this.inputs(this.scope(input)).filter((field) =>
+      this.isEffectivePassword(field),
+    )
     const index = passwords.indexOf(input)
     if (index < 0) return false
     if (passwords.length === 1) return this.signUpPoints(input) > 0
@@ -208,17 +351,25 @@ export class FieldIndex {
   loginFields(root: Document): HTMLInputElement[] {
     const inputs = this.inputs(root)
     const fields = new Set<HTMLInputElement>()
-    for (const password of inputs.filter(isPasswordField)) {
+    for (const password of inputs.filter((input) =>
+      this.isEffectivePassword(input),
+    )) {
       if (this.isNewPassword(password)) continue
       fields.add(password)
       const username = this.usernameFor(password)
       if (username) fields.add(username)
     }
     for (const input of inputs) {
+      const forced = forcedFieldKind(input, this.fixes)
+      if (forced === "unknown" || forced === "code") continue
+      if (forced === "username") {
+        fields.add(input)
+        continue
+      }
       if (
         !fields.has(input) &&
         looksLikeUsername(input) &&
-        !this.inputs(scopeOf(input)).some(
+        !this.inputs(this.scope(input)).some(
           (field) => field.type === "password",
         ) &&
         !this.inLongerForm(input) &&
@@ -248,7 +399,7 @@ export class FieldIndex {
 
   newPasswordFields(root: Document): HTMLInputElement[] {
     return this.inputs(root).filter(
-      (input) => isPasswordField(input) && this.isNewPassword(input),
+      (input) => this.isEffectivePassword(input) && this.isNewPassword(input),
     )
   }
 
@@ -258,7 +409,12 @@ export class FieldIndex {
   ): HTMLInputElement[] {
     const found = new Set<HTMLInputElement>()
     for (const input of this.inputs(root)) {
-      if (isCodeField(input) && !knownLoginFields.includes(input))
+      const forced = forcedFieldKind(input, this.fixes)
+      if (forced === "unknown") continue
+      if (
+        (forced === "code" || isCodeField(input)) &&
+        !knownLoginFields.includes(input)
+      )
         found.add(this.codeBoxes(input)[0] ?? input)
     }
     return [...found]
@@ -270,7 +426,7 @@ export class FieldIndex {
    */
   codeBoxes(field: HTMLInputElement): HTMLInputElement[] {
     if (field.maxLength !== 1) return [field]
-    const inputs = this.inputs(scopeOf(field))
+    const inputs = this.inputs(this.scope(field))
     const index = inputs.indexOf(field)
     if (index < 0) return [field]
     let start = index
@@ -282,8 +438,12 @@ export class FieldIndex {
 }
 
 /** The page's login, new-password and code fields, found in one pass over the page. */
-export function findFields(root: Document): FoundFields {
-  const index = new FieldIndex()
+export function findFields(
+  root: Document,
+  onShadowRoot?: (root: ShadowRoot) => void,
+  fixes?: ActiveSiteFixes,
+): FoundFields {
+  const index = new FieldIndex(root, onShadowRoot, fixes)
   const login = index.loginFields(root)
   const newPassword = index.newPasswordFields(root)
   return {
@@ -294,7 +454,7 @@ export function findFields(root: Document): FoundFields {
 }
 
 export function codeBoxes(field: HTMLInputElement): HTMLInputElement[] {
-  return new FieldIndex().codeBoxes(field)
+  return new FieldIndex(field.ownerDocument).codeBoxes(field)
 }
 
 /** The username and password fields a login for `anchor` goes into. */
@@ -302,7 +462,7 @@ export function fillTargets(anchor: HTMLInputElement): {
   username: HTMLInputElement | null
   password: HTMLInputElement | null
 } {
-  const index = new FieldIndex()
+  const index = new FieldIndex(anchor.ownerDocument)
   if (isPasswordField(anchor))
     return { username: index.usernameFor(anchor), password: anchor }
   return { username: anchor, password: index.passwordFor(anchor) }
@@ -334,6 +494,11 @@ export function newPasswordTargets(
   anchor: HTMLInputElement,
   fields: readonly HTMLInputElement[],
 ): HTMLInputElement[] {
-  const scope = scopeOf(anchor)
-  return fields.filter((field) => field === anchor || scopeOf(field) === scope)
+  const fixes = siteFixesFor(anchor.ownerDocument.location)
+  const scope = scopeOf(anchor, forcedBoundaryOf(anchor, fixes))
+  return fields.filter(
+    (field) =>
+      field === anchor ||
+      scopeOf(field, forcedBoundaryOf(field, fixes)) === scope,
+  )
 }

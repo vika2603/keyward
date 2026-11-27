@@ -3,6 +3,7 @@ import {
   FingerprintPatternIcon,
   KeyRoundIcon,
   PlusIcon,
+  ShieldAlertIcon,
   TimerIcon,
 } from "lucide-react"
 import {
@@ -17,7 +18,7 @@ import type { BackgroundApi, VaultView } from "@/background/api"
 import { useAppearance } from "@/components/keyward/appearance"
 import { BrandIcon, vaultLabel } from "@/components/keyward/brand-icon"
 import { connectTexts } from "@/components/keyward/connect-texts"
-import { errorMessage } from "@/components/keyward/errors"
+import { errorCodeOf, errorMessage } from "@/components/keyward/errors"
 import { useLanguage } from "@/components/keyward/language"
 import { FADE_IN, LoginListSkeleton } from "@/components/keyward/loading"
 import { LoginLabel } from "@/components/keyward/login-label"
@@ -49,6 +50,10 @@ export function App() {
   const card = useRef<HTMLDivElement>(null)
   const [state, setState] = useState<MenuState | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
+  const [pendingInsecure, setPendingInsecure] = useState<{
+    vaultId: string
+    loginId: string
+  } | null>(null)
   const {
     notice,
     show: showNotice,
@@ -91,8 +96,23 @@ export function App() {
       setBusy(null)
     }
   }
-  const fill = (vaultId: string, loginId: string) =>
-    run(loginId, () => callOverlay("menu.fill", { vaultId, loginId }))
+  const fill = (vaultId: string, loginId: string, confirmInsecure = false) =>
+    run(loginId, async () => {
+      try {
+        await callOverlay("menu.fill", {
+          vaultId,
+          loginId,
+          ...(confirmInsecure ? { confirmInsecure: true } : {}),
+        })
+        setPendingInsecure(null)
+      } catch (error) {
+        if (!confirmInsecure && errorCodeOf(error) === "insecureHttp") {
+          setPendingInsecure({ vaultId, loginId })
+          return
+        }
+        throw error
+      }
+    })
   const fillSuggestion = () =>
     run(SUGGESTION_ID, () => callOverlay("menu.fillSuggestion", {}))
   const signInWithPasskey = () =>
@@ -115,10 +135,60 @@ export function App() {
         role="menu"
         className="flex max-h-[440px] w-full flex-col overflow-y-auto rounded-xl border border-border/80 bg-popover pb-1 text-popover-foreground shadow-md outline-none [scrollbar-width:thin]"
       >
-        {state === null ? (
+        {state === null && (
           <LoginListSkeleton compact={compact} heading={false} />
-        ) : (
+        )}
+        {state !== null && pendingInsecure && (
+          <div className={cn("flex flex-col gap-2.5 p-3", FADE_IN)}>
+            <div className="flex items-start gap-2">
+              <ShieldAlertIcon className="mt-0.5 size-4 shrink-0 text-amber-600 dark:text-amber-400" />
+              <div className="min-w-0 flex-1 space-y-1">
+                <p className="text-sm font-medium">
+                  {t("overlay.menu.insecureHttpTitle")}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {t("overlay.menu.insecureHttpBody", { host: state.host })}
+                </p>
+              </div>
+            </div>
+            <div className="flex justify-end gap-1.5">
+              <button
+                type="button"
+                disabled={busy !== null}
+                onClick={() => setPendingInsecure(null)}
+                className="h-7 rounded-md border border-border px-2.5 text-xs font-medium hover:bg-muted disabled:opacity-50"
+              >
+                {t("overlay.menu.cancel")}
+              </button>
+              <button
+                type="button"
+                disabled={busy !== null}
+                onClick={() =>
+                  void fill(
+                    pendingInsecure.vaultId,
+                    pendingInsecure.loginId,
+                    true,
+                  )
+                }
+                className="h-7 rounded-md bg-primary px-2.5 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+              >
+                {t("overlay.menu.fillAnyway")}
+              </button>
+            </div>
+          </div>
+        )}
+        {state !== null && !pendingInsecure && (
           <div className={cn("flex flex-col", FADE_IN)}>
+            {state.embeddedInHost && (
+              <div className="flex items-center gap-1.5 border-b border-border/60 px-3 py-1.5 text-xs text-muted-foreground">
+                <ShieldAlertIcon className="size-3.5 shrink-0" />
+                <span className="truncate">
+                  {t("overlay.menu.embeddedFrame", {
+                    host: state.embeddedInHost,
+                  })}
+                </span>
+              </div>
+            )}
             {state.suggestion && (
               <div className="p-1">
                 <MenuRow

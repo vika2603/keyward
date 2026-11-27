@@ -1,7 +1,12 @@
 import type { ContentMessage } from "@/background/api"
 import type { FieldRules } from "@/lib/password-rules"
 import { deepActiveElement } from "./deep-dom"
-import { fieldRulesOf, fillTargets, newPasswordTargets } from "./field-finder"
+import {
+  fieldRulesOf,
+  fillTargets,
+  isOccluded,
+  newPasswordTargets,
+} from "./field-finder"
 import { isPasswordField } from "./field-hints"
 import type { FieldTracker } from "./field-tracker"
 import {
@@ -38,6 +43,17 @@ function focusedInput(): HTMLInputElement | null {
   return focused instanceof HTMLInputElement ? focused : null
 }
 
+/** Whether the current frame is sandboxed, where autofilling secrets is refused. */
+export function isSandboxedFrame(): boolean {
+  if (location.origin === "null") return true
+  try {
+    return window.frameElement?.hasAttribute("sandbox") === true
+  } catch {
+    // Accessing frameElement throws in a cross-origin iframe, which is not necessarily sandboxed.
+    return false
+  }
+}
+
 /**
  * Fills what the background sends after the user picked it in a menu. Each fill goes into the
  * form of an anchor field: the menu's field, the focused field, the field the menu was last opened
@@ -51,6 +67,7 @@ export class FillHandlers {
     private readonly fields: FieldTracker,
     /** The field the menu was last opened for. */
     private readonly lastMenuField: () => HTMLInputElement | null,
+    private readonly isOwnNode?: (node: Node) => boolean,
   ) {}
 
   /** Whether a fill is moving the focus between fields, which must not reopen the menu. */
@@ -58,9 +75,13 @@ export class FillHandlers {
     return this.fillingNow
   }
 
+  private canFillField(field: HTMLInputElement): boolean {
+    return !isOccluded(field, this.isOwnNode)
+  }
+
   fill(message: Message<"fill">): void {
     // The background checked the login against this origin; the frame may have navigated since.
-    if (location.origin !== message.origin) return
+    if (isSandboxedFrame() || location.origin !== message.origin) return
     const anchor = resolveAnchor([
       [this.menu.openFor],
       [focusedInput(), (field) => this.fields.isLogin(field)],
@@ -71,19 +92,34 @@ export class FillHandlers {
     this.menu.close()
     if (!anchor) return
     const { username, password } = fillTargets(anchor)
-    const filledFields = [username, password].filter((field) => field !== null)
+    const safeUsername =
+      username && this.canFillField(username) ? username : null
+    const safePassword =
+      password && this.canFillField(password) ? password : null
+    if (!safeUsername && !safePassword) return
+    const filledFields = [safeUsername, safePassword].filter(
+      (field) => field !== null,
+    )
     this.whileFilling(() => {
       // Custom fields go first, so the focus ends on the login's own fields as typing would leave it.
       fillCustomFields(anchor, message.fields, filledFields)
-      if (username && message.username)
-        setFieldValue(username, message.username)
-      if (password && message.password)
-        setFieldValue(password, message.password)
+      if (
+        safeUsername &&
+        message.username &&
+        safeUsername.value !== message.username
+      )
+        setFieldValue(safeUsername, message.username)
+      if (
+        safePassword &&
+        message.password &&
+        safePassword.value !== message.password
+      )
+        setFieldValue(safePassword, message.password)
     })
     // A login without a password leaves a form that asks for one to the user, and so does a form
     // with a field still empty, such as a captcha or a code.
-    const complete = Boolean(message.password) || !password
-    const submitField = password ?? username
+    const complete = Boolean(message.password) || !safePassword
+    const submitField = safePassword ?? safeUsername
     if (
       message.autoSubmit &&
       complete &&
@@ -94,7 +130,7 @@ export class FillHandlers {
   }
 
   fillCode(message: Message<"fillCode">): void {
-    if (location.origin !== message.origin) return
+    if (isSandboxedFrame() || location.origin !== message.origin) return
     const isCode = (field: HTMLInputElement) => this.fields.isCode(field)
     const anchor = resolveAnchor([
       [this.menu.openFor, isCode],
@@ -103,7 +139,7 @@ export class FillHandlers {
       [this.fields.code[0], isCode],
     ])
     this.menu.close()
-    if (!anchor) return
+    if (!anchor || !this.canFillField(anchor)) return
     this.whileFilling(() => fillCodeField(anchor, message.code))
   }
 
@@ -115,8 +151,10 @@ export class FillHandlers {
    * Returns whether any field got it.
    */
   fillNew(message: Message<"fillNew">): boolean {
-    if (location.origin !== message.origin) return false
-    const targets = this.targetsForNewPassword()
+    if (isSandboxedFrame() || location.origin !== message.origin) return false
+    const targets = this.targetsForNewPassword().filter((field) =>
+      this.canFillField(field),
+    )
     this.menu.close()
     this.whileFilling(() => {
       for (const field of targets) setFieldValue(field, message.password)

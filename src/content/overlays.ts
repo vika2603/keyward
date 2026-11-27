@@ -253,6 +253,10 @@ class Overlay {
 export class InlineMenu {
   private readonly overlay: Overlay
   private field: HTMLInputElement | null = null
+  private savedAutocomplete: {
+    field: HTMLInputElement
+    value: string | null
+  } | null = null
   private frame = 0
   /** Set briefly when returning focus from the menu's cross-origin frame, which fires a trusted focusin. */
   private returningTo: HTMLInputElement | null = null
@@ -321,8 +325,11 @@ export class InlineMenu {
       "keydown",
       (event) => {
         if (!this.field) return
-        if (event.key === "Escape") this.close()
-        else if (
+        if (event.key === "Escape") {
+          event.preventDefault()
+          event.stopImmediatePropagation()
+          this.close(true)
+        } else if (
           event.key === "ArrowDown" &&
           event.isTrusted &&
           !event.isComposing &&
@@ -334,6 +341,7 @@ export class InlineMenu {
       },
       { capture: true },
     )
+    ctx.onInvalidated(() => this.restoreAutocomplete())
   }
 
   get openFor(): HTMLInputElement | null {
@@ -345,9 +353,28 @@ export class InlineMenu {
   }
 
   show(field: HTMLInputElement, token: string): void {
+    this.restoreAutocomplete()
     this.field = field
+    this.suppressAutocomplete(field)
     this.overlay.show(token)
     this.overlay.placeBelow(field)
+  }
+
+  private suppressAutocomplete(field: HTMLInputElement): void {
+    this.savedAutocomplete = {
+      field,
+      value: field.getAttribute("autocomplete"),
+    }
+    // Suppress the browser's own autocomplete dropdown while Keyward's menu is open.
+    field.setAttribute("autocomplete", "off")
+  }
+
+  private restoreAutocomplete(): void {
+    const saved = this.savedAutocomplete
+    if (!saved) return
+    this.savedAutocomplete = null
+    if (saved.value === null) saved.field.removeAttribute("autocomplete")
+    else saved.field.setAttribute("autocomplete", saved.value)
   }
 
   resize(height: number): void {
@@ -380,6 +407,7 @@ export class InlineMenu {
     if (!this.field) return
     const field = this.field
     this.field = null
+    this.restoreAutocomplete()
     this.overlay.hide()
     if (focusField) this.returnFocusTo(field)
     this.onClosed()

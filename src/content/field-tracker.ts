@@ -1,16 +1,27 @@
 import type { ContentScriptContext } from "wxt/utils/content-script-context"
+import { hasPendingShadowHosts } from "./deep-dom"
 import { type FoundFields, findFields } from "./field-finder"
 
 /** How long a scan waits after a change to the page, so that a burst of changes scans once. */
 const SCAN_DELAY_MS = 300
-/** Changes inside shadow roots do not reach the page observer; a slow rescan picks them up. */
-const RESCAN_MS = 2000
+/** Initial delay before re-checking custom elements awaiting shadow-root hydration. */
+const HYDRATION_INITIAL_MS = 500
+/** Upper bound for exponential backoff while waiting for custom elements to hydrate. */
+const HYDRATION_MAX_MS = 8000
+
+const OBSERVE_OPTIONS: MutationObserverInit = {
+  childList: true,
+  subtree: true,
+  attributes: true,
+  attributeFilter: ["type", "style", "class", "hidden", "disabled"],
+}
 
 const NO_FIELDS: FoundFields = { login: [], newPassword: [], code: [] }
 
 /**
- * Keeps the page's login, new-password and code fields up to date while the page changes. Code
- * fields count only while a ready vault has one-time codes for the page.
+ * Keeps the page's login, new-password and code fields up to date while the page changes.
+ * Discovered shadow roots are observed directly; custom elements still awaiting shadow-root
+ * hydration are polled with bounded exponential backoff instead of an unbounded interval.
  */
 export class FieldTracker {
   private fields = NO_FIELDS
@@ -19,8 +30,10 @@ export class FieldTracker {
   private askingCodes = false
   private running = false
   private observer: MutationObserver | null = null
+  private observedRoots = new WeakSet<Node>()
   private scanTimer = 0
-  private rescanTimer = 0
+  private hydrationTimer = 0
+  private hydrationDelayMs = HYDRATION_INITIAL_MS
 
   constructor(
     private readonly ctx: ContentScriptContext,
@@ -36,6 +49,7 @@ export class FieldTracker {
     ctx.onInvalidated(() => {
       this.observer?.disconnect()
       clearTimeout(this.scanTimer)
+      clearTimeout(this.hydrationTimer)
     })
   }
 
@@ -71,20 +85,16 @@ export class FieldTracker {
 
   start(): void {
     this.running = true
+    this.observedRoots = new WeakSet<Node>()
     this.observer = new MutationObserver((records) => {
       if (this.scanTimer || records.every(this.isKeywardChange)) return
+      this.hydrationDelayMs = HYDRATION_INITIAL_MS
       this.scanTimer = window.setTimeout(() => {
         this.scanTimer = 0
         this.scan()
       }, SCAN_DELAY_MS)
     })
-    this.observer.observe(document.documentElement, {
-      childList: true,
-      subtree: true,
-      attributes: true,
-      attributeFilter: ["type", "style", "class", "hidden", "disabled"],
-    })
-    this.rescanTimer = this.ctx.setInterval(() => this.scan(), RESCAN_MS)
+    this.observeRoot(document.documentElement)
     this.scan()
   }
 
@@ -92,7 +102,9 @@ export class FieldTracker {
     this.running = false
     this.observer?.disconnect()
     this.observer = null
-    clearInterval(this.rescanTimer)
+    this.observedRoots = new WeakSet<Node>()
+    clearTimeout(this.hydrationTimer)
+    this.hydrationTimer = 0
     clearTimeout(this.scanTimer)
     this.scanTimer = 0
     this.fields = NO_FIELDS
@@ -100,11 +112,12 @@ export class FieldTracker {
   }
 
   scan(): void {
-    const found = findFields(document)
+    const found = findFields(document, (root) => this.observeRoot(root))
     if (found.code.length && this.codesAvailable === null)
       void this.checkCodes()
     this.fields = { ...found, code: this.codesAvailable ? found.code : [] }
     this.options.onScan(this.fields)
+    this.scheduleHydrationCheck()
   }
 
   /**
@@ -113,6 +126,28 @@ export class FieldTracker {
    */
   forgetCodes(): void {
     this.codesAvailable = null
+  }
+
+  private observeRoot(root: Node): void {
+    if (!this.observer || this.observedRoots.has(root)) return
+    this.observedRoots.add(root)
+    this.observer.observe(root, OBSERVE_OPTIONS)
+  }
+
+  /** Re-scans with exponential backoff only while custom elements are awaiting shadow roots. */
+  private scheduleHydrationCheck(): void {
+    clearTimeout(this.hydrationTimer)
+    this.hydrationTimer = 0
+    if (!this.running || !hasPendingShadowHosts()) {
+      this.hydrationDelayMs = HYDRATION_INITIAL_MS
+      return
+    }
+    const delay = this.hydrationDelayMs
+    this.hydrationDelayMs = Math.min(delay * 2, HYDRATION_MAX_MS)
+    this.hydrationTimer = window.setTimeout(() => {
+      this.hydrationTimer = 0
+      if (this.running) this.scan()
+    }, delay)
   }
 
   /** Asks once whether code fields count, and scans again when they do. */

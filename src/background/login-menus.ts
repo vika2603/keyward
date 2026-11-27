@@ -8,7 +8,7 @@ import type { VaultView } from "./api"
 import { fillLogin, fillNewPassword, passwordForFrame } from "./autofill"
 import { copyText } from "./clipboard"
 import { addHistory } from "./history"
-import { webPage } from "./page"
+import { sendToFrame, webPage } from "./page"
 import type { Providers } from "./providers"
 
 type Action = "fill" | "copyUsername" | "copyPassword" | "copyCode"
@@ -21,6 +21,7 @@ const ACTIONS: readonly Action[] = [
 ]
 const GENERATE_ID = "loginMenus.generate"
 const GENERATE_FILL_ID = "loginMenus.generateFill"
+const COPY_IDENTIFIER_ID = "loginMenus.copyIdentifier"
 /**
  * The IDs of the top-level menus the last rendering made; removing them removes their submenus.
  * Kept in storage.local, which a browser restart does not clear, so menus Chrome keeps from an
@@ -50,7 +51,7 @@ const CONTEXTS: Browser.contextMenus.CreateProperties["contexts"] = [
 /** The menus' texts; kept here so the background does not carry the whole catalog. */
 const TITLES: Record<
   Language,
-  Record<Action | "generate" | "generateFill", string>
+  Record<Action | "generate" | "generateFill" | "copyIdentifier", string>
 > = {
   "zh-CN": {
     fill: "填充登录",
@@ -59,6 +60,7 @@ const TITLES: Record<
     copyCode: "复制验证码",
     generate: "生成密码并复制",
     generateFill: "生成密码并填充",
+    copyIdentifier: "复制元素标识",
   },
   en: {
     fill: "Fill Login",
@@ -67,6 +69,7 @@ const TITLES: Record<
     copyCode: "Copy Verification Code",
     generate: "Generate Password and Copy",
     generateFill: "Generate Password and Fill",
+    copyIdentifier: "Copy Element Identifier",
   },
 }
 
@@ -176,6 +179,13 @@ export class LoginMenus {
       // Without a field to take it, or where filling is turned off, the password is copied instead,
       // so choosing the entry is never lost.
       if (!filled) await copyGenerated(password, tabUrl)
+      return
+    }
+    if (menuItemId === COPY_IDENTIFIER_ID) {
+      const identifier = await sendToFrame<string | null>(tabId, frameId, {
+        type: "elementIdentifier",
+      }).catch(() => null)
+      if (identifier) await copyText(identifier, false)
       return
     }
     const page = webPage(tabUrl)
@@ -343,6 +353,11 @@ async function createMenus(
     contexts: ["editable"],
   })
   await add({ id: GENERATE_ID, title: titles.generate })
+  await add({
+    id: COPY_IDENTIFIER_ID,
+    title: titles.copyIdentifier,
+    contexts: ["editable"],
+  })
   await madeMenusItem.setValue(made)
 }
 
@@ -362,9 +377,9 @@ function create(
 async function removeOwn(): Promise<void> {
   const made = await madeMenusItem.getValue()
   await Promise.all(
-    [...new Set([GENERATE_ID, GENERATE_FILL_ID, ...made])].map((id) =>
-      browser.contextMenus.remove(id).catch(() => {}),
-    ),
+    [
+      ...new Set([GENERATE_ID, GENERATE_FILL_ID, COPY_IDENTIFIER_ID, ...made]),
+    ].map((id) => browser.contextMenus.remove(id).catch(() => {})),
   )
   await madeMenusItem.removeValue()
 }

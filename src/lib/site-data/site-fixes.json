@@ -1,0 +1,64 @@
+[
+  {
+    "domain": "apple.com",
+    "inputTypeSettings": {
+      "input[can-field=\"accountName\"]": "username"
+    }
+  },
+  {
+    "domain": "icloud.com",
+    "inputTypeSettings": {
+      "input[can-field=\"accountName\"]": "username"
+    }
+  },
+  {
+    "domain": "accounts.google.com",
+    "urlPattern": "^/v3/signin/identifier",
+    "inputTypeSettings": {
+      "input[name=\"identifier\"]": "username"
+    }
+  },
+  {
+    "domain": "github.com",
+    "inputTypeSettings": {
+      "input[aria-label*=\"Filter\" i]": "unknown",
+      "input[placeholder*=\"Type or choose a user\" i]": "unknown"
+    }
+  },
+  {
+    "domain": "b2clogin.com",
+    "inputTypeSettings": {
+      "input[id=\"signInName\" i]": "username"
+    }
+  },
+  {
+    "domain": "aa.com",
+    "inputTypeSettings": {
+      "input[name=\"loginId\" i]": "username"
+    }
+  },
+  {
+    "domain": "fedex.com",
+    "inputTypeSettings": {
+      "input[id=\"password\" i]": "currentPassword"
+    }
+  },
+  {
+    "domain": "zendesk.com",
+    "inputTypeSettings": {
+      "input[name=\"user[email]\" i]": "username"
+    }
+  },
+  {
+    "domain": "cvs.com",
+    "inputTypeSettings": {
+      "input[id=\"emailField\" i]": "username"
+    }
+  },
+  {
+    "domain": "roll20.net",
+    "failsafeSettings": {
+      "maxInputsPerPage": 0
+    }
+  }
+]

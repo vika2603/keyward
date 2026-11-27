@@ -14,6 +14,7 @@ import {
 } from "@/content/extension-messages"
 import { fieldRulesOf, newPasswordTargets } from "@/content/field-finder"
 import { FieldTracker } from "@/content/field-tracker"
+import { elementIdentifierOf } from "@/content/fill-dom"
 import { FillHandlers } from "@/content/fill-handlers"
 import { FieldIcons } from "@/content/icons"
 import { InlineMenu, SavePrompt } from "@/content/overlays"
@@ -46,11 +47,10 @@ export default defineContentScript({
       (target) => icons.owns(target),
     )
     const icons = new FieldIcons(ctx, events, (field) => void openMenu(field))
+    const isKeywardNode = (node: Node) =>
+      icons.owns(node) || menu.owns(node) || (savePrompt?.owns(node) ?? false)
     const fields = new FieldTracker(ctx, {
-      isKeywardNode: (node) =>
-        icons.owns(node) ||
-        menu.owns(node) ||
-        (savePrompt?.owns(node) ?? false),
+      isKeywardNode,
       askCodes: () =>
         configuration.whileCurrent(
           callBackground("content.hasCodes", null).catch(() => false),
@@ -87,7 +87,13 @@ export default defineContentScript({
     let focusedEarly: HTMLInputElement | null = null
 
     let lastMenuField: HTMLInputElement | null = null
-    const fills = new FillHandlers(menu, fields, () => lastMenuField)
+    let lastContextTarget: Element | null = null
+    const fills = new FillHandlers(
+      menu,
+      fields,
+      () => lastMenuField,
+      isKeywardNode,
+    )
     /**
      * Counts calls to open the menu. Only the latest may show it: the background keeps the token of
      * the latest session only, and showing an earlier one would move the focus back to a field
@@ -177,7 +183,7 @@ export default defineContentScript({
 
     function handle(
       message: ContentMessage,
-    ): FieldInfo | FieldRules | boolean | null | undefined {
+    ): FieldInfo | FieldRules | string | boolean | null | undefined {
       switch (message.type) {
         case "fill":
           fills.fill(message)
@@ -189,6 +195,8 @@ export default defineContentScript({
           return fills.fillNew(message)
         case "newPasswordRules":
           return fills.newPasswordRules()
+        case "elementIdentifier":
+          return elementIdentifierOf(lastContextTarget ?? deepActiveElement())
         case "usePasskey":
           passkeys.use()
           return
@@ -223,6 +231,14 @@ export default defineContentScript({
 
     const focused = deepActiveElement()
     if (focused instanceof HTMLInputElement) focusedEarly = focused
+    events.on(
+      "contextmenu",
+      (event) => {
+        const target = eventOrigin(event)
+        lastContextTarget = target instanceof Element ? target : null
+      },
+      { capture: true },
+    )
     events.on("focusin", (event) => {
       if (!event.isTrusted) return
       const target = eventOrigin(event)

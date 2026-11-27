@@ -713,4 +713,51 @@ describe("closing the menu when its field loses the focus", () => {
     await vi.advanceTimersByTimeAsync(0)
     expect(menuIsOpen()).toBe(true)
   })
+
+  it("temporarily sets autocomplete=off while open and restores it on close", async () => {
+    document.body.innerHTML = `
+      <form>
+        <input name="username" autocomplete="username">
+        <input type="password" name="password">
+      </form>`
+    const page = await startContentScript()
+    ctx = page.ctx
+    const username = input("[name=username]")
+    username.focus()
+    await openMenuOn(username)
+    expect(username.getAttribute("autocomplete")).toBe("off")
+
+    await page.send({ type: "menu.close" })
+    expect(username.getAttribute("autocomplete")).toBe("username")
+  })
+
+  it("stops Escape propagation when closing the menu so site modals stay open", async () => {
+    document.body.innerHTML = SIGN_IN
+    const page = await startContentScript()
+    ctx = page.ctx
+    const username = input("[name=username]")
+    username.focus()
+    await openMenuOn(username)
+    const modalEscape = vi.fn()
+    document.addEventListener("keydown", modalEscape)
+
+    username.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "Escape", bubbles: true }),
+    )
+    expect(menuIsOpen()).toBe(false)
+    expect(modalEscape).not.toHaveBeenCalled()
+  })
+
+  it("returns the right-clicked field's identifier when asked", async () => {
+    document.body.innerHTML = `
+      <form>
+        <input id="org-tenant" name="tenant">
+        <input type="password" name="password">
+      </form>`
+    const page = await startContentScript()
+    ctx = page.ctx
+    const tenant = input("#org-tenant")
+    tenant.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true }))
+    expect(await page.send({ type: "elementIdentifier" })).toBe("org-tenant")
+  })
 })

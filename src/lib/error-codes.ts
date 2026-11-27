@@ -22,6 +22,7 @@ export type ErrorCode =
   | "noSetup"
   | "notWebPage"
   | "fillDisabled"
+  | "insecureHttp"
   | "pageChanged"
   | "cancelled"
   | "overlay.closed"

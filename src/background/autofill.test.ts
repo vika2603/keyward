@@ -123,6 +123,25 @@ describe("fillLogin", () => {
     expect(pageModule.sendToFrame).not.toHaveBeenCalled()
   })
 
+  it("refuses filling an HTTPS-saved login onto an HTTP page until confirmed", async () => {
+    setFrame(TAB, 0, "http://accounts.example.com/login")
+    const httpsCredential = { ...credential, hasHttpsUri: true }
+    const { providers } = fakeProviders([
+      { info: accountVault, credential: httpsCredential },
+    ])
+    await expect(
+      fillLogin(providers, TAB, 0, accountVault.id, "item-1"),
+    ).rejects.toMatchObject({
+      code: "insecureHttp",
+    })
+    expect(pageModule.sendToDocument).not.toHaveBeenCalled()
+
+    await fillLogin(providers, TAB, 0, accountVault.id, "item-1", {
+      allowInsecureHttp: true,
+    })
+    expect(pageModule.sendToDocument).toHaveBeenCalledOnce()
+  })
+
   it("fills a frame from another site until the setting turns that off", async () => {
     setFrame(TAB, 4, "https://widget.other.net/login")
     const { providers } = fakeProviders([{ info: accountVault, credential }])

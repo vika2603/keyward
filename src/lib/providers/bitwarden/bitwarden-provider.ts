@@ -1,5 +1,6 @@
 import { ruleForHost, uriMatches } from "@/lib/matching"
 import { getSettings } from "@/lib/settings"
+import { hostOfSavedUri, siteDomainOf } from "@/lib/site"
 import { oneTimeCode } from "@/lib/totp"
 import {
   type CodeSetup,
@@ -467,10 +468,22 @@ export class BitwardenProvider implements VaultProvider {
     refuseReprompt(item)
     const { customFields } = decryptDetails(cipher, vault.keys)
     const password = decryptPassword(cipher, vault.keys)
+    const hasHttpsUri =
+      page !== null &&
+      item.uris.some(({ uri }) => {
+        const trimmed = uri.trim()
+        if (!/^https:\/\//i.test(trimmed)) return false
+        const savedHost = hostOfSavedUri(trimmed)
+        return (
+          savedHost !== null &&
+          siteDomainOf(savedHost) === siteDomainOf(page.hostname)
+        )
+      })
     return {
       username: item.username,
       password,
       fields: fillFields(customFields, { username: item.username, password }),
+      ...(hasHttpsUri ? { hasHttpsUri: true } : {}),
     }
   }
 

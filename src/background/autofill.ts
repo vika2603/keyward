@@ -167,6 +167,7 @@ export async function fillLogin(
   frameId: number,
   vaultId: string,
   loginId: string,
+  options?: { allowInsecureHttp?: boolean },
 ): Promise<void> {
   const { target, settings } = await fillableDocument(
     providers,
@@ -178,6 +179,17 @@ export async function fillLogin(
   const credential = await providers
     .providerOf(vaultId)
     .credential(vaultId, loginId, page)
+  if (
+    page.protocol === "http:" &&
+    credential.hasHttpsUri &&
+    credential.password &&
+    !options?.allowInsecureHttp
+  ) {
+    throw new VaultError(
+      "This login is saved for HTTPS, but the page uses HTTP",
+      "insecureHttp",
+    )
+  }
   await sendToChecked(tabId, frameId, target, {
     type: "fill",
     origin: page.origin,

@@ -24,6 +24,12 @@ export function menuHandlers(providers: Providers) {
         if (!page)
           throw new VaultError("The frame is not a web page", "notWebPage")
         const kind = session.kind ?? "login"
+        const top =
+          session.frameId !== 0 ? await frameUrl(session.tabId, 0) : null
+        const embeddedInHost =
+          top && siteDomainOf(top.hostname) !== siteDomainOf(page.hostname)
+            ? page.hostname
+            : undefined
         // The account this tab used on the site moments ago comes first: the password step of a
         // two-step login, or the code step after a password.
         const recent = await recallUsername(
@@ -45,6 +51,7 @@ export function menuHandlers(providers: Providers) {
             vaults: markRecent(await providers.loginsForPage(page), recent),
             ...(suggestion ? { suggestion } : {}),
             ...(session.passkey ? { passkey: true } : {}),
+            ...(embeddedInHost ? { embeddedInHost } : {}),
           }
         }
         const vaults = await providers.codeLoginsForPage(page, {
@@ -55,21 +62,32 @@ export function menuHandlers(providers: Providers) {
           host: page.hostname,
           kind,
           vaults: markRecent(vaults, recent),
+          ...(embeddedInHost ? { embeddedInHost } : {}),
         }
       },
     },
     "menu.fill": {
       allow: ["menu"],
-      handle: async ({ token, vaultId, loginId }, sender) => {
+      handle: async ({ token, vaultId, loginId, confirmInsecure }, sender) => {
         const session = await menuSessions.claim(sender, token)
-        const fill = session.kind === "code" ? fillCode : fillLogin
-        await fill(
-          providers,
-          session.tabId,
-          session.frameId,
-          requireText(vaultId, "vaultId"),
-          requireText(loginId, "loginId"),
-        )
+        if (session.kind === "code") {
+          await fillCode(
+            providers,
+            session.tabId,
+            session.frameId,
+            requireText(vaultId, "vaultId"),
+            requireText(loginId, "loginId"),
+          )
+        } else {
+          await fillLogin(
+            providers,
+            session.tabId,
+            session.frameId,
+            requireText(vaultId, "vaultId"),
+            requireText(loginId, "loginId"),
+            { allowInsecureHttp: confirmInsecure === true },
+          )
+        }
         await closeMenu(session.tabId)
         return null
       },
