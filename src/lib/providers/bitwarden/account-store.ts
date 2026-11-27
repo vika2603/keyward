@@ -87,11 +87,12 @@ export async function removeAccount(accountId: string): Promise<void> {
   await changeAccounts((accounts) =>
     accounts.filter((account) => account.id !== accountId),
   )
-  await browser.storage.session.remove([
-    sessionKey(accountId),
-    syncKey(accountId),
-    syncedAtKey(accountId),
-    activityKey(accountId),
+  await Promise.all([
+    browser.storage.session.remove([
+      sessionKey(accountId),
+      activityKey(accountId),
+    ]),
+    browser.storage.local.remove([syncKey(accountId), syncedAtKey(accountId)]),
   ])
 }
 
@@ -114,23 +115,22 @@ export async function saveSession(
 }
 
 export async function clearSession(accountId: string): Promise<void> {
-  await browser.storage.session.remove([
-    sessionKey(accountId),
-    syncKey(accountId),
-    syncedAtKey(accountId),
-  ])
+  // Keeps the encrypted sync in storage.local so unlocking offline still works; only the session key is cleared.
+  await browser.storage.session.remove([sessionKey(accountId)])
 }
 
 export interface StoredSync {
   syncedAt: number
+  /** Server's last /accounts/revision-date timestamp when known. */
+  revisionDate?: number | null
   data: Record<string, unknown>
 }
 
-/** The last sync response. It is encrypted except for metadata, and kept only for the session. */
+/** The last encrypted sync response, persisted in storage.local for offline unlock and filling. */
 export async function loadSync(accountId: string): Promise<StoredSync | null> {
   const key = syncKey(accountId)
   return (
-    ((await browser.storage.session.get(key))[key] as StoredSync | undefined) ??
+    ((await browser.storage.local.get(key))[key] as StoredSync | undefined) ??
     null
   )
 }
@@ -139,7 +139,7 @@ export async function saveSync(
   accountId: string,
   sync: StoredSync,
 ): Promise<void> {
-  await browser.storage.session.set({
+  await browser.storage.local.set({
     [syncKey(accountId)]: sync,
     [syncedAtKey(accountId)]: sync.syncedAt,
   })
@@ -147,7 +147,7 @@ export async function saveSync(
 
 export async function loadSyncedAt(accountId: string): Promise<number | null> {
   const key = syncedAtKey(accountId)
-  const syncedAt = (await browser.storage.session.get(key))[key]
+  const syncedAt = (await browser.storage.local.get(key))[key]
   return typeof syncedAt === "number" ? syncedAt : null
 }
 

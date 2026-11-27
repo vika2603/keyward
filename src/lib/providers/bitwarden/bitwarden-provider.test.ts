@@ -606,7 +606,8 @@ describe("several accounts used at once", () => {
 })
 
 describe("locking during a sync", () => {
-  it("keeps the synced data out of the session once the account is locked", async () => {
+  it("does not overwrite stored sync data when the account locks mid-sync", async () => {
+    const syncedBefore = (await loadSync(ACCOUNT_ID))?.syncedAt
     let requested: () => void = () => {}
     const requestSent = new Promise<void>((resolve) => {
       requested = resolve
@@ -630,7 +631,7 @@ describe("locking during a sync", () => {
     await bw.lock(VAULT)
     answer()
     await expect(syncing).rejects.toMatchObject({ code: "locked" })
-    expect(await loadSync(ACCOUNT_ID)).toBeNull()
+    expect((await loadSync(ACCOUNT_ID))?.syncedAt).toBe(syncedBefore)
   })
 })
 

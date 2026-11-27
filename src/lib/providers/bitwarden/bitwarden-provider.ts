@@ -232,6 +232,21 @@ export class BitwardenProvider implements VaultProvider {
     return this.cache.sync(accountId)
   }
 
+  /** Refreshes every unlocked account, throwing the first failure if any account fails to sync. */
+  async syncAll(): Promise<void> {
+    const accounts = await loadAccounts()
+    let firstError: unknown = null
+    for (const account of accounts) {
+      if (!(await loadSession(account.id))) continue
+      try {
+        await this.cache.sync(account.id)
+      } catch (error) {
+        firstError ??= error
+      }
+    }
+    if (firstError) throw firstError
+  }
+
   private vaultOf(vaultId: string, passive = false): Promise<Vault> {
     return this.cache.vault(accountIdOfVault(vaultId), passive)
   }
@@ -284,7 +299,10 @@ export class BitwardenProvider implements VaultProvider {
     const rule = ruleForHost(settings.siteRules, page.hostname)
     const options = {
       defaultMatch: settings.defaultMatch,
-      equivalentDomains: settings.equivalentDomains,
+      equivalentDomains: [
+        ...settings.equivalentDomains,
+        ...vault.equivalentDomains,
+      ],
     }
     const items = vault.items.filter((item) =>
       item.uris.some(({ uri, match }) =>
@@ -304,9 +322,20 @@ export class BitwardenProvider implements VaultProvider {
   }
 
   async search(vaultId: string, query: string): Promise<LoginSummary[]> {
-    const { items } = await this.vaultOf(vaultId)
+    const { items, groups } = await this.vaultOf(vaultId)
+    const folderNames = new Map(
+      groups.folders.map((folder) => [folder.id, folder.name]),
+    )
     return items
-      .filter((item) => matchesQuery(item, query))
+      .filter((item) =>
+        matchesQuery(
+          item,
+          query,
+          item.grouping.folderId
+            ? (folderNames.get(item.grouping.folderId) ?? "")
+            : "",
+        ),
+      )
       .sort((first, second) => first.name.localeCompare(second.name))
       .map(summaryOf)
   }
@@ -323,9 +352,20 @@ export class BitwardenProvider implements VaultProvider {
   }
 
   async searchNotes(vaultId: string, query: string): Promise<NoteSummary[]> {
-    const { notes } = await this.vaultOf(vaultId)
+    const { notes, groups } = await this.vaultOf(vaultId)
+    const folderNames = new Map(
+      groups.folders.map((folder) => [folder.id, folder.name]),
+    )
     return notes
-      .filter((note) => textMatchesQuery(note.name, query))
+      .filter((note) => {
+        const folderName = note.grouping.folderId
+          ? (folderNames.get(note.grouping.folderId) ?? "")
+          : ""
+        return textMatchesQuery(
+          [note.name, folderName, note.searchableText].join("\n"),
+          query,
+        )
+      })
       .sort((first, second) => first.name.localeCompare(second.name))
       .map(noteSummaryOf)
   }

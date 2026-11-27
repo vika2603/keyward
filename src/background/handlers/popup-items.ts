@@ -1,4 +1,5 @@
 import type { Handlers } from "@/lib/messaging"
+import type { BitwardenProvider } from "@/lib/providers/bitwarden/bitwarden-provider"
 import { type Credential, VaultError } from "@/lib/providers/types"
 import type { BackgroundApi } from "../api"
 import { copyText } from "../clipboard"
@@ -9,7 +10,10 @@ import { namedVault, namedVaultWith } from "./capabilities"
 import { activePage, popupOnly } from "./request-context"
 import { loginEdit, requireBoolean, requireText } from "./validation"
 
-export function popupItemHandlers(providers: Providers) {
+export function popupItemHandlers(
+  providers: Providers,
+  bitwarden?: BitwardenProvider,
+) {
   /** A login's password, read for the popup's own views; it never goes into a page from here. */
   const popupCredential = async (
     vaultId: unknown,
@@ -217,6 +221,13 @@ export function popupItemHandlers(providers: Providers) {
       allow: popupOnly,
       handle: async () => {
         await providers.lockAll()
+        return null
+      },
+    },
+    "popup.syncAll": {
+      allow: popupOnly,
+      handle: async () => {
+        if (bitwarden) await bitwarden.syncAll()
         return null
       },
     },

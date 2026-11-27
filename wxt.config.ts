@@ -26,6 +26,8 @@ export default defineConfig({
       "favicon",
       "nativeMessaging",
       "storage",
+      // Encrypted Bitwarden vaults persist in storage.local for offline unlock without hitting the 10 MB quota.
+      "unlimitedStorage",
       "webNavigation",
       "alarms",
       "offscreen",

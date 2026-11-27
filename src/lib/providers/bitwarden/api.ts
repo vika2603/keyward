@@ -285,10 +285,26 @@ export class BitwardenApi {
 
   async sync(accessToken: string): Promise<Record<string, unknown>> {
     return this.expectJson(
-      await this.send(`${this.urls.api}/sync?excludeDomains=true`, {
+      await this.send(`${this.urls.api}/sync`, {
         accessToken,
       }),
     )
+  }
+
+  /** Lightweight revision timestamp for checking whether the vault changed before doing a full sync. */
+  async revisionDate(accessToken: string): Promise<number | null> {
+    const response = await this.send(
+      `${this.urls.api}/accounts/revision-date`,
+      { accessToken },
+    )
+    if (!response.ok)
+      throw new ApiError(response.status, await this.json(response))
+    const raw = (await response.text()).trim()
+    if (!raw || raw === "null") return null
+    const parsed = Number(raw.replace(/^"|"$/g, ""))
+    if (Number.isFinite(parsed) && parsed > 0) return parsed
+    const date = Date.parse(raw.replace(/^"|"$/g, ""))
+    return Number.isNaN(date) ? null : date
   }
 
   async createCipher(

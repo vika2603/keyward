@@ -18,6 +18,7 @@ import type {
 } from "@/lib/providers/types"
 import { cn } from "@/lib/utils"
 import { CustomFieldsEditor } from "./custom-fields-editor"
+import { loadNoteDraft, saveNoteDraft } from "./view-cache"
 
 const EMPTY_NOTE: EditableNote = { name: "", text: "", customFields: [] }
 
@@ -48,16 +49,40 @@ export function NoteForm({
 
   const editedVaultId = editing?.vault.id
   const editedNoteId = editing?.note.id
+  const draftKey =
+    editedVaultId && editedNoteId ? `${editedVaultId}:${editedNoteId}` : "new"
   useEffect(() => {
-    if (!editedVaultId || !editedNoteId) return
-    callBackground("popup.editableNote", {
-      vaultId: editedVaultId,
-      noteId: editedNoteId,
-    }).then(setForm, (error) => setMessage(errorMessage(error)))
-  }, [editedVaultId, editedNoteId, setMessage])
+    let active = true
+    if (!editedVaultId || !editedNoteId) {
+      void loadNoteDraft(draftKey).then((draft) => {
+        if (active && draft) setForm(draft)
+      })
+      return () => {
+        active = false
+      }
+    }
+    Promise.all([
+      callBackground("popup.editableNote", {
+        vaultId: editedVaultId,
+        noteId: editedNoteId,
+      }),
+      loadNoteDraft(draftKey),
+    ]).then(
+      ([loaded, draft]) => active && setForm(draft ?? loaded),
+      (error) => active && setMessage(errorMessage(error)),
+    )
+    return () => {
+      active = false
+    }
+  }, [editedVaultId, editedNoteId, draftKey, setMessage])
 
   const update = (change: Partial<EditableNote>) =>
-    setForm((current) => (current ? { ...current, ...change } : current))
+    setForm((current) => {
+      if (!current) return current
+      const next = { ...current, ...change }
+      void saveNoteDraft(draftKey, next)
+      return next
+    })
 
   const save = async () => {
     if (!form) return
@@ -71,6 +96,7 @@ export function NoteForm({
       } else if (vaultId) {
         await callBackground("popup.saveNote", { vaultId, note: form })
       }
+      await saveNoteDraft(draftKey, null)
       onDone()
     })
   }

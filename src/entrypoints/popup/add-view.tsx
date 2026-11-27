@@ -33,6 +33,7 @@ import { CustomFieldsEditor } from "./custom-fields-editor"
 import { BackHeader } from "./header"
 import { NO_FOLDER } from "./main/group-filter"
 import { NoteForm } from "./note-form"
+import { loadAddDraft, saveAddDraft } from "./view-cache"
 
 /** The places that can store a login are asked for once typing in the site pauses this long. */
 const SITE_TYPING_DELAY_MS = 200
@@ -171,6 +172,7 @@ function AddLoginForm({ onDone }: { onDone: () => void }) {
     [],
   )
   const [details, setDetails] = useState(EMPTY_DETAILS)
+  const [draftLoaded, setDraftLoaded] = useState(false)
   /** Why no place could be found for the site; the site's places are unknown meanwhile. */
   const [targetsError, setTargetsError] = useState<string | null>(null)
   const siteRef = useRef<HTMLInputElement>(null)
@@ -178,6 +180,42 @@ function AddLoginForm({ onDone }: { onDone: () => void }) {
   const initialFocusDone = useRef(false)
   const request = useRef(0)
   const { busy, message, setMessage, run } = useAsyncAction()
+
+  useEffect(() => {
+    void loadAddDraft().then((draft) => {
+      if (draft) {
+        setSite(draft.site)
+        setUsername(draft.username)
+        setPassword(draft.password)
+        setDestination({ vaultId: draft.vaultId, folderId: draft.folderId })
+        setDetails(draft.details)
+      }
+      setDraftLoaded(true)
+    })
+  }, [])
+
+  useEffect(() => {
+    if (!draftLoaded) return
+    const hasContent =
+      Boolean(username) ||
+      Boolean(password) ||
+      Boolean(details.name) ||
+      Boolean(details.notes) ||
+      Boolean(details.totp) ||
+      details.customFields.length > 0
+    void saveAddDraft(
+      hasContent
+        ? {
+            site,
+            username,
+            password,
+            vaultId: destination.vaultId,
+            folderId: destination.folderId,
+            details,
+          }
+        : null,
+    )
+  }, [draftLoaded, site, username, password, destination, details])
 
   useEffect(() => {
     const focusInitial = (prefilledSite: boolean) => {
@@ -253,6 +291,7 @@ function AddLoginForm({ onDone }: { onDone: () => void }) {
           ? { ...details, folderId: destination.folderId }
           : undefined,
       })
+      await saveAddDraft(null)
       onDone()
     })
   }

@@ -35,7 +35,7 @@ export function createHandlers(
   submissionGate?: SubmissionGate,
 ): Handlers<BackgroundApi> {
   return {
-    ...popupItemHandlers(providers),
+    ...popupItemHandlers(providers, named.bitwarden),
     ...popupNoteHandlers(providers),
     ...popupSaveHandlers(providers),
     ...appleHandlers(named.apple),

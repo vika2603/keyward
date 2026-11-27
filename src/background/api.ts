@@ -272,6 +272,8 @@ export type BackgroundApi = {
   "popup.lock": { payload: { vaultId: string }; result: null }
   /** Locks every account and ends the Apple pairing, as the lock-all shortcut does. */
   "popup.lockAll": { payload: null; result: null }
+  /** Forces a fresh sync of all unlocked Bitwarden vaults. */
+  "popup.syncAll": { payload: null; result: null }
   "popup.saveLogin": {
     payload: {
       vaultId: string

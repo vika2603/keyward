@@ -33,6 +33,7 @@ import { cn } from "@/lib/utils"
 import { CodeKeyInput } from "./code-key-input"
 import { CustomFieldsEditor } from "./custom-fields-editor"
 import { BackHeader } from "./header"
+import { loadEditDraft, saveEditDraft } from "./view-cache"
 
 const DEFAULT_MATCH = "default"
 
@@ -124,25 +125,41 @@ export function EditView({
    */
   const [bareAddresses, setBareAddresses] = useState(false)
 
+  const draftKey = `${vault.id}:${login.id}`
   useEffect(() => {
-    callBackground("popup.editable", {
-      vaultId: vault.id,
-      loginId: login.id,
-    }).then(
-      (loaded) => {
+    let active = true
+    Promise.all([
+      callBackground("popup.editable", {
+        vaultId: vault.id,
+        loginId: login.id,
+      }),
+      loadEditDraft(draftKey),
+    ]).then(
+      ([loaded, draft]) => {
+        if (!active) return
         const uris = websitesOf(loaded.uris)
         setBareAddresses(sentBareAddresses(loaded.uris))
-        setForm({
-          ...loaded,
-          uris: uris.length ? uris : [{ uri: "", match: null }],
-        })
+        setForm(
+          draft ?? {
+            ...loaded,
+            uris: uris.length ? uris : [{ uri: "", match: null }],
+          },
+        )
       },
-      (error) => setMessage(errorMessage(error)),
+      (error) => active && setMessage(errorMessage(error)),
     )
-  }, [vault.id, login.id, setMessage])
+    return () => {
+      active = false
+    }
+  }, [vault.id, login.id, draftKey, setMessage])
 
   const update = (change: Partial<EditableLogin>) =>
-    setForm((current) => (current ? { ...current, ...change } : current))
+    setForm((current) => {
+      if (!current) return current
+      const next = { ...current, ...change }
+      void saveEditDraft(draftKey, next)
+      return next
+    })
   const setWebsite = (index: number, change: Partial<Website>) =>
     form &&
     update({
@@ -170,8 +187,14 @@ export function EditView({
         loginId: login.id,
         change: { ...form, uris: websitesFor(uris, bareAddresses) },
       })
+      await saveEditDraft(draftKey, null)
       onDone()
     })
+  }
+
+  const leave = () => {
+    void saveEditDraft(draftKey, null)
+    onDone()
   }
 
   return (
@@ -182,7 +205,7 @@ export function EditView({
         void save()
       }}
     >
-      <BackHeader title={t("popup.edit.title")} onBack={onDone} />
+      <BackHeader title={t("popup.edit.title")} onBack={leave} />
       <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-3 py-3">
         {!form && !message && (
           <div role="status" className="flex flex-col gap-4 py-1">

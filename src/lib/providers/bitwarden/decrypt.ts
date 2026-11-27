@@ -32,6 +32,8 @@ export interface LoginItem {
   hasTotp: boolean
   /** Whether the item asks for the master password before its secrets are shown. */
   reprompt: boolean
+  /** Non-secret decrypted text (notes and non-hidden custom fields) indexed for in-memory search. */
+  searchableText?: string
 }
 
 /** A secure note as lists show it; its text stays encrypted until it is opened. */
@@ -42,6 +44,8 @@ export interface NoteItem {
   reprompt: boolean
   grouping: ItemGrouping
   favorite: boolean
+  /** Non-reprompt note body and non-hidden custom fields indexed for in-memory search. */
+  searchableText?: string
 }
 
 export interface ItemDetails {
@@ -125,6 +129,30 @@ function groupingOf(cipher: Record<string, unknown>): ItemGrouping {
   }
 }
 
+/** Non-secret notes and custom field names/values for in-memory search; omitted on reprompt items. */
+function searchableTextOf(
+  cipher: Record<string, unknown>,
+  keys: VaultKeys,
+  key: Uint8Array,
+  reprompt: boolean,
+): string {
+  if (reprompt) return ""
+  const parts: string[] = []
+  const notes = keys.decrypt(valueAt(cipher, "Notes"), key)
+  if (notes) parts.push(notes)
+  for (const raw of listOf(valueAt(cipher, "Fields"))) {
+    try {
+      const field = decryptCustomField(raw, keys, key)
+      if (!field) continue
+      if (field.name) parts.push(field.name)
+      if (field.kind === "text" && field.value) parts.push(field.value)
+    } catch {
+      // Skip unreadable custom field.
+    }
+  }
+  return parts.join("\n")
+}
+
 /** Decrypts what lists and matching need. The password stays encrypted until it is asked for. */
 export function decryptLogin(
   cipher: Record<string, unknown>,
@@ -132,6 +160,7 @@ export function decryptLogin(
 ): LoginItem {
   const key = keys.forCipher(cipher)
   const login = objectAt(cipher, "Login")
+  const reprompt = valueAt(cipher, "Reprompt") === REPROMPT_PASSWORD
   return {
     id: String(valueAt(cipher, "Id")),
     grouping: groupingOf(cipher),
@@ -146,7 +175,8 @@ export function decryptLogin(
       }
     }),
     hasTotp: isNonEmptyString(valueAt(login, "Totp")),
-    reprompt: valueAt(cipher, "Reprompt") === REPROMPT_PASSWORD,
+    reprompt,
+    searchableText: searchableTextOf(cipher, keys, key, reprompt),
   }
 }
 
@@ -154,12 +184,15 @@ export function decryptNote(
   cipher: Record<string, unknown>,
   keys: VaultKeys,
 ): NoteItem {
+  const key = keys.forCipher(cipher)
+  const reprompt = valueAt(cipher, "Reprompt") === REPROMPT_PASSWORD
   return {
     id: String(valueAt(cipher, "Id")),
-    name: keys.decrypt(valueAt(cipher, "Name"), keys.forCipher(cipher)),
-    reprompt: valueAt(cipher, "Reprompt") === REPROMPT_PASSWORD,
+    name: keys.decrypt(valueAt(cipher, "Name"), key),
+    reprompt,
     grouping: groupingOf(cipher),
     favorite: valueAt(cipher, "Favorite") === true,
+    searchableText: searchableTextOf(cipher, keys, key, reprompt),
   }
 }
 
@@ -238,16 +271,55 @@ export function decryptGroups(sync: unknown, keys: VaultKeys): VaultGroups {
   return { organizations, folders, collections }
 }
 
-/** Whether a text contains every word of the query, ignoring case. */
-export function textMatchesQuery(text: string, query: string): boolean {
-  const words = query.toLowerCase().split(/\s+/).filter(Boolean)
-  const lowerText = text.toLowerCase()
-  return words.length > 0 && words.every((word) => lowerText.includes(word))
+/** Extracts custom and non-excluded global equivalent domain groups from a Bitwarden /sync payload. */
+export function decryptEquivalentDomains(sync: unknown): string[][] {
+  const domains = objectAt(sync, "Domains")
+  if (!domains) return []
+  const groups: string[][] = []
+  const pushGroup = (raw: unknown) => {
+    const entries = listOf(raw)
+      .filter((entry): entry is string => typeof entry === "string")
+      .map((entry) => entry.trim().toLowerCase())
+      .filter(Boolean)
+    if (entries.length >= 2) groups.push(entries)
+  }
+  for (const custom of listOf(valueAt(domains, "EquivalentDomains")))
+    pushGroup(custom)
+  for (const global of listOf(valueAt(domains, "GlobalEquivalentDomains"))) {
+    if (valueAt(global, "Excluded") === true) continue
+    pushGroup(valueAt(global, "Domains"))
+  }
+  return groups
 }
 
-/** Whether the item's name, username or addresses contain every word of the query, ignoring case. */
-export function matchesQuery(item: LoginItem, query: string): boolean {
-  const text = [item.name, item.username, ...item.uris.map(({ uri }) => uri)]
+/** Normalizes text for accent-insensitive search by stripping Unicode NFD combining diacritics. */
+export function foldSearchText(text: string): string {
+  return text
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .toLowerCase()
+}
+
+/** Whether a text contains every word of the query, ignoring case and diacritics. */
+export function textMatchesQuery(text: string, query: string): boolean {
+  const words = foldSearchText(query).split(/\s+/).filter(Boolean)
+  const foldedText = foldSearchText(text)
+  return words.length > 0 && words.every((word) => foldedText.includes(word))
+}
+
+/** Whether the item's name, username, addresses, folder, notes or custom fields match every word. */
+export function matchesQuery(
+  item: LoginItem,
+  query: string,
+  folderName = "",
+): boolean {
+  const text = [
+    item.name,
+    item.username,
+    ...item.uris.map(({ uri }) => uri),
+    folderName,
+    item.searchableText ?? "",
+  ]
   return textMatchesQuery(text.join("\n"), query)
 }
 

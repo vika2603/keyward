@@ -111,6 +111,7 @@ describe("organization items", () => {
       uris: [{ uri: "https://example.com", match: 1 }],
       hasTotp: false,
       reprompt: false,
+      searchableText: "",
     })
     expect(decryptPassword(cipher, keys)).toBe("previous-password")
   })
@@ -497,6 +498,7 @@ describe("secure notes", () => {
       reprompt: false,
       grouping: { organizationId: null, folderId: null, collectionIds: [] },
       favorite: false,
+      searchableText: "first line\nsecond line",
     })
   })
 

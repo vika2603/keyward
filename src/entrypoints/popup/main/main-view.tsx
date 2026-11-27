@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef } from "react"
+import { useLayoutEffect, useRef, useState } from "react"
 import { callBackground } from "@/background/api"
 import { BrandIcon, providerName } from "@/components/keyward/brand-icon"
 import { notifyError } from "@/components/keyward/notify"
@@ -6,6 +6,7 @@ import { Separator } from "@/components/ui/separator"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { t } from "@/lib/i18n"
 import type { Settings } from "@/lib/settings"
+import { clearViewCache, saveNavigationState } from "../view-cache"
 import type { View } from "../views"
 import { ListArea } from "./list-area"
 import { type ListPlace, usePlaceState } from "./list-place"
@@ -56,9 +57,27 @@ export function MainView({
     else next.add(vaultId)
     setFoldedSiteVaults(next)
   }
+  const [syncing, setSyncing] = useState(false)
+  const hasReadyBitwarden = lists.vaults.some(
+    (vault) => vault.kind === "bitwarden" && vault.status === "ready",
+  )
+
+  const syncAll = async () => {
+    setSyncing(true)
+    try {
+      await callBackground("popup.syncAll", null)
+    } catch (error) {
+      notifyError(error)
+    } finally {
+      setSyncing(false)
+    }
+    lists.load()
+  }
+
   const lockAll = async () => {
     try {
       await callBackground("popup.lockAll", null)
+      await clearViewCache()
     } catch (error) {
       notifyError(error)
     }
@@ -91,10 +110,13 @@ export function MainView({
       }}
     >
       <MainHeader
+        syncShown={hasReadyBitwarden}
+        syncing={syncing}
         lockShown={loading || lists.vaults.length > 0}
         lockEnabled={anyVaultReady}
         onAdd={() => onNavigate({ name: "add" })}
         onGenerator={() => onNavigate({ name: "generator" })}
+        onSync={() => void syncAll()}
         onLockAll={() => void lockAll()}
       />
       {(loading || anyVaultReady) && (
@@ -131,6 +153,7 @@ export function MainView({
         className="min-h-0 flex-1 overflow-y-auto pb-1"
         onScroll={(event) => {
           place.scrollTop = event.currentTarget.scrollTop
+          void saveNavigationState({ name: "main" }, query, place)
         }}
         onKeyDown={(event) => {
           if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return

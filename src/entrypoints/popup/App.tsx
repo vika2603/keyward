@@ -30,6 +30,12 @@ import {
   popOut,
   takePoppedView,
 } from "./pop-out"
+import {
+  clearViewCache,
+  deserializeListPlace,
+  loadViewCache,
+  saveNavigationState,
+} from "./view-cache"
 import type { View } from "./views"
 
 /**
@@ -243,8 +249,43 @@ export function App() {
   const listPlace = useRef(newListPlace())
 
   useEffect(() => {
-    void initialView.then(setView)
+    void initialView.then(async (resolved) => {
+      if (!isPoppedOut && resolved.name === "main") {
+        const cached = await loadViewCache()
+        if (cached) {
+          listPlace.current = deserializeListPlace(cached.place)
+          setQuery(cached.query)
+          setView(cached.view)
+          return
+        }
+      }
+      setView(resolved)
+    })
     if (isPoppedOut) void fitWindow().catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    if (!view || isPoppedOut) return
+    void saveNavigationState(view, query, listPlace.current)
+  }, [view, query])
+
+  useEffect(() => {
+    const onScrollOrHide = () => {
+      if (!view || isPoppedOut) return
+      void saveNavigationState(view, query, listPlace.current)
+    }
+    window.addEventListener("pagehide", onScrollOrHide)
+    return () => window.removeEventListener("pagehide", onScrollOrHide)
+  }, [view, query])
+
+  useEffect(() => {
+    const onLock = (changes: Record<string, unknown>, area: string) => {
+      // Nothing to clear unless lockAll explicitly clears cache via MainView.
+      if (area === "session" && Object.keys(changes).length === 0)
+        void clearViewCache()
+    }
+    browser.storage.onChanged.addListener(onLock)
+    return () => browser.storage.onChanged.removeListener(onLock)
   }, [])
 
   useEffect(() => {

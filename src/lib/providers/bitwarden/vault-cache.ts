@@ -4,6 +4,7 @@ import { loadSync, loadSyncedAt, saveSync, touchAccount } from "./account-store"
 import { valueAt } from "./api"
 import type { VaultCrypto } from "./crypto"
 import {
+  decryptEquivalentDomains,
   decryptGroups,
   decryptLogin,
   decryptNote,
@@ -24,6 +25,8 @@ export interface Vault {
   syncedAt: number
   keys: VaultKeys
   groups: VaultGroups
+  /** Global and custom equivalent domain groups sent by the Bitwarden server. */
+  equivalentDomains: string[][]
   trashed: TrashedItem[]
   trashedCiphers: Record<string, unknown>[]
   items: LoginItem[]
@@ -68,10 +71,10 @@ export class VaultCache {
   }
 
   /** Fetches the account's items; one sync runs per account at a time. */
-  sync(accountId: string): Promise<void> {
+  sync(accountId: string, revisionDate?: number | null): Promise<void> {
     let running = this.syncing.get(accountId)
     if (!running) {
-      running = this.fetch(accountId).finally(() =>
+      running = this.fetch(accountId, revisionDate).finally(() =>
         this.syncing.delete(accountId),
       )
       this.syncing.set(accountId, running)
@@ -79,23 +82,71 @@ export class VaultCache {
     return running
   }
 
-  private async fetch(accountId: string): Promise<void> {
+  /**
+   * Checks /accounts/revision-date before pulling the full /sync payload. Skips downloading when
+   * the server's revision timestamp matches what is already stored; falls back to a full sync if
+   * the endpoint is unsupported or returns no timestamp.
+   */
+  async refreshIfChanged(accountId: string): Promise<boolean> {
+    const stored = await loadSync(accountId)
+    if (!stored) {
+      await this.sync(accountId)
+      return true
+    }
+    const account = await this.sessions.account(accountId)
+    const token = await this.sessions.accessToken(account)
+    let revisionDate: number | null = null
+    try {
+      revisionDate = await apiOf(account).revisionDate(token)
+    } catch {
+      // Older or custom servers may not implement /accounts/revision-date; fall back to full sync.
+      await this.sync(accountId)
+      return true
+    }
+    if (
+      revisionDate !== null &&
+      stored.revisionDate !== undefined &&
+      stored.revisionDate !== null &&
+      revisionDate === stored.revisionDate
+    ) {
+      const now = Date.now()
+      await saveSync(accountId, { ...stored, syncedAt: now })
+      const cached = this.decrypted.get(accountId)
+      if (cached) this.decrypted.set(accountId, { ...cached, syncedAt: now })
+      return false
+    }
+    await this.sync(accountId, revisionDate)
+    return true
+  }
+
+  private async fetch(
+    accountId: string,
+    knownRevisionDate?: number | null,
+  ): Promise<void> {
     const accessEndsBefore = this.sessions.accessEndsOf(accountId)
     const account = await this.sessions.account(accountId)
-    const data = await apiOf(account).sync(
-      await this.sessions.accessToken(account),
-    )
+    const api = apiOf(account)
+    const accessToken = await this.sessions.accessToken(account)
+    const data = await api.sync(accessToken)
+    const revisionDate =
+      knownRevisionDate !== undefined
+        ? knownRevisionDate
+        : await api.revisionDate(accessToken).catch(() => null)
     // Saved right after the check, with no wait between, so a lock cannot slip in.
     if (this.sessions.accessEndsOf(accountId) !== accessEndsBefore)
       throw new VaultError("The account is locked", "locked")
-    await saveSync(accountId, { syncedAt: Date.now(), data })
+    await saveSync(accountId, {
+      syncedAt: Date.now(),
+      revisionDate,
+      data,
+    })
     this.forget(accountId)
     this.onSynced()
   }
 
   private refreshWhenOld(accountId: string, syncedAt: number): void {
     if (Date.now() - syncedAt > SYNC_MAX_AGE_MS)
-      void this.sync(accountId).catch(() => {})
+      void this.refreshIfChanged(accountId).catch(() => {})
   }
 
   /**
@@ -132,6 +183,7 @@ export class VaultCache {
       syncedAt: stored.syncedAt,
       keys,
       groups: decryptGroups(stored.data, keys),
+      equivalentDomains: decryptEquivalentDomains(stored.data),
       trashed: decryptEach(trashedCiphersOfVault, (cipher) =>
         decryptTrashed(cipher, keys),
       ),

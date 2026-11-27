@@ -4,6 +4,7 @@ import {
   KeyRoundIcon,
   PlusIcon,
   RefreshCwIcon,
+  SearchIcon,
   ShieldAlertIcon,
   TimerIcon,
 } from "lucide-react"
@@ -37,7 +38,11 @@ import { SiteIcon } from "@/components/keyward/site-icon"
 import { openConnectPasswords } from "@/lib/connect-passwords"
 import { t } from "@/lib/i18n"
 import { vaultsToOffer, waitsForUser } from "@/lib/offered-vaults"
+import { textMatchesQuery } from "@/lib/providers/bitwarden/decrypt"
 import { cn } from "@/lib/utils"
+
+/** Show a quick filter box once the menu lists at least this many logins. */
+const FILTER_THRESHOLD = 5
 
 type MenuState = BackgroundApi["menu.state"]["result"]
 
@@ -50,6 +55,7 @@ export function App() {
   const language = useLanguage()
   const card = useRef<HTMLDivElement>(null)
   const [state, setState] = useState<MenuState | null>(null)
+  const [filter, setFilter] = useState("")
   const [busy, setBusy] = useState<string | null>(null)
   const [pendingInsecure, setPendingInsecure] = useState<{
     vaultId: string
@@ -127,11 +133,36 @@ export function App() {
   if (!language) return null
   const allVaults = state?.vaults ?? []
   const anyReady = allVaults.some((vault) => vault.status === "ready")
-  const shownVaults = vaultsToOffer(allVaults)
+  const offeredVaults = vaultsToOffer(allVaults)
+  const totalLogins = offeredVaults.reduce(
+    (sum, vault) => sum + (vault.status === "ready" ? vault.logins.length : 0),
+    0,
+  )
+  const showFilter = totalLogins >= FILTER_THRESHOLD
+  const activeFilter = showFilter ? filter.trim() : ""
+  const shownVaults = activeFilter
+    ? offeredVaults
+        .map((vault) =>
+          vault.status === "ready"
+            ? {
+                ...vault,
+                logins: vault.logins.filter((login) =>
+                  textMatchesQuery(
+                    [login.title, login.username, login.host ?? ""].join("\n"),
+                    activeFilter,
+                  ),
+                ),
+              }
+            : vault,
+        )
+        .filter((vault) => vault.status !== "ready" || vault.logins.length > 0)
+    : offeredVaults
   const compact = density === "compact"
   // A lone list of logins needs no heading saying where they come from.
   const headed = shownVaults.length > 1 || Boolean(state?.suggestion)
-  const isEmpty = !shownVaults.length && !notice && !state?.suggestion
+  const isEmpty =
+    !activeFilter && !shownVaults.length && !notice && !state?.suggestion
+  const noFilterMatches = Boolean(activeFilter) && !shownVaults.length
   const rowProps = { compact, disabled: busy !== null }
 
   return (
@@ -194,6 +225,47 @@ export function App() {
                   })}
                 </span>
               </div>
+            )}
+            {showFilter && (
+              <div className="border-b border-border/60 p-1.5">
+                <div className="relative flex items-center">
+                  <SearchIcon className="pointer-events-none absolute left-2 size-3.5 text-muted-foreground" />
+                  <input
+                    type="search"
+                    value={filter}
+                    onChange={(event) => setFilter(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Escape" && filter) {
+                        event.preventDefault()
+                        event.stopPropagation()
+                        setFilter("")
+                      } else if (event.key === "ArrowDown") {
+                        event.preventDefault()
+                        card.current
+                          ?.querySelector<HTMLButtonElement>(
+                            "button[data-login]",
+                          )
+                          ?.focus()
+                      } else if (event.key === "Enter") {
+                        event.preventDefault()
+                        card.current
+                          ?.querySelector<HTMLButtonElement>(
+                            "button[data-login]",
+                          )
+                          ?.click()
+                      }
+                    }}
+                    placeholder={t("overlay.menu.filterPlaceholder")}
+                    aria-label={t("overlay.menu.filterPlaceholder")}
+                    className="h-7 w-full rounded-md border border-input bg-background pr-2 pl-7 text-xs outline-none focus-visible:border-ring"
+                  />
+                </div>
+              </div>
+            )}
+            {noFilterMatches && (
+              <p className="px-3 py-3 text-sm text-muted-foreground">
+                {t("overlay.menu.noFilterMatches")}
+              </p>
             )}
             {state.suggestion && (
               <div className="flex items-center gap-0.5 p-1">
