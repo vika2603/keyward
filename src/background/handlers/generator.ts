@@ -1,11 +1,13 @@
 import {
   createForwardedAlias,
   type ForwardingService,
+  isForwardingService,
 } from "@/lib/email-forwarding"
 import type { Handlers } from "@/lib/messaging"
 import { VaultError } from "@/lib/providers/types"
 import type { BackgroundApi } from "../api"
 import { copyText } from "../clipboard"
+import type { ForwardingStore } from "../forwarding"
 import {
   addHistory,
   addShownNow,
@@ -16,28 +18,20 @@ import {
 } from "../history"
 import { activeHost, popupOnly } from "./request-context"
 import {
+  forwardingSettings,
   generatorKind,
   optionalText,
   requireText,
   siteInput,
 } from "./validation"
 
-const FORWARDING_SERVICES: readonly ForwardingService[] = [
-  "simplelogin",
-  "addyio",
-  "fastmail",
-  "firefoxRelay",
-  "duckduckgo",
-  "forwardEmail",
-]
-
 function forwardingService(value: unknown): ForwardingService {
-  if (!FORWARDING_SERVICES.includes(value as ForwardingService))
+  if (!isForwardingService(value))
     throw new VaultError("Unknown forwarding service", "invalidInput")
-  return value as ForwardingService
+  return value
 }
 
-export function generatorHandlers() {
+export function generatorHandlers(forwarding: ForwardingStore) {
   return {
     "generator.copy": {
       allow: popupOnly,
@@ -97,15 +91,36 @@ export function generatorHandlers() {
         return null
       },
     },
+    "generator.forwarding": {
+      allow: popupOnly,
+      handle: ({ accountId }) =>
+        forwarding.view(optionalText(accountId, "accountId") ?? undefined),
+    },
+    "generator.saveForwarding": {
+      allow: popupOnly,
+      handle: async ({ accountId, service, settings }) => {
+        await forwarding.save(
+          forwardingService(service),
+          forwardingSettings(settings),
+          optionalText(accountId, "accountId") ?? undefined,
+        )
+        return null
+      },
+    },
     "generator.forwardedEmail": {
       allow: popupOnly,
-      handle: async ({ service, apiKey, domain, baseUrl }) => {
+      handle: async ({ service, accountId }) => {
+        const checkedService = forwardingService(service)
+        const settings = await forwarding.settings(
+          checkedService,
+          optionalText(accountId, "accountId") ?? undefined,
+        )
         const host = await activeHost()
         const alias = await createForwardedAlias({
-          service: forwardingService(service),
-          apiKey: requireText(apiKey, "apiKey"),
-          domain: optionalText(domain, "domain") ?? undefined,
-          baseUrl: optionalText(baseUrl, "baseUrl") ?? undefined,
+          service: checkedService,
+          apiKey: settings.apiKey,
+          domain: settings.domain || undefined,
+          baseUrl: settings.baseUrl || undefined,
           website: host ?? undefined,
         })
         await addShownNow(alias, "username", host)

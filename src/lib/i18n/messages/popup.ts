@@ -257,6 +257,11 @@ export const en = {
   "popup.generator.forwardingApiKey": "API key",
   "popup.generator.forwardingDomain": "Domain",
   "popup.generator.forwardingBaseUrl": "Server URL (optional)",
+  "popup.generator.forwardingAccount": "Account",
+  "popup.generator.forwardingKeptIn": "Saved encrypted in {account}",
+  "popup.generator.forwardingKeptForSession": "Kept until the browser closes",
+  "popup.generator.forwardingLocked":
+    "Unlock {account} to use the API keys saved there",
   "popup.generator.needForwardingKey":
     "Enter your API key and click regenerate to create an alias",
   "popup.generator.generateAlias": "Generate alias",
@@ -542,6 +547,11 @@ export const zhCN: Record<keyof typeof en, string> = {
   "popup.generator.forwardingApiKey": "API 密钥",
   "popup.generator.forwardingDomain": "域名",
   "popup.generator.forwardingBaseUrl": "自托管地址（可选）",
+  "popup.generator.forwardingAccount": "账号",
+  "popup.generator.forwardingKeptIn": "加密保存在 {account} 里",
+  "popup.generator.forwardingKeptForSession": "关闭浏览器后需要重新填写",
+  "popup.generator.forwardingLocked":
+    "解锁 {account} 后才能使用保存在里面的 API 密钥",
   "popup.generator.needForwardingKey":
     "填写 API 密钥后点击刷新按钮生成转发邮箱别名",
   "popup.generator.generateAlias": "生成别名",

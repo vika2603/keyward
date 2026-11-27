@@ -36,6 +36,26 @@ async function welcome(
   await browser.tabs.create({ url: browser.runtime.getURL("/welcome.html") })
 }
 
+/** Removes the API key, domain and server earlier versions kept unencrypted with the generator's choices. */
+async function dropUnencryptedForwarding(): Promise<void> {
+  const choices = await storage.getItem<Record<string, unknown>>(
+    "local:generatorChoices",
+  )
+  const username = choices?.username
+  if (typeof username !== "object" || username === null) return
+  const {
+    forwardingApiKey: _apiKey,
+    forwardingDomain: _domain,
+    forwardingBaseUrl: _baseUrl,
+    ...kept
+  } = username as Record<string, unknown>
+  if (Object.keys(kept).length === Object.keys(username).length) return
+  await storage.setItem("local:generatorChoices", {
+    ...choices,
+    username: kept,
+  })
+}
+
 /**
  * What an install or an update of the extension starts, as `runtime.onInstalled` reports it.
  * `checkPasswords` asks whether the browser reaches the Passwords helper.
@@ -51,6 +71,9 @@ export async function whenInstalled(
     work.push(injectIntoOpenTabs())
   if (reason === "install") work.push(welcome(checkPasswords))
   // Earlier versions kept the sites of passkey sign-ins under this key; nothing reads it now.
-  if (reason === "update") work.push(storage.removeItem("local:passkeySites"))
+  if (reason === "update") {
+    work.push(storage.removeItem("local:passkeySites"))
+    work.push(dropUnencryptedForwarding())
+  }
   await Promise.allSettled(work)
 }

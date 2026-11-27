@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react"
 import { callBackground } from "@/background/api"
 import { errorMessage, isUnsupportedRequest } from "@/components/keyward/errors"
+import { notifyError } from "@/components/keyward/notify"
 import {
   defaultGeneratorChoices,
   type GeneratorChoices,
@@ -134,19 +135,16 @@ export function useGeneratorState() {
 
   const generateForwardedAlias = async () => {
     setGeneratingAlias(true)
-    setMessage(null)
     try {
       const { alias } = await callBackground("generator.forwardedEmail", {
         service: choices.username.forwardingService,
-        apiKey: choices.username.forwardingApiKey,
-        domain: choices.username.forwardingDomain || undefined,
-        baseUrl: choices.username.forwardingBaseUrl || undefined,
+        accountId: choices.username.forwardingAccountId || undefined,
       })
       const next = { ...values, username: alias }
       setValues(next)
       void generatedItem.setValue(next)
     } catch (error) {
-      setMessage(errorMessage(error))
+      notifyError(error)
     } finally {
       setGeneratingAlias(false)
     }

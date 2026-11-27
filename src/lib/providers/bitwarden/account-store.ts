@@ -42,6 +42,8 @@ const syncKey = (accountId: string) => `bitwarden.sync.${accountId}`
 /** When the account last synced, apart from the synced data, so it can be read without the data. */
 const syncedAtKey = (accountId: string) => `bitwarden.syncedAt.${accountId}`
 const activityKey = (accountId: string) => `bitwarden.activity.${accountId}`
+/** Texts Keyward keeps for the account, each encrypted with its user key. */
+const secretsKey = (accountId: string) => `bitwarden.secrets.${accountId}`
 
 /** All accounts are one stored list; its changes run one at a time so none is lost. */
 const accountsChange = serialQueue()
@@ -92,8 +94,42 @@ export async function removeAccount(accountId: string): Promise<void> {
       sessionKey(accountId),
       activityKey(accountId),
     ]),
-    browser.storage.local.remove([syncKey(accountId), syncedAtKey(accountId)]),
+    browser.storage.local.remove([
+      syncKey(accountId),
+      syncedAtKey(accountId),
+      secretsKey(accountId),
+    ]),
   ])
+}
+
+/** One of the account's encrypted texts, by name; null when it has none of that name. */
+export async function loadSecret(
+  accountId: string,
+  name: string,
+): Promise<string | null> {
+  const key = secretsKey(accountId)
+  const secrets = (await browser.storage.local.get(key))[key]
+  const secret = (secrets as Record<string, unknown> | undefined)?.[name]
+  return typeof secret === "string" ? secret : null
+}
+
+const secretsChange = serialQueue()
+
+export function saveSecret(
+  accountId: string,
+  name: string,
+  encrypted: string,
+): Promise<void> {
+  return secretsChange(async () => {
+    const key = secretsKey(accountId)
+    const stored = (await browser.storage.local.get(key))[key]
+    await browser.storage.local.set({
+      [key]: {
+        ...(stored as Record<string, string> | undefined),
+        [name]: encrypted,
+      },
+    })
+  })
 }
 
 export async function loadSession(

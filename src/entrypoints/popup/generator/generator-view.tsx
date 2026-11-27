@@ -21,9 +21,12 @@ const KINDS: [GeneratorKind, MessageKey][] = [
 export function GeneratorView({
   onBack,
   onHistory,
+  onUnlock,
 }: {
   onBack: () => void
   onHistory: () => void
+  /** Opens the unlock view of the Bitwarden vault `vaultId`. */
+  onUnlock: (vaultId: string) => void
 }) {
   const generator = useGeneratorState()
   // The saved options load from storage at once; the view waits for them rather than show defaults.
@@ -96,6 +99,7 @@ export function GeneratorView({
               generatingAlias={generator.generatingAlias}
               onChange={generator.updateUsername}
               onGenerateAlias={() => void generator.generateForwardedAlias()}
+              onUnlock={onUnlock}
             />
           )}
         </div>

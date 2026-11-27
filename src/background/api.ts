@@ -1,4 +1,8 @@
-import type { ForwardingService } from "@/lib/email-forwarding"
+import type {
+  ForwardingService,
+  ForwardingSettings,
+  SavedForwarding,
+} from "@/lib/email-forwarding"
 import type { GeneratorKind } from "@/lib/generator"
 import type { Language } from "@/lib/i18n/language"
 import { sendRequest } from "@/lib/messaging"
@@ -57,6 +61,27 @@ export interface VaultView extends VaultInfo {
 }
 
 /** A site that asks for a login through the browser's sign-in dialog, with its logins. */
+/** A Bitwarden account that can keep the email forwarding settings. */
+export interface ForwardingAccount {
+  id: string
+  vaultId: string
+  label: string
+  unlocked: boolean
+}
+
+/**
+ * Where the email forwarding settings are kept, and what they are: encrypted in a Bitwarden
+ * account, null while it is locked, or for the browser session when there is no account.
+ */
+export type ForwardingView =
+  | { keeper: "session"; saved: SavedForwarding }
+  | {
+      keeper: "bitwarden"
+      accounts: ForwardingAccount[]
+      account: ForwardingAccount
+      saved: SavedForwarding | null
+    }
+
 export interface HttpAuthView {
   /** The site's host, with its port when it has one. */
   host: string
@@ -73,7 +98,7 @@ export type PopupView =
       name: "connect"
       kind: ProviderKind
       vaultId?: string
-      back?: "codeSetup" | "httpAuth" | "passkey"
+      back?: "codeSetup" | "httpAuth" | "passkey" | "generator"
     }
   /** The logins for a site that asks for one through the browser's own sign-in dialog. */
   | { name: "httpAuth" }
@@ -316,14 +341,22 @@ export type BackgroundApi = {
     payload: { vaultId: string; loginId: string }
     result: { count: number }
   }
+  /** The email forwarding settings of the account `accountId`, or of the first account. */
+  "generator.forwarding": {
+    payload: { accountId?: string }
+    result: ForwardingView
+  }
+  "generator.saveForwarding": {
+    payload: {
+      accountId?: string
+      service: ForwardingService
+      settings: ForwardingSettings
+    }
+    result: null
+  }
   /** Creates a forwarded email alias via the user's configured forwarding service API. */
   "generator.forwardedEmail": {
-    payload: {
-      service: ForwardingService
-      apiKey: string
-      domain?: string
-      baseUrl?: string
-    }
+    payload: { service: ForwardingService; accountId?: string }
     result: { alias: string }
   }
   "popup.saveLogin": {

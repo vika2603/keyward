@@ -78,14 +78,10 @@ export interface UsernameOptions {
   email: string
   /** The domain whose catch-all mailbox receives a catch-all username. */
   domain: string
-  /** Email forwarding alias provider when `type === "forwarded"`. */
+  /** The service that makes a forwarded alias; its API key is kept apart, encrypted. */
   forwardingService: ForwardingService
-  /** User API key for the selected forwarding service. */
-  forwardingApiKey: string
-  /** Custom domain required by Addy.io and ForwardEmail. */
-  forwardingDomain: string
-  /** Optional self-hosted base URL for SimpleLogin or Addy.io. */
-  forwardingBaseUrl: string
+  /** The Bitwarden account that keeps the API keys, among several; empty for the first. */
+  forwardingAccountId: string
 }
 
 export const defaultUsernameOptions: UsernameOptions = {
@@ -95,9 +91,7 @@ export const defaultUsernameOptions: UsernameOptions = {
   email: "",
   domain: "",
   forwardingService: "simplelogin",
-  forwardingApiKey: "",
-  forwardingDomain: "",
-  forwardingBaseUrl: "",
+  forwardingAccountId: "",
 }
 
 /** What the generator makes and how; password options keep their own item. */

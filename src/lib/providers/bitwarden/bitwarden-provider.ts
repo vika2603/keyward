@@ -41,9 +41,11 @@ import {
 import { AccountSessions, apiOf } from "./account-session"
 import {
   loadAccounts,
+  loadSecret,
   loadSession,
   loadSyncedAt,
   type StoredAccount,
+  saveSecret,
   updateAccount,
 } from "./account-store"
 import { type BitwardenApi, valueAt } from "./api"
@@ -146,7 +148,7 @@ export class BitwardenProvider implements VaultProvider {
   private readonly cache: VaultCache
   private readonly signInFlow: SignInFlow
 
-  constructor(loadCrypto: () => Promise<VaultCrypto>) {
+  constructor(private readonly loadCrypto: () => Promise<VaultCrypto>) {
     this.sessions = new AccountSessions(loadCrypto, (accountId) =>
       this.cache.forget(accountId),
     )
@@ -967,6 +969,41 @@ export class BitwardenProvider implements VaultProvider {
         .map(async (info) => ({ info, vault: await this.vaultOf(info.id) })),
     )
     return runSecurityAudit(ready, summaryOf)
+  }
+
+  /**
+   * A text the account keeps for Keyward, such as a service's API key: stored encrypted with its
+   * user key, readable only while it is unlocked, and removed when it signs out. Null when the
+   * account has none of that name, or when it was encrypted with a user key the account no
+   * longer has.
+   */
+  async readSecret(accountId: string, name: string): Promise<string | null> {
+    const { userKey } = await this.sessions.unlockedSession(accountId)
+    const encrypted = await loadSecret(accountId, name)
+    if (encrypted === null) return null
+    const vaultCrypto = await this.loadCrypto()
+    try {
+      return vaultCrypto.decryptString(
+        encrypted,
+        Uint8Array.fromBase64(userKey),
+      )
+    } catch {
+      return null
+    }
+  }
+
+  async writeSecret(
+    accountId: string,
+    name: string,
+    plain: string,
+  ): Promise<void> {
+    const { userKey } = await this.sessions.unlockedSession(accountId)
+    const vaultCrypto = await this.loadCrypto()
+    await saveSecret(
+      accountId,
+      name,
+      vaultCrypto.encryptString(plain, Uint8Array.fromBase64(userKey)),
+    )
   }
 
   /** Whether at least one Bitwarden account is configured (unlocked or locked). */

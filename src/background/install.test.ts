@@ -48,4 +48,26 @@ describe("installing and updating", () => {
     await whenInstalled("update", notSetUp)
     expect(await fakeBrowser.storage.local.get("passkeySites")).toEqual({})
   })
+
+  it("drops a forwarding API key earlier versions kept unencrypted, on an update", async () => {
+    await fakeBrowser.storage.local.set({
+      generatorChoices: {
+        kind: "username",
+        username: {
+          type: "forwarded",
+          forwardingService: "addyio",
+          forwardingApiKey: "plain-key",
+          forwardingDomain: "example.com",
+          forwardingBaseUrl: "",
+        },
+      },
+    })
+    await whenInstalled("update", notSetUp)
+    expect(await fakeBrowser.storage.local.get("generatorChoices")).toEqual({
+      generatorChoices: {
+        kind: "username",
+        username: { type: "forwarded", forwardingService: "addyio" },
+      },
+    })
+  })
 })

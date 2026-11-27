@@ -112,4 +112,25 @@ describe("email forwarding aliases", () => {
       }),
     ).toBe("fe-alias@my.example")
   })
+
+  it("sends the API key to a self-hosted server only over HTTPS, or HTTP on this computer", async () => {
+    const fetch = vi.fn(async () =>
+      Response.json({ email: "alias@sl.example" }),
+    )
+    vi.stubGlobal("fetch", fetch)
+    await expect(
+      createForwardedAlias({
+        service: "simplelogin",
+        apiKey: "sl-key",
+        baseUrl: "http://sl.example",
+      }),
+    ).rejects.toMatchObject({ code: "invalidSite" })
+    expect(fetch).not.toHaveBeenCalled()
+    await createForwardedAlias({
+      service: "simplelogin",
+      apiKey: "sl-key",
+      baseUrl: "http://localhost:7777",
+    })
+    expect(fetch).toHaveBeenCalledOnce()
+  })
 })

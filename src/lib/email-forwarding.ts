@@ -1,12 +1,41 @@
 import { VaultError } from "./providers/types"
+import { isLoopbackHost } from "./site"
 
-export type ForwardingService =
-  | "simplelogin"
-  | "addyio"
-  | "fastmail"
-  | "firefoxRelay"
-  | "duckduckgo"
-  | "forwardEmail"
+export const FORWARDING_SERVICES = [
+  "simplelogin",
+  "addyio",
+  "fastmail",
+  "firefoxRelay",
+  "duckduckgo",
+  "forwardEmail",
+] as const
+
+export type ForwardingService = (typeof FORWARDING_SERVICES)[number]
+
+export function isForwardingService(
+  value: unknown,
+): value is ForwardingService {
+  return FORWARDING_SERVICES.some((service) => service === value)
+}
+
+/** What the user entered for one service; each service keeps its own, so a key goes only to its service. */
+export interface ForwardingSettings {
+  apiKey: string
+  /** Required by Addy.io and ForwardEmail. */
+  domain: string
+  /** A self-hosted SimpleLogin or Addy.io server; empty for the service's own. */
+  baseUrl: string
+}
+
+export type SavedForwarding = Partial<
+  Record<ForwardingService, ForwardingSettings>
+>
+
+export const emptyForwardingSettings: ForwardingSettings = {
+  apiKey: "",
+  domain: "",
+  baseUrl: "",
+}
 
 export interface ForwardingConfig {
   service: ForwardingService
@@ -19,7 +48,8 @@ export interface ForwardingConfig {
   website?: string
 }
 
-const DEFAULT_BASE_URLS: Partial<Record<ForwardingService, string>> = {
+/** The servers of the services that can also be self-hosted. */
+export const DEFAULT_BASE_URLS: Partial<Record<ForwardingService, string>> = {
   simplelogin: "https://app.simplelogin.io",
   addyio: "https://app.addy.io",
 }
@@ -35,7 +65,11 @@ function normalizedBaseUrl(service: ForwardingService, raw?: string): string {
   } catch {
     throw new VaultError("Invalid forwarding service URL", "invalidSite")
   }
-  if (parsed.protocol !== "https:" && parsed.protocol !== "http:")
+  // The API key travels in a header, so plain HTTP is only for a server on this computer.
+  const secure =
+    parsed.protocol === "https:" ||
+    (parsed.protocol === "http:" && isLoopbackHost(parsed.hostname))
+  if (!secure)
     throw new VaultError("Invalid forwarding service URL", "invalidSite")
   return `${parsed.origin}${parsed.pathname}`.replace(/\/+$/, "")
 }

@@ -1,5 +1,3 @@
-import { SecretInput } from "@/components/keyward/secret-input"
-import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
   Select,
@@ -9,9 +7,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import type { ForwardingService } from "@/lib/email-forwarding"
 import type { UsernameOptions, UsernameType } from "@/lib/generator"
 import { type MessageKey, t } from "@/lib/i18n"
+import { ForwardingOptions } from "./forwarding-options"
 import { CheckboxOption, OptionRow } from "./option-row"
 
 const USERNAME_TYPES: [UsernameType, MessageKey][] = [
@@ -21,39 +19,22 @@ const USERNAME_TYPES: [UsernameType, MessageKey][] = [
   ["forwarded", "popup.generator.usernameType.forwarded"],
 ]
 
-const FORWARDING_SERVICES: [ForwardingService, string][] = [
-  ["simplelogin", "SimpleLogin"],
-  ["addyio", "Addy.io"],
-  ["fastmail", "Fastmail Masked Email"],
-  ["firefoxRelay", "Firefox Relay"],
-  ["duckduckgo", "DuckDuckGo Email Protection"],
-  ["forwardEmail", "ForwardEmail"],
-]
-
 /** A username's type, and the word options, address, or forwarding API settings it uses. */
 export function UsernameOptionsForm({
   options,
-  generatingAlias = false,
+  generatingAlias,
   onChange,
   onGenerateAlias,
+  onUnlock,
 }: {
   options: UsernameOptions
-  generatingAlias?: boolean
+  generatingAlias: boolean
   onChange: (patch: Partial<UsernameOptions>) => void
-  onGenerateAlias?: () => void
+  onGenerateAlias: () => void
+  /** Opens the unlock view of the Bitwarden vault `vaultId`. */
+  onUnlock: (vaultId: string) => void
 }) {
   const plusEmail = options.type === "plusEmail"
-  const forwarded = options.type === "forwarded"
-  const needsDomain =
-    options.forwardingService === "addyio" ||
-    options.forwardingService === "forwardEmail"
-  const supportsBaseUrl =
-    options.forwardingService === "simplelogin" ||
-    options.forwardingService === "addyio"
-  const canCreateAlias =
-    !generatingAlias &&
-    Boolean(options.forwardingApiKey.trim()) &&
-    (!needsDomain || Boolean(options.forwardingDomain.trim()))
 
   return (
     <div>
@@ -130,105 +111,14 @@ export function UsernameOptionsForm({
           />
         </OptionRow>
       )}
-      {forwarded && (
-        <>
-          <OptionRow label={t("popup.generator.forwardingService")}>
-            <Select
-              value={options.forwardingService}
-              onValueChange={(service) => {
-                if (service)
-                  onChange({
-                    forwardingService: service as ForwardingService,
-                  })
-              }}
-              items={FORWARDING_SERVICES.map(([value, label]) => ({
-                value,
-                label,
-              }))}
-            >
-              <SelectTrigger
-                className="min-w-0 flex-1"
-                aria-label={t("popup.generator.forwardingService")}
-              >
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectGroup>
-                  {FORWARDING_SERVICES.map(([value, label]) => (
-                    <SelectItem key={value} value={value}>
-                      {label}
-                    </SelectItem>
-                  ))}
-                </SelectGroup>
-              </SelectContent>
-            </Select>
-          </OptionRow>
-          <OptionRow
-            label={t("popup.generator.forwardingApiKey")}
-            htmlFor="gen-forward-key"
-          >
-            <div className="min-w-0 flex-1">
-              <SecretInput
-                id="gen-forward-key"
-                value={options.forwardingApiKey}
-                onChange={(event) =>
-                  onChange({ forwardingApiKey: event.target.value })
-                }
-              />
-            </div>
-          </OptionRow>
-          {needsDomain && (
-            <OptionRow
-              label={t("popup.generator.forwardingDomain")}
-              htmlFor="gen-forward-domain"
-            >
-              <Input
-                id="gen-forward-domain"
-                className="min-w-0 flex-1"
-                spellCheck={false}
-                autoComplete="off"
-                placeholder="example.com"
-                value={options.forwardingDomain}
-                onChange={(event) =>
-                  onChange({ forwardingDomain: event.target.value })
-                }
-              />
-            </OptionRow>
-          )}
-          {supportsBaseUrl && (
-            <OptionRow
-              label={t("popup.generator.forwardingBaseUrl")}
-              htmlFor="gen-forward-url"
-            >
-              <Input
-                id="gen-forward-url"
-                className="min-w-0 flex-1"
-                spellCheck={false}
-                autoComplete="off"
-                placeholder={
-                  options.forwardingService === "simplelogin"
-                    ? "https://app.simplelogin.io"
-                    : "https://app.addy.io"
-                }
-                value={options.forwardingBaseUrl}
-                onChange={(event) =>
-                  onChange({ forwardingBaseUrl: event.target.value })
-                }
-              />
-            </OptionRow>
-          )}
-          <div className="border-t px-3 py-2.5">
-            <Button
-              type="button"
-              className="w-full"
-              size="sm"
-              disabled={!canCreateAlias}
-              onClick={onGenerateAlias}
-            >
-              {t("popup.generator.generateAlias")}
-            </Button>
-          </div>
-        </>
+      {options.type === "forwarded" && (
+        <ForwardingOptions
+          options={options}
+          generating={generatingAlias}
+          onChange={onChange}
+          onGenerate={onGenerateAlias}
+          onUnlock={onUnlock}
+        />
       )}
     </div>
   )

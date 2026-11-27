@@ -1,3 +1,5 @@
+import http from "node:http"
+import type { Page } from "playwright-core"
 import { afterAll, beforeAll, describe, expect, it } from "vitest"
 import { type ExtensionHarness, launchExtension } from "./harness"
 import { type MockBitwardenServer, startMockBitwarden } from "./mock-bitwarden"
@@ -70,6 +72,97 @@ describe("E2E 05 — Generator, Strength Meter, History, Forwarded Aliases & Sec
       .getByText("No history")
       .waitFor({ state: "visible", timeout: 5000 })
     await popup.close()
+  })
+
+  it("keeps a forwarding API key encrypted in the Bitwarden account and asks to unlock it", async () => {
+    const API_KEY = "sl-e2e-api-key"
+    const keysReceived: string[] = []
+    const simpleLogin = http.createServer((request, response) => {
+      keysReceived.push(String(request.headers.authentication))
+      response.setHeader("content-type", "application/json")
+      response.end(JSON.stringify({ email: "alias-1@sl.test" }))
+    })
+    await new Promise<void>((resolve) =>
+      simpleLogin.listen(0, "127.0.0.1", resolve),
+    )
+    const address = simpleLogin.address()
+    const serverUrl = `http://127.0.0.1:${typeof address === "object" && address ? address.port : 0}`
+    const storedText = (area: "local" | "session") =>
+      extension.serviceWorker.evaluate(async (name) => {
+        const { storage } = (
+          globalThis as unknown as {
+            chrome: {
+              storage: Record<
+                "local" | "session",
+                { get(keys: null): Promise<unknown> }
+              >
+            }
+          }
+        ).chrome
+        return JSON.stringify(await storage[name].get(null))
+      }, area)
+    const openForwarding = async (): Promise<Page> => {
+      const page = await extension.openExtensionPage("popup.html")
+      page.setDefaultTimeout(5000)
+      await page.getByRole("button", { name: "Generator" }).click()
+      await page.getByRole("tab", { name: "Username" }).click()
+      await page.getByRole("combobox", { name: "Type" }).click()
+      await page.getByRole("option", { name: "Forwarded email alias" }).click()
+      return page
+    }
+
+    try {
+      await extension.clearStorage()
+      bitwarden.reset({ ciphers: [] })
+      await extension.seedBitwarden({ server: bitwarden, name: "Personal BW" })
+      let popup = await openForwarding()
+      await popup.getByText("Saved encrypted in Personal BW").waitFor()
+      await popup.getByLabel("API key").fill(API_KEY)
+      await popup.getByLabel("Server URL (optional)").fill(serverUrl)
+      await expect
+        .poll(() => storedText("local"))
+        .toContain("bitwarden.secrets.")
+      expect(await storedText("local")).not.toContain(API_KEY)
+      expect(await storedText("session")).not.toContain(API_KEY)
+
+      await popup.getByRole("button", { name: "Generate alias" }).click()
+      await popup.getByText("alias-1@sl.test").waitFor()
+      expect(keysReceived).toEqual([API_KEY])
+      await popup.close()
+
+      // Locked, the key cannot be read; unlocking from the generator brings it back.
+      popup = await extension.openExtensionPage("popup.html")
+      popup.setDefaultTimeout(5000)
+      // The popup reopens on the generator it was closed on.
+      await popup.getByRole("button", { name: "Back" }).click()
+      await popup.getByRole("button", { name: "Lock all" }).click()
+      await popup.getByText("Unlock Bitwarden").waitFor({ timeout: 10_000 })
+      await popup.close()
+      popup = await openForwarding()
+      await popup
+        .getByText("Unlock Personal BW to use the API keys saved there")
+        .waitFor()
+      await popup.getByRole("button", { name: "Unlock" }).click()
+      await popup.getByLabel("Master password").fill(bitwarden.masterPassword)
+      await popup.getByRole("button", { name: "Unlock" }).click()
+      await expect
+        .poll(() => popup.getByLabel("API key").inputValue(), {
+          timeout: 10_000,
+        })
+        .toBe(API_KEY)
+      await popup.close()
+
+      // Without a Bitwarden account the key lasts for the browser session only.
+      await extension.clearStorage()
+      popup = await openForwarding()
+      await popup.getByText("Kept until the browser closes").waitFor()
+      await popup.getByLabel("API key").fill(API_KEY)
+      await expect.poll(() => storedText("session")).toContain(API_KEY)
+      expect(await storedText("local")).not.toContain(API_KEY)
+      await popup.close()
+    } finally {
+      await new Promise((resolve) => simpleLogin.close(resolve))
+    }
   })
 
   it("runs local Security Checkup identifying weak, reused, and HTTP items while skipping reprompt items", async () => {

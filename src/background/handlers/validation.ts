@@ -1,3 +1,4 @@
+import type { ForwardingSettings } from "@/lib/email-forwarding"
 import type { GeneratorKind } from "@/lib/generator"
 import type { SecondStepMethod } from "@/lib/providers/bitwarden/auth"
 import {
@@ -52,6 +53,15 @@ export function requireFiniteNumber(value: unknown, name: string): number {
 function requireRecord(value: unknown, name: string): Record<string, unknown> {
   if (typeof value !== "object" || value === null) throw invalid(name)
   return value as Record<string, unknown>
+}
+
+export function forwardingSettings(value: unknown): ForwardingSettings {
+  const { apiKey, domain, baseUrl } = requireRecord(value, "settings")
+  return {
+    apiKey: requireText(apiKey, "apiKey"),
+    domain: requireText(domain, "domain"),
+    baseUrl: requireText(baseUrl, "baseUrl"),
+  }
 }
 
 /** A site the user typed, as a web address; null for text that is not one. */

@@ -2,6 +2,7 @@ import type { Handlers } from "@/lib/messaging"
 import type { AppleProvider } from "@/lib/providers/apple/apple-provider"
 import type { BitwardenProvider } from "@/lib/providers/bitwarden/bitwarden-provider"
 import type { BackgroundApi } from "../api"
+import { ForwardingStore } from "../forwarding"
 import type { HttpAuth } from "../http-auth"
 import type { PasskeyPrompt } from "../passkey-prompt"
 import type { Providers } from "../providers"
@@ -46,7 +47,7 @@ export function createHandlers(
     ...popupSaveHandlers(providers),
     ...appleHandlers(named.apple),
     ...bitwardenHandlers(named.bitwarden),
-    ...generatorHandlers(),
+    ...generatorHandlers(new ForwardingStore(named.bitwarden)),
     ...menuHandlers(providers, named.bitwarden),
     ...promptHandlers(providers, named.bitwarden),
     ...contentHandlers(providers, submissionGate),

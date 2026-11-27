@@ -202,6 +202,14 @@ function CurrentView({
         <GeneratorView
           onBack={back}
           onHistory={() => onNavigate({ name: "history" })}
+          onUnlock={(vaultId) =>
+            onNavigate({
+              name: "connect",
+              kind: "bitwarden",
+              vaultId,
+              back: "generator",
+            })
+          }
         />
       )
     case "history":
