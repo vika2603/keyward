@@ -1,0 +1,104 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+jobs:
+  check:
+    name: Check, Corpus & Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node & pnpm via mise
+        uses: jdx/mise-action@v2
+
+      - name: Resolve pnpm store path
+        id: pnpm-store
+        run: echo "path=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
+
+      - name: Cache pnpm store
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.pnpm-store.outputs.path }}
+          key: ${{ runner.os }}-pnpm-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint, typecheck & unit tests
+        run: pnpm check
+
+      - name: Cache DuckDuckGo form corpus
+        uses: actions/cache@v4
+        with:
+          path: .cache/form-corpus
+          key: ${{ runner.os }}-form-corpus-${{ hashFiles('mise.toml') }}
+
+      - name: Run 564-form autofill corpus regression
+        run: mise run corpus
+
+      - name: Build MV3 extension & Chrome Web Store archive
+        run: |
+          pnpm build
+          pnpm zip
+
+      - name: Upload Chrome Web Store zip
+        uses: actions/upload-artifact@v4
+        with:
+          name: keyward-chrome-mv3-zip
+          path: .output/*.zip
+          retention-days: 7
+
+  e2e:
+    name: Headless Chrome E2E
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node & pnpm via mise
+        uses: jdx/mise-action@v2
+
+      - name: Resolve pnpm store path
+        id: pnpm-store
+        run: echo "path=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
+
+      - name: Cache pnpm store
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.pnpm-store.outputs.path }}
+          key: ${{ runner.os }}-pnpm-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Cache Playwright Chromium
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('pnpm-lock.yaml') }}
+
+      - name: Install Chrome for Testing & system deps
+        run: pnpm exec playwright-core install chromium --with-deps
+
+      - name: Build MV3 extension
+        run: pnpm build
+
+      - name: Run full-plugin E2E test suite
+        run: pnpm test:e2e

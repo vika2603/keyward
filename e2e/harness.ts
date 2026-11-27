@@ -23,6 +23,10 @@ export function findChromiumExecutable(): string {
   const fromEnv = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE?.trim()
   if (fromEnv && fs.existsSync(fromEnv)) return fromEnv
 
+  const defaultExecutable = chromium.executablePath()
+  if (defaultExecutable && fs.existsSync(defaultExecutable))
+    return defaultExecutable
+
   const cacheRoots = [
     path.join(os.homedir(), "Library/Caches/ms-playwright"),
     path.join(os.homedir(), ".cache/ms-playwright"),
@@ -30,6 +34,7 @@ export function findChromiumExecutable(): string {
   const relativeCandidates = [
     "chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing",
     "chrome-mac-x64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing",
+    "chrome-linux64/chrome",
     "chrome-linux/chrome",
   ]
   for (const root of cacheRoots) {
@@ -46,7 +51,7 @@ export function findChromiumExecutable(): string {
       }
     }
   }
-  return chromium.executablePath()
+  return defaultExecutable
 }
 
 export interface ExtensionHarness {
@@ -101,6 +106,7 @@ export async function launchExtension(): Promise<ExtensionHarness> {
       `--load-extension=${EXTENSION_DIR}`,
       "--no-first-run",
       "--no-default-browser-check",
+      "--disable-dev-shm-usage",
     ],
   })
 
