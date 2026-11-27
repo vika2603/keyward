@@ -1,6 +1,7 @@
 import type { ContentScriptContext } from "wxt/utils/content-script-context"
 import type { BackgroundApi } from "@/background/api"
 import { eventOrigin } from "./deep-dom"
+import { isContextAlive } from "./extension-messages"
 
 const SVG_NS = "http://www.w3.org/2000/svg"
 /** QR codes on setup pages are shown at roughly this size range, and square. */
@@ -146,18 +147,20 @@ export function watchCodeImages(
   let current: Element | null = null
   let offered = false
   let timer = 0
+  ctx.onInvalidated(() => clearTimeout(timer))
   ctx.addEventListener(
     document,
     "mouseover",
     (event) => {
-      if (!enabled()) return
+      if (!isContextAlive(ctx) || !enabled()) return
       const target = targetOf(event)
       if (target === current) return
       current = target
       clearTimeout(timer)
       timer = window.setTimeout(async () => {
+        if (!isContextAlive(ctx)) return
         const candidate = target ? await candidateOf(target) : null
-        if (target !== current) return
+        if (target !== current || !isContextAlive(ctx)) return
         if (!candidate && !offered) return
         offered = await report(candidate).catch(() => false)
       }, HOVER_DELAY_MS)

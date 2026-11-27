@@ -1,7 +1,8 @@
 import type { ContentScriptContext } from "wxt/utils/content-script-context"
 import LOGO_SVG from "@/assets/field-icon.svg?raw"
 import type { Language } from "@/lib/i18n/language"
-import { deepActiveElement, markOwnHost } from "./deep-dom"
+import { deepActiveElement, markOwnHost, openDialogOf } from "./deep-dom"
+import { isContextAlive } from "./extension-messages"
 import { codeBoxes, isVisible } from "./field-finder"
 import type { PageEvents } from "./page-events"
 
@@ -94,6 +95,15 @@ function coveringElement(
   return null
 }
 
+function promotePopover(element: HTMLElement): void {
+  if (typeof element.showPopover !== "function") return
+  try {
+    if (!element.matches(":popover-open")) element.showPopover()
+  } catch {
+    // Ignore when the element is disconnected or popover promotion is unavailable.
+  }
+}
+
 /**
  * The Keyward icon inside a login field, shown while the field has the focus or its menu is open;
  * activating it opens the menu for that field.
@@ -107,17 +117,21 @@ export class FieldIcons {
   private language: Language = "en"
 
   constructor(
-    ctx: ContentScriptContext,
+    private readonly ctx: ContentScriptContext,
     events: PageEvents,
     private readonly onActivate: (field: HTMLInputElement) => void,
   ) {
     this.host = document.createElement("keyward-field-icons")
+    if (typeof this.host.showPopover === "function")
+      this.host.setAttribute("popover", "manual")
+    this.host.style.setProperty("all", "initial", "important")
     for (const [name, value] of Object.entries({
       position: "fixed",
       top: "0",
       left: "0",
       width: "0",
       height: "0",
+      overflow: "visible",
       "z-index": ICON_Z_INDEX,
       display: "block",
     })) {
@@ -138,11 +152,16 @@ export class FieldIcons {
     events.on("focusin", schedule)
     events.on("focusout", schedule)
     ctx.setInterval(schedule, 1000)
-    ctx.onInvalidated(() => this.host.remove())
+    ctx.onInvalidated(() => {
+      cancelAnimationFrame(this.frame)
+      this.frame = 0
+      this.host.remove()
+    })
   }
 
   /** Shows icons for exactly these fields. */
   update(fields: HTMLInputElement[]): void {
+    if (!isContextAlive(this.ctx)) return
     const wanted = new Set(fields)
     for (const [field, icon] of this.icons) {
       if (!wanted.has(field)) {
@@ -153,9 +172,14 @@ export class FieldIcons {
     for (const field of fields) {
       if (!this.icons.has(field)) this.icons.set(field, this.createIcon(field))
     }
-    if (this.icons.size && !this.host.isConnected)
-      document.documentElement.append(this.host)
-    if (!this.icons.size) this.host.remove()
+    if (this.icons.size) {
+      if (!this.host.isConnected) {
+        document.documentElement.append(this.host)
+        promotePopover(this.host)
+      }
+    } else {
+      this.host.remove()
+    }
     this.schedule()
   }
 
@@ -173,6 +197,9 @@ export class FieldIcons {
     this.expanded = field
     for (const [iconField, icon] of this.icons)
       icon.setAttribute("aria-expanded", String(iconField === field))
+    // Mount/promote the icon host before InlineMenu.show() promotes its popover, so the menu
+    // always sits above the icon host in the browser's top layer.
+    if (field) this.mountHostFor(field)
     this.schedule()
   }
 
@@ -224,9 +251,31 @@ export class FieldIcons {
     return right
   }
 
+  private mountHostFor(activeField: HTMLInputElement | null): void {
+    if (!this.icons.size) return
+    const target =
+      (activeField ? openDialogOf(activeField) : null) ??
+      document.documentElement
+    if (this.host.parentElement !== target) target.append(this.host)
+    promotePopover(this.host)
+  }
+
   private position(): void {
+    if (!isContextAlive(this.ctx)) return
     const focusedField = deepActiveElement()
     const focusedIcon = this.root.activeElement
+    let activeField: HTMLInputElement | null = null
+    for (const [field, icon] of this.icons) {
+      if (
+        field === focusedField ||
+        field === this.expanded ||
+        icon === focusedIcon
+      ) {
+        activeField = field
+        break
+      }
+    }
+    this.mountHostFor(activeField)
     for (const [field, icon] of this.icons) {
       const inUse =
         field === focusedField ||

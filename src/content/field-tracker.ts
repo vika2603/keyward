@@ -1,5 +1,6 @@
 import type { ContentScriptContext } from "wxt/utils/content-script-context"
 import { hasPendingShadowHosts } from "./deep-dom"
+import { isContextAlive } from "./extension-messages"
 import { type FoundFields, findFields } from "./field-finder"
 
 /** How long a scan waits after a change to the page, so that a burst of changes scans once. */
@@ -13,7 +14,15 @@ const OBSERVE_OPTIONS: MutationObserverInit = {
   childList: true,
   subtree: true,
   attributes: true,
-  attributeFilter: ["type", "style", "class", "hidden", "disabled"],
+  attributeFilter: [
+    "type",
+    "style",
+    "class",
+    "hidden",
+    "disabled",
+    "readonly",
+    "open",
+  ],
 }
 
 const NO_FIELDS: FoundFields = { login: [], newPassword: [], code: [] }
@@ -84,9 +93,11 @@ export class FieldTracker {
   }
 
   start(): void {
+    if (!isContextAlive(this.ctx)) return
     this.running = true
     this.observedRoots = new WeakSet<Node>()
     this.observer = new MutationObserver((records) => {
+      if (!isContextAlive(this.ctx)) return
       if (this.scanTimer || records.every(this.isKeywardChange)) return
       this.hydrationDelayMs = HYDRATION_INITIAL_MS
       this.scanTimer = window.setTimeout(() => {
@@ -112,6 +123,7 @@ export class FieldTracker {
   }
 
   scan(): void {
+    if (!isContextAlive(this.ctx)) return
     const found = findFields(document, (root) => this.observeRoot(root))
     if (found.code.length && this.codesAvailable === null)
       void this.checkCodes()

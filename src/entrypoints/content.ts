@@ -9,6 +9,7 @@ import { watchCodeImages } from "@/content/code-scan"
 import { ContentConfiguration } from "@/content/content-config"
 import { deepActiveElement, eventOrigin } from "@/content/deep-dom"
 import {
+  isContextAlive,
   listenToExtension,
   notifyBackground,
 } from "@/content/extension-messages"
@@ -104,15 +105,19 @@ export default defineContentScript({
      * the user has left.
      */
     let menuOpenings = 0
+    let openingField: HTMLInputElement | null = null
 
     async function openMenu(field: HTMLInputElement): Promise<void> {
+      if (!isContextAlive(ctx)) return
       const opening = ++menuOpenings
       if (menu.openFor === field) {
+        openingField = null
         menu.close()
         return
       }
       menu.close()
       lastMenuField = field
+      openingField = field
       const newPassword = fields.isNewPassword(field)
       const session = await callBackground("content.openMenu", {
         kind: fields.isCode(field) ? "code" : "login",
@@ -126,7 +131,9 @@ export default defineContentScript({
           ? fieldRulesOf(newPasswordTargets(field, fields.newPassword))
           : undefined,
       }).catch(() => null)
-      if (opening !== menuOpenings || !session) return
+      if (openingField === field && opening === menuOpenings)
+        openingField = null
+      if (opening !== menuOpenings || !session || !isContextAlive(ctx)) return
       // The page may have stopped offering logins while the session was requested.
       if (!configuration.current.active || !fields.has(field)) return
       icons.setExpanded(field)
@@ -147,7 +154,8 @@ export default defineContentScript({
         !fills.filling &&
         !field.value &&
         fields.has(field) &&
-        menu.openFor !== field
+        menu.openFor !== field &&
+        openingField !== field
       )
     }
 
@@ -251,7 +259,7 @@ export default defineContentScript({
       { capture: true },
     )
     events.on("focusin", (event) => {
-      if (!event.isTrusted) return
+      if (!event.isTrusted || !isContextAlive(ctx)) return
       const target = eventOrigin(event)
       focusedEarly = null
       if (
@@ -261,6 +269,25 @@ export default defineContentScript({
         return
       if (!fields.has(target)) focusedEarly = target
       else if (opensOnFocus(target)) void openMenu(target)
+    })
+    events.on("click", (event) => {
+      if (!event.isTrusted || !isContextAlive(ctx)) return
+      const target = eventOrigin(event)
+      if (!(target instanceof HTMLInputElement)) return
+      if (deepActiveElement() === target && opensOnFocus(target))
+        void openMenu(target)
+    })
+    events.on("input", (event) => {
+      if (fills.filling || !isContextAlive(ctx)) return
+      const target = eventOrigin(event)
+      if (!(target instanceof HTMLInputElement)) return
+      if (menu.openFor === target && target.value) {
+        ++menuOpenings
+        openingField = null
+        menu.close()
+      } else if (!target.value && opensOnFocus(target)) {
+        void openMenu(target)
+      }
     })
 
     await configuration.load()

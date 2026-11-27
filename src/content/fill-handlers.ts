@@ -152,10 +152,9 @@ export class FillHandlers {
    */
   fillNew(message: Message<"fillNew">): boolean {
     if (isSandboxedFrame() || location.origin !== message.origin) return false
-    const targets = this.targetsForNewPassword().filter((field) =>
-      this.canFillField(field),
-    )
+    const candidates = this.targetsForNewPassword()
     this.menu.close()
+    const targets = candidates.filter((field) => this.canFillField(field))
     this.whileFilling(() => {
       for (const field of targets) setFieldValue(field, message.password)
     })

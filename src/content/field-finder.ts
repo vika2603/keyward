@@ -369,8 +369,8 @@ export class FieldIndex {
       if (
         !fields.has(input) &&
         looksLikeUsername(input) &&
-        !this.inputs(this.scope(input)).some(
-          (field) => field.type === "password",
+        !this.inputs(this.scope(input)).some((field) =>
+          this.isEffectivePassword(field),
         ) &&
         !this.inLongerForm(input) &&
         (!suggestsOnlyPhone(input) || phoneSignsIn(input))

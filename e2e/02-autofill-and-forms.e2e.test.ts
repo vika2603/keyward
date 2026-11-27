@@ -209,4 +209,50 @@ describe("E2E 02 — Autofill, Quick Filter, Shadow DOM, Custom Fields & TOTP", 
       .waitFor({ state: "visible", timeout: 5000 })
     await emptyPage.close()
   })
+
+  it("fills inside native showModal() dialogs and focus-trapped live ARIA modals", async () => {
+    await seedAutofillVault()
+    const page = await extension.context.newPage()
+    await page.goto(`${site.origin}/modal`, { waitUntil: "networkidle" })
+
+    // 1. Native <dialog>.showModal() top-layer: inline menu must be visible and clickable above the dialog.
+    await page.locator("#open-native-dialog").click()
+    await page.locator("#dialog-user").click()
+    const menuFrame = page.frameLocator(
+      `iframe[src*="chrome-extension://${extension.extensionId}/inline-menu.html"]`,
+    )
+    const loginRow = menuFrame
+      .getByRole("menuitem")
+      .filter({ hasText: "target-alice@example.test" })
+    await loginRow.waitFor({ state: "visible", timeout: 10_000 })
+    await page.waitForTimeout(OVERLAY_SETTLE_WAIT_MS)
+    await loginRow.click()
+
+    await expect
+      .poll(() => page.locator("#dialog-user").inputValue(), { timeout: 5000 })
+      .toBe("target-alice@example.test")
+    expect(await page.locator("#dialog-pass").inputValue()).toBe(
+      "Targ3t!Strong#Pass99",
+    )
+    await page.keyboard.press("Escape")
+
+    // 2. ARIA modal with focus trap + live DOM ticker + autocomplete="new-password" only:
+    // strong password suggestion must survive rescan and fill without being stolen by focus trap.
+    await page.locator("#open-aria-modal").click()
+    await page.locator("#aria-pass").click()
+    const suggestRow = menuFrame
+      .getByRole("menuitem")
+      .filter({ hasText: "Use a strong password" })
+    await suggestRow.waitFor({ state: "visible", timeout: 10_000 })
+    await page.waitForTimeout(OVERLAY_SETTLE_WAIT_MS)
+    await suggestRow.click()
+
+    await expect
+      .poll(() => page.locator("#aria-pass").inputValue(), { timeout: 5000 })
+      .toMatch(/^.{12,}$/)
+    expect(await page.locator("#aria-pass").getAttribute("autocomplete")).toBe(
+      "new-password",
+    )
+    await page.close()
+  })
 })

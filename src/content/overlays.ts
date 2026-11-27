@@ -1,6 +1,11 @@
 import type { ContentScriptContext } from "wxt/utils/content-script-context"
 import { createIframeUi } from "wxt/utils/content-script-ui/iframe"
-import { deepActiveElement, eventOrigin } from "./deep-dom"
+import { deepActiveElement, eventOrigin, modalContainerOf } from "./deep-dom"
+import { isContextAlive } from "./extension-messages"
+import {
+  restoreFieldAutocomplete,
+  suppressFieldAutocomplete,
+} from "./field-hints"
 import { PROMPT_WIDTH } from "./overlay-size"
 import type { PageEvents } from "./page-events"
 
@@ -29,6 +34,19 @@ function lockStyle(element: HTMLElement, styles: Record<string, string>): void {
     element.style.setProperty(name, value, "important")
 }
 
+function supportsPopover(element: HTMLElement): boolean {
+  return typeof element.showPopover === "function"
+}
+
+function promotePopover(element: HTMLElement): void {
+  if (!supportsPopover(element)) return
+  try {
+    if (!element.matches(":popover-open")) element.showPopover()
+  } catch {
+    // Ignore when disconnected or popover promotion is unavailable.
+  }
+}
+
 /**
  * One extension page shown in an iframe over the web page. The page reports its height through the
  * background; until then the frame stays hidden. The frame and its wrapper sit in the page's DOM,
@@ -37,6 +55,7 @@ function lockStyle(element: HTMLElement, styles: Record<string, string>): void {
  */
 class Overlay {
   private ui: IframeUi | null = null
+  private anchor: HTMLElement = document.documentElement
   private height = 0
   private readonly origin: string
   /** The frame's width, card and shadow room together. */
@@ -57,8 +76,11 @@ class Overlay {
     private readonly onTampered: () => void,
     /** The color scheme the extension page will use, which the iframe element must declare too. */
     private readonly scheme: () => "light" | "dark",
+    /** Optional per-frame hook while the overlay is open, such as keeping position synced with its field. */
+    private readonly onFrame?: () => void,
   ) {
     this.origin = new URL(browser.runtime.getURL(page)).origin
+    ctx.onInvalidated(() => this.hide())
   }
 
   get iframe(): HTMLIFrameElement | null {
@@ -66,8 +88,10 @@ class Overlay {
   }
 
   /** Shows the page; `token` is posted only to this frame, whose requests must carry it. */
-  show(token: string): void {
+  show(token: string, anchor: HTMLElement = document.documentElement): void {
     this.hide()
+    if (!isContextAlive(this.ctx)) return
+    this.anchor = anchor.isConnected ? anchor : document.documentElement
     this.height = 0
     this.token = token
     this.loaded = false
@@ -75,8 +99,9 @@ class Overlay {
     const ui = createIframeUi(this.ctx, {
       page: this.page,
       position: "inline",
-      anchor: () => document.documentElement,
+      anchor: () => this.anchor,
       onMount: (wrapper, iframe) => {
+        if (supportsPopover(wrapper)) wrapper.setAttribute("popover", "manual")
         lockStyle(wrapper, {
           position: "fixed",
           "z-index": OVERLAY_Z_INDEX,
@@ -114,6 +139,7 @@ class Overlay {
     })
     this.wrappers.add(ui.wrapper)
     ui.mount()
+    promotePopover(ui.wrapper)
     this.ui = ui
     this.guard(ui)
   }
@@ -206,9 +232,11 @@ class Overlay {
     return [
       ui.wrapper.getAttribute("style"),
       ui.wrapper.getAttribute("class"),
+      ui.wrapper.getAttribute("popover"),
       ui.iframe.getAttribute("style"),
       ui.iframe.getAttribute("src"),
-      ui.wrapper.parentNode === document.documentElement,
+      ui.wrapper.parentNode === this.anchor,
+      ui.wrapper.isConnected,
       ui.iframe.parentNode === ui.wrapper,
     ].join("\n")
   }
@@ -230,18 +258,27 @@ class Overlay {
       subtree: true,
       childList: true,
     })
-    this.observer.observe(document.documentElement, { childList: true })
+    this.observer.observe(this.anchor, { childList: true })
     const watch = () => {
       if (this.ui !== ui) return
+      if (!ui.wrapper.isConnected) {
+        this.onTampered()
+        return
+      }
+      this.onFrame?.()
+      if (this.ui !== ui) return
       const box = ui.iframe.getBoundingClientRect()
-      // Height changes come only from the overlay's own resize; position and width catch moves and zoom.
-      const rect = `${box.x},${box.y},${box.width}`
-      if (loaded && rect !== this.lastRect) {
+      // Height changes come only from the overlay's own resize; rounded position and width catch
+      // real moves and zoom without resetting the click guard on sub-pixel layout jitter.
+      const rect = `${Math.round(box.x)},${Math.round(box.y)},${Math.round(box.width)}`
+      if (loaded) {
+        if (this.lastRect !== "" && rect !== this.lastRect) {
+          ui.iframe.contentWindow?.postMessage(
+            { keywardOverlayMoved: 1 },
+            this.origin,
+          )
+        }
         this.lastRect = rect
-        ui.iframe.contentWindow?.postMessage(
-          { keywardOverlayMoved: 1 },
-          this.origin,
-        )
       }
       this.watchFrame = requestAnimationFrame(watch)
     }
@@ -253,14 +290,13 @@ class Overlay {
 export class InlineMenu {
   private readonly overlay: Overlay
   private field: HTMLInputElement | null = null
-  private savedAutocomplete: {
-    field: HTMLInputElement
-    value: string | null
-  } | null = null
+  private suppressedField: HTMLInputElement | null = null
+  private lastFieldRect = ""
   private frame = 0
   /** Set briefly when returning focus from the menu's cross-origin frame, which fires a trusted focusin. */
   private returningTo: HTMLInputElement | null = null
   private returnTimer = 0
+  private focusOutTimer = 0
 
   constructor(
     ctx: ContentScriptContext,
@@ -275,12 +311,13 @@ export class InlineMenu {
       "/inline-menu.html",
       () => this.close(),
       scheme,
+      () => this.syncFieldPosition(),
     )
     const reposition = () => {
       if (!this.field || this.frame) return
       this.frame = requestAnimationFrame(() => {
         this.frame = 0
-        if (this.field) this.overlay.placeBelow(this.field)
+        if (this.field) this.placeForField(this.field)
       })
     }
     ctx.addEventListener(window, "scroll", reposition, {
@@ -309,7 +346,9 @@ export class InlineMenu {
         const field = this.field
         if (!field || eventOrigin(event) !== field) return
         // The focus has moved on by the next task.
-        setTimeout(() => {
+        clearTimeout(this.focusOutTimer)
+        this.focusOutTimer = window.setTimeout(() => {
+          this.focusOutTimer = 0
           if (this.field !== field) return
           const active = deepActiveElement()
           const backInField = active === field && document.hasFocus()
@@ -341,7 +380,19 @@ export class InlineMenu {
       },
       { capture: true },
     )
-    ctx.onInvalidated(() => this.restoreAutocomplete())
+    ctx.onInvalidated(() => {
+      cancelAnimationFrame(this.frame)
+      this.frame = 0
+      clearTimeout(this.returnTimer)
+      this.returnTimer = 0
+      clearTimeout(this.focusOutTimer)
+      this.focusOutTimer = 0
+      this.returningTo = null
+      this.field = null
+      this.lastFieldRect = ""
+      this.restoreAutocomplete()
+      this.overlay.hide()
+    })
   }
 
   get openFor(): HTMLInputElement | null {
@@ -356,25 +407,45 @@ export class InlineMenu {
     this.restoreAutocomplete()
     this.field = field
     this.suppressAutocomplete(field)
-    this.overlay.show(token)
+    this.overlay.show(
+      token,
+      modalContainerOf(field) ?? document.documentElement,
+    )
+    this.placeForField(field)
+  }
+
+  private placeForField(field: HTMLInputElement): void {
+    const rect = field.getBoundingClientRect()
+    this.lastFieldRect = `${Math.round(rect.left)},${Math.round(rect.top)},${Math.round(rect.right)},${Math.round(rect.bottom)}`
     this.overlay.placeBelow(field)
   }
 
-  private suppressAutocomplete(field: HTMLInputElement): void {
-    this.savedAutocomplete = {
-      field,
-      value: field.getAttribute("autocomplete"),
+  private syncFieldPosition(): void {
+    const field = this.field
+    if (!field) return
+    if (!field.isConnected) {
+      this.close()
+      return
     }
+    const rect = field.getBoundingClientRect()
+    const key = `${Math.round(rect.left)},${Math.round(rect.top)},${Math.round(rect.right)},${Math.round(rect.bottom)}`
+    if (key !== this.lastFieldRect) {
+      this.lastFieldRect = key
+      this.overlay.placeBelow(field)
+    }
+  }
+
+  private suppressAutocomplete(field: HTMLInputElement): void {
+    this.suppressedField = field
     // Suppress the browser's own autocomplete dropdown while Keyward's menu is open.
-    field.setAttribute("autocomplete", "off")
+    suppressFieldAutocomplete(field)
   }
 
   private restoreAutocomplete(): void {
-    const saved = this.savedAutocomplete
-    if (!saved) return
-    this.savedAutocomplete = null
-    if (saved.value === null) saved.field.removeAttribute("autocomplete")
-    else saved.field.setAttribute("autocomplete", saved.value)
+    const field = this.suppressedField
+    if (!field) return
+    this.suppressedField = null
+    restoreFieldAutocomplete(field)
   }
 
   resize(height: number): void {

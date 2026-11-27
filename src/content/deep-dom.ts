@@ -122,9 +122,16 @@ export function shadowRootOf(element: Element): ShadowRoot | null {
   const custom = element.localName.includes("-")
   if (!custom && !SHADOW_HOST_NAMES.has(element.nodeName)) return null
   if (!(element instanceof HTMLElement)) return null
-  const root =
-    (browser.dom?.openOrClosedShadowRoot?.(element) as ShadowRoot | null) ??
-    null
+  if (!browser.runtime?.id) return null
+  let root: ShadowRoot | null = null
+  try {
+    root =
+      (browser.dom?.openOrClosedShadowRoot?.(element) as ShadowRoot | null) ??
+      null
+  } catch {
+    // The extension context can invalidate mid-scan when the extension reloads.
+    return null
+  }
   if (root) {
     pendingCustomHosts.delete(element)
     closedRoots.set(element, root)
@@ -218,6 +225,47 @@ export function formOf(element: Element): HTMLFormElement | null {
   const form = nearestFormElement(element)
   if (!form || isPageWrapperForm(form)) return null
   return form
+}
+
+/**
+ * The nearest open native `<dialog>` ancestor holding `element`, or null when none.
+ * Native modal `<dialog>` elements mark everything outside their subtree `inert`.
+ */
+export function openDialogOf(element: Element): HTMLDialogElement | null {
+  const documentElement = element.ownerDocument.documentElement
+  for (
+    let ancestor = composedParent(element);
+    ancestor && ancestor !== documentElement;
+    ancestor = composedParent(ancestor)
+  ) {
+    if (ancestor instanceof HTMLDialogElement && ancestor.open) return ancestor
+  }
+  return null
+}
+
+/**
+ * The nearest enclosing modal container (`<dialog open>` or ARIA `aria-modal="true"` dialog)
+ * holding `element`, or null when `element` is not inside a modal. Mounting overlays inside the
+ * modal subtree keeps them interactive under `<dialog>.showModal()` inertness and modal focus traps.
+ */
+export function modalContainerOf(element: Element): HTMLElement | null {
+  const documentElement = element.ownerDocument.documentElement
+  for (
+    let ancestor = composedParent(element);
+    ancestor && ancestor !== documentElement;
+    ancestor = composedParent(ancestor)
+  ) {
+    if (ancestor instanceof HTMLDialogElement && ancestor.open) return ancestor
+    if (ancestor instanceof HTMLElement) {
+      const role = ancestor.getAttribute("role")
+      if (
+        (role === "dialog" || role === "alertdialog") &&
+        ancestor.getAttribute("aria-modal") === "true"
+      )
+        return ancestor
+    }
+  }
+  return null
 }
 
 function hasInteractiveFormChild(

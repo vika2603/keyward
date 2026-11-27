@@ -90,9 +90,42 @@ function takesPassword(input: HTMLInputElement): boolean {
   return !OTHER_SECRET_HINT.test(words) || PASSWORD_WORD_HINT.test(words)
 }
 
-/** The field's autocomplete values in lower case, such as `billing` and `email`; the HTML standard ignores case. */
+/**
+ * Original `autocomplete` attributes saved while Keyward temporarily overrides them to `"off"`
+ * (to suppress the browser's own autofill dropdown while the inline menu is open).
+ */
+const suppressedAutocomplete = new WeakMap<HTMLInputElement, string | null>()
+
+/**
+ * Temporarily overrides `input`'s `autocomplete` attribute to `"off"` while keeping the page's
+ * value readable by `field-hints` so re-scans and submission inspection see the real attribute.
+ */
+export function suppressFieldAutocomplete(input: HTMLInputElement): void {
+  if (!suppressedAutocomplete.has(input))
+    suppressedAutocomplete.set(input, input.getAttribute("autocomplete"))
+  input.setAttribute("autocomplete", "off")
+}
+
+/** Restores an `autocomplete` attribute previously overridden by `suppressFieldAutocomplete`. */
+export function restoreFieldAutocomplete(input: HTMLInputElement): void {
+  if (!suppressedAutocomplete.has(input)) return
+  const original = suppressedAutocomplete.get(input) ?? null
+  suppressedAutocomplete.delete(input)
+  if (input.getAttribute("autocomplete") !== "off") return
+  if (original === null) input.removeAttribute("autocomplete")
+  else input.setAttribute("autocomplete", original)
+}
+
+/**
+ * The field's autocomplete values in lower case, such as `billing` and `email`; the HTML standard
+ * ignores case. Uses the saved page value while Keyward temporarily sets `autocomplete="off"`.
+ */
 function autocompleteValues(input: HTMLInputElement): string[] {
-  const attribute = input.getAttribute("autocomplete") ?? ""
+  const live = input.getAttribute("autocomplete")
+  const attribute =
+    live === "off" && suppressedAutocomplete.has(input)
+      ? (suppressedAutocomplete.get(input) ?? "")
+      : (live ?? "")
   return attribute.toLowerCase().split(/\s+/).filter(Boolean)
 }
 

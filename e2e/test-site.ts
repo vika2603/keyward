@@ -160,6 +160,52 @@ const PASSKEY_HTML = `<!doctype html>
   </body>
 </html>`
 
+const MODAL_HTML = `<!doctype html>
+<html>
+  <head><meta charset="utf-8"><title>Keyward E2E Modals</title></head>
+  <body>
+    <button id="open-native-dialog" type="button">Open Native Dialog</button>
+    <dialog id="native-dialog">
+      <form id="dialog-login-form">
+        <input id="dialog-user" name="username" type="email" autocomplete="username" />
+        <input id="dialog-pass" name="password" type="password" autocomplete="current-password" />
+        <button type="submit">Sign in</button>
+      </form>
+    </dialog>
+
+    <div id="aria-modal" role="dialog" aria-modal="true" style="display:none; position:fixed; inset:40px; background:#fff; padding:24px; border:1px solid #ccc;">
+      <form id="aria-signup-form">
+        <input id="aria-email" type="text" placeholder="Email" readonly />
+        <input id="aria-pass" type="password" autocomplete="new-password" placeholder="Password" />
+      </form>
+      <div id="live-ticker">0</div>
+    </div>
+    <button id="open-aria-modal" type="button">Open ARIA Modal</button>
+
+    <script>
+      document.getElementById("open-native-dialog").addEventListener("click", () => {
+        document.getElementById("native-dialog").showModal()
+      })
+      const ariaModal = document.getElementById("aria-modal")
+      const ariaEmail = document.getElementById("aria-email")
+      ariaEmail.addEventListener("focus", () => ariaEmail.removeAttribute("readonly"))
+      document.getElementById("open-aria-modal").addEventListener("click", () => {
+        ariaModal.style.display = "block"
+        // Simulate a modal focus trap that pulls focus back inside when focus leaves the modal subtree.
+        document.addEventListener("focusin", (event) => {
+          if (ariaModal.style.display === "block" && !ariaModal.contains(event.target)) {
+            ariaEmail.focus()
+          }
+        })
+        let tick = 0
+        setInterval(() => {
+          document.getElementById("live-ticker").textContent = String(++tick)
+        }, 120)
+      })
+    </script>
+  </body>
+</html>`
+
 const PAGES: Record<string, string> = {
   "/login": LOGIN_HTML,
   "/signup": SIGNUP_HTML,
@@ -167,6 +213,7 @@ const PAGES: Record<string, string> = {
   "/otp": OTP_HTML,
   "/shadow": SHADOW_HTML,
   "/passkey": PASSKEY_HTML,
+  "/modal": MODAL_HTML,
 }
 
 /** Starts a local HTTP test site served on `http://localhost:<port>` (secure context in Chrome). */

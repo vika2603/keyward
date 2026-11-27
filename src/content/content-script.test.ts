@@ -731,6 +731,174 @@ describe("closing the menu when its field loses the focus", () => {
     expect(username.getAttribute("autocomplete")).toBe("username")
   })
 
+  it("keeps autocomplete=new-password classification across page rescan while menu is open", async () => {
+    document.body.innerHTML = `
+      <form>
+        <input type="text" placeholder="Email">
+        <input type="password" autocomplete="new-password" placeholder="Password">
+      </form>`
+    const page = await startContentScript()
+    ctx = page.ctx
+    const password = input("[type=password]")
+    password.focus()
+    await openMenuOn(password)
+    expect(password.getAttribute("autocomplete")).toBe("off")
+
+    // Simulate a live page mutation (such as validation UI or ticker updates) triggering a rescan
+    // and focus moving into the inline menu iframe when the user clicks the suggestion.
+    const notice = document.createElement("div")
+    document.body.append(notice)
+    await vi.advanceTimersByTimeAsync(400)
+    document.querySelector("iframe")?.focus()
+
+    expect(
+      await page.send({
+        type: "fillNew",
+        origin: location.origin,
+        password: "{{SECRET_0rjx6wrn}}",
+      }),
+    ).toBe(true)
+    expect(password.value).toBe("{{SECRET_0rjx6wrn}}")
+    expect(password.getAttribute("autocomplete")).toBe("new-password")
+  })
+
+  it("keeps autocomplete=one-time-code classification across page rescan while menu is open", async () => {
+    document.body.innerHTML = `
+      <form>
+        <input type="text" autocomplete="one-time-code">
+      </form>`
+    const page = await startContentScript({ hasCodes: true })
+    ctx = page.ctx
+    const code = input("input")
+    code.focus()
+    await openMenuOn(code)
+    expect(code.getAttribute("autocomplete")).toBe("off")
+
+    document.body.append(document.createElement("span"))
+    await vi.advanceTimersByTimeAsync(400)
+    document.querySelector("iframe")?.focus()
+
+    await page.send({
+      type: "fillCode",
+      origin: location.origin,
+      code: "654321",
+    })
+    expect(code.value).toBe("654321")
+    expect(code.getAttribute("autocomplete")).toBe("one-time-code")
+  })
+
+  it("preserves a new autocomplete value written by the page while the menu is open", async () => {
+    document.body.innerHTML = `
+      <form>
+        <input name="username" autocomplete="username">
+        <input type="password" name="password">
+      </form>`
+    const page = await startContentScript()
+    ctx = page.ctx
+    const username = input("[name=username]")
+    username.focus()
+    await openMenuOn(username)
+    username.setAttribute("autocomplete", "email")
+
+    await page.send({ type: "menu.close" })
+    expect(username.getAttribute("autocomplete")).toBe("email")
+  })
+
+  it("closes the menu when the user types and reopens when cleared or clicked again", async () => {
+    document.body.innerHTML = SIGN_IN
+    const page = await startContentScript()
+    ctx = page.ctx
+    const username = input("[name=username]")
+    username.focus()
+    await openMenuOn(username)
+    expect(menuIsOpen()).toBe(true)
+
+    username.value = "a"
+    username.dispatchEvent(new Event("input", { bubbles: true }))
+    expect(menuIsOpen()).toBe(false)
+
+    username.value = ""
+    username.dispatchEvent(new Event("input", { bubbles: true }))
+    await vi.advanceTimersByTimeAsync(0)
+    expect(menuIsOpen()).toBe(true)
+
+    username.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "Escape", bubbles: true }),
+    )
+    expect(menuIsOpen()).toBe(false)
+
+    username.dispatchEvent(
+      trusted(new MouseEvent("click", { bubbles: true, composed: true })),
+    )
+    await vi.advanceTimersByTimeAsync(0)
+    expect(menuIsOpen()).toBe(true)
+  })
+
+  it("detects inputs whose readonly attribute is removed on focus", async () => {
+    document.body.innerHTML = `
+      <form>
+        <input name="username" readonly>
+        <input type="password" name="password" readonly>
+        <button>Sign in</button>
+      </form>`
+    const page = await startContentScript()
+    ctx = page.ctx
+    const username = input("[name=username]")
+    username.focus()
+    focusByUser(username)
+    username.removeAttribute("readonly")
+    input("[name=password]").removeAttribute("readonly")
+    await vi.advanceTimersByTimeAsync(400)
+    expect(menuIsOpen()).toBe(true)
+  })
+
+  it("mounts the inline menu inside an open dialog or ARIA modal", async () => {
+    document.body.innerHTML = `
+      <div id="modal" role="dialog" aria-modal="true">
+        <form>
+          <input name="username">
+          <input type="password" name="password">
+        </form>
+      </div>`
+    const page = await startContentScript()
+    ctx = page.ctx
+    const username = input("[name=username]")
+    username.focus()
+    await openMenuOn(username)
+    const modal = document.querySelector("#modal")
+    const iframe = document.querySelector("iframe")
+    expect(iframe).not.toBeNull()
+    expect(modal?.contains(iframe)).toBe(true)
+  })
+
+  it("aborts cleanly without throwing when extension context invalidates before reinjection", async () => {
+    document.body.innerHTML = `
+      <div id="host">
+        <form>
+          <input name="username">
+          <input type="password" name="password">
+        </form>
+      </div>`
+    const page = await startContentScript()
+    ctx = page.ctx
+    vi.spyOn(fakeBrowser.dom, "openOrClosedShadowRoot").mockImplementation(
+      () => {
+        throw new Error("Extension context invalidated.")
+      },
+    )
+    const runtime = fakeBrowser.runtime as { id?: string }
+    const originalId = runtime.id
+    try {
+      runtime.id = undefined
+      document.body.append(document.createElement("div"))
+      expect(() => vi.advanceTimersByTime(1500)).not.toThrow()
+      expect(page.ctx.isInvalid).toBe(true)
+      expect(document.querySelector("keyward-field-icons")).toBeNull()
+    } finally {
+      runtime.id = originalId
+    }
+  })
+
   it("stops Escape propagation when closing the menu so site modals stay open", async () => {
     document.body.innerHTML = SIGN_IN
     const page = await startContentScript()
