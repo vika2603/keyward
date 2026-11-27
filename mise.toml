@@ -2,38 +2,8 @@
 node = "26"
 pnpm = "12"
 
-[tasks.setup]
-description = "Install dependencies"
-run = "pnpm install"
-
-[tasks.build]
-description = "Build the extension into .output/chrome-mv3"
-run = "pnpm build"
-
-[tasks.zip]
-description = "Package the extension for the Chrome Web Store into .output, without the manifest key"
-run = "pnpm zip"
-
-[tasks.lint]
-description = "Check formatting and lint rules with Biome"
-run = "pnpm lint"
-
-[tasks.format]
-description = "Fix formatting and safe lint issues with Biome"
-run = "pnpm format"
-
-[tasks.typecheck]
-description = "Type-check with TypeScript"
-run = "pnpm compile"
-
-[tasks.test]
-description = "Run the unit tests"
-run = "pnpm test"
-
-[tasks.e2e]
-description = "Build extension and run headless Chromium E2E tests"
-depends = ["build"]
-run = "pnpm test:e2e"
+# Everyday dev/build/test commands live in package.json (`pnpm <script>`).
+# Only multi-step shell tasks that fetch external datasets live here.
 
 [tasks.site-data]
 description = "Update the data from Apple's password-manager-resources in src/lib/site-data"
@@ -63,7 +33,3 @@ if [ "$(git -C "$dir" rev-parse HEAD 2>/dev/null || true)" != "$commit" ]; then
 fi
 KEYWARD_FORM_CORPUS="$dir/test-forms" pnpm vitest run --silent=false src/content/form-corpus.test.ts
 """
-
-[tasks.check]
-description = "Run lint, type check and tests"
-depends = ["lint", "typecheck", "test"]

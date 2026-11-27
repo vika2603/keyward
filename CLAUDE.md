@@ -15,18 +15,21 @@ Keyward is a Chrome MV3 password manager extension (WXT + React + TypeScript + T
 
 ## Essential Commands
 
+Use `pnpm` directly for all development, build, and test scripts (`mise` pins Node/pnpm versions and only runs multi-step external dataset tasks):
+
 ```bash
-pnpm biome check src       # Format & lint check across src/ (use --write to auto-fix)
+pnpm check                 # Lint (src + e2e) + TypeScript check + unit tests
+pnpm format                # Auto-format and apply safe Biome fixes (src + e2e)
 pnpm compile               # TypeScript strict typecheck (tsc --noEmit)
 pnpm test                  # Vitest unit & integration test suite
-pnpm test:e2e              # Headless Chrome for Testing MV3 extension E2E suite
-mise run corpus            # DuckDuckGo 564-form autofill regression corpus
-mise run e2e               # Build + run headless Chromium E2E suite
 pnpm build                 # Production MV3 bundle -> .output/chrome-mv3/
-mise run zip               # Release archive for Chrome Web Store
+pnpm test:e2e              # Headless Chrome for Testing MV3 extension E2E suite
+pnpm zip                   # Release archive for Chrome Web Store
+mise run corpus            # DuckDuckGo 564-form autofill regression corpus
+mise run site-data         # Refresh Apple password-manager-resources rules
 ```
 
-Always run `pnpm biome check src`, `pnpm compile`, `pnpm test`, and `pnpm build` before committing changes. Keep `store/listing.md` untouched unless explicitly editing store copy.
+Always run `pnpm check` and `pnpm build` (plus `pnpm test:e2e` for UI/autofill/passkey changes) before committing. Keep `store/listing.md` untouched unless explicitly editing store copy.
 
 ## TypeScript & React Style Guide
 

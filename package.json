@@ -10,10 +10,11 @@
     "build": "wxt build",
     "zip": "KEYWARD_STORE=1 wxt zip",
     "compile": "tsc --noEmit",
-    "lint": "biome check",
-    "format": "biome check --write",
+    "lint": "biome check src e2e",
+    "format": "biome check --write src e2e",
     "test": "vitest run",
     "test:e2e": "vitest run --config vitest.e2e.config.ts",
+    "check": "pnpm lint && pnpm compile && pnpm test",
     "postinstall": "wxt prepare"
   },
   "dependencies": {

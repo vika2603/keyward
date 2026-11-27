@@ -17,13 +17,13 @@ Requires [mise](https://mise.jdx.dev) (and macOS 14 or later for Passwords).
 
 ```sh
 mise install
-mise run setup
-mise run build
+pnpm install
+pnpm build
 ```
 
 Open `chrome://extensions`, enable Developer mode, and load `.output/chrome-mv3` as an unpacked extension. To use Passwords on macOS, follow the connection prompt in the extension.
 
-`mise run zip` packages the extension for the Chrome Web Store as `.output/keyward-<version>-chrome.zip`. The package carries no manifest key, since the store assigns the extension ID.
+`pnpm zip` packages the extension for the Chrome Web Store as `.output/keyward-<version>-chrome.zip`. The package carries no manifest key, since the store assigns the extension ID.
 
 ## Privacy
 
