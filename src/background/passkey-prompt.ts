@@ -131,6 +131,11 @@ export class PasskeyPrompt implements PopupPromptLifecycle {
       this.gate.settle({ kind: "cancel" })
   }
 
+  /** Whether a modal WebAuthn passkey request is currently awaiting user choice. */
+  get active(): boolean {
+    return this.gate.busy
+  }
+
   /** The popup connected to display the passkey prompt. */
   showing(): void {
     this.gate.showing()

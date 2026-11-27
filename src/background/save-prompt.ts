@@ -1,5 +1,6 @@
 import { ruleForHost } from "@/lib/matching"
 import type { BitwardenProvider } from "@/lib/providers/bitwarden/bitwarden-provider"
+import { accountIdOfVault } from "@/lib/providers/bitwarden/vault-id"
 import {
   type Folder,
   type NewLogin,
@@ -555,7 +556,9 @@ export async function unlockAndSavePrompt(
   }
 
   if (vault.kind === "bitwarden" && options.masterPassword) {
-    await bitwarden.unlock(vault.id, options.masterPassword)
+    const accountId = accountIdOfVault(vault.id)
+    if (!accountId) throw new VaultError("Unknown vault", "unknownVault")
+    await bitwarden.unlock(accountId, options.masterPassword)
     await completeDeferredSave(providers, updated, vault.id, name)
     return { completed: true }
   }

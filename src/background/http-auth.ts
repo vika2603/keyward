@@ -75,6 +75,11 @@ export class HttpAuth implements PopupPromptLifecycle {
     return this.gate.ask({ requestId: challenge.requestId, page })
   }
 
+  /** Whether an HTTP auth challenge is currently awaiting user choice. */
+  get active(): boolean {
+    return this.gate.busy
+  }
+
   /** The popup that lists the site's logins opened. */
   showing(): void {
     this.gate.showing()

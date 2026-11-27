@@ -38,7 +38,10 @@ export function createHandlers(
   passkeyPrompt?: PasskeyPrompt,
 ): Handlers<BackgroundApi> {
   return {
-    ...popupItemHandlers(providers, named.bitwarden),
+    ...popupItemHandlers(providers, named.bitwarden, {
+      httpAuth,
+      passkeyPrompt,
+    }),
     ...popupNoteHandlers(providers),
     ...popupSaveHandlers(providers),
     ...appleHandlers(named.apple),

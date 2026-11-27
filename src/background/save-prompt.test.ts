@@ -474,10 +474,7 @@ describe("Phase 2 save & update matrix, editable prompt, locked deferral and gen
       },
     )
     expect(result).toEqual({ completed: true })
-    expect(named.bitwarden.unlock).toHaveBeenCalledWith(
-      lockedVault.id,
-      "master-password",
-    )
+    expect(named.bitwarden.unlock).toHaveBeenCalledWith("a", "master-password")
     expect(calls.save).toHaveBeenCalledWith(
       lockedVault.id,
       expect.objectContaining({

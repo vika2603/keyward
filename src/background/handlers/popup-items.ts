@@ -4,7 +4,9 @@ import { type Credential, VaultError } from "@/lib/providers/types"
 import { checkPasswordBreach } from "@/lib/security-check"
 import type { BackgroundApi } from "../api"
 import { copyText } from "../clipboard"
+import type { HttpAuth } from "../http-auth"
 import { MAX_COPIED_TEXT_LENGTH, MAX_SEARCH_LENGTH } from "../limits"
+import type { PasskeyPrompt } from "../passkey-prompt"
 import { takeRequestedView } from "../popup-window"
 import type { Providers } from "../providers"
 import { namedVault, namedVaultWith } from "./capabilities"
@@ -14,6 +16,7 @@ import { loginEdit, requireBoolean, requireText } from "./validation"
 export function popupItemHandlers(
   providers: Providers,
   bitwarden?: BitwardenProvider,
+  prompts?: { httpAuth?: HttpAuth; passkeyPrompt?: PasskeyPrompt },
 ) {
   /** A login's password, read for the popup's own views; it never goes into a page from here. */
   const popupCredential = async (
@@ -44,6 +47,8 @@ export function popupItemHandlers(
       handle: async () => {
         const requested = await takeRequestedView()
         if (requested) return requested
+        if (prompts?.passkeyPrompt?.active) return { name: "passkey" }
+        if (prompts?.httpAuth?.active) return { name: "httpAuth" }
         const waiting = (await providers.vaults()).find(
           (vault) => vault.awaitingUser,
         )
