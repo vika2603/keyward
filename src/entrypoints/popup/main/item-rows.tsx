@@ -22,6 +22,7 @@ import {
 } from "@/hooks/use-transient-value"
 import { t } from "@/lib/i18n"
 import type {
+  ArchivedItem,
   LoginSummary,
   NoteSummary,
   TrashedItem,
@@ -216,6 +217,69 @@ export function TrashedRow({
             <Trash2Icon />
             {armed && t("popup.trash.confirmPurge")}
           </Button>
+        </RowActions>
+      )}
+    </RowShell>
+  )
+}
+
+/** A login or note in the archive: opens on click and can be restored to the active vault. */
+export function ArchivedRow({
+  vault,
+  item,
+  density,
+  onOpen,
+  onChanged,
+}: {
+  vault: VaultInfo
+  item: ArchivedItem
+  density: Settings["density"]
+  onOpen: () => void
+  onChanged: () => void
+}) {
+  const [busy, setBusy] = useState(false)
+  const compact = density === "compact"
+  const detail = item.username || item.host || ""
+
+  const unarchive = async () => {
+    setBusy(true)
+    try {
+      await callBackground("popup.unarchiveItem", {
+        vaultId: vault.id,
+        itemId: item.id,
+      })
+      notify(t("popup.archive.unarchived", { name: item.name }))
+      onChanged()
+    } catch (error) {
+      notifyError(error)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <RowShell compact={compact}>
+      <OpenItemButton onOpen={onOpen}>
+        {item.kind === "login" ? (
+          <SiteIcon
+            host={item.host}
+            text={item.name}
+            className={rowIconClass(compact)}
+          />
+        ) : (
+          <NoteIcon className={rowIconClass(compact)} />
+        )}
+        <LoginLabel primary={item.name} detail={detail} compact={compact} />
+      </OpenItemButton>
+      {item.editable && (
+        <RowActions className="items-center">
+          <RowActionButton
+            label={t("popup.archive.unarchive")}
+            disabled={busy}
+            onClick={() => void unarchive()}
+          >
+            <ArchiveRestoreIcon />
+          </RowActionButton>
         </RowActions>
       )}
     </RowShell>

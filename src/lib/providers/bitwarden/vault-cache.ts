@@ -1,9 +1,16 @@
-import { type TrashedItem, VaultError, type VaultGroups } from "../types"
+import {
+  type ArchivedItem,
+  type TrashedItem,
+  VaultError,
+  type VaultGroups,
+} from "../types"
 import { type AccountSessions, apiOf } from "./account-session"
 import { loadSync, loadSyncedAt, saveSync, touchAccount } from "./account-store"
 import { valueAt } from "./api"
 import type { VaultCrypto } from "./crypto"
 import {
+  archivedCiphers,
+  decryptArchived,
   decryptEquivalentDomains,
   decryptGroups,
   decryptLogin,
@@ -29,6 +36,8 @@ export interface Vault {
   equivalentDomains: string[][]
   trashed: TrashedItem[]
   trashedCiphers: Record<string, unknown>[]
+  archived: ArchivedItem[]
+  archivedCiphers: Record<string, unknown>[]
   items: LoginItem[]
   ciphers: Record<string, unknown>[]
   notes: NoteItem[]
@@ -179,6 +188,7 @@ export class VaultCache {
     const ciphers = loginCiphers(stored.data)
     const noteCiphersOfVault = noteCiphers(stored.data)
     const trashedCiphersOfVault = trashedCiphers(stored.data)
+    const archivedCiphersOfVault = archivedCiphers(stored.data)
     const vault: Vault = {
       syncedAt: stored.syncedAt,
       keys,
@@ -188,6 +198,10 @@ export class VaultCache {
         decryptTrashed(cipher, keys),
       ),
       trashedCiphers: trashedCiphersOfVault,
+      archived: decryptEach(archivedCiphersOfVault, (cipher) =>
+        decryptArchived(cipher, keys),
+      ),
+      archivedCiphers: archivedCiphersOfVault,
       items: decryptEach(ciphers, (cipher) => decryptLogin(cipher, keys)),
       ciphers,
       notes: decryptEach(noteCiphersOfVault, (cipher) =>

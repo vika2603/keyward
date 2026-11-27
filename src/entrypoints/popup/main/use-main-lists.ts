@@ -102,6 +102,12 @@ export function useMainLists({
                 search,
               ),
             ),
+            archived: vault.archived?.filter((item) =>
+              textMatchesQuery(
+                [item.name, item.username ?? "", item.host ?? ""].join("\n"),
+                search,
+              ),
+            ),
           }
         : vault
       return narrowed(searched, groupFilters.choices[vault.id])

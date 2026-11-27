@@ -111,8 +111,9 @@ export function ListArea({
       filters: groupFilters,
       vaults: filterable,
       onChange: onGroupFiltersChange,
+      onChanged: lists.load,
     }),
-    [groupFilters, filterable, onGroupFiltersChange],
+    [groupFilters, filterable, onGroupFiltersChange, lists.load],
   )
 
   if (!lists.listReady)
@@ -210,6 +211,32 @@ export function ListArea({
                     host: item.host,
                   },
                   trashed,
+                })
+              }
+            }}
+            onOpenArchived={(vault, item) => {
+              const archived = {
+                editable: item.editable,
+                archivedAt: item.archivedAt,
+              }
+              if (item.kind === "note") {
+                onNavigate({
+                  name: "note",
+                  vault,
+                  note: { id: item.id, name: item.name },
+                  archived,
+                })
+              } else {
+                onNavigate({
+                  name: "detail",
+                  vault,
+                  login: {
+                    id: item.id,
+                    username: item.username ?? "",
+                    title: item.name,
+                    host: item.host,
+                  },
+                  archived,
                 })
               }
             }}

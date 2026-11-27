@@ -12,6 +12,7 @@ import type {
 } from "@/lib/providers/bitwarden/bitwarden-provider"
 import type { CustomEndpoints } from "@/lib/providers/bitwarden/server"
 import type {
+  ArchivedItem,
   EditableLogin,
   EditableNote,
   FillField,
@@ -41,6 +42,8 @@ export interface VaultView extends VaultInfo {
   groups?: VaultGroups
   /** Given with the whole vault, by providers with a trash. */
   trashed?: TrashedItem[]
+  /** Given with the whole vault, by providers with an archive. */
+  archived?: ArchivedItem[]
 }
 
 /** A site that asks for a login through the browser's sign-in dialog, with its logins. */
@@ -287,6 +290,32 @@ export type BackgroundApi = {
   }
   /** The folders a new item can be filed in, for a vault that has folders. */
   "popup.folders": { payload: { vaultId: string }; result: Folder[] }
+  /** Organizations, folders, and collections of a vault. */
+  "popup.groups": { payload: { vaultId: string }; result: VaultGroups }
+  "popup.createFolder": {
+    payload: { vaultId: string; name: string }
+    result: Folder
+  }
+  "popup.renameFolder": {
+    payload: { vaultId: string; folderId: string; name: string }
+    result: null
+  }
+  "popup.deleteFolder": {
+    payload: { vaultId: string; folderId: string }
+    result: null
+  }
+  "popup.cloneItem": {
+    payload: { vaultId: string; itemId: string }
+    result: null
+  }
+  "popup.archiveItem": {
+    payload: { vaultId: string; itemId: string }
+    result: null
+  }
+  "popup.unarchiveItem": {
+    payload: { vaultId: string; itemId: string }
+    result: null
+  }
   /** Opens the toolbar popup from the welcome page, once a vault is connected. */
   "welcome.openPopup": { payload: null; result: null }
   "apple.state": { payload: null; result: AppleState }

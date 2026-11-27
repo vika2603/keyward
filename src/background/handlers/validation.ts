@@ -115,6 +115,10 @@ export function loginEdit(value: unknown): LoginEdit {
   }
   if (input.customFields !== undefined)
     edit.customFields = customFieldsInput(input.customFields)
+  if (input.folderId !== undefined)
+    edit.folderId = optionalFolderId(input.folderId)
+  if (input.reprompt !== undefined)
+    edit.reprompt = requireBoolean(input.reprompt, "reprompt")
   return edit
 }
 
@@ -129,6 +133,15 @@ function websiteInput(value: unknown): Website {
   }
 }
 
+function collectionIdsInput(value: unknown): string[] | undefined {
+  if (value === undefined || value === null) return undefined
+  if (!Array.isArray(value) || value.length > MAX_CUSTOM_FIELDS)
+    throw invalid("collections")
+  return value.map((id) =>
+    requireText(id, "collectionId", MAX_FOLDER_ID_LENGTH),
+  )
+}
+
 export function noteInput(value: unknown): EditableNote {
   const input = requireRecord(value, "note")
   const name = requireText(input.name, "name").trim()
@@ -137,6 +150,18 @@ export function noteInput(value: unknown): EditableNote {
     name,
     text: requireText(input.text, "text", MAX_NOTE_LENGTH),
     customFields: customFieldsInput(input.customFields),
+    ...(input.folderId !== undefined
+      ? { folderId: optionalFolderId(input.folderId) }
+      : {}),
+    ...(input.reprompt !== undefined
+      ? { reprompt: requireBoolean(input.reprompt, "reprompt") }
+      : {}),
+    ...(input.organizationId !== undefined
+      ? { organizationId: optionalFolderId(input.organizationId) }
+      : {}),
+    ...(input.collectionIds !== undefined
+      ? { collectionIds: collectionIdsInput(input.collectionIds) }
+      : {}),
   }
 }
 
@@ -152,6 +177,15 @@ export function newLoginDetailsInput(
     totp: requireText(input.totp ?? "", "totp", MAX_TOTP_LENGTH),
     customFields: customFieldsInput(input.customFields ?? []),
     folderId: optionalFolderId(input.folderId),
+    ...(input.reprompt !== undefined
+      ? { reprompt: requireBoolean(input.reprompt, "reprompt") }
+      : {}),
+    ...(input.organizationId !== undefined
+      ? { organizationId: optionalFolderId(input.organizationId) }
+      : {}),
+    ...(input.collectionIds !== undefined
+      ? { collectionIds: collectionIdsInput(input.collectionIds) }
+      : {}),
   }
 }
 

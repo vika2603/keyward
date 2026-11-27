@@ -151,6 +151,78 @@ export function popupItemHandlers(
           : []
       },
     },
+    "popup.groups": {
+      allow: popupOnly,
+      handle: async ({ vaultId }) => {
+        const vault = namedVault(providers, vaultId)
+        return vault.provider.groups
+          ? vault.provider.groups(vault.vaultId)
+          : { organizations: [], folders: [], collections: [] }
+      },
+    },
+    "popup.createFolder": {
+      allow: popupOnly,
+      handle: ({ vaultId, name }) => {
+        const vault = namedVaultWith(providers, vaultId, "createFolder")
+        return vault.provider.createFolder(
+          vault.vaultId,
+          requireText(name, "name"),
+        )
+      },
+    },
+    "popup.renameFolder": {
+      allow: popupOnly,
+      handle: async ({ vaultId, folderId, name }) => {
+        const vault = namedVaultWith(providers, vaultId, "renameFolder")
+        await vault.provider.renameFolder(
+          vault.vaultId,
+          requireText(folderId, "folderId"),
+          requireText(name, "name"),
+        )
+        return null
+      },
+    },
+    "popup.deleteFolder": {
+      allow: popupOnly,
+      handle: async ({ vaultId, folderId }) => {
+        const vault = namedVaultWith(providers, vaultId, "deleteFolder")
+        await vault.provider.deleteFolder(
+          vault.vaultId,
+          requireText(folderId, "folderId"),
+        )
+        return null
+      },
+    },
+    "popup.cloneItem": {
+      allow: popupOnly,
+      handle: async ({ vaultId, itemId }) => {
+        const vault = namedVaultWith(providers, vaultId, "clone")
+        await vault.provider.clone(vault.vaultId, requireText(itemId, "itemId"))
+        return null
+      },
+    },
+    "popup.archiveItem": {
+      allow: popupOnly,
+      handle: async ({ vaultId, itemId }) => {
+        const vault = namedVaultWith(providers, vaultId, "archive")
+        await vault.provider.archive(
+          vault.vaultId,
+          requireText(itemId, "itemId"),
+        )
+        return null
+      },
+    },
+    "popup.unarchiveItem": {
+      allow: popupOnly,
+      handle: async ({ vaultId, itemId }) => {
+        const vault = namedVaultWith(providers, vaultId, "unarchive")
+        await vault.provider.unarchive(
+          vault.vaultId,
+          requireText(itemId, "itemId"),
+        )
+        return null
+      },
+    },
     "popup.passReprompt": {
       allow: popupOnly,
       handle: async ({ vaultId, itemId, password }) => {

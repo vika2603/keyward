@@ -137,6 +137,7 @@ export class Providers {
             notes: items.notes,
             groups: items.groups,
             trashed: items.trashed,
+            archived: items.archived,
           }
         } catch (error) {
           return failedView(vault, error)

@@ -11,6 +11,12 @@ export interface TrashInfo {
   deletedAt?: number
 }
 
+/** Present when the opened item lives in the archive rather than the active vault. */
+export interface ArchiveInfo {
+  editable: boolean
+  archivedAt?: number
+}
+
 /** The popup's views, with what each one shows. */
 export type View =
   | PopupView
@@ -21,6 +27,7 @@ export type View =
       vault: VaultInfo
       login: LoginSummary
       trashed?: TrashInfo
+      archived?: ArchiveInfo
     }
   | { name: "edit"; vault: VaultInfo; login: LoginSummary }
   | {
@@ -28,6 +35,13 @@ export type View =
       vault: VaultInfo
       login: LoginSummary
       trashed?: TrashInfo
+      archived?: ArchiveInfo
     }
-  | { name: "note"; vault: VaultInfo; note: NoteSummary; trashed?: TrashInfo }
+  | {
+      name: "note"
+      vault: VaultInfo
+      note: NoteSummary
+      trashed?: TrashInfo
+      archived?: ArchiveInfo
+    }
   | { name: "editNote"; vault: VaultInfo; note: NoteSummary }

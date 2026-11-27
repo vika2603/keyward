@@ -152,6 +152,25 @@ export class BitwardenApi {
     return body
   }
 
+  private async sendJson(
+    url: string,
+    init?: RequestInit & { accessToken?: string },
+  ): Promise<Record<string, unknown>> {
+    return this.expectJson(await this.send(url, init))
+  }
+
+  private async sendVoid(
+    url: string,
+    init?: RequestInit & { accessToken?: string },
+  ): Promise<void> {
+    const response = await this.send(url, init)
+    if (!response.ok)
+      throw new ApiError(
+        response.status,
+        await this.json(response).catch(() => null),
+      )
+  }
+
   /** KDF settings and salt of an account, asked before the password is sent. */
   async prelogin(
     email: string,
@@ -245,50 +264,39 @@ export class BitwardenApi {
     throw new ApiError(response.status, body)
   }
 
-  async refreshToken(refreshToken: string): Promise<Record<string, unknown>> {
-    return this.expectJson(
-      await this.send(`${this.urls.identity}/connect/token`, {
-        method: "POST",
-        body: new URLSearchParams({
-          grant_type: "refresh_token",
-          client_id: CLIENT_ID,
-          refresh_token: refreshToken,
-        }),
-        headers: {
-          "Content-Type": "application/x-www-form-urlencoded; charset=utf-8",
-        },
+  refreshToken(refreshToken: string): Promise<Record<string, unknown>> {
+    return this.sendJson(`${this.urls.identity}/connect/token`, {
+      method: "POST",
+      body: new URLSearchParams({
+        grant_type: "refresh_token",
+        client_id: CLIENT_ID,
+        refresh_token: refreshToken,
       }),
-    )
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded; charset=utf-8",
+      },
+    })
   }
 
   /** Asks the server to email a sign-in code; only needed for the email method. */
-  async sendEmailCode(
+  sendEmailCode(
     login: { email: string; passwordHash: string },
     device: Device,
   ): Promise<void> {
-    const response = await this.send(
-      `${this.urls.api}/two-factor/send-email-login`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json; charset=utf-8" },
-        body: JSON.stringify({
-          email: login.email,
-          masterPasswordHash: login.passwordHash,
-          deviceIdentifier: device.identifier,
-          authRequestId: null,
-        }),
-      },
-    )
-    if (!response.ok)
-      throw new ApiError(response.status, await this.json(response))
+    return this.sendVoid(`${this.urls.api}/two-factor/send-email-login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json; charset=utf-8" },
+      body: JSON.stringify({
+        email: login.email,
+        masterPasswordHash: login.passwordHash,
+        deviceIdentifier: device.identifier,
+        authRequestId: null,
+      }),
+    })
   }
 
-  async sync(accessToken: string): Promise<Record<string, unknown>> {
-    return this.expectJson(
-      await this.send(`${this.urls.api}/sync`, {
-        accessToken,
-      }),
-    )
+  sync(accessToken: string): Promise<Record<string, unknown>> {
+    return this.sendJson(`${this.urls.api}/sync`, { accessToken })
   }
 
   /** Lightweight revision timestamp for checking whether the vault changed before doing a full sync. */
@@ -307,94 +315,144 @@ export class BitwardenApi {
     return Number.isNaN(date) ? null : date
   }
 
-  async createCipher(
+  createCipher(
     accessToken: string,
     cipher: Record<string, unknown>,
   ): Promise<Record<string, unknown>> {
-    return this.expectJson(
-      await this.send(`${this.urls.api}/ciphers`, {
-        method: "POST",
-        accessToken,
-        headers: { "Content-Type": "application/json; charset=utf-8" },
-        body: JSON.stringify(cipher),
-      }),
-    )
+    return this.sendJson(`${this.urls.api}/ciphers`, {
+      method: "POST",
+      accessToken,
+      headers: { "Content-Type": "application/json; charset=utf-8" },
+      body: JSON.stringify(cipher),
+    })
   }
 
-  async updateCipher(
+  /** Creates a cipher owned by an organization and assigned to one or more collections. */
+  createOrganizationCipher(
+    accessToken: string,
+    cipher: Record<string, unknown>,
+    collectionIds: string[],
+  ): Promise<Record<string, unknown>> {
+    return this.sendJson(`${this.urls.api}/ciphers/create`, {
+      method: "POST",
+      accessToken,
+      headers: { "Content-Type": "application/json; charset=utf-8" },
+      body: JSON.stringify({ cipher, collectionIds }),
+    })
+  }
+
+  updateCipher(
     accessToken: string,
     id: string,
     cipher: Record<string, unknown>,
   ): Promise<Record<string, unknown>> {
-    return this.expectJson(
-      await this.send(`${this.urls.api}/ciphers/${encodeURIComponent(id)}`, {
-        method: "PUT",
-        accessToken,
-        headers: { "Content-Type": "application/json; charset=utf-8" },
-        body: JSON.stringify(cipher),
-      }),
-    )
+    return this.sendJson(`${this.urls.api}/ciphers/${encodeURIComponent(id)}`, {
+      method: "PUT",
+      accessToken,
+      headers: { "Content-Type": "application/json; charset=utf-8" },
+      body: JSON.stringify(cipher),
+    })
   }
 
   /**
    * Sets the parts of an item that belong to the user rather than to the item: its folder and
    * whether it is a favorite. Read-only items of an organization take these too.
    */
-  async updateCipherPartial(
+  updateCipherPartial(
     accessToken: string,
     id: string,
     change: { folderId: string | null; favorite: boolean },
   ): Promise<Record<string, unknown>> {
-    return this.expectJson(
-      await this.send(
-        `${this.urls.api}/ciphers/${encodeURIComponent(id)}/partial`,
-        {
-          method: "PUT",
-          accessToken,
-          headers: { "Content-Type": "application/json; charset=utf-8" },
-          body: JSON.stringify(change),
-        },
-      ),
+    return this.sendJson(
+      `${this.urls.api}/ciphers/${encodeURIComponent(id)}/partial`,
+      {
+        method: "PUT",
+        accessToken,
+        headers: { "Content-Type": "application/json; charset=utf-8" },
+        body: JSON.stringify(change),
+      },
     )
   }
 
   /** Takes an item out of the trash. */
-  async restoreCipher(
+  restoreCipher(
     accessToken: string,
     id: string,
   ): Promise<Record<string, unknown>> {
-    return this.expectJson(
-      await this.send(
-        `${this.urls.api}/ciphers/${encodeURIComponent(id)}/restore`,
-        { method: "PUT", accessToken },
-      ),
+    return this.sendJson(
+      `${this.urls.api}/ciphers/${encodeURIComponent(id)}/restore`,
+      { method: "PUT", accessToken },
     )
   }
 
   /** Deletes an item for good; the server answers without a body. */
-  async deleteCipher(accessToken: string, id: string): Promise<void> {
-    const response = await this.send(
-      `${this.urls.api}/ciphers/${encodeURIComponent(id)}`,
-      { method: "DELETE", accessToken },
-    )
-    if (!response.ok)
-      throw new ApiError(
-        response.status,
-        await this.json(response).catch(() => null),
-      )
+  deleteCipher(accessToken: string, id: string): Promise<void> {
+    return this.sendVoid(`${this.urls.api}/ciphers/${encodeURIComponent(id)}`, {
+      method: "DELETE",
+      accessToken,
+    })
   }
 
   /** Moves an item to the trash; the server answers without a body. */
-  async trashCipher(accessToken: string, id: string): Promise<void> {
-    const response = await this.send(
+  trashCipher(accessToken: string, id: string): Promise<void> {
+    return this.sendVoid(
       `${this.urls.api}/ciphers/${encodeURIComponent(id)}/delete`,
       { method: "PUT", accessToken },
     )
-    if (!response.ok)
-      throw new ApiError(
-        response.status,
-        await this.json(response).catch(() => null),
-      )
+  }
+
+  /** Moves an item to the archive. */
+  archiveCipher(
+    accessToken: string,
+    id: string,
+  ): Promise<Record<string, unknown>> {
+    return this.sendJson(
+      `${this.urls.api}/ciphers/${encodeURIComponent(id)}/archive`,
+      { method: "PUT", accessToken },
+    )
+  }
+
+  /** Restores an item from the archive back to the active vault. */
+  unarchiveCipher(
+    accessToken: string,
+    id: string,
+  ): Promise<Record<string, unknown>> {
+    return this.sendJson(
+      `${this.urls.api}/ciphers/${encodeURIComponent(id)}/unarchive`,
+      { method: "PUT", accessToken },
+    )
+  }
+
+  createFolder(
+    accessToken: string,
+    name: string,
+  ): Promise<Record<string, unknown>> {
+    return this.sendJson(`${this.urls.api}/folders`, {
+      method: "POST",
+      accessToken,
+      headers: { "Content-Type": "application/json; charset=utf-8" },
+      body: JSON.stringify({ name }),
+    })
+  }
+
+  updateFolder(
+    accessToken: string,
+    id: string,
+    name: string,
+  ): Promise<Record<string, unknown>> {
+    return this.sendJson(`${this.urls.api}/folders/${encodeURIComponent(id)}`, {
+      method: "PUT",
+      accessToken,
+      headers: { "Content-Type": "application/json; charset=utf-8" },
+      body: JSON.stringify({ name }),
+    })
+  }
+
+  deleteFolder(accessToken: string, id: string): Promise<void> {
+    return this.sendVoid(`${this.urls.api}/folders/${encodeURIComponent(id)}`, {
+      method: "DELETE",
+      accessToken,
+    })
   }
 }
 

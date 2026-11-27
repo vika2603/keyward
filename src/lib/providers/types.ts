@@ -125,6 +125,10 @@ export interface EditableNote {
   name: string
   text: string
   customFields: CustomField[]
+  folderId?: string | null
+  reprompt?: boolean
+  organizationId?: string | null
+  collectionIds?: string[]
 }
 
 export interface PastPassword {
@@ -180,6 +184,24 @@ export interface NewLoginDetails {
   totp: string
   customFields: CustomField[]
   folderId: string | null
+  reprompt?: boolean
+  organizationId?: string | null
+  collectionIds?: string[]
+}
+
+/** A login or note in the provider's archive. */
+export interface ArchivedItem {
+  id: string
+  kind: "login" | "note"
+  name: string
+  username?: string
+  /** The host of a login's site, for its icon. */
+  host?: string
+  /** Milliseconds since the epoch. */
+  archivedAt?: number
+  /** Whether Keyward may unarchive or delete it. */
+  editable: boolean
+  grouping?: ItemGrouping
 }
 
 /** A login or note in the provider's trash. */
@@ -219,6 +241,8 @@ export interface EditableLogin {
   /** The authenticator key as saved: an `otpauth://` URI, a `steam://` key or a base32 secret. */
   totp: string
   customFields: CustomField[]
+  folderId?: string | null
+  reprompt?: boolean
 }
 
 /** New values for a login's fields; fields left out stay as they are. */
@@ -242,6 +266,7 @@ export interface VaultContents {
   notes: NoteSummary[]
   groups?: VaultGroups
   trashed?: TrashedItem[]
+  archived?: ArchivedItem[]
 }
 
 /**
@@ -327,6 +352,17 @@ export interface VaultProvider {
   remove?(vaultId: string, itemId: string): Promise<void>
   /** The folders new items can be filed in; only providers with folders have these. */
   folders?(vaultId: string): Promise<Folder[]>
+  /** The organizations, folders, and collections of a vault. */
+  groups?(vaultId: string): Promise<VaultGroups>
+  createFolder?(vaultId: string, name: string): Promise<Folder>
+  renameFolder?(vaultId: string, folderId: string, name: string): Promise<void>
+  deleteFolder?(vaultId: string, folderId: string): Promise<void>
+  /** Creates a duplicate copy of a login or secure note. */
+  clone?(vaultId: string, itemId: string): Promise<void>
+  /** Moves an item into the archive. */
+  archive?(vaultId: string, itemId: string): Promise<void>
+  /** Restores an archived item back to the active vault. */
+  unarchive?(vaultId: string, itemId: string): Promise<void>
   /** Opens, for a short while, a login or note that asks for the master password again. */
   passReprompt?(
     vaultId: string,

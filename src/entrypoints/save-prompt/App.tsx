@@ -4,6 +4,7 @@ import { type PromptState, VAULTS_CHANGED_KEY } from "@/background/api"
 import { useAppearance } from "@/components/keyward/appearance"
 import { BrandIcon, vaultLabel } from "@/components/keyward/brand-icon"
 import { errorMessage, isUnsupportedRequest } from "@/components/keyward/errors"
+import { nestedFolderChoices } from "@/components/keyward/folder-tree"
 import { useLanguage } from "@/components/keyward/language"
 import {
   callOverlay,
@@ -188,7 +189,10 @@ export function App() {
 
   const folderChoices = [
     { value: NO_FOLDER, label: t("overlay.prompt.noFolder") },
-    ...folders.map((folder) => ({ value: folder.id, label: folder.name })),
+    ...nestedFolderChoices(folders).map((folder) => ({
+      value: folder.id,
+      label: folder.label,
+    })),
   ]
 
   const submitLabel = (() => {

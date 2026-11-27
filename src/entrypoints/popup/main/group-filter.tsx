@@ -1,7 +1,12 @@
-import { ListFilterIcon } from "lucide-react"
-import { createContext, useContext } from "react"
+import { FolderCogIcon, ListFilterIcon } from "lucide-react"
+import { createContext, useContext, useState } from "react"
 import type { VaultView } from "@/background/api"
+import {
+  folderSubtreeIds,
+  nestedFolderChoices,
+} from "@/components/keyward/folder-tree"
 import { compareNames } from "@/components/keyward/format"
+import { Button } from "@/components/ui/button"
 import {
   Select,
   SelectContent,
@@ -13,7 +18,8 @@ import {
 } from "@/components/ui/select"
 import { Toggle } from "@/components/ui/toggle"
 import { type MessageKey, t } from "@/lib/i18n"
-import type { ItemGrouping } from "@/lib/providers/types"
+import type { Folder, ItemGrouping } from "@/lib/providers/types"
+import { FolderManagerDialog } from "../folder-manager-dialog"
 
 /** The account's own vault, as an owner beside its organizations. */
 const MY_VAULT = "mine"
@@ -55,7 +61,11 @@ function isFiltering(filter: GroupFilter | undefined): boolean {
   return Boolean(filter?.owner || filter?.folder || filter?.collection)
 }
 
-function fits(grouping: ItemGrouping | undefined, filter: GroupFilter) {
+function fits(
+  grouping: ItemGrouping | undefined,
+  filter: GroupFilter,
+  folders: readonly Folder[],
+) {
   if (!grouping) return false
   if (filter.owner === MY_VAULT && grouping.organizationId !== null)
     return false
@@ -66,12 +76,10 @@ function fits(grouping: ItemGrouping | undefined, filter: GroupFilter) {
   )
     return false
   if (filter.folder === NO_FOLDER && grouping.folderId !== null) return false
-  if (
-    filter.folder &&
-    filter.folder !== NO_FOLDER &&
-    grouping.folderId !== filter.folder
-  )
-    return false
+  if (filter.folder && filter.folder !== NO_FOLDER) {
+    const allowed = folderSubtreeIds(folders, filter.folder)
+    if (!grouping.folderId || !allowed.has(grouping.folderId)) return false
+  }
   return (
     !filter.collection || grouping.collectionIds.includes(filter.collection)
   )
@@ -83,17 +91,27 @@ export function narrowed(
   filter: GroupFilter | undefined,
 ): VaultView {
   if (!filter || !isFiltering(filter)) return vault
+  const folders = vault.groups?.folders ?? []
   return {
     ...vault,
-    logins: vault.logins.filter((login) => fits(login.grouping, filter)),
-    notes: vault.notes?.filter((note) => fits(note.grouping, filter)),
-    trashed: vault.trashed?.filter((item) => fits(item.grouping, filter)),
+    logins: vault.logins.filter((login) =>
+      fits(login.grouping, filter, folders),
+    ),
+    notes: vault.notes?.filter((note) => fits(note.grouping, filter, folders)),
+    trashed: vault.trashed?.filter((item) =>
+      fits(item.grouping, filter, folders),
+    ),
+    archived: vault.archived?.filter((item) =>
+      fits(item.grouping, filter, folders),
+    ),
   }
 }
 
-/** Whether an account has anything to filter by. */
+/** Whether an account has anything to filter by (or Bitwarden folders that can be managed). */
 function canFilter(vault: VaultView | undefined): boolean {
-  const groups = vault?.groups
+  if (!vault) return false
+  if (vault.kind === "bitwarden" && vault.status === "ready") return true
+  const groups = vault.groups
   return Boolean(
     groups &&
       (groups.organizations.length > 0 ||
@@ -107,6 +125,7 @@ interface GroupFilters {
   /** The accounts as listed whole, before any filter: what the pickers choose from. */
   vaults: readonly VaultView[]
   onChange: (filters: AccountFilters) => void
+  onChanged?: () => void
 }
 
 /** The list's account filters, for the buttons and pickers placed with each account. */
@@ -138,9 +157,10 @@ function choicesOf(vault: VaultView, part: Part): Choice[] {
   if (part === "folder") {
     if (!groups.folders.length) return []
     return [
-      ...groups.folders
-        .map((folder) => ({ value: folder.id, label: folder.name }))
-        .sort(byName),
+      ...nestedFolderChoices(groups.folders).map((folder) => ({
+        value: folder.id,
+        label: folder.label,
+      })),
       { value: NO_FOLDER, label: t("popup.main.filter.noFolder") },
     ]
   }
@@ -222,10 +242,11 @@ export function GroupFilterButton({
 /** Pickers for an account's vault, folder and collection; a part it has nothing in is left out. */
 export function GroupFilterBar({ vaultId }: { vaultId: string }) {
   const context = useContext(GroupFilterContext)
+  const [manageFoldersOpen, setManageFoldersOpen] = useState(false)
   const vault = context?.vaults.find((candidate) => candidate.id === vaultId)
   if (!context || !vault || !context.filters.shown.includes(vaultId))
     return null
-  const { filters, onChange } = context
+  const { filters, onChange, onChanged } = context
   const filter = filters.choices[vaultId] ?? NO_GROUP_FILTER
   const parts = (["owner", "folder", "collection"] as const)
     .map((part) => ({ part, choices: choicesOf(vault, part) }))
@@ -241,7 +262,7 @@ export function GroupFilterBar({ vaultId }: { vaultId: string }) {
     })
 
   return (
-    <div className="flex gap-1.5 pb-2">
+    <div className="flex items-center gap-1.5 pb-2">
       {parts.map(({ part, choices }) => (
         <Select
           key={part}
@@ -271,6 +292,28 @@ export function GroupFilterBar({ vaultId }: { vaultId: string }) {
           </SelectContent>
         </Select>
       ))}
+      {vault.kind === "bitwarden" && (
+        <>
+          <Button
+            type="button"
+            variant="outline"
+            size="icon-sm"
+            className="shrink-0 text-muted-foreground hover:text-foreground"
+            aria-label={t("popup.folders.manage")}
+            title={t("popup.folders.manage")}
+            onClick={() => setManageFoldersOpen(true)}
+          >
+            <FolderCogIcon />
+          </Button>
+          <FolderManagerDialog
+            open={manageFoldersOpen}
+            onOpenChange={setManageFoldersOpen}
+            vaultId={vault.id}
+            folders={vault.groups?.folders ?? []}
+            onChanged={() => onChanged?.()}
+          />
+        </>
+      )}
     </div>
   )
 }

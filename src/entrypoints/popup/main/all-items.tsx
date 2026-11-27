@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/select"
 import { type MessageKey, t } from "@/lib/i18n"
 import type {
+  ArchivedItem,
   LoginSummary,
   NoteSummary,
   TrashedItem,
@@ -36,9 +37,9 @@ import {
   GroupFilterButton,
   GroupFilterContext,
 } from "./group-filter"
-import { LoginRow, NoteRow, TrashedRow } from "./item-rows"
+import { ArchivedRow, LoginRow, NoteRow, TrashedRow } from "./item-rows"
 
-type ItemKind = "all" | "favorites" | "logins" | "notes" | "trash"
+type ItemKind = "all" | "favorites" | "logins" | "notes" | "archive" | "trash"
 /** What the list shows: the site's items, or every item of a kind. */
 export type ItemFilter = "site" | ItemKind
 
@@ -47,6 +48,7 @@ const KIND_LABELS: Record<ItemKind, MessageKey> = {
   favorites: "popup.main.itemKind.favorites",
   logins: "popup.main.itemKind.logins",
   notes: "popup.main.itemKind.notes",
+  archive: "popup.main.itemKind.archive",
   trash: "popup.main.itemKind.trash",
 }
 
@@ -54,6 +56,7 @@ type ItemRow =
   | { type: "login"; vault: VaultView; login: LoginSummary; name: string }
   | { type: "note"; vault: VaultView; note: NoteSummary; name: string }
   | { type: "trashed"; vault: VaultView; item: TrashedItem; name: string }
+  | { type: "archived"; vault: VaultView; item: ArchivedItem; name: string }
 
 type ListRow =
   | ItemRow
@@ -120,24 +123,31 @@ function rowsOf(
   for (const vault of vaults) {
     const logins = kind === "notes" ? [] : loginRows(vault)
     const notes = kind === "logins" ? [] : noteRows(vault)
-    const items: ItemRow[] =
-      kind === "trash"
-        ? // The trash lists what was deleted last first.
-          (vault.trashed ?? [])
-            .toSorted(
-              (first, second) =>
-                (second.deletedAt ?? 0) - (first.deletedAt ?? 0),
-            )
-            .map((item) => ({ type: "trashed", vault, item, name: item.name }))
-        : [...logins, ...notes]
-            .filter(
-              (item) =>
-                kind !== "favorites" ||
-                (item.type === "login"
-                  ? item.login.favorite
-                  : item.type === "note" && item.note.favorite),
-            )
-            .sort((first, second) => compareNames(first.name, second.name))
+    let items: ItemRow[]
+    if (kind === "trash") {
+      // The trash lists what was deleted last first.
+      items = (vault.trashed ?? [])
+        .toSorted(
+          (first, second) => (second.deletedAt ?? 0) - (first.deletedAt ?? 0),
+        )
+        .map((item) => ({ type: "trashed", vault, item, name: item.name }))
+    } else if (kind === "archive") {
+      items = (vault.archived ?? [])
+        .toSorted(
+          (first, second) => (second.archivedAt ?? 0) - (first.archivedAt ?? 0),
+        )
+        .map((item) => ({ type: "archived", vault, item, name: item.name }))
+    } else {
+      items = [...logins, ...notes]
+        .filter(
+          (item) =>
+            kind !== "favorites" ||
+            (item.type === "login"
+              ? item.login.favorite
+              : item.type === "note" && item.note.favorite),
+        )
+        .sort((first, second) => compareNames(first.name, second.name))
+    }
     itemCount += items.length
     // An account with nothing of a narrower kind is left out, unless its pickers are shown and may
     // be what narrowed it.
@@ -175,6 +185,8 @@ function keyOf(row: ListRow): string {
       return `note:${row.vault.id}:${row.note.id}`
     case "trashed":
       return `trashed:${row.vault.id}:${row.item.id}`
+    case "archived":
+      return `archived:${row.vault.id}:${row.item.id}`
   }
 }
 
@@ -223,6 +235,7 @@ export function VirtualRows({
   onOpenLogin,
   onOpenNote,
   onOpenTrashed,
+  onOpenArchived,
   onChanged,
 }: {
   rows: readonly ListRow[]
@@ -236,6 +249,7 @@ export function VirtualRows({
   onOpenLogin: (vault: VaultView, login: LoginSummary) => void
   onOpenNote: (vault: VaultView, note: NoteSummary) => void
   onOpenTrashed?: (vault: VaultView, item: TrashedItem) => void
+  onOpenArchived?: (vault: VaultView, item: ArchivedItem) => void
   /** An item left the trash or an account locked; the list loads again. */
   onChanged?: () => void
 }) {
@@ -349,6 +363,15 @@ export function VirtualRows({
                 onChanged={() => onChanged?.()}
               />
             )}
+            {row.type === "archived" && (
+              <ArchivedRow
+                vault={row.vault}
+                item={row.item}
+                density={density}
+                onOpen={() => onOpenArchived?.(row.vault, row.item)}
+                onChanged={() => onChanged?.()}
+              />
+            )}
             {row.type === "note" && (
               <NoteRow
                 vault={row.vault}
@@ -382,6 +405,7 @@ export function ItemBrowser({
   onOpenLogin,
   onOpenNote,
   onOpenTrashed,
+  onOpenArchived,
   onChanged,
 }: {
   vaults: readonly VaultView[]
@@ -401,11 +425,13 @@ export function ItemBrowser({
   onOpenLogin: (vault: VaultView, login: LoginSummary) => void
   onOpenNote: (vault: VaultView, note: NoteSummary) => void
   onOpenTrashed: (vault: VaultView, item: TrashedItem) => void
+  onOpenArchived: (vault: VaultView, item: ArchivedItem) => void
   /** Something in the vaults changed from the list, as a restore from the trash. */
   onChanged: () => void
 }) {
   const sourceVaults = allVaults ?? vaults
   const hasNotes = sourceVaults.some((vault) => vault.notes?.length)
+  const hasArchived = sourceVaults.some((vault) => vault.archived?.length)
   const hasTrash = sourceVaults.some((vault) => vault.trashed?.length)
   const hasFavorites = sourceVaults.some(
     (vault) =>
@@ -417,6 +443,7 @@ export function ItemBrowser({
     "all",
     ...(hasFavorites ? (["favorites"] as const) : []),
     ...(hasNotes ? (["logins", "notes"] as const) : []),
+    ...(hasArchived ? (["archive"] as const) : []),
     ...(hasTrash ? (["trash"] as const) : []),
   ]
   const filter = shownFilter(
@@ -466,6 +493,7 @@ export function ItemBrowser({
         onOpenLogin={onOpenLogin}
         onOpenNote={onOpenNote}
         onOpenTrashed={onOpenTrashed}
+        onOpenArchived={onOpenArchived}
         onChanged={onChanged}
       />
     )

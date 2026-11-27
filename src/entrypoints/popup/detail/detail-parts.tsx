@@ -545,3 +545,55 @@ export function TrashActions({
     </div>
   )
 }
+
+/** Restore from archive at the bottom of an archived item's detail view. */
+export function ArchiveActions({
+  vaultId,
+  itemId,
+  name,
+  editable,
+  onDone,
+}: {
+  vaultId: string
+  itemId: string
+  name: string
+  editable: boolean
+  onDone: () => void
+}) {
+  const [busy, setBusy] = useState(false)
+
+  if (!editable) {
+    return (
+      <p className="px-1 text-xs text-muted-foreground">
+        {t("popup.trash.readOnly")}
+      </p>
+    )
+  }
+
+  const unarchive = async () => {
+    setBusy(true)
+    const ok = await requestOrNotify(async () => {
+      await callBackground("popup.unarchiveItem", { vaultId, itemId })
+      notify(t("popup.archive.unarchived", { name }))
+      onDone()
+      return true
+    })
+    if (!ok) setBusy(false)
+  }
+
+  return (
+    <div className="flex flex-col gap-1.5">
+      <Button
+        variant="outline"
+        disabled={busy}
+        onClick={() => void unarchive()}
+      >
+        <ArchiveRestoreIcon />
+        {t("popup.archive.unarchive")}
+      </Button>
+      <p className="px-1 text-xs text-muted-foreground">
+        {t("popup.archive.hint")}
+      </p>
+    </div>
+  )
+}

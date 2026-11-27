@@ -23,6 +23,7 @@ import {
   type TrashedItem,
   type VaultContents,
   VaultError,
+  type VaultGroups,
   type VaultInfo,
   type VaultProvider,
 } from "../types"
@@ -35,7 +36,11 @@ import {
   updateAccount,
 } from "./account-store"
 import { type BitwardenApi, valueAt } from "./api"
-import { CIPHER_TYPE_LOGIN, CIPHER_TYPE_SECURE_NOTE } from "./cipher-types"
+import {
+  CIPHER_TYPE_LOGIN,
+  CIPHER_TYPE_SECURE_NOTE,
+  REPROMPT_PASSWORD,
+} from "./cipher-types"
 import type { VaultCrypto } from "./crypto"
 import {
   decryptDetails,
@@ -53,6 +58,7 @@ import {
 import type { VaultKeys } from "./keys"
 import { grantPass, type RepromptItem, withPass } from "./reprompt-passes"
 import {
+  cloneCipherRequest,
   type ItemChange,
   itemUpdateRequest,
   newLoginRequest,
@@ -342,12 +348,14 @@ export class BitwardenProvider implements VaultProvider {
 
   /** Every login and note of the account, as the popup lists them when browsing the vault. */
   async allItems(vaultId: string): Promise<VaultContents> {
-    const { items, notes, groups, trashed } = await this.vaultOf(vaultId)
+    const { items, notes, groups, trashed, archived } =
+      await this.vaultOf(vaultId)
     return {
       logins: items.map(summaryOf),
       notes: notes.map(noteSummaryOf),
       groups,
       trashed,
+      archived,
     }
   }
 
@@ -387,6 +395,11 @@ export class BitwardenProvider implements VaultProvider {
         (candidate) =>
           valueAt(candidate, "Id") === noteId &&
           valueAt(candidate, "Type") === CIPHER_TYPE_SECURE_NOTE,
+      ) ??
+      vault.archivedCiphers.find(
+        (candidate) =>
+          valueAt(candidate, "Id") === noteId &&
+          valueAt(candidate, "Type") === CIPHER_TYPE_SECURE_NOTE,
       )
     const note =
       vault.notes.find((candidate) => candidate.id === noteId) ??
@@ -399,24 +412,36 @@ export class BitwardenProvider implements VaultProvider {
   private async anyItem(
     vaultId: string,
     itemId: string,
-  ): Promise<{ item: RepromptItem; cipher: Record<string, unknown> }> {
-    const { notes, trashedCiphers } = await this.vaultOf(vaultId)
+  ): Promise<{
+    vault: Vault
+    item: RepromptItem
+    cipher: Record<string, unknown>
+  }> {
+    const { notes, trashedCiphers, archivedCiphers } =
+      await this.vaultOf(vaultId)
     const isNote =
       notes.some((candidate) => candidate.id === itemId) ||
       trashedCiphers.some(
         (candidate) =>
           valueAt(candidate, "Id") === itemId &&
           valueAt(candidate, "Type") === CIPHER_TYPE_SECURE_NOTE,
+      ) ||
+      archivedCiphers.some(
+        (candidate) =>
+          valueAt(candidate, "Id") === itemId &&
+          valueAt(candidate, "Type") === CIPHER_TYPE_SECURE_NOTE,
       )
     if (!isNote) return this.pageItem(vaultId, itemId, null)
-    const { note, cipher } = await this.noteEntry(vaultId, itemId)
-    return { item: note, cipher }
+    const { vault, note, cipher } = await this.noteEntry(vaultId, itemId)
+    return { vault, item: note, cipher }
   }
 
   async note(vaultId: string, noteId: string): Promise<NoteDetails> {
     const { vault, note, cipher } = await this.noteEntry(vaultId, noteId)
     const details = decryptDetails(cipher, vault.keys)
-    const trashed = Boolean(valueAt(cipher, "DeletedDate"))
+    const inactive =
+      Boolean(valueAt(cipher, "DeletedDate")) ||
+      Boolean(valueAt(cipher, "ArchivedDate"))
     return {
       name: note.name,
       // Like a login's secrets, a re-prompted note's contents stay in Bitwarden's own apps.
@@ -424,7 +449,7 @@ export class BitwardenProvider implements VaultProvider {
       customFields: note.reprompt ? undefined : details.customFields,
       withheld: note.reprompt,
       editable: isEditable(note, cipher),
-      favorite: trashed ? undefined : note.favorite,
+      favorite: inactive ? undefined : note.favorite,
       created: details.created,
       modified: details.modified,
     }
@@ -437,10 +462,24 @@ export class BitwardenProvider implements VaultProvider {
   }
 
   async saveNote(vaultId: string, note: EditableNote): Promise<void> {
-    const { keys } = await this.vaultOf(vaultId)
-    await this.write(vaultId, ({ api, accessToken, account }) =>
-      api.createCipher(accessToken, newNoteRequest(note, keys, account.userId)),
-    )
+    const { keys, groups } = await this.vaultOf(vaultId)
+    const folderId = note.folderId ?? null
+    if (folderId && !groups.folders.some((folder) => folder.id === folderId))
+      throw new VaultError("Unknown folder", "notFound")
+    const organizationId = note.organizationId ?? null
+    const collectionIds = organizationId
+      ? checkedCollections(groups, organizationId, note.collectionIds ?? [])
+      : []
+    await this.write(vaultId, ({ api, accessToken, account }) => {
+      const body = newNoteRequest(
+        { ...note, folderId, organizationId },
+        keys,
+        account.userId,
+      )
+      return organizationId
+        ? api.createOrganizationCipher(accessToken, body, collectionIds)
+        : api.createCipher(accessToken, body)
+    })
   }
 
   /** Saves the parts of the note that differ from what is saved. */
@@ -457,6 +496,16 @@ export class BitwardenProvider implements VaultProvider {
     if (next.text !== current.text) changed.notes = next.text
     if (!sameValues(next.customFields, current.customFields))
       changed.customFields = next.customFields
+    if (next.folderId !== undefined && next.folderId !== current.folderId) {
+      if (
+        next.folderId &&
+        !vault.groups.folders.some((folder) => folder.id === next.folderId)
+      )
+        throw new VaultError("Unknown folder", "notFound")
+      changed.folderId = next.folderId
+    }
+    if (next.reprompt !== undefined && next.reprompt !== current.reprompt)
+      changed.reprompt = next.reprompt
     await this.change(vaultId, vault.keys, cipher, changed)
   }
 
@@ -487,6 +536,11 @@ export class BitwardenProvider implements VaultProvider {
     const cipher =
       vault.ciphers.find((candidate) => valueAt(candidate, "Id") === loginId) ??
       vault.trashedCiphers.find(
+        (candidate) =>
+          valueAt(candidate, "Id") === loginId &&
+          valueAt(candidate, "Type") === CIPHER_TYPE_LOGIN,
+      ) ??
+      vault.archivedCiphers.find(
         (candidate) =>
           valueAt(candidate, "Id") === loginId &&
           valueAt(candidate, "Type") === CIPHER_TYPE_LOGIN,
@@ -616,6 +670,11 @@ export class BitwardenProvider implements VaultProvider {
   ): Promise<void> {
     const { vault, item, cipher } = await this.pageItem(vaultId, loginId, null)
     refuseEdit(item, cipher)
+    if (
+      change.folderId &&
+      !vault.groups.folders.some((folder) => folder.id === change.folderId)
+    )
+      throw new VaultError("Unknown folder", "notFound")
     const changed = loginChanges(
       editableLoginOf(vault.keys, item, cipher),
       change,
@@ -725,6 +784,102 @@ export class BitwardenProvider implements VaultProvider {
     return groups.folders
   }
 
+  async groups(vaultId: string): Promise<VaultGroups> {
+    const { groups } = await this.vaultOf(vaultId)
+    return groups
+  }
+
+  async createFolder(vaultId: string, name: string): Promise<Folder> {
+    const trimmed = name.trim()
+    if (!trimmed)
+      throw new VaultError("Folder name cannot be empty", "invalidInput")
+    const { keys } = await this.vaultOf(vaultId)
+    const encrypted = keys.encrypt(trimmed, keys.userKey)
+    if (!encrypted)
+      throw new VaultError("Folder name cannot be empty", "invalidInput")
+    let createdId = ""
+    await this.write(vaultId, async ({ api, accessToken }) => {
+      const response = await api.createFolder(accessToken, encrypted)
+      createdId = String(valueAt(response, "Id") ?? "")
+    })
+    return { id: createdId, name: trimmed }
+  }
+
+  async renameFolder(
+    vaultId: string,
+    folderId: string,
+    name: string,
+  ): Promise<void> {
+    const trimmed = name.trim()
+    if (!trimmed)
+      throw new VaultError("Folder name cannot be empty", "invalidInput")
+    const { keys, groups } = await this.vaultOf(vaultId)
+    if (!groups.folders.some((folder) => folder.id === folderId))
+      throw new VaultError("Unknown folder", "notFound")
+    const encrypted = keys.encrypt(trimmed, keys.userKey)
+    if (!encrypted)
+      throw new VaultError("Folder name cannot be empty", "invalidInput")
+    await this.write(vaultId, ({ api, accessToken }) =>
+      api.updateFolder(accessToken, folderId, encrypted),
+    )
+  }
+
+  async deleteFolder(vaultId: string, folderId: string): Promise<void> {
+    const { groups } = await this.vaultOf(vaultId)
+    if (!groups.folders.some((folder) => folder.id === folderId))
+      throw new VaultError("Unknown folder", "notFound")
+    await this.write(vaultId, ({ api, accessToken }) =>
+      api.deleteFolder(accessToken, folderId),
+    )
+  }
+
+  async clone(vaultId: string, itemId: string): Promise<void> {
+    const { vault, item, cipher } = await this.anyItem(vaultId, itemId)
+    refuseEdit(item, cipher)
+    const originalName = vault.keys.decrypt(
+      valueAt(cipher, "Name"),
+      vault.keys.forCipher(cipher),
+    )
+    const cloneName = `${originalName} - Clone`
+    const organizationId = valueAt(cipher, "OrganizationId")
+    const ownerOrgId =
+      typeof organizationId === "string" && organizationId
+        ? organizationId
+        : null
+    const collectionIds = ownerOrgId
+      ? ((valueAt(cipher, "CollectionIds") as string[] | undefined) ?? [])
+      : []
+    await this.write(vaultId, ({ api, accessToken, account }) => {
+      const body = cloneCipherRequest(
+        cipher,
+        vault.keys,
+        account.userId,
+        cloneName,
+      )
+      return ownerOrgId
+        ? api.createOrganizationCipher(accessToken, body, collectionIds)
+        : api.createCipher(accessToken, body)
+    })
+  }
+
+  async archive(vaultId: string, itemId: string): Promise<void> {
+    const { item, cipher } = await this.anyItem(vaultId, itemId)
+    refuseEdit(item, cipher)
+    await this.write(vaultId, ({ api, accessToken }) =>
+      api.archiveCipher(accessToken, itemId),
+    )
+  }
+
+  async unarchive(vaultId: string, itemId: string): Promise<void> {
+    const { archived } = await this.vaultOf(vaultId)
+    const item = archived.find((candidate) => candidate.id === itemId)
+    if (!item) throw new VaultError("Not in the archive", "notFound")
+    if (!item.editable) throw new VaultError("Read-only item", "notEditable")
+    await this.write(vaultId, ({ api, accessToken }) =>
+      api.unarchiveCipher(accessToken, itemId),
+    )
+  }
+
   async save(vaultId: string, login: NewLogin): Promise<void> {
     const { keys, groups } = await this.vaultOf(vaultId)
     const details = login.details
@@ -733,25 +888,31 @@ export class BitwardenProvider implements VaultProvider {
     const folderId = details?.folderId ?? null
     if (folderId && !groups.folders.some((folder) => folder.id === folderId))
       throw new VaultError("Unknown folder", "notFound")
-    await this.write(vaultId, ({ api, accessToken, account }) =>
-      api.createCipher(
-        accessToken,
-        newLoginRequest(
-          {
-            name: details?.name.trim() || login.url.hostname,
-            username: login.username,
-            password: login.password,
-            uri: login.url.origin,
-            notes: details?.notes,
-            totp,
-            customFields: details?.customFields,
-            folderId,
-          },
-          keys,
-          account.userId,
-        ),
-      ),
-    )
+    const organizationId = details?.organizationId ?? null
+    const collectionIds = organizationId
+      ? checkedCollections(groups, organizationId, details?.collectionIds ?? [])
+      : []
+    await this.write(vaultId, ({ api, accessToken, account }) => {
+      const body = newLoginRequest(
+        {
+          name: details?.name.trim() || login.url.hostname,
+          username: login.username,
+          password: login.password,
+          uri: login.url.origin,
+          notes: details?.notes,
+          totp,
+          customFields: details?.customFields,
+          folderId,
+          reprompt: details?.reprompt,
+          organizationId,
+        },
+        keys,
+        account.userId,
+      )
+      return organizationId
+        ? api.createOrganizationCipher(accessToken, body, collectionIds)
+        : api.createCipher(accessToken, body)
+    })
   }
 
   async update(
@@ -824,6 +985,8 @@ function editableLoginOf(
     notes,
     totp: item.hasTotp ? decryptTotp(cipher, keys) : "",
     customFields,
+    folderId: item.grouping.folderId,
+    reprompt: valueAt(cipher, "Reprompt") === REPROMPT_PASSWORD,
   }
 }
 
@@ -833,7 +996,31 @@ function editableNoteOf(
   cipher: Record<string, unknown>,
 ): EditableNote {
   const { notes, customFields } = decryptDetails(cipher, keys)
-  return { name: note.name, text: notes, customFields }
+  return {
+    name: note.name,
+    text: notes,
+    customFields,
+    folderId: note.grouping.folderId,
+    reprompt: valueAt(cipher, "Reprompt") === REPROMPT_PASSWORD,
+  }
+}
+
+function checkedCollections(
+  groups: VaultGroups,
+  organizationId: string,
+  collectionIds: readonly string[],
+): string[] {
+  if (!groups.organizations.some((org) => org.id === organizationId))
+    throw new VaultError("Unknown organization", "notFound")
+  const valid = new Set(
+    groups.collections
+      .filter((collection) => collection.organizationId === organizationId)
+      .map((collection) => collection.id),
+  )
+  const chosen = [...new Set(collectionIds)].filter((id) => valid.has(id))
+  if (!chosen.length)
+    throw new VaultError("Select at least one collection", "invalidInput")
+  return chosen
 }
 
 /** Whether two lists of custom fields or websites hold the same values in the same order. */
@@ -862,6 +1049,10 @@ function loginChanges(current: EditableLogin, change: LoginEdit): ItemChange {
     !sameValues(change.customFields, current.customFields)
   )
     changed.customFields = change.customFields
+  if (change.folderId !== undefined && change.folderId !== current.folderId)
+    changed.folderId = change.folderId
+  if (change.reprompt !== undefined && change.reprompt !== current.reprompt)
+    changed.reprompt = change.reprompt
   return changed
 }
 

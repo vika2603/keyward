@@ -1,4 +1,5 @@
 import type {
+  ArchivedItem,
   CustomField,
   ItemGrouping,
   PastPassword,
@@ -117,6 +118,18 @@ export function trashedCiphers(sync: unknown): Record<string, unknown>[] {
   })
 }
 
+/** Logins and notes in the archive (and not in the trash). */
+export function archivedCiphers(sync: unknown): Record<string, unknown>[] {
+  return ciphersOf(sync, (cipher) => {
+    const type = valueAt(cipher, "Type")
+    return (
+      (type === CIPHER_TYPE_LOGIN || type === CIPHER_TYPE_SECURE_NOTE) &&
+      !valueAt(cipher, "DeletedDate") &&
+      Boolean(valueAt(cipher, "ArchivedDate"))
+    )
+  })
+}
+
 function groupingOf(cipher: Record<string, unknown>): ItemGrouping {
   const organizationId = valueAt(cipher, "OrganizationId")
   const folderId = valueAt(cipher, "FolderId")
@@ -213,6 +226,29 @@ export function decryptTrashed(
   const common = {
     id: String(valueAt(cipher, "Id")),
     deletedAt: timeOf(valueAt(cipher, "DeletedDate")),
+    editable: valueAt(cipher, "Edit") !== false,
+    grouping: groupingOf(cipher),
+  }
+  if (valueAt(cipher, "Type") === CIPHER_TYPE_SECURE_NOTE)
+    return { ...common, kind: "note", name: decryptNote(cipher, keys).name }
+  const login = decryptLogin(cipher, keys)
+  return {
+    ...common,
+    kind: "login",
+    name: login.name,
+    username: login.username,
+    host: firstHostOf(login),
+  }
+}
+
+/** An archived login or note as the archive lists it; its secrets stay encrypted. */
+export function decryptArchived(
+  cipher: Record<string, unknown>,
+  keys: VaultKeys,
+): ArchivedItem {
+  const common = {
+    id: String(valueAt(cipher, "Id")),
+    archivedAt: timeOf(valueAt(cipher, "ArchivedDate")),
     editable: valueAt(cipher, "Edit") !== false,
     grouping: groupingOf(cipher),
   }

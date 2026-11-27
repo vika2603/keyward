@@ -11,6 +11,7 @@ import {
   LINKED_USERNAME,
   MAX_PASSWORD_HISTORY,
   REPROMPT_NONE,
+  REPROMPT_PASSWORD,
   SECURE_NOTE_TYPE_GENERIC,
 } from "./cipher-types"
 import { decryptCustomField } from "./decrypt"
@@ -26,6 +27,8 @@ export interface NewLoginFields {
   totp?: string
   customFields?: CustomField[]
   folderId?: string | null
+  reprompt?: boolean
+  organizationId?: string | null
 }
 
 /** What an update changes in a login item; fields left out stay as they are, empty ones are cleared. */
@@ -39,6 +42,8 @@ export interface ItemChange {
   totp?: string
   /** The item's whole list of custom fields. */
   customFields?: CustomField[]
+  folderId?: string | null
+  reprompt?: boolean
 }
 
 /** A custom field as the server stores it, encrypted with the item key. */
@@ -75,22 +80,33 @@ function encryptCustomField(
   }
 }
 
-/** The request body for a new personal login item, encrypted with the account key. */
+function keyForOwner(
+  keys: VaultKeys,
+  organizationId: string | null | undefined,
+): Uint8Array {
+  if (!organizationId) return keys.userKey
+  const orgKey = keys.forOrganization(organizationId)
+  if (!orgKey) throw new Error(`Missing key for organization ${organizationId}`)
+  return orgKey
+}
+
+/** The request body for a new login item, encrypted with the account or organization key. */
 export function newLoginRequest(
   login: NewLoginFields,
   keys: VaultKeys,
   userId: string,
 ): Record<string, unknown> {
-  const key = keys.userKey
+  const organizationId = login.organizationId ?? null
+  const key = keyForOwner(keys, organizationId)
   return {
     type: CIPHER_TYPE_LOGIN,
     encryptedFor: userId,
     folderId: login.folderId ?? null,
-    organizationId: null,
+    organizationId,
     name: keys.encrypt(login.name, key),
     notes: keys.encrypt(login.notes ?? "", key),
     favorite: false,
-    reprompt: REPROMPT_NONE,
+    reprompt: login.reprompt ? REPROMPT_PASSWORD : REPROMPT_NONE,
     key: null,
     fields: (login.customFields ?? []).map((field) =>
       encryptCustomField(field, keys, key),
@@ -106,22 +122,23 @@ export function newLoginRequest(
   }
 }
 
-/** The request body for a new personal secure note, encrypted with the account key. */
+/** The request body for a new secure note, encrypted with the account or organization key. */
 export function newNoteRequest(
   note: EditableNote,
   keys: VaultKeys,
   userId: string,
 ): Record<string, unknown> {
-  const key = keys.userKey
+  const organizationId = note.organizationId ?? null
+  const key = keyForOwner(keys, organizationId)
   return {
     type: CIPHER_TYPE_SECURE_NOTE,
     encryptedFor: userId,
-    folderId: null,
-    organizationId: null,
+    folderId: note.folderId ?? null,
+    organizationId,
     name: keys.encrypt(note.name, key),
     notes: keys.encrypt(note.text, key),
     favorite: false,
-    reprompt: REPROMPT_NONE,
+    reprompt: note.reprompt ? REPROMPT_PASSWORD : REPROMPT_NONE,
     key: null,
     fields: note.customFields.map((field) =>
       encryptCustomField(field, keys, key),
@@ -287,14 +304,20 @@ export async function itemUpdateRequest(
     savedFields,
     change.customFields,
   ).flatMap((text) => keys.encrypt(text, key) ?? [])
+  let reprompt = valueAt(cipher, "Reprompt") ?? REPROMPT_NONE
+  if (change.reprompt !== undefined)
+    reprompt = change.reprompt ? REPROMPT_PASSWORD : REPROMPT_NONE
   const common = {
     encryptedFor: userId,
-    folderId: valueAt(cipher, "FolderId") ?? null,
+    folderId:
+      change.folderId !== undefined
+        ? change.folderId
+        : (valueAt(cipher, "FolderId") ?? null),
     organizationId: valueAt(cipher, "OrganizationId") ?? null,
     name: changed(change.name, valueAt(cipher, "Name")),
     notes: changed(change.notes, valueAt(cipher, "Notes")),
     favorite: valueAt(cipher, "Favorite") ?? false,
-    reprompt: valueAt(cipher, "Reprompt") ?? REPROMPT_NONE,
+    reprompt,
     key: valueAt(cipher, "Key") ?? null,
     lastKnownRevisionDate: valueAt(cipher, "RevisionDate") ?? null,
     fields: customFieldsRequest(savedFields, change.customFields, keys, key),
@@ -329,6 +352,69 @@ export async function itemUpdateRequest(
       autofillOnPageLoad: valueAt(login, "AutofillOnPageLoad") ?? null,
       fido2Credentials: valueAt(login, "Fido2Credentials") ?? null,
       uris: await urisRequest(valueAt(login, "Uris"), change.uris, keys, key),
+    },
+  }
+}
+
+/**
+ * Builds a create-cipher request cloning an existing login or note, stripping passkeys and
+ * password history and keeping the same owner key.
+ */
+export function cloneCipherRequest(
+  cipher: Record<string, unknown>,
+  keys: VaultKeys,
+  userId: string,
+  cloneName: string,
+): Record<string, unknown> {
+  const organizationId = valueAt(cipher, "OrganizationId")
+  const ownerOrgId =
+    typeof organizationId === "string" && organizationId ? organizationId : null
+  const sourceKey = keys.forCipher(cipher)
+  const targetKey = keyForOwner(keys, ownerOrgId)
+  const reencrypt = (raw: unknown): string | null => {
+    const plain = keys.decrypt(raw, sourceKey)
+    return keys.encrypt(plain, targetKey)
+  }
+  const fields = listOf(valueAt(cipher, "Fields"))
+    .map((field) => decryptCustomField(field, keys, sourceKey))
+    .filter((field) => field !== null)
+    .map((field) => encryptCustomField(field, keys, targetKey))
+
+  const common = {
+    encryptedFor: userId,
+    folderId: valueAt(cipher, "FolderId") ?? null,
+    organizationId: ownerOrgId,
+    name: keys.encrypt(cloneName, targetKey),
+    notes: reencrypt(valueAt(cipher, "Notes")),
+    favorite: false,
+    reprompt: valueAt(cipher, "Reprompt") ?? REPROMPT_NONE,
+    key: null,
+    fields,
+  }
+
+  if (valueAt(cipher, "Type") === CIPHER_TYPE_SECURE_NOTE) {
+    return {
+      type: CIPHER_TYPE_SECURE_NOTE,
+      ...common,
+      secureNote: {
+        type:
+          valueAt(objectAt(cipher, "SecureNote"), "Type") ??
+          SECURE_NOTE_TYPE_GENERIC,
+      },
+    }
+  }
+  const login = objectAt(cipher, "Login")
+  return {
+    type: CIPHER_TYPE_LOGIN,
+    ...common,
+    login: {
+      username: reencrypt(valueAt(login, "Username")),
+      password: reencrypt(valueAt(login, "Password")),
+      totp: reencrypt(valueAt(login, "Totp")),
+      uris: listOf(valueAt(login, "Uris")).map((entry) => ({
+        uri: reencrypt(valueAt(entry, "Uri")),
+        match: valueAt(entry, "Match") ?? null,
+      })),
     },
   }
 }

@@ -14,10 +14,16 @@ import { t } from "@/lib/i18n"
 import type {
   EditableNote,
   NoteSummary,
+  VaultGroups,
   VaultInfo,
 } from "@/lib/providers/types"
 import { cn } from "@/lib/utils"
 import { CustomFieldsEditor } from "./custom-fields-editor"
+import {
+  FolderSelectField,
+  OwnerAndCollectionsField,
+  RepromptSwitchField,
+} from "./item-organization-fields"
 import { loadNoteDraft, saveNoteDraft } from "./view-cache"
 
 const EMPTY_NOTE: EditableNote = { name: "", text: "", customFields: [] }
@@ -101,7 +107,27 @@ export function NoteForm({
     })
   }
 
-  const canSave = !busy && form !== null && (editing !== null || vaultId)
+  const activeVaultId = editing ? editing.vault.id : vaultId
+  const [groups, setGroups] = useState<VaultGroups | null>(null)
+  useEffect(() => {
+    setGroups(null)
+    if (!activeVaultId) return
+    let active = true
+    callBackground("popup.groups", { vaultId: activeVaultId }).then(
+      (loaded) => active && setGroups(loaded),
+      () => {},
+    )
+    return () => {
+      active = false
+    }
+  }, [activeVaultId])
+
+  const needsCollection =
+    !editing &&
+    Boolean(form?.organizationId) &&
+    (form?.collectionIds?.length ?? 0) === 0
+  const canSave =
+    !busy && form !== null && !needsCollection && (editing !== null || vaultId)
 
   return (
     <form
@@ -150,11 +176,41 @@ export function NoteForm({
                 <VaultSelect
                   vaults={target.targets}
                   value={vaultId}
-                  onChange={setVaultId}
+                  onChange={(nextVaultId) => {
+                    setVaultId(nextVaultId)
+                    update({
+                      folderId: null,
+                      organizationId: null,
+                      collectionIds: [],
+                    })
+                  }}
                   label={t("popup.add.saveTo")}
                 />
               </FormField>
             )}
+            {groups && (
+              <>
+                <FolderSelectField
+                  folders={groups.folders}
+                  value={form.folderId ?? null}
+                  onChange={(folderId) => update({ folderId })}
+                />
+                {target.mode === "create" && (
+                  <OwnerAndCollectionsField
+                    groups={groups}
+                    organizationId={form.organizationId ?? null}
+                    collectionIds={form.collectionIds ?? []}
+                    onChange={({ organizationId, collectionIds }) =>
+                      update({ organizationId, collectionIds })
+                    }
+                  />
+                )}
+              </>
+            )}
+            <RepromptSwitchField
+              checked={form.reprompt === true}
+              onChange={(reprompt) => update({ reprompt })}
+            />
           </div>
         )}
         <FormError>{message}</FormError>

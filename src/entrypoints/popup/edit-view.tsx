@@ -20,6 +20,7 @@ import { Separator } from "@/components/ui/separator"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Textarea } from "@/components/ui/textarea"
 import { useAsyncAction } from "@/hooks/use-async-action"
+import { useBackgroundQuery } from "@/hooks/use-background-query"
 import { generatePassword, getGeneratorOptions } from "@/lib/generator"
 import { t } from "@/lib/i18n"
 import type {
@@ -33,6 +34,10 @@ import { cn } from "@/lib/utils"
 import { CodeKeyInput } from "./code-key-input"
 import { CustomFieldsEditor } from "./custom-fields-editor"
 import { BackHeader } from "./header"
+import {
+  FolderSelectField,
+  RepromptSwitchField,
+} from "./item-organization-fields"
 import { loadEditDraft, saveEditDraft } from "./view-cache"
 
 const DEFAULT_MATCH = "default"
@@ -124,6 +129,9 @@ export function EditView({
    * matching does until the extension reloads; it takes them back the same way.
    */
   const [bareAddresses, setBareAddresses] = useState(false)
+  const { data: folders } = useBackgroundQuery("popup.folders", {
+    vaultId: vault.id,
+  })
 
   const draftKey = `${vault.id}:${login.id}`
   useEffect(() => {
@@ -342,6 +350,17 @@ export function EditView({
                 onChange={(customFields) => update({ customFields })}
               />
             </FormField>
+            {folders && (
+              <FolderSelectField
+                folders={folders}
+                value={form.folderId ?? null}
+                onChange={(folderId) => update({ folderId })}
+              />
+            )}
+            <RepromptSwitchField
+              checked={form.reprompt === true}
+              onChange={(reprompt) => update({ reprompt })}
+            />
           </div>
         )}
         <FormError>{message}</FormError>

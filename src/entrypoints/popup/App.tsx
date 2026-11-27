@@ -157,6 +157,7 @@ function CurrentView({
           vault={view.vault}
           login={view.login}
           trashed={view.trashed}
+          archived={view.archived}
           onBack={back}
           onEdit={() =>
             onNavigate({ name: "edit", vault: view.vault, login: view.login })
@@ -172,6 +173,7 @@ function CurrentView({
           vault={view.vault}
           note={view.note}
           trashed={view.trashed}
+          archived={view.archived}
           onBack={back}
           onEdit={() =>
             onNavigate({ name: "editNote", vault: view.vault, note: view.note })

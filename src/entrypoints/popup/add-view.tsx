@@ -8,14 +8,6 @@ import { SecretInput } from "@/components/keyward/secret-input"
 import { VaultSelect } from "@/components/keyward/vault-select"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import { Separator } from "@/components/ui/separator"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
@@ -31,7 +23,11 @@ import type {
 import { CodeKeyInput } from "./code-key-input"
 import { CustomFieldsEditor } from "./custom-fields-editor"
 import { BackHeader } from "./header"
-import { NO_FOLDER } from "./main/group-filter"
+import {
+  FolderSelectField,
+  OwnerAndCollectionsField,
+  RepromptSwitchField,
+} from "./item-organization-fields"
 import { NoteForm } from "./note-form"
 import { loadAddDraft, saveAddDraft } from "./view-cache"
 
@@ -53,19 +49,10 @@ function LoginDetailsFields({
   details: NewLoginDetails
   onChange: (change: Partial<NewLoginDetails>) => void
 }) {
-  // Without its folders the login is saved outside every folder.
-  const { data: folders, error } = useBackgroundQuery("popup.folders", {
+  const { data: groups, error } = useBackgroundQuery("popup.groups", {
     vaultId,
   })
-  /** A background from before these fields does not know the folder request, and drops the fields. */
   const detailsSupported = !isUnsupportedRequest(error)
-  const folderChoices = [
-    { value: NO_FOLDER, label: t("popup.main.filter.noFolder") },
-    ...(folders ?? []).map((folder) => ({
-      value: folder.id,
-      label: folder.name,
-    })),
-  ]
   if (!detailsSupported) return null
 
   return (
@@ -79,32 +66,22 @@ function LoginDetailsFields({
           autoComplete="off"
         />
       </FormField>
-      {folders && folders.length > 0 && (
-        <FormField label={t("popup.add.folder")}>
-          <Select
-            value={details.folderId ?? NO_FOLDER}
-            onValueChange={(value) =>
-              onChange({ folderId: value === NO_FOLDER ? null : value })
+      {groups && (
+        <>
+          <FolderSelectField
+            folders={groups.folders}
+            value={details.folderId}
+            onChange={(folderId) => onChange({ folderId })}
+          />
+          <OwnerAndCollectionsField
+            groups={groups}
+            organizationId={details.organizationId ?? null}
+            collectionIds={details.collectionIds ?? []}
+            onChange={({ organizationId, collectionIds }) =>
+              onChange({ organizationId, collectionIds })
             }
-            items={folderChoices}
-          >
-            <SelectTrigger
-              className="w-full"
-              aria-label={t("popup.add.folder")}
-            >
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectGroup>
-                {folderChoices.map((choice) => (
-                  <SelectItem key={choice.value} value={choice.value}>
-                    {choice.label}
-                  </SelectItem>
-                ))}
-              </SelectGroup>
-            </SelectContent>
-          </Select>
-        </FormField>
+          />
+        </>
       )}
       <FormField label={t("popup.edit.codeKey")} htmlFor="add-totp">
         <CodeKeyInput
@@ -127,6 +104,10 @@ function LoginDetailsFields({
           onChange={(customFields: CustomField[]) => onChange({ customFields })}
         />
       </FormField>
+      <RepromptSwitchField
+        checked={details.reprompt === true}
+        onChange={(reprompt) => onChange({ reprompt })}
+      />
     </>
   )
 }

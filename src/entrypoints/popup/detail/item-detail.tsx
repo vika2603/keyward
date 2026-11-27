@@ -1,4 +1,4 @@
-import { PencilIcon } from "lucide-react"
+import { CopyPlusIcon, PencilIcon } from "lucide-react"
 import { type ReactNode, useState } from "react"
 import { BrandIcon, vaultLabel } from "@/components/keyward/brand-icon"
 import { formatDate } from "@/components/keyward/format"
@@ -23,6 +23,7 @@ export function ItemDetailHeader({
   onFavoriteChange,
   onBack,
   onEdit,
+  onClone,
 }: {
   title: string
   vaultId: string
@@ -31,6 +32,7 @@ export function ItemDetailHeader({
   onFavoriteChange: (favorite: boolean) => void
   onBack: () => void
   onEdit: () => void
+  onClone?: () => void
 }) {
   return (
     <BackHeader title={title} onBack={onBack}>
@@ -41,6 +43,11 @@ export function ItemDetailHeader({
           favorite={details.favorite}
           onChange={onFavoriteChange}
         />
+      )}
+      {details?.editable && onClone && (
+        <IconButton label={t("popup.detail.clone")} onClick={onClone}>
+          <CopyPlusIcon />
+        </IconButton>
       )}
       {details?.editable && (
         <IconButton label={t("popup.detail.edit")} onClick={onEdit}>
