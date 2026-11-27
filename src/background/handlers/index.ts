@@ -3,6 +3,7 @@ import type { AppleProvider } from "@/lib/providers/apple/apple-provider"
 import type { BitwardenProvider } from "@/lib/providers/bitwarden/bitwarden-provider"
 import type { BackgroundApi } from "../api"
 import type { HttpAuth } from "../http-auth"
+import type { PasskeyPrompt } from "../passkey-prompt"
 import type { Providers } from "../providers"
 import type { SubmissionGate } from "../submission-gate"
 import { appleHandlers } from "./apple"
@@ -11,6 +12,7 @@ import { contentHandlers } from "./content"
 import { generatorHandlers } from "./generator"
 import { httpAuthHandlers } from "./http-auth"
 import { menuHandlers } from "./menu"
+import { passkeyHandlers } from "./passkeys"
 import { popupItemHandlers } from "./popup-items"
 import { popupNoteHandlers } from "./popup-notes"
 import { popupSaveHandlers } from "./popup-save"
@@ -33,6 +35,7 @@ export function createHandlers(
   named: NamedProviders,
   httpAuth: HttpAuth,
   submissionGate?: SubmissionGate,
+  passkeyPrompt?: PasskeyPrompt,
 ): Handlers<BackgroundApi> {
   return {
     ...popupItemHandlers(providers, named.bitwarden),
@@ -41,10 +44,11 @@ export function createHandlers(
     ...appleHandlers(named.apple),
     ...bitwardenHandlers(named.bitwarden),
     ...generatorHandlers(),
-    ...menuHandlers(providers),
+    ...menuHandlers(providers, named.bitwarden),
     ...promptHandlers(providers, named.bitwarden),
     ...contentHandlers(providers, submissionGate),
     ...welcomeHandlers(),
     ...httpAuthHandlers(httpAuth),
-  }
+    ...(passkeyPrompt ? passkeyHandlers(passkeyPrompt) : {}),
+  } as Handlers<BackgroundApi>
 }

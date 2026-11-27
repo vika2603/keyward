@@ -1,5 +1,6 @@
 import { storage } from "wxt/utils/storage"
 import type { Sender } from "@/lib/messaging"
+import type { PasskeyGetRequest } from "@/lib/passkeys/types"
 import type { FieldRules } from "@/lib/password-rules"
 import { VaultError } from "@/lib/providers/types"
 import type { FieldKind } from "./api"
@@ -88,6 +89,8 @@ interface MenuSession extends OverlayBase {
   suggestion?: string
   /** Whether the page waits for a passkey sign-in, which the menu offers. */
   passkey?: boolean
+  /** Serialized conditional WebAuthn get request held by the page, for Bitwarden passkey matching. */
+  passkeyRequest?: PasskeyGetRequest | null
 }
 
 export interface PromptSession extends OverlayBase {

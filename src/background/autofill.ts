@@ -93,6 +93,7 @@ export async function contentConfig(
     scanCodes: false,
     menuTrigger: settings.menuTrigger,
     takeOverPasskeys: false,
+    bitwardenPasskeys: false,
     theme: settings.theme,
     language: resolveLanguage(settings.language),
   }
@@ -109,12 +110,16 @@ export async function contentConfig(
   const menuTrigger = menuTriggerFor(rule?.behavior, settings.menuTrigger)
   // A passkey request kept for the menu would wait for a menu that never opens.
   const takeOverPasskeys = menuTrigger !== "off" && settings.takeOverPasskeys
+  const bitwardenPasskeys =
+    settings.takeOverPasskeys &&
+    vaults.some((vault) => vault.kind === "bitwarden")
   return {
     ...off,
     active: true,
     menuTrigger,
     scanCodes,
     takeOverPasskeys,
+    bitwardenPasskeys,
   }
 }
 

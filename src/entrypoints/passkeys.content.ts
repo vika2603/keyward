@@ -1,25 +1,251 @@
 import {
+  PASSKEY_BRIDGE_REQUEST_EVENT,
+  PASSKEY_BRIDGE_RESPONSE_EVENT,
   PASSKEY_CONTROL_EVENT,
   PASSKEY_STATE_EVENT,
+  type PasskeyBridgeRequestDetail,
+  type PasskeyBridgeResponseDetail,
+  type PasskeyControlDetail,
+  type PasskeyStateDetail,
 } from "@/content/passkey-events"
+import type {
+  PasskeyBridgeOutcome,
+  PasskeyCreateRequest,
+  PasskeyDescriptor,
+  PasskeyGetRequest,
+  SerializedCreateResult,
+  SerializedGetResult,
+} from "@/lib/passkeys/types"
 
-/** How long a request waits for the content script before the browser gets it after all. */
-const UNDECIDED_MS = 2000
+/** How long a conditional request waits for content script config before falling back to browser. */
+const UNDECIDED_CONDITIONAL_MS = 2000
+/** How long a modal request waits for initial content script config before native passthrough. */
+const UNDECIDED_MODAL_MS = 800
 
-interface HeldRequest {
+interface HeldConditional {
   options: CredentialRequestOptions
+  serialized: PasskeyGetRequest
   resolve: (credential: Credential | null) => void
   reject: (reason: unknown) => void
-  /** The browser request made on its behalf, if any. */
   attempt: { controller: AbortController; conditional: boolean } | null
 }
 
+function bufferToBase64Url(source: BufferSource): string {
+  const bytes =
+    source instanceof ArrayBuffer
+      ? new Uint8Array(source)
+      : new Uint8Array(source.buffer, source.byteOffset, source.byteLength)
+  let binary = ""
+  for (const byte of bytes) binary += String.fromCharCode(byte)
+  return btoa(binary)
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/g, "")
+}
+
+function base64UrlToBuffer(value: string): ArrayBuffer {
+  const normalized = value.replace(/-/g, "+").replace(/_/g, "/")
+  const padded = normalized + "=".repeat((4 - (normalized.length % 4)) % 4)
+  const binary = atob(padded)
+  const bytes = new Uint8Array(binary.length)
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
+  return bytes.buffer
+}
+
+function serializeDescriptors(
+  list: readonly PublicKeyCredentialDescriptor[] | undefined,
+): PasskeyDescriptor[] {
+  if (!list?.length) return []
+  return list.map((item) => ({
+    type: "public-key",
+    id: bufferToBase64Url(item.id),
+    ...(item.transports ? { transports: [...item.transports] } : {}),
+  }))
+}
+
+function isCrossOriginFrame(): boolean {
+  try {
+    return window.top !== window && window.top?.origin !== window.origin
+  } catch {
+    return true
+  }
+}
+
+function featureAllowed(feature: string): boolean {
+  const doc = document as Document & {
+    permissionsPolicy?: { allowsFeature?: (name: string) => boolean }
+    featurePolicy?: { allowsFeature?: (name: string) => boolean }
+  }
+  const policy = doc.permissionsPolicy ?? doc.featurePolicy
+  if (typeof policy?.allowsFeature === "function") {
+    try {
+      return policy.allowsFeature(feature)
+    } catch {
+      return true
+    }
+  }
+  return true
+}
+
+function serializeGetRequest(
+  publicKey: PublicKeyCredentialRequestOptions,
+): PasskeyGetRequest {
+  return {
+    rpId: publicKey.rpId || window.location.hostname,
+    challenge: bufferToBase64Url(publicKey.challenge),
+    allowCredentials: serializeDescriptors(publicKey.allowCredentials),
+    userVerification: publicKey.userVerification,
+    origin: window.location.origin,
+    crossOrigin: isCrossOriginFrame(),
+  }
+}
+
+function serializeCreateRequest(
+  publicKey: PublicKeyCredentialCreationOptions,
+): PasskeyCreateRequest {
+  return {
+    rpId: publicKey.rp.id || window.location.hostname,
+    rpName: publicKey.rp.name || publicKey.rp.id || window.location.hostname,
+    challenge: bufferToBase64Url(publicKey.challenge),
+    userId: bufferToBase64Url(publicKey.user.id),
+    userName: publicKey.user.name,
+    userDisplayName: publicKey.user.displayName || publicKey.user.name,
+    pubKeyCredParams: publicKey.pubKeyCredParams
+      .filter((param) => param.type === "public-key")
+      .map((param) => param.alg),
+    excludeCredentials: serializeDescriptors(publicKey.excludeCredentials),
+    residentKey: publicKey.authenticatorSelection?.residentKey,
+    userVerification: publicKey.authenticatorSelection?.userVerification,
+    origin: window.location.origin,
+    crossOrigin: isCrossOriginFrame(),
+  }
+}
+
+function buildAssertionCredential(result: SerializedGetResult): Credential {
+  const rawId = base64UrlToBuffer(result.rawId)
+  const clientDataJSON = base64UrlToBuffer(result.response.clientDataJSON)
+  const authenticatorData = base64UrlToBuffer(result.response.authenticatorData)
+  const signature = base64UrlToBuffer(result.response.signature)
+  const userHandle = result.response.userHandle
+    ? base64UrlToBuffer(result.response.userHandle)
+    : null
+
+  const responseProto =
+    typeof AuthenticatorAssertionResponse !== "undefined"
+      ? AuthenticatorAssertionResponse.prototype
+      : Object.prototype
+  const response = Object.create(responseProto)
+  Object.defineProperties(response, {
+    clientDataJSON: { value: clientDataJSON, enumerable: true },
+    authenticatorData: { value: authenticatorData, enumerable: true },
+    signature: { value: signature, enumerable: true },
+    userHandle: { value: userHandle, enumerable: true },
+  })
+
+  const credProto =
+    typeof PublicKeyCredential !== "undefined"
+      ? PublicKeyCredential.prototype
+      : Object.prototype
+  const credential = Object.create(credProto)
+  Object.defineProperties(credential, {
+    id: { value: result.id, enumerable: true },
+    rawId: { value: rawId, enumerable: true },
+    type: { value: "public-key", enumerable: true },
+    authenticatorAttachment: {
+      value: result.authenticatorAttachment,
+      enumerable: true,
+    },
+    response: { value: response, enumerable: true },
+    getClientExtensionResults: {
+      value: () => ({}),
+    },
+    toJSON: {
+      value: () => ({
+        id: result.id,
+        rawId: result.rawId,
+        type: "public-key",
+        authenticatorAttachment: result.authenticatorAttachment,
+        response: {
+          clientDataJSON: result.response.clientDataJSON,
+          authenticatorData: result.response.authenticatorData,
+          signature: result.response.signature,
+          ...(result.response.userHandle
+            ? { userHandle: result.response.userHandle }
+            : {}),
+        },
+        clientExtensionResults: {},
+      }),
+    },
+  })
+  return credential as Credential
+}
+
+function buildAttestationCredential(
+  result: SerializedCreateResult,
+): Credential {
+  const rawId = base64UrlToBuffer(result.rawId)
+  const clientDataJSON = base64UrlToBuffer(result.response.clientDataJSON)
+  const attestationObject = base64UrlToBuffer(result.response.attestationObject)
+  const authenticatorData = base64UrlToBuffer(result.response.authenticatorData)
+  const publicKey = base64UrlToBuffer(result.response.publicKey)
+  const transports = [...result.response.transports]
+
+  const responseProto =
+    typeof AuthenticatorAttestationResponse !== "undefined"
+      ? AuthenticatorAttestationResponse.prototype
+      : Object.prototype
+  const response = Object.create(responseProto)
+  Object.defineProperties(response, {
+    clientDataJSON: { value: clientDataJSON, enumerable: true },
+    attestationObject: { value: attestationObject, enumerable: true },
+    getTransports: { value: () => [...transports] },
+    getAuthenticatorData: { value: () => authenticatorData.slice(0) },
+    getPublicKey: { value: () => publicKey.slice(0) },
+    getPublicKeyAlgorithm: { value: () => result.response.publicKeyAlgorithm },
+  })
+
+  const credProto =
+    typeof PublicKeyCredential !== "undefined"
+      ? PublicKeyCredential.prototype
+      : Object.prototype
+  const credential = Object.create(credProto)
+  Object.defineProperties(credential, {
+    id: { value: result.id, enumerable: true },
+    rawId: { value: rawId, enumerable: true },
+    type: { value: "public-key", enumerable: true },
+    authenticatorAttachment: {
+      value: result.authenticatorAttachment,
+      enumerable: true,
+    },
+    response: { value: response, enumerable: true },
+    getClientExtensionResults: {
+      value: () => ({}),
+    },
+    toJSON: {
+      value: () => ({
+        id: result.id,
+        rawId: result.rawId,
+        type: "public-key",
+        authenticatorAttachment: result.authenticatorAttachment,
+        response: {
+          clientDataJSON: result.response.clientDataJSON,
+          attestationObject: result.response.attestationObject,
+          authenticatorData: result.response.authenticatorData,
+          publicKey: result.response.publicKey,
+          publicKeyAlgorithm: result.response.publicKeyAlgorithm,
+          transports,
+        },
+        clientExtensionResults: {},
+      }),
+    },
+  })
+  return credential as Credential
+}
+
 /**
- * Runs in the page's own world, before the page's scripts, to take the conditional passkey
- * requests that make the browser list passkeys under a login field. While the content script
- * holds them, the browser shows no list and Keyward's menu offers to sign in with a passkey, which
- * then makes a regular request so the browser shows its passkey dialog. Released requests go to
- * the browser as they came, and so does every other credential request.
+ * Runs in the page's MAIN world at `document_start` to bridge WebAuthn `create` and `get`
+ * (conditional and modal) between the page and Keyward's Bitwarden passkey authenticator,
+ * while passing pure Apple Passwords users and explicit fallbacks straight through to native WebAuthn.
  */
 export default defineContentScript({
   matches: ["http://*/*", "https://*/*"],
@@ -28,27 +254,43 @@ export default defineContentScript({
   world: "MAIN",
   main() {
     const credentials = globalThis.navigator?.credentials
-    if (!credentials?.get) return
+    if (!credentials?.get || !credentials?.create) return
     const browserGet = credentials.get.bind(credentials)
-    /** Null until the content script decides; requests are held meanwhile. */
-    let mode: "hold" | "release" | null = null
-    let held: HeldRequest | null = null
+    const browserCreate = credentials.create.bind(credentials)
 
-    const reportState = () =>
-      document.dispatchEvent(
-        new CustomEvent(PASSKEY_STATE_EVENT, {
-          detail: held && !held.attempt ? "waiting" : "none",
-        }),
-      )
+    /** Null until the content script sends its initial config. */
+    let holdConditional: boolean | null = null
+    let interceptModal: boolean | null = null
+    const configWaiters: (() => void)[] = []
 
-    const finish = (request: HeldRequest, settle: () => void) => {
+    let held: HeldConditional | null = null
+    const bridgePending = new Map<
+      string,
+      (outcome: PasskeyBridgeOutcome) => void
+    >()
+
+    const reportState = () => {
+      const detail: PasskeyStateDetail =
+        held && !held.attempt
+          ? { state: "waiting", request: held.serialized }
+          : { state: "none" }
+      document.dispatchEvent(new CustomEvent(PASSKEY_STATE_EVENT, { detail }))
+    }
+
+    const finishConditional = (
+      request: HeldConditional,
+      settle: () => void,
+    ) => {
       if (held !== request) return
       held = null
       settle()
       reportState()
     }
 
-    const attempt = (request: HeldRequest, conditional: boolean) => {
+    const attemptConditionalNative = (
+      request: HeldConditional,
+      conditional: boolean,
+    ) => {
       const controller = new AbortController()
       request.attempt = { controller, conditional }
       browserGet({
@@ -58,31 +300,34 @@ export default defineContentScript({
       }).then(
         (credential) => {
           if (request.attempt?.controller !== controller) return
-          finish(request, () => request.resolve(credential))
+          finishConditional(request, () => request.resolve(credential))
         },
         (error: unknown) => {
           if (request.attempt?.controller !== controller) return
           request.attempt = null
-          // Closing the browser's dialog leaves the request waiting, as it would in the list.
+          // Closing the native dialog leaves the conditional request waiting for the menu again.
           if (
             !conditional &&
             error instanceof DOMException &&
             error.name === "NotAllowedError"
           ) {
-            applyMode()
+            applyConditionalMode()
             return
           }
-          finish(request, () => request.reject(error))
+          finishConditional(request, () => request.reject(error))
         },
       )
     }
 
-    /** Hands the held request to the browser's list or takes it back, as the mode says. */
-    const applyMode = () => {
+    const applyConditionalMode = () => {
       const request = held
-      if (request && mode === "release" && !request.attempt)
-        attempt(request, true)
-      else if (request && mode !== "release" && request.attempt?.conditional) {
+      if (request && holdConditional === false && !request.attempt) {
+        attemptConditionalNative(request, true)
+      } else if (
+        request &&
+        holdConditional !== false &&
+        request.attempt?.conditional
+      ) {
         const { controller } = request.attempt
         request.attempt = null
         controller.abort()
@@ -90,54 +335,207 @@ export default defineContentScript({
       reportState()
     }
 
-    credentials.get = function get(
-      options?: CredentialRequestOptions,
-    ): Promise<Credential | null> {
-      if (options?.mediation !== "conditional" || !options.publicKey)
-        return browserGet(options)
-      const signal = options.signal
-      if (signal?.aborted) return Promise.reject(signal.reason)
-      if (held)
-        return Promise.reject(
-          new DOMException("A request is already pending.", "NotAllowedError"),
-        )
-      return new Promise((resolve, reject) => {
-        const request: HeldRequest = {
-          options,
-          resolve,
-          reject,
-          attempt: null,
-        }
-        held = request
-        signal?.addEventListener(
-          "abort",
-          () => {
-            const controller = request.attempt?.controller
-            request.attempt = null
-            controller?.abort()
-            finish(request, () => reject(signal.reason))
-          },
-          { once: true },
-        )
-        if (mode === null)
-          setTimeout(() => {
-            if (mode !== null) return
-            mode = "release"
-            applyMode()
-          }, UNDECIDED_MS)
-        applyMode()
+    const waitForModalConfig = (): Promise<boolean> => {
+      if (interceptModal !== null) return Promise.resolve(interceptModal)
+      return new Promise((resolve) => {
+        const timer = setTimeout(() => {
+          resolve(interceptModal === true)
+        }, UNDECIDED_MODAL_MS)
+        configWaiters.push(() => {
+          clearTimeout(timer)
+          resolve(interceptModal === true)
+        })
       })
     }
 
-    document.addEventListener(PASSKEY_CONTROL_EVENT, (event) => {
-      const control = (event as CustomEvent<unknown>).detail
-      if (control === "hold" || control === "release") {
-        mode = control
-        applyMode()
-      } else if (control === "use") {
-        if (held && !held.attempt) attempt(held, false)
-        reportState()
+    const sendBridge = (
+      detail: PasskeyBridgeRequestDetail,
+      signal?: AbortSignal,
+    ): Promise<PasskeyBridgeOutcome> => {
+      if (detail.kind === "cancel") {
+        document.dispatchEvent(
+          new CustomEvent(PASSKEY_BRIDGE_REQUEST_EVENT, { detail }),
+        )
+        return Promise.resolve({ kind: "cancel" })
       }
+      if (signal?.aborted) {
+        return Promise.reject(
+          signal.reason ??
+            new DOMException("The operation was aborted.", "AbortError"),
+        )
+      }
+      return new Promise((resolve, reject) => {
+        const onAbort = () => {
+          if (!bridgePending.delete(detail.requestId)) return
+          document.dispatchEvent(
+            new CustomEvent(PASSKEY_BRIDGE_REQUEST_EVENT, {
+              detail: {
+                requestId: detail.requestId,
+                kind: "cancel",
+              } satisfies PasskeyBridgeRequestDetail,
+            }),
+          )
+          reject(
+            signal?.reason ??
+              new DOMException("The operation was aborted.", "AbortError"),
+          )
+        }
+        bridgePending.set(detail.requestId, (outcome) => {
+          signal?.removeEventListener("abort", onAbort)
+          resolve(outcome)
+        })
+        signal?.addEventListener("abort", onAbort, { once: true })
+        document.dispatchEvent(
+          new CustomEvent(PASSKEY_BRIDGE_REQUEST_EVENT, { detail }),
+        )
+      })
+    }
+
+    credentials.get = function get(
+      options?: CredentialRequestOptions,
+    ): Promise<Credential | null> {
+      if (!options?.publicKey) return browserGet(options)
+      if (
+        !window.isSecureContext ||
+        !featureAllowed("publickey-credentials-get")
+      )
+        return browserGet(options)
+
+      // Conditional UI request: held for Keyward's inline menu (Bitwarden + native fallback).
+      if (options.mediation === "conditional") {
+        const signal = options.signal
+        if (signal?.aborted) return Promise.reject(signal.reason)
+        if (held)
+          return Promise.reject(
+            new DOMException(
+              "A request is already pending.",
+              "NotAllowedError",
+            ),
+          )
+        const serialized = serializeGetRequest(options.publicKey)
+        return new Promise((resolve, reject) => {
+          const request: HeldConditional = {
+            options,
+            serialized,
+            resolve,
+            reject,
+            attempt: null,
+          }
+          held = request
+          signal?.addEventListener(
+            "abort",
+            () => {
+              const controller = request.attempt?.controller
+              request.attempt = null
+              controller?.abort()
+              finishConditional(request, () => reject(signal.reason))
+            },
+            { once: true },
+          )
+          if (holdConditional === null) {
+            setTimeout(() => {
+              if (holdConditional !== null) return
+              holdConditional = false
+              applyConditionalMode()
+            }, UNDECIDED_CONDITIONAL_MS)
+          }
+          applyConditionalMode()
+        })
+      }
+
+      // Modal WebAuthn get request.
+      const publicKey = options.publicKey
+      return (async () => {
+        const shouldIntercept = await waitForModalConfig()
+        if (!shouldIntercept) return browserGet(options)
+        const requestId = crypto.randomUUID()
+        const outcome = await sendBridge(
+          {
+            requestId,
+            kind: "get",
+            request: serializeGetRequest(publicKey),
+          },
+          options.signal,
+        )
+        if (outcome.kind === "asserted")
+          return buildAssertionCredential(outcome.credential)
+        if (outcome.kind === "fallback") return browserGet(options)
+        if (outcome.kind === "error")
+          throw new DOMException(outcome.message, outcome.name)
+        throw new DOMException(
+          "The operation either timed out or was not allowed.",
+          "NotAllowedError",
+        )
+      })()
+    }
+
+    credentials.create = function create(
+      options?: CredentialCreationOptions,
+    ): Promise<Credential | null> {
+      if (!options?.publicKey) return browserCreate(options)
+      if (
+        !window.isSecureContext ||
+        !featureAllowed("publickey-credentials-create")
+      )
+        return browserCreate(options)
+
+      const publicKey = options.publicKey
+      return (async () => {
+        const shouldIntercept = await waitForModalConfig()
+        if (!shouldIntercept) return browserCreate(options)
+        const requestId = crypto.randomUUID()
+        const outcome = await sendBridge(
+          {
+            requestId,
+            kind: "create",
+            request: serializeCreateRequest(publicKey),
+          },
+          options.signal,
+        )
+        if (outcome.kind === "created")
+          return buildAttestationCredential(outcome.credential)
+        if (outcome.kind === "fallback") return browserCreate(options)
+        if (outcome.kind === "error")
+          throw new DOMException(outcome.message, outcome.name)
+        throw new DOMException(
+          "The operation either timed out or was not allowed.",
+          "NotAllowedError",
+        )
+      })()
+    }
+
+    document.addEventListener(PASSKEY_CONTROL_EVENT, (event) => {
+      const control = (event as CustomEvent<unknown>)
+        .detail as PasskeyControlDetail | null
+      if (!control || typeof control !== "object") return
+      if (control.type === "config") {
+        holdConditional = control.holdConditional
+        interceptModal = control.interceptModal
+        while (configWaiters.length) configWaiters.shift()?.()
+        applyConditionalMode()
+      } else if (control.type === "useNative") {
+        if (held && !held.attempt) attemptConditionalNative(held, false)
+        reportState()
+      } else if (control.type === "resolveConditional") {
+        if (!held) return
+        const target = held
+        const controller = target.attempt?.controller
+        target.attempt = null
+        controller?.abort()
+        finishConditional(target, () =>
+          target.resolve(buildAssertionCredential(control.credential)),
+        )
+      }
+    })
+
+    document.addEventListener(PASSKEY_BRIDGE_RESPONSE_EVENT, (event) => {
+      const detail = (event as CustomEvent<unknown>)
+        .detail as PasskeyBridgeResponseDetail | null
+      if (!detail || typeof detail.requestId !== "string") return
+      const settle = bridgePending.get(detail.requestId)
+      if (!settle) return
+      bridgePending.delete(detail.requestId)
+      settle(detail.outcome)
     })
   },
 })

@@ -2,6 +2,14 @@ import type { ForwardingService } from "@/lib/email-forwarding"
 import type { GeneratorKind } from "@/lib/generator"
 import type { Language } from "@/lib/i18n/language"
 import { sendRequest } from "@/lib/messaging"
+import type {
+  PasskeyBridgeOutcome,
+  PasskeyCreateRequest,
+  PasskeyGetRequest,
+  PasskeyOption,
+  PasskeyPromptView,
+  SerializedGetResult,
+} from "@/lib/passkeys/types"
 import type { FieldRules } from "@/lib/password-rules"
 import type { HelperCheck } from "@/lib/providers/apple/helper-port"
 import type { AppleState } from "@/lib/providers/apple/helper-session"
@@ -65,10 +73,12 @@ export type PopupView =
       name: "connect"
       kind: ProviderKind
       vaultId?: string
-      back?: "codeSetup" | "httpAuth"
+      back?: "codeSetup" | "httpAuth" | "passkey"
     }
   /** The logins for a site that asks for one through the browser's own sign-in dialog. */
   | { name: "httpAuth" }
+  /** A WebAuthn passkey sign-in or creation prompt waiting on the user's choice. */
+  | { name: "passkey" }
   /** Where an authenticator key picked from a page goes. */
   | { name: "codeSetup" }
   /** A new login for the active page, asked for from the in-page menu. */
@@ -115,10 +125,14 @@ export interface ContentConfig {
   scanCodes: boolean
   menuTrigger: MenuTrigger
   /**
-   * Whether the frame keeps a page's passkey request for the menu while it has login fields: when
-   * the setting is on and a passkey sign-in succeeded on the site before.
+   * Whether the frame keeps a page's passkey request for the menu while it has login fields.
    */
   takeOverPasskeys: boolean
+  /**
+   * Whether at least one Bitwarden account is configured and passkey interception is enabled.
+   * When false (e.g. pure Apple Passwords users), modal passkey create/get pass straight through.
+   */
+  bitwardenPasskeys: boolean
   theme: "system" | "light" | "dark"
   language: Language
 }
@@ -152,6 +166,22 @@ export type BackgroundApi = {
   }
   /** Leaves the waiting site to the browser's own sign-in dialog. */
   "popup.declineHttpAuth": { payload: null; result: null }
+  /** Active WebAuthn passkey prompt waiting on the user's choice, or null once settled. */
+  "popup.passkey": { payload: null; result: PasskeyPromptView | null }
+  /** Signs the pending WebAuthn get request with the chosen Bitwarden passkey. */
+  "popup.answerPasskeyGet": {
+    payload: { vaultId: string; loginId: string; credentialId: string }
+    result: null
+  }
+  /** Creates and saves a passkey for the pending WebAuthn create request in Bitwarden. */
+  "popup.answerPasskeyCreate": {
+    payload: { vaultId: string; loginId?: string | null }
+    result: null
+  }
+  /** Hands the pending WebAuthn request off to native browser / Apple Passwords. */
+  "popup.fallbackPasskey": { payload: null; result: null }
+  /** Cancels the pending WebAuthn request (rejects with NotAllowedError). */
+  "popup.cancelPasskey": { payload: null; result: null }
   /** Every login and note of each vault that can list itself whole, for browsing in the popup. */
   "popup.allItems": { payload: null; result: VaultView[] }
   /** Logins of the whole vault matching the query, per vault. */
@@ -403,6 +433,8 @@ export type BackgroundApi = {
       suggestion?: string
       /** Whether the page waits for a passkey sign-in, which the menu offers. */
       passkey?: boolean
+      /** Matching Bitwarden passkeys for the held conditional passkey request. */
+      passkeys?: PasskeyOption[]
       /** Set when the form lives in a cross-site iframe, naming the frame's host for clarity. */
       embeddedInHost?: string
     }
@@ -426,6 +458,16 @@ export type BackgroundApi = {
   }
   /** Has the page sign in with a passkey, through the browser's passkey dialog. */
   "menu.usePasskey": { payload: { token: string }; result: null }
+  /** Signs the page's held conditional passkey request using a Bitwarden passkey. */
+  "menu.signPasskey": {
+    payload: {
+      token: string
+      vaultId: string
+      loginId: string
+      credentialId: string
+    }
+    result: null
+  }
   "menu.resize": { payload: { token: string; height: number }; result: null }
   "menu.close": {
     payload: { token: string; focusField?: boolean }
@@ -486,8 +528,21 @@ export type BackgroundApi = {
       newPassword?: boolean
       fieldRules?: FieldRules
       passkey?: boolean
+      passkeyRequest?: PasskeyGetRequest | null
     }
     result: { token: string }
+  }
+  "content.passkeyGet": {
+    payload: { requestId: string; request: PasskeyGetRequest }
+    result: PasskeyBridgeOutcome
+  }
+  "content.passkeyCreate": {
+    payload: { requestId: string; request: PasskeyCreateRequest }
+    result: PasskeyBridgeOutcome
+  }
+  "content.passkeyCancel": {
+    payload: { requestId: string }
+    result: null
   }
   /** Whether a ready vault has one-time codes for the frame, asked once the frame has a code field. */
   "content.hasCodes": { payload: null; result: boolean }
@@ -536,6 +591,7 @@ export type ContentMessage =
   /** Identifier (`id`, `name`, label, etc.) of the right-clicked or focused editable control. */
   | { type: "elementIdentifier" }
   | { type: "usePasskey" }
+  | { type: "resolvePasskey"; credential: SerializedGetResult }
   | { type: "menu.resize"; height: number }
   | { type: "menu.close"; focusField?: boolean }
   | { type: "menu.focusField" }
@@ -569,6 +625,12 @@ export const APPLE_PAIRING_PORT = "apple-pairing"
  * port of this name open; when it closes without a choice, the browser's dialog asks instead.
  */
 export const HTTP_AUTH_PORT = "http-auth"
+
+/**
+ * The popup showing a modal WebAuthn passkey chooser/save prompt holds a port of this name open;
+ * when it closes without a choice, the request is cancelled cleanly.
+ */
+export const PASSKEY_PORT = "passkey-prompt"
 
 export function isContentMessage(
   message: unknown,

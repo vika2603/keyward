@@ -129,6 +129,14 @@ export function App() {
     })
   const signInWithPasskey = () =>
     run(PASSKEY_ID, () => callOverlay("menu.usePasskey", {}))
+  const signInWithBitwardenPasskey = (
+    vaultId: string,
+    loginId: string,
+    credentialId: string,
+  ) =>
+    run(`passkey:${credentialId}`, () =>
+      callOverlay("menu.signPasskey", { vaultId, loginId, credentialId }),
+    )
 
   if (!language) return null
   const allVaults = state?.vaults ?? []
@@ -411,7 +419,36 @@ export function App() {
               )
             })}
             {state.passkey && (
-              <div className="border-t p-1 first:border-t-0">
+              <div className="flex flex-col gap-0.5 border-t p-1 first:border-t-0">
+                {state.passkeys?.map((option) => (
+                  <MenuRow
+                    key={`${option.vaultId}:${option.credentialId}`}
+                    {...rowProps}
+                    busy={busy === `passkey:${option.credentialId}`}
+                    onClick={() =>
+                      void signInWithBitwardenPasskey(
+                        option.vaultId,
+                        option.loginId,
+                        option.credentialId,
+                      )
+                    }
+                  >
+                    <IconTile compact={compact}>
+                      <FingerprintPatternIcon className="size-4" />
+                    </IconTile>
+                    <LoginLabel
+                      primary={
+                        option.userName ||
+                        option.userDisplayName ||
+                        option.itemName
+                      }
+                      detail={t("overlay.menu.passkeyFromVault", {
+                        vault: option.vaultName,
+                      })}
+                      compact={compact}
+                    />
+                  </MenuRow>
+                ))}
                 <MenuRow
                   {...rowProps}
                   busy={busy === PASSKEY_ID}
@@ -421,7 +458,9 @@ export function App() {
                     <FingerprintPatternIcon className="size-4" />
                   </IconTile>
                   <span className="truncate text-sm font-medium">
-                    {t("overlay.menu.passkey")}
+                    {state.passkeys?.length
+                      ? t("overlay.menu.systemPasskey")
+                      : t("overlay.menu.passkey")}
                   </span>
                 </MenuRow>
               </div>

@@ -1,5 +1,18 @@
 import { sha256, utf8 } from "@/lib/bytes"
 import { ruleForHost, uriMatches } from "@/lib/matching"
+import type {
+  PasskeyCreateRequest,
+  PasskeyDescriptor,
+  PasskeyGetRequest,
+  PasskeyOption,
+  SerializedCreateResult,
+  SerializedGetResult,
+} from "@/lib/passkeys/types"
+import {
+  assertPasskeyCredential,
+  createPasskeyCredential,
+  credentialIdBase64Url,
+} from "@/lib/passkeys/webauthn"
 import {
   changePasswordUrlFor,
   evaluatePasswordStrength,
@@ -51,6 +64,7 @@ import {
 import type { VaultCrypto } from "./crypto"
 import {
   decryptDetails,
+  decryptFido2Credentials,
   decryptLogin,
   decryptNote,
   decryptPassword,
@@ -1006,6 +1020,199 @@ export class BitwardenProvider implements VaultProvider {
     }
 
     return { weak, reused, insecureHttp, totalChecked }
+  }
+
+  /** Whether at least one Bitwarden account is configured (unlocked or locked). */
+  async hasConfiguredAccounts(): Promise<boolean> {
+    return (await loadAccounts()).length > 0
+  }
+
+  /**
+   * Lists Bitwarden passkeys matching `rpId` (and optional `allowCredentials`) across all unlocked
+   * vaults, alongside any locked Bitwarden vaults the user could unlock.
+   */
+  async passkeysForRp(
+    rpId: string,
+    allowCredentials: readonly PasskeyDescriptor[] = [],
+  ): Promise<{ passkeys: PasskeyOption[]; lockedVaults: VaultInfo[] }> {
+    const normalizedRp = rpId.trim().toLowerCase()
+    const allowSet =
+      allowCredentials.length > 0
+        ? new Set(allowCredentials.map((cred) => cred.id))
+        : null
+    const allVaults = await this.vaults()
+    const passkeys: PasskeyOption[] = []
+    const lockedVaults: VaultInfo[] = []
+
+    for (const vaultInfo of allVaults) {
+      if (vaultInfo.status === "locked") {
+        lockedVaults.push(vaultInfo)
+        continue
+      }
+      if (vaultInfo.status !== "ready") continue
+      const vault = await this.vaultOf(vaultInfo.id)
+      const cipherById = new Map(
+        vault.ciphers.map((cipher) => [String(valueAt(cipher, "Id")), cipher]),
+      )
+      for (const item of vault.items) {
+        if (item.reprompt) continue
+        const cipher = cipherById.get(item.id)
+        if (!cipher) continue
+        for (const cred of decryptFido2Credentials(cipher, vault.keys)) {
+          if (cred.rpId.trim().toLowerCase() !== normalizedRp) continue
+          if (
+            allowSet &&
+            !allowSet.has(credentialIdBase64Url(cred.credentialId))
+          )
+            continue
+          passkeys.push({
+            vaultId: vaultInfo.id,
+            vaultName: vaultInfo.label,
+            loginId: item.id,
+            itemName: item.name,
+            credentialId: cred.credentialId,
+            rpId: cred.rpId,
+            userName: cred.userName || item.username,
+            userDisplayName: cred.userDisplayName || cred.userName || item.name,
+            creationDate: cred.creationDate,
+          })
+        }
+      }
+    }
+
+    passkeys.sort((a, b) => b.creationDate.localeCompare(a.creationDate))
+    return { passkeys, lockedVaults }
+  }
+
+  /** Unlocked Bitwarden vaults (with matching editable logins) and locked vaults for saving a new passkey. */
+  async passkeySaveTargets(page: URL): Promise<{
+    saveTargets: {
+      vault: VaultInfo
+      existingLogins: { id: string; title: string; username: string }[]
+    }[]
+    lockedVaults: VaultInfo[]
+  }> {
+    const allVaults = await this.vaults()
+    const saveTargets: {
+      vault: VaultInfo
+      existingLogins: { id: string; title: string; username: string }[]
+    }[] = []
+    const lockedVaults: VaultInfo[] = []
+
+    for (const vaultInfo of allVaults) {
+      if (vaultInfo.status === "locked") {
+        lockedVaults.push(vaultInfo)
+        continue
+      }
+      if (vaultInfo.status !== "ready") continue
+      const { vault, items } = await this.matching(vaultInfo.id, page)
+      const cipherById = new Map(
+        vault.ciphers.map((cipher) => [String(valueAt(cipher, "Id")), cipher]),
+      )
+      const existingLogins = items
+        .filter((item) => {
+          const cipher = cipherById.get(item.id)
+          return cipher !== undefined && isEditable(item, cipher)
+        })
+        .map((item) => ({
+          id: item.id,
+          title: item.name,
+          username: item.username,
+        }))
+      saveTargets.push({ vault: vaultInfo, existingLogins })
+    }
+    return { saveTargets, lockedVaults }
+  }
+
+  /** Signs a WebAuthn assertion with the chosen Bitwarden passkey. */
+  async signPasskey(
+    vaultId: string,
+    loginId: string,
+    credentialId: string,
+    request: PasskeyGetRequest,
+  ): Promise<SerializedGetResult> {
+    const { vault, item, cipher } = await this.pageItem(vaultId, loginId, null)
+    if (item.reprompt)
+      throw new VaultError(
+        "Item requires master password re-prompt",
+        "bitwarden.reprompt",
+      )
+    const creds = decryptFido2Credentials(cipher, vault.keys)
+    const target = creds.find(
+      (cred) =>
+        cred.credentialId === credentialId ||
+        credentialIdBase64Url(cred.credentialId) === credentialId,
+    )
+    if (!target) throw new VaultError("Passkey not found", "notFound")
+    const { credential, nextCounter } = await assertPasskeyCredential(
+      target,
+      request,
+    )
+    if (nextCounter > 0 && isEditable(item, cipher)) {
+      const updated = creds.map((cred) =>
+        cred === target ? { ...cred, counter: String(nextCounter) } : cred,
+      )
+      await this.change(vaultId, vault.keys, cipher, {
+        fido2Credentials: updated,
+      }).catch(() => {})
+    }
+    return credential
+  }
+
+  /** Creates a new ECDSA P-256 passkey and saves it to a new or existing Bitwarden login. */
+  async createPasskey(
+    vaultId: string,
+    loginId: string | null,
+    request: PasskeyCreateRequest,
+  ): Promise<SerializedCreateResult> {
+    const vault = await this.vaultOf(vaultId)
+    const normalizedRp = request.rpId.trim().toLowerCase()
+    if (request.excludeCredentials.length > 0) {
+      const excluded = new Set(request.excludeCredentials.map((c) => c.id))
+      for (const cipher of vault.ciphers) {
+        for (const cred of decryptFido2Credentials(cipher, vault.keys)) {
+          if (
+            cred.rpId.trim().toLowerCase() === normalizedRp &&
+            excluded.has(credentialIdBase64Url(cred.credentialId))
+          ) {
+            throw new VaultError(
+              "A passkey for this account already exists in this vault",
+              "invalidInput",
+            )
+          }
+        }
+      }
+    }
+
+    const { stored, credential } = await createPasskeyCredential(request)
+
+    if (loginId) {
+      const { item, cipher } = await this.pageItem(vaultId, loginId, null)
+      refuseEdit(item, cipher)
+      const existing = decryptFido2Credentials(cipher, vault.keys)
+      await this.change(vaultId, vault.keys, cipher, {
+        fido2Credentials: [...existing, stored],
+      })
+    } else {
+      await this.write(vaultId, ({ api, accessToken, account }) =>
+        api.createCipher(
+          accessToken,
+          newLoginRequest(
+            {
+              name: request.rpName || request.rpId,
+              username: request.userName || request.userDisplayName,
+              password: "",
+              uri: request.origin,
+              fido2Credentials: [stored],
+            },
+            vault.keys,
+            account.userId,
+          ),
+        ),
+      )
+    }
+
+    return credential
   }
 }
 

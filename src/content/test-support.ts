@@ -71,6 +71,7 @@ const ACTIVE_CONFIG: ContentConfig = {
   scanCodes: false,
   menuTrigger: "focus",
   takeOverPasskeys: false,
+  bitwardenPasskeys: false,
   theme: "light",
   language: "en",
 }

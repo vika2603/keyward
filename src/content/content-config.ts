@@ -13,6 +13,7 @@ const UNCONFIGURED: ContentConfig = {
   scanCodes: false,
   menuTrigger: "click",
   takeOverPasskeys: false,
+  bitwardenPasskeys: false,
   theme: "system",
   language: "en",
 }

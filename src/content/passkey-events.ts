@@ -1,17 +1,50 @@
+import type {
+  PasskeyBridgeOutcome,
+  PasskeyCreateRequest,
+  PasskeyGetRequest,
+  SerializedGetResult,
+} from "@/lib/passkeys/types"
+
 /**
- * Events between the content script and the page-world script that holds a page's passkey
- * request for Keyward's menu. Both go through `document` with a string `detail`. The page can see
- * and send them as well, which gives it nothing beyond what it can do with the WebAuthn API itself:
- * no credential or secret passes through them.
+ * Events between the isolated content script and the MAIN-world passkey bridge.
+ *
+ * Security note: All verification of origin/RP ID and all cryptographic key operations happen
+ * strictly inside the background service worker. Nothing secret crosses the DOM event channel —
+ * only public WebAuthn request parameters and public signed assertion/attestation responses that
+ * the WebAuthn API itself hands to the page.
  */
 
-/** Sent by the page-world script: "waiting" while it holds a request for the menu, else "none". */
+/** Sent by MAIN world whenever the held conditional get request starts or stops waiting. */
 export const PASSKEY_STATE_EVENT = "keyward:passkey-state"
 
-/**
- * Sent by the content script: "hold" keeps a request for the menu, "release" hands it to the
- * browser's own passkey list, and "use" asks the browser to sign in with it now.
- */
+/** Sent by isolated content script to configure MAIN world or settle a held conditional request. */
 export const PASSKEY_CONTROL_EVENT = "keyward:passkey-control"
 
-export type PasskeyControl = "hold" | "release" | "use"
+/** Sent by MAIN world to isolated content script for modal create/get/cancel requests. */
+export const PASSKEY_BRIDGE_REQUEST_EVENT = "keyward:passkey-bridge-request"
+
+/** Sent by isolated content script back to MAIN world with the background's decision/result. */
+export const PASSKEY_BRIDGE_RESPONSE_EVENT = "keyward:passkey-bridge-response"
+
+export type PasskeyStateDetail =
+  | { state: "waiting"; request: PasskeyGetRequest }
+  | { state: "none" }
+
+export type PasskeyControlDetail =
+  | {
+      type: "config"
+      holdConditional: boolean
+      interceptModal: boolean
+    }
+  | { type: "useNative" }
+  | { type: "resolveConditional"; credential: SerializedGetResult }
+
+export type PasskeyBridgeRequestDetail =
+  | { requestId: string; kind: "get"; request: PasskeyGetRequest }
+  | { requestId: string; kind: "create"; request: PasskeyCreateRequest }
+  | { requestId: string; kind: "cancel" }
+
+export interface PasskeyBridgeResponseDetail {
+  requestId: string
+  outcome: PasskeyBridgeOutcome
+}

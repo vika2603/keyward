@@ -1,3 +1,4 @@
+import type { StoredPasskey } from "@/lib/passkeys/types"
 import type { CustomField, EditableNote, Website } from "@/lib/providers/types"
 import { listOf, objectAt, valueAt } from "./api"
 import {
@@ -29,6 +30,7 @@ export interface NewLoginFields {
   folderId?: string | null
   reprompt?: boolean
   organizationId?: string | null
+  fido2Credentials?: StoredPasskey[]
 }
 
 /** What an update changes in a login item; fields left out stay as they are, empty ones are cleared. */
@@ -44,6 +46,31 @@ export interface ItemChange {
   customFields?: CustomField[]
   folderId?: string | null
   reprompt?: boolean
+  /** When set, replaces the item's `Login.Fido2Credentials` list (re-encrypted with the cipher key). */
+  fido2Credentials?: StoredPasskey[]
+}
+
+/** Encrypts a passkey into Bitwarden's `fido2Credentials` wire format. */
+export function encryptFido2Credential(
+  passkey: StoredPasskey,
+  keys: VaultKeys,
+  key: Uint8Array,
+): Record<string, unknown> {
+  return {
+    credentialId: keys.encrypt(passkey.credentialId, key),
+    keyType: keys.encrypt(passkey.keyType, key),
+    keyAlgorithm: keys.encrypt(passkey.keyAlgorithm, key),
+    keyCurve: keys.encrypt(passkey.keyCurve, key),
+    keyValue: keys.encrypt(passkey.keyValue, key),
+    rpId: keys.encrypt(passkey.rpId, key),
+    rpName: keys.encrypt(passkey.rpName, key),
+    userHandle: keys.encrypt(passkey.userHandle, key),
+    userName: keys.encrypt(passkey.userName, key),
+    userDisplayName: keys.encrypt(passkey.userDisplayName, key),
+    counter: keys.encrypt(passkey.counter, key),
+    discoverable: keys.encrypt(passkey.discoverable, key),
+    creationDate: passkey.creationDate,
+  }
 }
 
 /** A custom field as the server stores it, encrypted with the item key. */
@@ -118,6 +145,13 @@ export function newLoginRequest(
         ? [{ uri: keys.encrypt(login.uri, key), match: null }]
         : [],
       totp: keys.encrypt(login.totp ?? "", key),
+      ...(login.fido2Credentials?.length
+        ? {
+            fido2Credentials: login.fido2Credentials.map((cred) =>
+              encryptFido2Credential(cred, keys, key),
+            ),
+          }
+        : {}),
     },
   }
 }
@@ -350,7 +384,12 @@ export async function itemUpdateRequest(
           : now,
       totp: changed(change.totp, valueAt(login, "Totp")),
       autofillOnPageLoad: valueAt(login, "AutofillOnPageLoad") ?? null,
-      fido2Credentials: valueAt(login, "Fido2Credentials") ?? null,
+      fido2Credentials:
+        change.fido2Credentials !== undefined
+          ? change.fido2Credentials.map((cred) =>
+              encryptFido2Credential(cred, keys, key),
+            )
+          : (valueAt(login, "Fido2Credentials") ?? null),
       uris: await urisRequest(valueAt(login, "Uris"), change.uris, keys, key),
     },
   }

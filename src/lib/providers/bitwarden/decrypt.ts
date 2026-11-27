@@ -1,3 +1,4 @@
+import type { StoredPasskey } from "@/lib/passkeys/types"
 import type {
   ArchivedItem,
   CustomField,
@@ -442,4 +443,52 @@ export function decryptPassword(
     valueAt(objectAt(cipher, "Login"), "Password"),
     keys.forCipher(cipher),
   )
+}
+
+/** Decrypts a Bitwarden cipher's `Login.Fido2Credentials` list into usable passkey records. */
+export function decryptFido2Credentials(
+  cipher: Record<string, unknown>,
+  keys: VaultKeys,
+): StoredPasskey[] {
+  const login = objectAt(cipher, "Login")
+  const rawList = listOf(valueAt(login, "Fido2Credentials"))
+  if (!rawList.length) return []
+  const key = keys.forCipher(cipher)
+  const readField = (entry: unknown, name: string): string => {
+    const raw = valueAt(entry, name)
+    if (typeof raw !== "string" || !raw) return ""
+    try {
+      return keys.decrypt(raw, key)
+    } catch {
+      return ""
+    }
+  }
+  const result: StoredPasskey[] = []
+  for (const entry of rawList) {
+    const credentialId = readField(entry, "CredentialId")
+    const keyValue = readField(entry, "KeyValue")
+    const rpId = readField(entry, "RpId")
+    if (!credentialId || !keyValue || !rpId) continue
+    const creationRaw = valueAt(entry, "CreationDate")
+    const discoverableRaw = readField(entry, "Discoverable")
+    result.push({
+      credentialId,
+      keyType: readField(entry, "KeyType") || "public-key",
+      keyAlgorithm: readField(entry, "KeyAlgorithm") || "ECDSA",
+      keyCurve: readField(entry, "KeyCurve") || "P-256",
+      keyValue,
+      rpId,
+      rpName: readField(entry, "RpName") || rpId,
+      userHandle: readField(entry, "UserHandle"),
+      userName: readField(entry, "UserName"),
+      userDisplayName: readField(entry, "UserDisplayName"),
+      counter: readField(entry, "Counter") || "0",
+      discoverable: discoverableRaw === "false" ? "false" : "true",
+      creationDate:
+        typeof creationRaw === "string" && creationRaw
+          ? creationRaw
+          : new Date().toISOString(),
+    })
+  }
+  return result
 }

@@ -279,6 +279,16 @@ export const en = {
   "popup.security.strength.fair": "Fair",
   "popup.security.strength.good": "Good",
   "popup.security.strength.strong": "Strong",
+  "popup.passkey.getTitle": "Sign in to {host}",
+  "popup.passkey.getDesc": "Choose a Bitwarden passkey to sign in.",
+  "popup.passkey.createTitle": "Save passkey for {host}",
+  "popup.passkey.createDesc": "Choose where to save this passkey.",
+  "popup.passkey.createAccountDesc":
+    "Save a passkey for {account} in Bitwarden.",
+  "popup.passkey.saveAsNew": "Save as new login",
+  "popup.passkey.attachToLogin": "Add to {name}",
+  "popup.passkey.useSystem": "Use system / Passwords passkey",
+  "popup.passkey.gone": "The site is no longer waiting for a passkey.",
 } as const
 
 export const zhCN: Record<keyof typeof en, string> = {
@@ -554,4 +564,14 @@ export const zhCN: Record<keyof typeof en, string> = {
   "popup.security.strength.fair": "一般",
   "popup.security.strength.good": "良好",
   "popup.security.strength.strong": "强",
+  "popup.passkey.getTitle": "使用通行密钥登录 {host}",
+  "popup.passkey.getDesc": "选择 Bitwarden 中的通行密钥登录。",
+  "popup.passkey.createTitle": "保存 {host} 的通行密钥",
+  "popup.passkey.createDesc": "选择要保存通行密钥的 Bitwarden 密码库。",
+  "popup.passkey.createAccountDesc":
+    "将 {account} 的通行密钥保存到 Bitwarden。",
+  "popup.passkey.saveAsNew": "保存为新登录",
+  "popup.passkey.attachToLogin": "添加到 {name}",
+  "popup.passkey.useSystem": "使用系统 / 密码 App 通行密钥",
+  "popup.passkey.gone": "网站已不再等待通行密钥。",
 }

@@ -73,10 +73,14 @@ export default defineContentScript({
         }
       },
     })
-    /** Keeps the page's passkey request for the menu while this frame shows the menu on login fields. */
+    /** Configures conditional menu steering and modal Bitwarden passkey interception. */
     const steerPasskeys = () => {
-      const { active, takeOverPasskeys } = configuration.current
-      passkeys.steer(active && takeOverPasskeys && fields.login.length > 0)
+      const { active, takeOverPasskeys, bitwardenPasskeys } =
+        configuration.current
+      passkeys.configure({
+        holdConditional: active && takeOverPasskeys && fields.login.length > 0,
+        interceptModal: active && bitwardenPasskeys,
+      })
     }
 
     /**
@@ -114,6 +118,10 @@ export default defineContentScript({
         kind: fields.isCode(field) ? "code" : "login",
         newPassword,
         passkey: passkeys.waiting && fields.isLogin(field),
+        passkeyRequest:
+          passkeys.waiting && fields.isLogin(field)
+            ? passkeys.waitingRequest
+            : null,
         fieldRules: newPassword
           ? fieldRulesOf(newPasswordTargets(field, fields.newPassword))
           : undefined,
@@ -158,13 +166,13 @@ export default defineContentScript({
       fields.forgetCodes()
       if (config.active === previous.active) {
         if (config.active) fields.scan()
-        else steerPasskeys()
       } else if (config.active) {
         fields.start()
       } else {
         menu.close()
         fields.stop()
       }
+      steerPasskeys()
     }
 
     listenToExtension(
@@ -199,6 +207,9 @@ export default defineContentScript({
           return elementIdentifierOf(lastContextTarget ?? deepActiveElement())
         case "usePasskey":
           passkeys.use()
+          return
+        case "resolvePasskey":
+          passkeys.resolveConditional(message.credential)
           return
         case "menu.resize":
           menu.resize(message.height)

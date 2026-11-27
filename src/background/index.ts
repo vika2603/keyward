@@ -4,7 +4,12 @@ import { AppleProvider } from "@/lib/providers/apple/apple-provider"
 import { BitwardenProvider } from "@/lib/providers/bitwarden/bitwarden-provider"
 import { loadVaultCrypto } from "@/lib/providers/bitwarden/sdk-loader"
 import { getSettings, settingsItem } from "@/lib/settings"
-import { APPLE_PAIRING_PORT, HTTP_AUTH_PORT, VAULTS_CHANGED_KEY } from "./api"
+import {
+  APPLE_PAIRING_PORT,
+  HTTP_AUTH_PORT,
+  PASSKEY_PORT,
+  VAULTS_CHANGED_KEY,
+} from "./api"
 import { fillFirst } from "./autofill"
 import { CLEAR_CLIPBOARD_ALARM, clearClipboard } from "./clipboard"
 import { watchCodeSetup } from "./code-setup"
@@ -15,6 +20,7 @@ import { HttpAuth } from "./http-auth"
 import { whenInstalled } from "./install"
 import { LoginMenus } from "./login-menus"
 import { menuSessions, promptSessions } from "./overlays"
+import { PasskeyPrompt } from "./passkey-prompt"
 import { openPopup } from "./popup-window"
 import { Providers } from "./providers"
 import { forgetGenerated } from "./recent-generated"
@@ -74,11 +80,20 @@ export function startBackground(): void {
   const httpAuth = new HttpAuth(providers, () =>
     openPopup({ name: "httpAuth" }),
   )
+  const passkeyPrompt = new PasskeyPrompt(bitwarden, () =>
+    openPopup({ name: "passkey" }),
+  )
   const submissionGate = new SubmissionGate((tabId, frameId, submitted, page) =>
     onSubmitted(providers, tabId, frameId, submitted, page),
   )
   serveRequests(
-    createHandlers(providers, { apple, bitwarden }, httpAuth, submissionGate),
+    createHandlers(
+      providers,
+      { apple, bitwarden },
+      httpAuth,
+      submissionGate,
+      passkeyPrompt,
+    ),
     errorCode,
   )
   const submissionFilter = {
@@ -148,6 +163,16 @@ export function startBackground(): void {
     }
     httpAuth.showing()
     port.onDisconnect.addListener(() => httpAuth.leave())
+  })
+
+  browser.runtime.onConnect.addListener((port) => {
+    if (port.name !== PASSKEY_PORT) return
+    if (!port.sender || senderKind(port.sender) !== "popup") {
+      port.disconnect()
+      return
+    }
+    passkeyPrompt.showing()
+    port.onDisconnect.addListener(() => passkeyPrompt.leave())
   })
 
   browser.runtime.onConnect.addListener((port) => {

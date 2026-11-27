@@ -21,6 +21,7 @@ import { HttpAuthView } from "./http-auth-view"
 import { type ListPlace, newListPlace } from "./main/list-place"
 import { MainView } from "./main/main-view"
 import { NoteForm } from "./note-form"
+import { PasskeyView } from "./passkey-view"
 import {
   fitWindow,
   isPoppedOut,
@@ -50,6 +51,7 @@ const STAYS_IN_POPUP: ReadonlySet<View["name"]> = new Set([
   "connect",
   "codeSetup",
   "httpAuth",
+  "passkey",
 ])
 
 /** The view that Back and Escape return to from a subview; null on the main view. */
@@ -57,6 +59,7 @@ function parentViewOf(view: View): View | null {
   switch (view.name) {
     case "main":
     case "httpAuth":
+    case "passkey":
       return null
     case "add":
     case "detail":
@@ -242,6 +245,19 @@ function CurrentView({
                   vaultId: vault.id,
                   back: "httpAuth",
                 })
+          }
+        />
+      )
+    case "passkey":
+      return (
+        <PasskeyView
+          onConnect={(vault) =>
+            onNavigate({
+              name: "connect",
+              kind: vault.kind,
+              vaultId: vault.id,
+              back: "passkey",
+            })
           }
         />
       )

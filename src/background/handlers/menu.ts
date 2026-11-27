@@ -1,6 +1,9 @@
 import { generatePassword, getGeneratorOptions } from "@/lib/generator"
 import type { Handlers } from "@/lib/messaging"
+import type { PasskeyGetRequest } from "@/lib/passkeys/types"
+import { isValidRpId } from "@/lib/passkeys/webauthn"
 import { passwordLimitsFor } from "@/lib/password-rules"
+import type { BitwardenProvider } from "@/lib/providers/bitwarden/bitwarden-provider"
 import { VaultError } from "@/lib/providers/types"
 import { siteDomainOf } from "@/lib/site"
 import type { BackgroundApi } from "../api"
@@ -15,7 +18,10 @@ import { namedVault } from "./capabilities"
 import { closeMenu } from "./request-context"
 import { requireFiniteNumber, requireText } from "./validation"
 
-export function menuHandlers(providers: Providers) {
+export function menuHandlers(
+  providers: Providers,
+  bitwarden?: BitwardenProvider,
+) {
   return {
     "menu.state": {
       allow: ["menu"],
@@ -58,12 +64,28 @@ export function menuHandlers(providers: Providers) {
               )
             await menuSessions.set({ ...session, suggestion })
           }
+          let passkeys: Awaited<
+            ReturnType<BitwardenProvider["passkeysForRp"]>
+          >["passkeys"] = []
+          if (session.passkey && session.passkeyRequest && bitwarden) {
+            const rpId = (
+              session.passkeyRequest.rpId || page.hostname
+            ).toLowerCase()
+            if (isValidRpId(rpId, page.origin)) {
+              const found = await bitwarden.passkeysForRp(
+                rpId,
+                session.passkeyRequest.allowCredentials,
+              )
+              passkeys = found.passkeys
+            }
+          }
           return {
             host: page.hostname,
             kind,
             vaults: markRecent(await providers.loginsForPage(page), recent),
             ...(suggestion ? { suggestion } : {}),
             ...(session.passkey ? { passkey: true } : {}),
+            ...(passkeys.length ? { passkeys } : {}),
             ...(embeddedInHost ? { embeddedInHost } : {}),
           }
         }
@@ -152,6 +174,40 @@ export function menuHandlers(providers: Providers) {
           throw new VaultError("No passkey sign-in is offered", "invalidInput")
         await sendToFrame(session.tabId, session.frameId, {
           type: "usePasskey",
+        })
+        await closeMenu(session.tabId)
+        return null
+      },
+    },
+    "menu.signPasskey": {
+      allow: ["menu"],
+      handle: async ({ token, vaultId, loginId, credentialId }, sender) => {
+        const session = await menuSessions.claim(sender, token)
+        if (!session.passkey || !session.passkeyRequest || !bitwarden)
+          throw new VaultError("No passkey sign-in is offered", "invalidInput")
+        const page = await frameUrl(session.tabId, session.frameId)
+        if (!page)
+          throw new VaultError("The frame is not a web page", "notWebPage")
+        const top =
+          session.frameId !== 0 ? await frameUrl(session.tabId, 0) : page
+        const rpId = (
+          session.passkeyRequest.rpId || page.hostname
+        ).toLowerCase()
+        const verifiedRequest: PasskeyGetRequest = {
+          ...session.passkeyRequest,
+          rpId,
+          origin: page.origin,
+          crossOrigin: top !== null && top.origin !== page.origin,
+        }
+        const credential = await bitwarden.signPasskey(
+          requireText(vaultId, "vaultId"),
+          requireText(loginId, "loginId"),
+          requireText(credentialId, "credentialId"),
+          verifiedRequest,
+        )
+        await sendToFrame(session.tabId, session.frameId, {
+          type: "resolvePasskey",
+          credential,
         })
         await closeMenu(session.tabId)
         return null

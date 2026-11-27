@@ -7,6 +7,7 @@ import { menuSessions } from "../overlays"
 import type { Providers } from "../providers"
 import { onSubmitted, showPrompt } from "../save-prompt"
 import type { SubmissionGate } from "../submission-gate"
+import { parsePasskeyGetRequest } from "./passkeys"
 import { closeMenu, tabFrame } from "./request-context"
 import { fieldKind, optionalText, requireText } from "./validation"
 
@@ -31,7 +32,10 @@ export function contentHandlers(
     },
     "content.openMenu": {
       allow: ["contentScript"],
-      handle: async ({ kind, newPassword, fieldRules, passkey }, sender) => {
+      handle: async (
+        { kind, newPassword, fieldRules, passkey, passkeyRequest },
+        sender,
+      ) => {
         const { tabId, frameId } = tabFrame(sender)
         const open = await menuSessions.get(tabId)
         if (open && open.frameId !== frameId) await closeMenu(tabId)
@@ -45,6 +49,10 @@ export function contentHandlers(
           newPassword: newPassword === true,
           fieldRules: fieldRulesFrom(fieldRules),
           passkey: passkey === true && fieldKind(kind) === "login",
+          passkeyRequest:
+            passkey === true && fieldKind(kind) === "login" && passkeyRequest
+              ? parsePasskeyGetRequest(passkeyRequest)
+              : null,
         })
         return { token }
       },
