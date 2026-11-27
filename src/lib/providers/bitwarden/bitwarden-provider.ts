@@ -18,11 +18,9 @@ import { oneTimeCode } from "@/lib/totp"
 import {
   type CodeSetup,
   type Credential,
-  type CustomField,
   type EditableLogin,
   type EditableNote,
   type ExistingLogin,
-  type FillField,
   type Folder,
   type ListOptions,
   type LoginDetails,
@@ -55,11 +53,7 @@ import {
   type SecurityAuditFinding,
   type SecurityAuditReport,
 } from "./audit"
-import {
-  CIPHER_TYPE_LOGIN,
-  CIPHER_TYPE_SECURE_NOTE,
-  REPROMPT_PASSWORD,
-} from "./cipher-types"
+import { CIPHER_TYPE_LOGIN, CIPHER_TYPE_SECURE_NOTE } from "./cipher-types"
 import type { VaultCrypto } from "./crypto"
 import {
   decryptDetails,
@@ -69,17 +63,31 @@ import {
   decryptPassword,
   decryptPasswordHistory,
   decryptTotp,
-  firstHostOf,
   type LoginItem,
   matchesQuery,
   type NoteItem,
   textMatchesQuery,
 } from "./decrypt"
-import { collectVaultPasskeys, hasExcludedPasskey } from "./passkeys"
-
-export type { SecurityAuditFinding, SecurityAuditReport }
-
+import {
+  accountLabel,
+  checkedCollections,
+  createOwnedCipher,
+  editableLoginOf,
+  editableNoteOf,
+  fillFields,
+  isEditable,
+  loginChanges,
+  noteSummaryOf,
+  refuseEdit,
+  refuseReprompt,
+  requireCodeKey,
+  requireFolder,
+  sameValues,
+  summaryOf,
+  unreadableCodeKey,
+} from "./item-helpers"
 import type { VaultKeys } from "./keys"
+import { collectVaultPasskeys, hasExcludedPasskey } from "./passkeys"
 import { grantPass, type RepromptItem, withPass } from "./reprompt-passes"
 import {
   cloneCipherRequest,
@@ -88,7 +96,7 @@ import {
   newLoginRequest,
   newNoteRequest,
 } from "./requests"
-import { type CustomEndpoints, serverHost } from "./server"
+import type { CustomEndpoints } from "./server"
 import {
   type PendingSignInView,
   SignInFlow,
@@ -97,7 +105,12 @@ import {
 import { type Vault, VaultCache } from "./vault-cache"
 import { accountIdOfVault, isBitwardenVault, vaultIdOf } from "./vault-id"
 
-export type { PendingSignInView, SignInOutcome }
+export type {
+  PendingSignInView,
+  SecurityAuditFinding,
+  SecurityAuditReport,
+  SignInOutcome,
+}
 
 export interface AccountSummary {
   id: string
@@ -1104,226 +1117,4 @@ export class BitwardenProvider implements VaultProvider {
 
     return credential
   }
-}
-
-function requireFolder(
-  groups: VaultGroups,
-  folderId: string | null,
-): string | null {
-  if (folderId && !groups.folders.some((folder) => folder.id === folderId))
-    throw new VaultError("Unknown folder", "notFound")
-  return folderId
-}
-
-function createOwnedCipher(
-  api: BitwardenApi,
-  accessToken: string,
-  body: Record<string, unknown>,
-  organizationId: string | null,
-  collectionIds: readonly string[],
-): Promise<unknown> {
-  return organizationId
-    ? api.createOrganizationCipher(accessToken, body, [...collectionIds])
-    : api.createCipher(accessToken, body)
-}
-
-/**
- * The account's name, or its email address. Two accounts with the same address on different
- * servers are told apart by the server's host.
- */
-function accountLabel(
-  account: StoredAccount,
-  accounts: readonly StoredAccount[],
-): string {
-  const name = account.name?.trim()
-  if (name) return name
-  const sharesEmail = accounts.some(
-    (other) =>
-      other.id !== account.id &&
-      other.email.toLowerCase() === account.email.toLowerCase(),
-  )
-  if (!sharesEmail) return account.email
-  return `${account.email} · ${serverHost(account.server)}`
-}
-
-function summaryOf(item: LoginItem): LoginSummary {
-  return {
-    id: item.id,
-    username: item.username,
-    title: item.name,
-    host: firstHostOf(item),
-    hasCode: item.hasTotp && !item.reprompt,
-    grouping: item.grouping,
-    favorite: item.favorite,
-  }
-}
-
-function noteSummaryOf(note: NoteItem): NoteSummary {
-  return {
-    id: note.id,
-    name: note.name,
-    grouping: note.grouping,
-    favorite: note.favorite,
-  }
-}
-
-function editableLoginOf(
-  keys: VaultKeys,
-  item: LoginItem,
-  cipher: Record<string, unknown>,
-): EditableLogin {
-  const { notes, customFields } = decryptDetails(cipher, keys)
-  return {
-    name: item.name,
-    username: item.username,
-    password: decryptPassword(cipher, keys),
-    uris: item.uris
-      .filter((website) => website.uri !== "")
-      .map(({ uri, match }) => ({ uri, match })),
-    notes,
-    totp: item.hasTotp ? decryptTotp(cipher, keys) : "",
-    customFields,
-    folderId: item.grouping.folderId,
-    reprompt: valueAt(cipher, "Reprompt") === REPROMPT_PASSWORD,
-  }
-}
-
-function editableNoteOf(
-  keys: VaultKeys,
-  note: NoteItem,
-  cipher: Record<string, unknown>,
-): EditableNote {
-  const { notes, customFields } = decryptDetails(cipher, keys)
-  return {
-    name: note.name,
-    text: notes,
-    customFields,
-    folderId: note.grouping.folderId,
-    reprompt: valueAt(cipher, "Reprompt") === REPROMPT_PASSWORD,
-  }
-}
-
-function checkedCollections(
-  groups: VaultGroups,
-  organizationId: string,
-  collectionIds: readonly string[],
-): string[] {
-  if (!groups.organizations.some((org) => org.id === organizationId))
-    throw new VaultError("Unknown organization", "notFound")
-  const valid = new Set(
-    groups.collections
-      .filter((collection) => collection.organizationId === organizationId)
-      .map((collection) => collection.id),
-  )
-  const chosen = [...new Set(collectionIds)].filter((id) => valid.has(id))
-  if (!chosen.length)
-    throw new VaultError("Select at least one collection", "invalidInput")
-  return chosen
-}
-
-/** Whether two lists of custom fields or websites hold the same values in the same order. */
-function sameValues(first: unknown, second: unknown): boolean {
-  return JSON.stringify(first) === JSON.stringify(second)
-}
-
-/** The fields of an edit that differ from the login as it is saved. */
-function loginChanges(current: EditableLogin, change: LoginEdit): ItemChange {
-  const changed: ItemChange = {}
-  for (const key of ["name", "username", "password", "notes"] as const) {
-    const value = change[key]
-    if (value !== undefined && value !== current[key]) changed[key] = value
-  }
-  const totp = change.totp?.trim()
-  if (totp !== undefined && totp !== current.totp) {
-    if (totp) requireCodeKey(totp)
-    changed.totp = totp
-  }
-  const uris = change.uris
-    ?.map((website) => ({ ...website, uri: website.uri.trim() }))
-    .filter((website) => website.uri !== "")
-  if (uris !== undefined && !sameValues(uris, current.uris)) changed.uris = uris
-  if (
-    change.customFields !== undefined &&
-    !sameValues(change.customFields, current.customFields)
-  )
-    changed.customFields = change.customFields
-  if (change.folderId !== undefined && change.folderId !== current.folderId)
-    changed.folderId = change.folderId
-  if (change.reprompt !== undefined && change.reprompt !== current.reprompt)
-    changed.reprompt = change.reprompt
-  return changed
-}
-
-function unreadableCodeKey(): VaultError {
-  return new VaultError(
-    "The authenticator key cannot be read",
-    "invalidCodeKey",
-  )
-}
-
-function requireCodeKey(key: string): void {
-  try {
-    oneTimeCode(key)
-  } catch {
-    throw unreadableCodeKey()
-  }
-}
-
-/**
- * Items that ask for the master password again stay with Bitwarden's own apps, and an
- * organization's read-only items, marked so by the server, cannot be changed.
- */
-function isEditable(
-  item: Pick<RepromptItem, "reprompt">,
-  cipher: Record<string, unknown>,
-): boolean {
-  return (
-    !item.reprompt &&
-    !valueAt(cipher, "DeletedDate") &&
-    valueAt(cipher, "Edit") !== false
-  )
-}
-
-function refuseEdit(
-  item: Pick<RepromptItem, "reprompt">,
-  cipher: Record<string, unknown>,
-): void {
-  refuseReprompt(item)
-  if (!isEditable(item, cipher))
-    throw new VaultError("The login cannot be changed", "notEditable")
-}
-
-/** Items marked for master password re-prompt are left to Bitwarden's own apps. */
-function refuseReprompt(item: Pick<RepromptItem, "reprompt">): void {
-  if (item.reprompt) {
-    throw new VaultError(
-      "The login asks for the master password again",
-      "bitwarden.reprompt",
-    )
-  }
-}
-
-/** What a fill puts into the page for a custom field; a linked field takes its login value. */
-function fillFieldOf(
-  field: CustomField,
-  login: { username: string; password: string },
-): FillField {
-  switch (field.kind) {
-    case "checkbox":
-      return { name: field.name, checked: field.checked }
-    case "linked":
-      return { name: field.name, text: login[field.linkedTo] }
-    default:
-      return { name: field.name, text: field.value }
-  }
-}
-
-/** The custom fields a fill can match to page fields: those with a name. */
-function fillFields(
-  customFields: CustomField[],
-  login: { username: string; password: string },
-): FillField[] {
-  return customFields
-    .filter((field) => field.name !== "")
-    .map((field) => fillFieldOf(field, login))
 }

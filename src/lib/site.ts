@@ -59,6 +59,18 @@ export function hostOfSavedUri(uri: string): string | null {
   return getHostname(withScheme(trimmed, "http"))?.toLowerCase() ?? null
 }
 
+/** Whether `host` refers to the local loopback interface (`localhost`, `*.localhost`, `127.0.0.1`, `::1`). */
+export function isLoopbackHost(host: string): boolean {
+  const lower = host.toLowerCase().replace(/\.$/, "")
+  return (
+    lower === "localhost" ||
+    lower.endsWith(".localhost") ||
+    lower === "127.0.0.1" ||
+    lower === "::1" ||
+    lower === "[::1]"
+  )
+}
+
 /** Accepts a bare host or a URL typed by the user and returns an https URL, or null. */
 export function normalizeSiteInput(input: string): URL | null {
   const trimmed = input.trim()

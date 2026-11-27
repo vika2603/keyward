@@ -1,6 +1,7 @@
 import { ZxcvbnFactory } from "@zxcvbn-ts/core"
 import * as languageCommon from "@zxcvbn-ts/language-common"
 import { VaultError } from "./providers/types"
+import { isLoopbackHost } from "./site"
 
 /** Passwords longer than this are truncated before zxcvbn analysis to avoid quadratic work. */
 export const MAX_STRENGTH_INPUT_LENGTH = 256
@@ -115,16 +116,7 @@ export function isInsecureHttpUri(uri: string): boolean {
   if (!/^http:\/\//i.test(trimmed)) return false
   try {
     const { hostname } = new URL(trimmed)
-    const lower = hostname.toLowerCase()
-    if (
-      lower === "localhost" ||
-      lower.endsWith(".localhost") ||
-      lower === "127.0.0.1" ||
-      lower === "::1" ||
-      lower === "[::1]"
-    )
-      return false
-    return true
+    return !isLoopbackHost(hostname)
   } catch {
     return false
   }

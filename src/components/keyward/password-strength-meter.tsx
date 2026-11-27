@@ -34,8 +34,13 @@ export function PasswordStrengthMeter({
   )
   if (!result) return null
   const filledBars = Math.max(1, result.score)
+  const label = t(LEVEL_LABELS[result.level])
   return (
-    <div className="flex items-center gap-2 pt-0.5">
+    <div
+      data-testid="password-strength-meter"
+      data-level={result.level}
+      className="flex items-center gap-2 pt-0.5"
+    >
       <div className="flex flex-1 gap-1" aria-hidden="true">
         {[1, 2, 3, 4].map((bar) => (
           <span
@@ -48,7 +53,7 @@ export function PasswordStrengthMeter({
         ))}
       </div>
       <span className="text-[11px] font-medium text-muted-foreground">
-        {t(LEVEL_LABELS[result.level])}
+        {label}
       </span>
     </div>
   )

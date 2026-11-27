@@ -30,6 +30,11 @@ run = "pnpm compile"
 description = "Run the unit tests"
 run = "pnpm test"
 
+[tasks.e2e]
+description = "Build extension and run headless Chromium E2E tests"
+depends = ["build"]
+run = "pnpm test:e2e"
+
 [tasks.site-data]
 description = "Update the data from Apple's password-manager-resources in src/lib/site-data"
 run = """

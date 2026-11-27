@@ -1,5 +1,5 @@
 import { getDomain } from "tldts"
-import { parseUrl } from "@/lib/site"
+import { isLoopbackHost, parseUrl } from "@/lib/site"
 import { cborEncode } from "./cbor"
 import type {
   PasskeyCreateRequest,
@@ -17,11 +17,11 @@ const COSE_KTY_EC2 = 2
 const COSE_CRV_P256 = 1
 
 /** Authenticator data flags. */
-const FLAG_UP = 0x01 // User Present
-const FLAG_UV = 0x04 // User Verified
-const FLAG_BE = 0x08 // Backup Eligibility (multi-device synced passkey)
-const FLAG_BS = 0x10 // Backup State (backed up in Bitwarden vault)
-const FLAG_AT = 0x40 // Attested Credential Data included
+const FLAG_USER_PRESENT = 0x01
+const FLAG_USER_VERIFIED = 0x04
+const FLAG_BACKUP_ELIGIBLE = 0x08
+const FLAG_BACKUP_STATE = 0x10
+const FLAG_ATTESTED_CREDENTIAL_DATA = 0x40
 
 /** 16-byte all-zero AAGUID used for `fmt: "none"` software authenticators. */
 const ZERO_AAGUID = new Uint8Array(16)
@@ -41,9 +41,9 @@ export function fromBase64Url(input: string): Uint8Array<ArrayBuffer> {
   const normalized = input.replace(/-/g, "+").replace(/_/g, "/")
   const padded = normalized + "=".repeat((4 - (normalized.length % 4)) % 4)
   const decoded = Uint8Array.fromBase64(padded)
-  const out = new Uint8Array(new ArrayBuffer(decoded.length))
-  out.set(decoded)
-  return out
+  const output = new Uint8Array(new ArrayBuffer(decoded.length))
+  output.set(decoded)
+  return output
 }
 
 /** Converts a Bitwarden stored credentialId (UUID string or base64url) to raw WebAuthn credential ID bytes. */
@@ -51,26 +51,17 @@ export function credentialIdToBytes(credentialId: string): Uint8Array {
   if (UUID_PATTERN.test(credentialId)) {
     const hex = credentialId.replace(/-/g, "")
     const bytes = new Uint8Array(16)
-    for (let i = 0; i < 16; i++)
-      bytes[i] = Number.parseInt(hex.slice(i * 2, i * 2 + 2), 16)
+    for (let index = 0; index < 16; index++) {
+      bytes[index] = Number.parseInt(hex.slice(index * 2, index * 2 + 2), 16)
+    }
     return bytes
   }
   return fromBase64Url(credentialId)
 }
 
-/** Converts raw WebAuthn credential ID bytes into base64url for comparison with `allowCredentials`/`excludeCredentials`. */
+/** Converts a stored credentialId into base64url for comparison with `allowCredentials`/`excludeCredentials`. */
 export function credentialIdBase64Url(credentialId: string): string {
   return toBase64Url(credentialIdToBytes(credentialId))
-}
-
-function isLoopbackHost(host: string): boolean {
-  const lower = host.toLowerCase()
-  return (
-    lower === "localhost" ||
-    lower === "127.0.0.1" ||
-    lower === "[::1]" ||
-    lower === "::1"
-  )
 }
 
 function isIpAddress(host: string): boolean {
@@ -83,102 +74,119 @@ function isIpAddress(host: string): boolean {
 
 /**
  * Validates a WebAuthn RP ID against the requesting frame's origin per the WebAuthn specification:
- * - Origin must be HTTPS (or HTTP localhost for local development).
+ * - Origin must be HTTPS (or HTTP loopback for local development).
  * - RP ID must match the origin's hostname or be a registrable domain suffix of it (never a public suffix).
  */
 export function isValidRpId(rpId: string, origin: string): boolean {
-  const normalizedRp = rpId.trim().toLowerCase().replace(/\.$/, "")
-  if (
-    !normalizedRp ||
-    normalizedRp.includes("://") ||
-    normalizedRp.includes("/")
-  )
-    return false
-  const parsed = parseUrl(origin)
-  if (!parsed) return false
-  const host = parsed.hostname.toLowerCase().replace(/\.$/, "")
-  if (!host) return false
-  if (
-    parsed.protocol !== "https:" &&
-    !(parsed.protocol === "http:" && isLoopbackHost(host))
-  )
-    return false
-  if (isIpAddress(normalizedRp))
-    return normalizedRp === host && isLoopbackHost(host)
-  if (normalizedRp === host) return true
-  if (!host.endsWith(`.${normalizedRp}`)) return false
+  const normalizedRpId = rpId.trim().toLowerCase().replace(/\.$/, "")
+  const hasInvalidSyntax =
+    !normalizedRpId ||
+    normalizedRpId.includes("://") ||
+    normalizedRpId.includes("/")
+  if (hasInvalidSyntax) return false
+
+  const parsedOrigin = parseUrl(origin)
+  if (!parsedOrigin) return false
+  const originHost = parsedOrigin.hostname.toLowerCase().replace(/\.$/, "")
+  if (!originHost) return false
+
+  const isHttps = parsedOrigin.protocol === "https:"
+  const isLocalHttp =
+    parsedOrigin.protocol === "http:" && isLoopbackHost(originHost)
+  if (!isHttps && !isLocalHttp) return false
+
+  if (isIpAddress(normalizedRpId)) {
+    return normalizedRpId === originHost && isLoopbackHost(originHost)
+  }
+  if (normalizedRpId === originHost) return true
+  if (!originHost.endsWith(`.${normalizedRpId}`)) return false
+
   // RP ID must not be a bare public suffix (e.g. "co.uk" or "com").
-  const registrable = getDomain(normalizedRp, { allowPrivateDomains: true })
-  return registrable !== null && normalizedRp.endsWith(registrable)
+  const registrableDomain = getDomain(normalizedRpId, {
+    allowPrivateDomains: true,
+  })
+  return (
+    registrableDomain !== null && normalizedRpId.endsWith(registrableDomain)
+  )
 }
 
 /** Converts a 64-byte IEEE P1363 ECDSA P-256 signature (r || s) into ASN.1 DER format required by WebAuthn. */
-export function derSignatureFromP1363(raw: Uint8Array): Uint8Array {
-  if (raw.length !== 64)
-    throw new Error(`Expected 64-byte P-256 signature, got ${raw.length}`)
-  const encodeInteger = (part: Uint8Array): number[] => {
+export function derSignatureFromP1363(rawSignature: Uint8Array): Uint8Array {
+  if (rawSignature.length !== 64) {
+    throw new Error(
+      `Expected 64-byte P-256 signature, got ${rawSignature.length}`,
+    )
+  }
+  const encodeDerInteger = (component: Uint8Array): number[] => {
     let start = 0
-    while (start < part.length - 1 && part[start] === 0) start++
-    const trimmed = part.subarray(start)
-    const needsPad = (trimmed[0] ?? 0) >= 0x80
-    const body = needsPad ? [0x00, ...trimmed] : [...trimmed]
+    while (start < component.length - 1 && component[start] === 0) start++
+    const trimmed = component.subarray(start)
+    const needsLeadingZero = (trimmed[0] ?? 0) >= 0x80
+    const body = needsLeadingZero ? [0x00, ...trimmed] : [...trimmed]
     return [0x02, body.length, ...body]
   }
-  const r = encodeInteger(raw.subarray(0, 32))
-  const s = encodeInteger(raw.subarray(32, 64))
-  return new Uint8Array([0x30, r.length + s.length, ...r, ...s])
+  const rEncoded = encodeDerInteger(rawSignature.subarray(0, 32))
+  const sEncoded = encodeDerInteger(rawSignature.subarray(32, 64))
+  return new Uint8Array([
+    0x30,
+    rEncoded.length + sEncoded.length,
+    ...rEncoded,
+    ...sEncoded,
+  ])
 }
 
 /** Converts an ASN.1 DER ECDSA P-256 signature back to 64-byte IEEE P1363 (used for WebCrypto verification). */
 export function p1363FromDerSignature(
-  der: Uint8Array,
+  derSignature: Uint8Array,
 ): Uint8Array<ArrayBuffer> {
-  if (der[0] !== 0x30) throw new Error("Invalid DER signature sequence")
+  if (derSignature[0] !== 0x30)
+    throw new Error("Invalid DER signature sequence")
   let offset = 2
-  const readPart = (): Uint8Array => {
-    if (der[offset] !== 0x02) throw new Error("Invalid DER integer tag")
-    const len = der[offset + 1] ?? 0
+  const readComponent = (): Uint8Array => {
+    if (derSignature[offset] !== 0x02)
+      throw new Error("Invalid DER integer tag")
+    const length = derSignature[offset + 1] ?? 0
     offset += 2
-    const slice = der.subarray(offset, offset + len)
-    offset += len
-    const out = new Uint8Array(32)
+    const slice = derSignature.subarray(offset, offset + length)
+    offset += length
+    const component = new Uint8Array(32)
     if (slice.length > 32) {
-      // Drop leading 0x00 sign byte(s).
-      out.set(slice.subarray(slice.length - 32))
+      // Drop leading 0x00 sign padding byte(s).
+      component.set(slice.subarray(slice.length - 32))
     } else {
-      out.set(slice, 32 - slice.length)
+      component.set(slice, 32 - slice.length)
     }
-    return out
+    return component
   }
-  const r = readPart()
-  const s = readPart()
-  const out = new Uint8Array(new ArrayBuffer(64))
-  out.set(r, 0)
-  out.set(s, 32)
-  return out
+  const rComponent = readComponent()
+  const sComponent = readComponent()
+  const output = new Uint8Array(new ArrayBuffer(64))
+  output.set(rComponent, 0)
+  output.set(sComponent, 32)
+  return output
 }
 
 function uint32BE(value: number): Uint8Array {
-  const buf = new Uint8Array(4)
-  new DataView(buf.buffer).setUint32(0, value >>> 0, false)
-  return buf
+  const bytes = new Uint8Array(4)
+  new DataView(bytes.buffer).setUint32(0, value >>> 0, false)
+  return bytes
 }
 
 function uint16BE(value: number): Uint8Array {
-  const buf = new Uint8Array(2)
-  new DataView(buf.buffer).setUint16(0, value & 0xffff, false)
-  return buf
+  const bytes = new Uint8Array(2)
+  new DataView(bytes.buffer).setUint16(0, value & 0xffff, false)
+  return bytes
 }
 
 function concatBytes(...chunks: Uint8Array[]): Uint8Array<ArrayBuffer> {
-  const total = chunks.reduce((sum, chunk) => sum + chunk.length, 0)
-  const out = new Uint8Array(new ArrayBuffer(total))
+  const totalLength = chunks.reduce((sum, chunk) => sum + chunk.length, 0)
+  const output = new Uint8Array(new ArrayBuffer(totalLength))
   let offset = 0
   for (const chunk of chunks) {
-    out.set(chunk, offset)
+    output.set(chunk, offset)
     offset += chunk.length
   }
-  return out
+  return output
 }
 
 async function sha256Bytes(data: Uint8Array): Promise<Uint8Array> {
@@ -187,7 +195,7 @@ async function sha256Bytes(data: Uint8Array): Promise<Uint8Array> {
   return new Uint8Array(await crypto.subtle.digest("SHA-256", copy))
 }
 
-function clientDataBytes(
+function encodeClientData(
   type: "webauthn.create" | "webauthn.get",
   challenge: string,
   origin: string,
@@ -211,16 +219,17 @@ export async function createPasskeyCredential(
   request: PasskeyCreateRequest,
 ): Promise<{ stored: StoredPasskey; credential: SerializedCreateResult }> {
   const rpId = request.rpId.trim().toLowerCase()
-  if (!isValidRpId(rpId, request.origin))
+  if (!isValidRpId(rpId, request.origin)) {
     throw new DOMException(
       `RP ID "${rpId}" is not valid for origin ${request.origin}`,
       "SecurityError",
     )
+  }
 
-  if (
-    request.pubKeyCredParams.length > 0 &&
-    !request.pubKeyCredParams.includes(COSE_ALG_ES256)
-  ) {
+  const acceptsEs256 =
+    request.pubKeyCredParams.length === 0 ||
+    request.pubKeyCredParams.includes(COSE_ALG_ES256)
+  if (!acceptsEs256) {
     throw new DOMException(
       "Only ES256 (-7) public key credentials are supported",
       "NotSupportedError",
@@ -232,7 +241,6 @@ export async function createPasskeyCredential(
     true,
     ["sign", "verify"],
   )
-
   const pkcs8 = new Uint8Array(
     await crypto.subtle.exportKey("pkcs8", keyPair.privateKey),
   )
@@ -258,7 +266,11 @@ export async function createPasskeyCredential(
   const credentialIdBytes = credentialIdToBytes(credentialUuid)
   const rpIdHash = await sha256Bytes(new TextEncoder().encode(rpId))
   const flags = new Uint8Array([
-    FLAG_UP | FLAG_UV | FLAG_BE | FLAG_BS | FLAG_AT,
+    FLAG_USER_PRESENT |
+      FLAG_USER_VERIFIED |
+      FLAG_BACKUP_ELIGIBLE |
+      FLAG_BACKUP_STATE |
+      FLAG_ATTESTED_CREDENTIAL_DATA,
   ])
   const authData = concatBytes(
     rpIdHash,
@@ -275,14 +287,14 @@ export async function createPasskeyCredential(
     attStmt: {},
     authData,
   })
-  const clientData = clientDataBytes(
+  const clientData = encodeClientData(
     "webauthn.create",
     request.challenge,
     request.origin,
     request.crossOrigin,
   )
 
-  const rawIdB64Url = toBase64Url(credentialIdBytes)
+  const encodedCredentialId = toBase64Url(credentialIdBytes)
   const discoverable = request.residentKey === "discouraged" ? "false" : "true"
 
   const stored: StoredPasskey = {
@@ -304,8 +316,8 @@ export async function createPasskeyCredential(
   return {
     stored,
     credential: {
-      id: rawIdB64Url,
-      rawId: rawIdB64Url,
+      id: encodedCredentialId,
+      rawId: encodedCredentialId,
       authenticatorAttachment: "platform",
       response: {
         clientDataJSON: toBase64Url(clientData),
@@ -319,19 +331,18 @@ export async function createPasskeyCredential(
   }
 }
 
-/**
- * Signs a WebAuthn assertion using a stored Bitwarden ECDSA P-256 passkey.
- */
+/** Signs a WebAuthn assertion using a stored Bitwarden ECDSA P-256 passkey. */
 export async function assertPasskeyCredential(
   passkey: StoredPasskey,
   request: PasskeyGetRequest,
 ): Promise<{ credential: SerializedGetResult; nextCounter: number }> {
   const rpId = request.rpId.trim().toLowerCase()
-  if (!isValidRpId(rpId, request.origin))
+  if (!isValidRpId(rpId, request.origin)) {
     throw new DOMException(
       `RP ID "${rpId}" is not valid for origin ${request.origin}`,
       "SecurityError",
     )
+  }
   if (passkey.rpId.trim().toLowerCase() !== rpId)
     throw new DOMException("Passkey RP ID mismatch", "SecurityError")
 
@@ -350,7 +361,7 @@ export async function assertPasskeyCredential(
       ? currentCounter + 1
       : 0
 
-  const clientData = clientDataBytes(
+  const clientData = encodeClientData(
     "webauthn.get",
     request.challenge,
     request.origin,
@@ -358,7 +369,12 @@ export async function assertPasskeyCredential(
   )
   const clientDataHash = await sha256Bytes(clientData)
   const rpIdHash = await sha256Bytes(new TextEncoder().encode(rpId))
-  const flags = new Uint8Array([FLAG_UP | FLAG_UV | FLAG_BE | FLAG_BS])
+  const flags = new Uint8Array([
+    FLAG_USER_PRESENT |
+      FLAG_USER_VERIFIED |
+      FLAG_BACKUP_ELIGIBLE |
+      FLAG_BACKUP_STATE,
+  ])
   const authData = concatBytes(rpIdHash, flags, uint32BE(nextCounter))
   const signedPayload = concatBytes(authData, clientDataHash)
 
@@ -370,13 +386,13 @@ export async function assertPasskeyCredential(
     ),
   )
   const derSignature = derSignatureFromP1363(rawSignature)
-  const rawIdB64Url = credentialIdBase64Url(passkey.credentialId)
+  const encodedCredentialId = credentialIdBase64Url(passkey.credentialId)
 
   return {
     nextCounter,
     credential: {
-      id: rawIdB64Url,
-      rawId: rawIdB64Url,
+      id: encodedCredentialId,
+      rawId: encodedCredentialId,
       authenticatorAttachment: "platform",
       response: {
         clientDataJSON: toBase64Url(clientData),

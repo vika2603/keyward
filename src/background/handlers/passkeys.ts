@@ -10,80 +10,82 @@ import type { PasskeyPrompt } from "../passkey-prompt"
 import { tabFrame } from "./request-context"
 import { optionalText, requireText } from "./validation"
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+}
+
+function stringOrEmpty(value: unknown): string {
+  return typeof value === "string" ? value : ""
+}
+
 function parseDescriptors(raw: unknown): PasskeyDescriptor[] {
   if (!Array.isArray(raw)) return []
-  const result: PasskeyDescriptor[] = []
+  const descriptors: PasskeyDescriptor[] = []
   for (const item of raw) {
-    if (!item || typeof item !== "object") continue
-    const rec = item as Record<string, unknown>
-    if (typeof rec.id !== "string" || !rec.id) continue
-    result.push({
+    if (!isRecord(item) || typeof item.id !== "string" || !item.id) continue
+    const transports = Array.isArray(item.transports)
+      ? item.transports.filter(
+          (entry): entry is string => typeof entry === "string",
+        )
+      : undefined
+    descriptors.push({
       type: "public-key",
-      id: rec.id,
-      ...(Array.isArray(rec.transports)
-        ? {
-            transports: rec.transports.filter(
-              (entry): entry is string => typeof entry === "string",
-            ),
-          }
-        : {}),
+      id: item.id,
+      ...(transports ? { transports } : {}),
     })
   }
-  return result
+  return descriptors
 }
 
 function parseUserVerification(
   raw: unknown,
 ): "required" | "preferred" | "discouraged" | undefined {
-  return raw === "required" || raw === "preferred" || raw === "discouraged"
-    ? raw
-    : undefined
+  if (raw === "required" || raw === "preferred" || raw === "discouraged")
+    return raw
+  return undefined
 }
 
 export function parsePasskeyGetRequest(raw: unknown): PasskeyGetRequest {
-  if (!raw || typeof raw !== "object")
+  if (!isRecord(raw))
     throw new VaultError("Missing passkey request", "invalidInput")
-  const rec = raw as Record<string, unknown>
   return {
-    rpId: typeof rec.rpId === "string" ? rec.rpId : "",
-    challenge: requireText(rec.challenge, "challenge"),
-    allowCredentials: parseDescriptors(rec.allowCredentials),
-    userVerification: parseUserVerification(rec.userVerification),
-    origin: typeof rec.origin === "string" ? rec.origin : "",
-    crossOrigin: rec.crossOrigin === true,
+    rpId: stringOrEmpty(raw.rpId),
+    challenge: requireText(raw.challenge, "challenge"),
+    allowCredentials: parseDescriptors(raw.allowCredentials),
+    userVerification: parseUserVerification(raw.userVerification),
+    origin: stringOrEmpty(raw.origin),
+    crossOrigin: raw.crossOrigin === true,
   }
 }
 
 export function parsePasskeyCreateRequest(raw: unknown): PasskeyCreateRequest {
-  if (!raw || typeof raw !== "object")
+  if (!isRecord(raw))
     throw new VaultError("Missing passkey creation request", "invalidInput")
-  const rec = raw as Record<string, unknown>
   const residentKey =
-    rec.residentKey === "discouraged" ||
-    rec.residentKey === "preferred" ||
-    rec.residentKey === "required"
-      ? rec.residentKey
+    raw.residentKey === "discouraged" ||
+    raw.residentKey === "preferred" ||
+    raw.residentKey === "required"
+      ? raw.residentKey
       : undefined
-  const pubKeyCredParams = Array.isArray(rec.pubKeyCredParams)
-    ? rec.pubKeyCredParams.filter(
-        (alg): alg is number =>
-          typeof alg === "number" && Number.isSafeInteger(alg),
+  const pubKeyCredParams = Array.isArray(raw.pubKeyCredParams)
+    ? raw.pubKeyCredParams.filter(
+        (algorithm): algorithm is number =>
+          typeof algorithm === "number" && Number.isSafeInteger(algorithm),
       )
     : []
   return {
-    rpId: typeof rec.rpId === "string" ? rec.rpId : "",
-    rpName: typeof rec.rpName === "string" ? rec.rpName : "",
-    challenge: requireText(rec.challenge, "challenge"),
-    userId: requireText(rec.userId, "userId"),
-    userName: typeof rec.userName === "string" ? rec.userName : "",
-    userDisplayName:
-      typeof rec.userDisplayName === "string" ? rec.userDisplayName : "",
+    rpId: stringOrEmpty(raw.rpId),
+    rpName: stringOrEmpty(raw.rpName),
+    challenge: requireText(raw.challenge, "challenge"),
+    userId: requireText(raw.userId, "userId"),
+    userName: stringOrEmpty(raw.userName),
+    userDisplayName: stringOrEmpty(raw.userDisplayName),
     pubKeyCredParams,
-    excludeCredentials: parseDescriptors(rec.excludeCredentials),
+    excludeCredentials: parseDescriptors(raw.excludeCredentials),
     residentKey,
-    userVerification: parseUserVerification(rec.userVerification),
-    origin: typeof rec.origin === "string" ? rec.origin : "",
-    crossOrigin: rec.crossOrigin === true,
+    userVerification: parseUserVerification(raw.userVerification),
+    origin: stringOrEmpty(raw.origin),
+    crossOrigin: raw.crossOrigin === true,
   }
 }
 

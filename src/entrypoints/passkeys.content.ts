@@ -8,13 +8,16 @@ import {
   type PasskeyControlDetail,
   type PasskeyStateDetail,
 } from "@/content/passkey-events"
+import {
+  buildAssertionCredential,
+  buildAttestationCredential,
+  isWebAuthnFeatureAllowed,
+  serializeCreateRequest,
+  serializeGetRequest,
+} from "@/content/passkey-wire"
 import type {
   PasskeyBridgeOutcome,
-  PasskeyCreateRequest,
-  PasskeyDescriptor,
   PasskeyGetRequest,
-  SerializedCreateResult,
-  SerializedGetResult,
 } from "@/lib/passkeys/types"
 
 /** How long a conditional request waits for content script config before falling back to browser. */
@@ -28,206 +31,6 @@ interface HeldConditional {
   resolve: (credential: Credential | null) => void
   reject: (reason: unknown) => void
   attempt: { controller: AbortController; conditional: boolean } | null
-}
-
-function bufferToBase64Url(source: BufferSource): string {
-  const bytes =
-    source instanceof ArrayBuffer
-      ? new Uint8Array(source)
-      : new Uint8Array(source.buffer, source.byteOffset, source.byteLength)
-  let binary = ""
-  for (const byte of bytes) binary += String.fromCharCode(byte)
-  return btoa(binary)
-    .replace(/\+/g, "-")
-    .replace(/\//g, "_")
-    .replace(/=+$/g, "")
-}
-
-function base64UrlToBuffer(value: string): ArrayBuffer {
-  const normalized = value.replace(/-/g, "+").replace(/_/g, "/")
-  const padded = normalized + "=".repeat((4 - (normalized.length % 4)) % 4)
-  const binary = atob(padded)
-  const bytes = new Uint8Array(binary.length)
-  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
-  return bytes.buffer
-}
-
-function serializeDescriptors(
-  list: readonly PublicKeyCredentialDescriptor[] | undefined,
-): PasskeyDescriptor[] {
-  if (!list?.length) return []
-  return list.map((item) => ({
-    type: "public-key",
-    id: bufferToBase64Url(item.id),
-    ...(item.transports ? { transports: [...item.transports] } : {}),
-  }))
-}
-
-function isCrossOriginFrame(): boolean {
-  try {
-    return window.top !== window && window.top?.origin !== window.origin
-  } catch {
-    return true
-  }
-}
-
-function featureAllowed(feature: string): boolean {
-  const doc = document as Document & {
-    permissionsPolicy?: { allowsFeature?: (name: string) => boolean }
-    featurePolicy?: { allowsFeature?: (name: string) => boolean }
-  }
-  const policy = doc.permissionsPolicy ?? doc.featurePolicy
-  if (typeof policy?.allowsFeature === "function") {
-    try {
-      return policy.allowsFeature(feature)
-    } catch {
-      return true
-    }
-  }
-  return true
-}
-
-function serializeGetRequest(
-  publicKey: PublicKeyCredentialRequestOptions,
-): PasskeyGetRequest {
-  return {
-    rpId: publicKey.rpId || window.location.hostname,
-    challenge: bufferToBase64Url(publicKey.challenge),
-    allowCredentials: serializeDescriptors(publicKey.allowCredentials),
-    userVerification: publicKey.userVerification,
-    origin: window.location.origin,
-    crossOrigin: isCrossOriginFrame(),
-  }
-}
-
-function serializeCreateRequest(
-  publicKey: PublicKeyCredentialCreationOptions,
-): PasskeyCreateRequest {
-  return {
-    rpId: publicKey.rp.id || window.location.hostname,
-    rpName: publicKey.rp.name || publicKey.rp.id || window.location.hostname,
-    challenge: bufferToBase64Url(publicKey.challenge),
-    userId: bufferToBase64Url(publicKey.user.id),
-    userName: publicKey.user.name,
-    userDisplayName: publicKey.user.displayName || publicKey.user.name,
-    pubKeyCredParams: publicKey.pubKeyCredParams
-      .filter((param) => param.type === "public-key")
-      .map((param) => param.alg),
-    excludeCredentials: serializeDescriptors(publicKey.excludeCredentials),
-    residentKey: publicKey.authenticatorSelection?.residentKey,
-    userVerification: publicKey.authenticatorSelection?.userVerification,
-    origin: window.location.origin,
-    crossOrigin: isCrossOriginFrame(),
-  }
-}
-
-function wrapPublicKeyCredential(
-  meta: {
-    id: string
-    rawId: string
-    authenticatorAttachment: "platform"
-  },
-  response: object,
-  responseJson: Record<string, unknown>,
-): Credential {
-  const credProto =
-    typeof PublicKeyCredential !== "undefined"
-      ? PublicKeyCredential.prototype
-      : Object.prototype
-  const credential = Object.create(credProto)
-  Object.defineProperties(credential, {
-    id: { value: meta.id, enumerable: true },
-    rawId: { value: base64UrlToBuffer(meta.rawId), enumerable: true },
-    type: { value: "public-key", enumerable: true },
-    authenticatorAttachment: {
-      value: meta.authenticatorAttachment,
-      enumerable: true,
-    },
-    response: { value: response, enumerable: true },
-    getClientExtensionResults: { value: () => ({}) },
-    toJSON: {
-      value: () => ({
-        id: meta.id,
-        rawId: meta.rawId,
-        type: "public-key",
-        authenticatorAttachment: meta.authenticatorAttachment,
-        response: responseJson,
-        clientExtensionResults: {},
-      }),
-    },
-  })
-  return credential as Credential
-}
-
-function buildAssertionCredential(result: SerializedGetResult): Credential {
-  const responseProto =
-    typeof AuthenticatorAssertionResponse !== "undefined"
-      ? AuthenticatorAssertionResponse.prototype
-      : Object.prototype
-  const response = Object.create(responseProto)
-  Object.defineProperties(response, {
-    clientDataJSON: {
-      value: base64UrlToBuffer(result.response.clientDataJSON),
-      enumerable: true,
-    },
-    authenticatorData: {
-      value: base64UrlToBuffer(result.response.authenticatorData),
-      enumerable: true,
-    },
-    signature: {
-      value: base64UrlToBuffer(result.response.signature),
-      enumerable: true,
-    },
-    userHandle: {
-      value: result.response.userHandle
-        ? base64UrlToBuffer(result.response.userHandle)
-        : null,
-      enumerable: true,
-    },
-  })
-  return wrapPublicKeyCredential(result, response, {
-    clientDataJSON: result.response.clientDataJSON,
-    authenticatorData: result.response.authenticatorData,
-    signature: result.response.signature,
-    ...(result.response.userHandle
-      ? { userHandle: result.response.userHandle }
-      : {}),
-  })
-}
-
-function buildAttestationCredential(
-  result: SerializedCreateResult,
-): Credential {
-  const authenticatorData = base64UrlToBuffer(result.response.authenticatorData)
-  const publicKey = base64UrlToBuffer(result.response.publicKey)
-  const transports = [...result.response.transports]
-  const responseProto =
-    typeof AuthenticatorAttestationResponse !== "undefined"
-      ? AuthenticatorAttestationResponse.prototype
-      : Object.prototype
-  const response = Object.create(responseProto)
-  Object.defineProperties(response, {
-    clientDataJSON: {
-      value: base64UrlToBuffer(result.response.clientDataJSON),
-      enumerable: true,
-    },
-    attestationObject: {
-      value: base64UrlToBuffer(result.response.attestationObject),
-      enumerable: true,
-    },
-    getTransports: { value: () => [...transports] },
-    getAuthenticatorData: { value: () => authenticatorData.slice(0) },
-    getPublicKey: { value: () => publicKey.slice(0) },
-    getPublicKeyAlgorithm: { value: () => result.response.publicKeyAlgorithm },
-  })
-  return wrapPublicKeyCredential(result, response, {
-    clientDataJSON: result.response.clientDataJSON,
-    attestationObject: result.response.attestationObject,
-    authenticatorData: result.response.authenticatorData,
-    publicKey: result.response.publicKey,
-    publicKeyAlgorithm: result.response.publicKeyAlgorithm,
-    transports,
-  })
 }
 
 /**
@@ -294,11 +97,11 @@ export default defineContentScript({
           if (request.attempt?.controller !== controller) return
           request.attempt = null
           // Closing the native dialog leaves the conditional request waiting for the menu again.
-          if (
+          const userDismissedModal =
             !conditional &&
             error instanceof DOMException &&
             error.name === "NotAllowedError"
-          ) {
+          if (userDismissedModal) {
             applyConditionalMode()
             return
           }
@@ -379,27 +182,47 @@ export default defineContentScript({
       })
     }
 
+    const handleModalBridge = async (
+      detail: PasskeyBridgeRequestDetail,
+      signal: AbortSignal | undefined,
+      fallback: () => Promise<Credential | null>,
+    ): Promise<Credential | null> => {
+      if (!(await waitForModalConfig())) return fallback()
+      const outcome = await sendBridge(detail, signal)
+      if (outcome.kind === "asserted")
+        return buildAssertionCredential(outcome.credential)
+      if (outcome.kind === "created")
+        return buildAttestationCredential(outcome.credential)
+      if (outcome.kind === "fallback") return fallback()
+      if (outcome.kind === "error")
+        throw new DOMException(outcome.message, outcome.name)
+      throw new DOMException(
+        "The operation either timed out or was not allowed.",
+        "NotAllowedError",
+      )
+    }
+
     credentials.get = function get(
       options?: CredentialRequestOptions,
     ): Promise<Credential | null> {
       if (!options?.publicKey) return browserGet(options)
-      if (
-        !window.isSecureContext ||
-        !featureAllowed("publickey-credentials-get")
-      )
-        return browserGet(options)
+      const canIntercept =
+        window.isSecureContext &&
+        isWebAuthnFeatureAllowed("publickey-credentials-get")
+      if (!canIntercept) return browserGet(options)
 
       // Conditional UI request: held for Keyward's inline menu (Bitwarden + native fallback).
       if (options.mediation === "conditional") {
         const signal = options.signal
         if (signal?.aborted) return Promise.reject(signal.reason)
-        if (held)
+        if (held) {
           return Promise.reject(
             new DOMException(
               "A request is already pending.",
               "NotAllowedError",
             ),
           )
+        }
         const serialized = serializeGetRequest(options.publicKey)
         return new Promise((resolve, reject) => {
           const request: HeldConditional = {
@@ -431,7 +254,6 @@ export default defineContentScript({
         })
       }
 
-      // Modal WebAuthn get request.
       const publicKey = options.publicKey
       return handleModalBridge(
         {
@@ -444,35 +266,14 @@ export default defineContentScript({
       )
     }
 
-    const handleModalBridge = async (
-      detail: PasskeyBridgeRequestDetail,
-      signal: AbortSignal | undefined,
-      fallback: () => Promise<Credential | null>,
-    ): Promise<Credential | null> => {
-      if (!(await waitForModalConfig())) return fallback()
-      const outcome = await sendBridge(detail, signal)
-      if (outcome.kind === "asserted")
-        return buildAssertionCredential(outcome.credential)
-      if (outcome.kind === "created")
-        return buildAttestationCredential(outcome.credential)
-      if (outcome.kind === "fallback") return fallback()
-      if (outcome.kind === "error")
-        throw new DOMException(outcome.message, outcome.name)
-      throw new DOMException(
-        "The operation either timed out or was not allowed.",
-        "NotAllowedError",
-      )
-    }
-
     credentials.create = function create(
       options?: CredentialCreationOptions,
     ): Promise<Credential | null> {
       if (!options?.publicKey) return browserCreate(options)
-      if (
-        !window.isSecureContext ||
-        !featureAllowed("publickey-credentials-create")
-      )
-        return browserCreate(options)
+      const canIntercept =
+        window.isSecureContext &&
+        isWebAuthnFeatureAllowed("publickey-credentials-create")
+      if (!canIntercept) return browserCreate(options)
 
       const publicKey = options.publicKey
       return handleModalBridge(
