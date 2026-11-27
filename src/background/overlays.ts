@@ -39,6 +39,21 @@ class OverlaySessions<T extends OverlayBase> {
     await storage.removeItem(this.key(tabId))
   }
 
+  /** All active sessions of this overlay kind across open tabs. */
+  async all(): Promise<T[]> {
+    const prefix = `overlay.${this.kind}.`
+    const all = (await browser.storage.session.get(null)) as Record<
+      string,
+      unknown
+    >
+    const sessions: T[] = []
+    for (const [key, value] of Object.entries(all)) {
+      if (key.startsWith(prefix) && value && typeof value === "object")
+        sessions.push(value as T)
+    }
+    return sessions
+  }
+
   /** The session of the overlay frame that sent a request; claims an unclaimed one. */
   async claim(sender: Sender, token: unknown): Promise<T> {
     const tabId = sender.tab?.id
@@ -76,12 +91,22 @@ interface MenuSession extends OverlayBase {
 }
 
 export interface PromptSession extends OverlayBase {
-  mode: "save" | "update"
+  mode: "save" | "update" | "locked"
   url: string
   username: string
   password: string
+  /** Whether the submitted password came from a new-password or generated-password flow. */
+  newPassword?: boolean
+  /** Current password submitted alongside a new password on a change-password form. */
+  currentPassword?: string
   /** For updates: the vault and login whose password changes. */
   update: { vaultId: string; loginId: string } | null
+  /** Set when the user triggered unlock from a locked prompt to auto-save once ready. */
+  pendingAutoSave?: {
+    vaultId: string
+    name: string
+    folderId: string | null
+  } | null
   createdAt: number
 }
 

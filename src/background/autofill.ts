@@ -19,6 +19,7 @@ import {
   sendToFrame,
 } from "./page"
 import { type Providers, vaultsForRule } from "./providers"
+import { rememberGenerated } from "./recent-generated"
 import {
   markRecent,
   recallUsername,
@@ -247,6 +248,15 @@ export async function fillNewPassword(
     origin: target.page.origin,
     password,
   })
+  if (filled === true) {
+    await rememberGenerated(
+      tabId,
+      siteDomainOf(target.page.hostname),
+      target.page,
+      password,
+      true,
+    )
+  }
   return filled === true
 }
 

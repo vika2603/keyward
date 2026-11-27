@@ -29,6 +29,8 @@ export interface SubmittedLogin {
   password: string
   /** Whether the password was typed into a field for a new one, as on sign-up and change-password forms. */
   newPassword: boolean
+  /** The current password typed beside a new password on a change-password form, when present. */
+  currentPassword?: string
   /**
    * The account a password step names without a field for it, given only when `username` is
    * empty; the background prefers the username the tab used on the step before.
@@ -95,7 +97,17 @@ export function credentialsAround(element: Element): SubmittedLogin | null {
     (input) => !input.disabled && !isDecoyField(input),
   )
   const filled = inputs.filter((input) => isPasswordField(input) && input.value)
-  const fresh = filled.find((input) => index.isNewPassword(input))
+  const freshFields = filled.filter((input) => index.isNewPassword(input))
+  // Ignore a sign-up or change-password form whose confirmation field does not match the new password.
+  if (
+    freshFields.length >= 2 &&
+    freshFields[0]?.value !== freshFields[1]?.value
+  )
+    return null
+  const fresh = freshFields[0]
+  const current = fresh
+    ? filled.find((input) => !index.isNewPassword(input))
+    : undefined
   const password = fresh ?? filled[0]
   if (password) {
     const marked = inputs.find(
@@ -111,6 +123,7 @@ export function credentialsAround(element: Element): SubmittedLogin | null {
       password: password.value,
       newPassword: fresh !== undefined,
     }
+    if (current) login.currentPassword = current.value
     const shown = username ? "" : usernameOnPage(password, inputs)
     if (shown) login.usernameOnPage = shown
     return login

@@ -4,6 +4,7 @@ import type { BitwardenProvider } from "@/lib/providers/bitwarden/bitwarden-prov
 import type { BackgroundApi } from "../api"
 import type { HttpAuth } from "../http-auth"
 import type { Providers } from "../providers"
+import type { SubmissionGate } from "../submission-gate"
 import { appleHandlers } from "./apple"
 import { bitwardenHandlers } from "./bitwarden"
 import { contentHandlers } from "./content"
@@ -31,6 +32,7 @@ export function createHandlers(
   providers: Providers,
   named: NamedProviders,
   httpAuth: HttpAuth,
+  submissionGate?: SubmissionGate,
 ): Handlers<BackgroundApi> {
   return {
     ...popupItemHandlers(providers),
@@ -40,8 +42,8 @@ export function createHandlers(
     ...bitwardenHandlers(named.bitwarden),
     ...generatorHandlers(),
     ...menuHandlers(providers),
-    ...promptHandlers(providers),
-    ...contentHandlers(providers),
+    ...promptHandlers(providers, named.bitwarden),
+    ...contentHandlers(providers, submissionGate),
     ...welcomeHandlers(),
     ...httpAuthHandlers(httpAuth),
   }

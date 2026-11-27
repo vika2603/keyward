@@ -6,10 +6,14 @@ import { offerCandidate } from "../code-setup"
 import { menuSessions } from "../overlays"
 import type { Providers } from "../providers"
 import { onSubmitted, showPrompt } from "../save-prompt"
+import type { SubmissionGate } from "../submission-gate"
 import { closeMenu, tabFrame } from "./request-context"
 import { fieldKind, optionalText, requireText } from "./validation"
 
-export function contentHandlers(providers: Providers) {
+export function contentHandlers(
+  providers: Providers,
+  submissionGate?: SubmissionGate,
+) {
   return {
     "content.codeCandidate": {
       allow: ["contentScript"],
@@ -64,17 +68,24 @@ export function contentHandlers(providers: Providers) {
     "content.submitted": {
       allow: ["contentScript"],
       handle: async (
-        { username, password, newPassword, usernameOnPage },
+        { username, password, newPassword, currentPassword, usernameOnPage },
         sender,
       ) => {
         const { tabId, frameId } = tabFrame(sender)
-        await onSubmitted(providers, tabId, frameId, {
+        const submitted = {
           username: requireText(username, "username"),
           password: requireText(password, "password"),
           newPassword: newPassword === true,
+          currentPassword:
+            optionalText(currentPassword, "currentPassword") ?? undefined,
           usernameOnPage:
             optionalText(usernameOnPage, "usernameOnPage") ?? undefined,
-        })
+        }
+        if (submissionGate) {
+          await submissionGate.submit(tabId, frameId, submitted)
+        } else {
+          await onSubmitted(providers, tabId, frameId, submitted)
+        }
         return null
       },
     },

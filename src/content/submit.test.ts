@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 import { ContentScriptContext } from "wxt/utils/content-script-context"
 import { PageEvents } from "./page-events"
 import { isSignInRequest, submitControlOf, watchSubmissions } from "./submit"
-import type { SubmittedLogin } from "./submitted-login"
+import { credentialsAround, type SubmittedLogin } from "./submitted-login"
 import { stubLayout, trusted } from "./test-support"
 
 let ctx: ContentScriptContext | undefined
@@ -178,5 +178,36 @@ describe("a sign-in a script sends", () => {
     expect(reports).toEqual([])
     deliver(request("fetch", "/api/account/login", pressedAt + 200))
     expect(reports).toEqual([typed])
+  })
+})
+
+describe("change-password capture", () => {
+  it("captures both currentPassword and newPassword when present", () => {
+    stubLayout()
+    document.body.innerHTML = `
+      <form id="change-pw">
+        <input type="password" name="current_password" autocomplete="current-password" value="old-secret">
+        <input type="password" name="new_password" autocomplete="new-password" value="new-secret">
+        <input type="password" name="confirm_password" autocomplete="new-password" value="new-secret">
+      </form>`
+    const form = document.getElementById("change-pw") as HTMLFormElement
+    expect(credentialsAround(form)).toEqual({
+      username: "",
+      password: "new-secret",
+      currentPassword: "old-secret",
+      newPassword: true,
+    })
+  })
+
+  it("ignores mismatched new and confirm password fields", () => {
+    stubLayout()
+    document.body.innerHTML = `
+      <form id="mismatch">
+        <input type="email" name="email" value="alice@example.com">
+        <input type="password" name="new_password" autocomplete="new-password" value="first-secret">
+        <input type="password" name="confirm_password" autocomplete="new-password" value="typo-secret">
+      </form>`
+    const form = document.getElementById("mismatch") as HTMLFormElement
+    expect(credentialsAround(form)).toBeNull()
   })
 })

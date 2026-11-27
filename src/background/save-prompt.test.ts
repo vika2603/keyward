@@ -2,18 +2,22 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 import { getSettings, MatchType, updateSettings } from "@/lib/settings"
 import { forgetFill, rememberFill } from "./filled-logins"
 import { type PromptSession, promptSessions } from "./overlays"
+import { forgetGenerated, rememberGenerated } from "./recent-generated"
 import {
   confirmPrompt,
   neverForSite,
   onSubmitted,
   promptFolders,
   promptState,
+  refreshLockedPrompts,
   showPrompt,
+  unlockAndSavePrompt,
 } from "./save-prompt"
 import {
   accountVault,
   appleVault,
   fakeProviders,
+  idleNamedProviders,
   pageModule,
   resetBackground,
   setFrame,
@@ -32,9 +36,10 @@ async function pendingPrompt(): Promise<PromptSession> {
   return session
 }
 
-beforeEach(() => {
+beforeEach(async () => {
   resetBackground()
   forgetFill(TAB)
+  await forgetGenerated(TAB)
   setFrame(TAB, 0, "https://accounts.example.com/login")
 })
 
@@ -363,5 +368,169 @@ describe("showPrompt", () => {
     await showPrompt(TAB)
     expect(pageModule.sendToFrame).toHaveBeenCalledTimes(1)
     expect((await promptSessions.get(TAB))?.token).not.toBe(first)
+  })
+})
+
+describe("Phase 2 save & update matrix, editable prompt, locked deferral and generated cache", () => {
+  it("matches the right account on a multi-account change-password form using currentPassword", async () => {
+    const { providers } = fakeProviders([
+      {
+        info: accountVault,
+        logins: [
+          { id: "id-alice", username: "alice", title: "Example" },
+          { id: "id-bob", username: "bob", title: "Example" },
+        ],
+        findExisting: (_page, username, password) => {
+          if (username === "alice")
+            return {
+              loginId: "id-alice",
+              samePassword: password === "alice-old",
+            }
+          if (username === "bob")
+            return { loginId: "id-bob", samePassword: password === "bob-old" }
+          return null
+        },
+      },
+    ])
+    await onSubmitted(providers, TAB, 0, {
+      username: "",
+      password: "bob-new-password",
+      currentPassword: "bob-old",
+      newPassword: true,
+    })
+    expect(await promptSessions.get(TAB)).toMatchObject({
+      mode: "update",
+      username: "bob",
+      password: "bob-new-password",
+      update: { vaultId: accountVault.id, loginId: "id-bob" },
+    })
+  })
+
+  it("stays quiet on a change-password form without username when current and new passwords match", async () => {
+    const { providers } = fakeProviders([
+      {
+        info: accountVault,
+        logins: [{ id: "id-alice", username: "alice", title: "Example" }],
+        existing: { loginId: "id-alice", samePassword: true },
+      },
+    ])
+    await onSubmitted(providers, TAB, 0, {
+      username: "",
+      password: "same-password",
+      currentPassword: "same-password",
+      newPassword: true,
+    })
+    expect(await promptSessions.get(TAB)).toBeNull()
+  })
+
+  it("exposes password in promptState and saves user-edited username and password", async () => {
+    const { providers, calls } = fakeProviders([{ info: accountVault }])
+    await onSubmitted(providers, TAB, 0, login)
+    const session = await pendingPrompt()
+    const state = await promptState(providers, session)
+    expect(state.password).toBe(login.password)
+
+    await confirmPrompt(providers, session, accountVault.id, {
+      name: "Work",
+      folderId: null,
+      username: "edited@example.com",
+      password: "edited-password",
+    })
+    expect(calls.save).toHaveBeenCalledWith(
+      accountVault.id,
+      expect.objectContaining({
+        username: "edited@example.com",
+        password: "edited-password",
+      }),
+    )
+  })
+
+  it("offers a locked prompt when all vaults are locked and auto-saves after inline Bitwarden unlock", async () => {
+    const lockedVault = { ...accountVault, status: "locked" as const }
+    const vaults: { info: typeof accountVault }[] = [{ info: lockedVault }]
+    const { providers, calls } = fakeProviders(vaults)
+    await onSubmitted(providers, TAB, 0, login)
+
+    const session = await pendingPrompt()
+    expect(session.mode).toBe("locked")
+    const state = await promptState(providers, session)
+    expect(state.lockedVaults).toEqual([lockedVault])
+
+    const named = idleNamedProviders()
+    vi.spyOn(named.bitwarden, "unlock").mockImplementation(async () => {
+      vaults[0] = { info: { ...lockedVault, status: "ready" } }
+    })
+
+    const result = await unlockAndSavePrompt(
+      providers,
+      named.bitwarden,
+      session,
+      {
+        vaultId: lockedVault.id,
+        masterPassword: "master-password",
+        username: "alice-edited",
+        password: "typed-password",
+        name: "My Account",
+      },
+    )
+    expect(result).toEqual({ completed: true })
+    expect(named.bitwarden.unlock).toHaveBeenCalledWith(
+      lockedVault.id,
+      "master-password",
+    )
+    expect(calls.save).toHaveBeenCalledWith(
+      lockedVault.id,
+      expect.objectContaining({
+        username: "alice-edited",
+        password: "typed-password",
+      }),
+    )
+    expect(await promptSessions.get(TAB)).toBeNull()
+  })
+
+  it("transitions an externally unlocked locked prompt to save mode", async () => {
+    const vaults: { info: typeof accountVault }[] = [
+      { info: { ...accountVault, status: "locked" } },
+    ]
+    const { providers } = fakeProviders(vaults)
+    await onSubmitted(providers, TAB, 0, login)
+    expect((await pendingPrompt()).mode).toBe("locked")
+
+    vaults[0] = { info: { ...accountVault, status: "ready" } }
+    await refreshLockedPrompts(providers)
+    expect((await pendingPrompt()).mode).toBe("save")
+  })
+
+  it("treats a submitted cached generated password as newPassword and recovers it on same-page submit", async () => {
+    const page = new URL("https://accounts.example.com/login")
+    await rememberGenerated(TAB, "example.com", page, "GenPass!234", true)
+
+    const { providers } = fakeProviders([
+      {
+        info: appleVault,
+        existing: { loginId: "apple-1", samePassword: undefined },
+      },
+    ])
+    // Even without newPassword flag from the DOM, matching the cached generated password forces update.
+    await onSubmitted(providers, TAB, 0, {
+      username: "someone",
+      password: "GenPass!234",
+      newPassword: false,
+    })
+    expect(await promptSessions.get(TAB)).toMatchObject({
+      mode: "update",
+      password: "GenPass!234",
+    })
+
+    // Same-page submit where password field was cleared still recovers the filled generated password.
+    await promptSessions.remove(TAB)
+    await onSubmitted(providers, TAB, 0, {
+      username: "someone",
+      password: "",
+    })
+    expect(await promptSessions.get(TAB)).toMatchObject({
+      mode: "update",
+      password: "GenPass!234",
+    })
   })
 })

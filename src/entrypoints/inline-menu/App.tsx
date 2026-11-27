@@ -3,6 +3,7 @@ import {
   FingerprintPatternIcon,
   KeyRoundIcon,
   PlusIcon,
+  RefreshCwIcon,
   ShieldAlertIcon,
   TimerIcon,
 } from "lucide-react"
@@ -115,6 +116,11 @@ export function App() {
     })
   const fillSuggestion = () =>
     run(SUGGESTION_ID, () => callOverlay("menu.fillSuggestion", {}))
+  const regenerateSuggestion = () =>
+    run(SUGGESTION_ID, async () => {
+      const { suggestion } = await callOverlay("menu.regenerateSuggestion", {})
+      setState((current) => (current ? { ...current, suggestion } : current))
+    })
   const signInWithPasskey = () =>
     run(PASSKEY_ID, () => callOverlay("menu.usePasskey", {}))
 
@@ -190,26 +196,38 @@ export function App() {
               </div>
             )}
             {state.suggestion && (
-              <div className="p-1">
-                <MenuRow
-                  {...rowProps}
-                  busy={busy === SUGGESTION_ID}
-                  onClick={() => void fillSuggestion()}
-                >
-                  <IconTile compact={compact}>
-                    <KeyRoundIcon className="size-4" />
-                  </IconTile>
-                  <span className="flex min-w-0 flex-1 flex-col">
-                    <span className="truncate text-sm font-medium">
-                      {t("overlay.menu.suggest")}
-                    </span>
-                    {!compact && (
-                      <span className="truncate font-mono text-xs text-muted-foreground">
-                        {state.suggestion}
+              <div className="flex items-center gap-0.5 p-1">
+                <div className="min-w-0 flex-1">
+                  <MenuRow
+                    {...rowProps}
+                    busy={busy === SUGGESTION_ID}
+                    onClick={() => void fillSuggestion()}
+                  >
+                    <IconTile compact={compact}>
+                      <KeyRoundIcon className="size-4" />
+                    </IconTile>
+                    <span className="flex min-w-0 flex-1 flex-col">
+                      <span className="truncate text-sm font-medium">
+                        {t("overlay.menu.suggest")}
                       </span>
-                    )}
-                  </span>
-                </MenuRow>
+                      {!compact && (
+                        <span className="truncate font-mono text-xs text-muted-foreground">
+                          {state.suggestion}
+                        </span>
+                      )}
+                    </span>
+                  </MenuRow>
+                </div>
+                <button
+                  type="button"
+                  disabled={busy !== null}
+                  aria-label={t("overlay.menu.regenerate")}
+                  title={t("overlay.menu.regenerate")}
+                  onClick={() => void regenerateSuggestion()}
+                  className="flex size-8 shrink-0 items-center justify-center rounded-lg text-muted-foreground outline-none hover:bg-muted hover:text-foreground focus-visible:bg-muted disabled:opacity-50"
+                >
+                  <RefreshCwIcon className="size-3.5" />
+                </button>
               </div>
             )}
             {isEmpty && (

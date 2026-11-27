@@ -17,7 +17,10 @@ import { LoginMenus } from "./login-menus"
 import { menuSessions, promptSessions } from "./overlays"
 import { openPopup } from "./popup-window"
 import { Providers } from "./providers"
+import { forgetGenerated } from "./recent-generated"
 import { forgetUsername } from "./recent-usernames"
+import { onSubmitted, refreshLockedPrompts } from "./save-prompt"
+import { SubmissionGate } from "./submission-gate"
 import { watchToolbar } from "./toolbar"
 
 const AUTO_LOCK_ALARM = "autoLock"
@@ -71,10 +74,37 @@ export function startBackground(): void {
   const httpAuth = new HttpAuth(providers, () =>
     openPopup({ name: "httpAuth" }),
   )
+  const submissionGate = new SubmissionGate((tabId, frameId, submitted, page) =>
+    onSubmitted(providers, tabId, frameId, submitted, page),
+  )
   serveRequests(
-    createHandlers(providers, { apple, bitwarden }, httpAuth),
+    createHandlers(providers, { apple, bitwarden }, httpAuth, submissionGate),
     errorCode,
   )
+  const submissionFilter = {
+    urls: ["http://*/*", "https://*/*"],
+    types: ["main_frame", "sub_frame", "xmlhttprequest"] as (
+      | "main_frame"
+      | "sub_frame"
+      | "xmlhttprequest"
+    )[],
+  }
+  browser.webRequest.onBeforeRequest.addListener((details) => {
+    submissionGate.onBeforeRequest(details)
+    return undefined
+  }, submissionFilter)
+  browser.webRequest.onBeforeRedirect.addListener((details) => {
+    submissionGate.onBeforeRedirect(details)
+  }, submissionFilter)
+  browser.webRequest.onCompleted.addListener((details) => {
+    submissionGate.onCompleted(details)
+  }, submissionFilter)
+  browser.webRequest.onErrorOccurred.addListener((details) => {
+    submissionGate.onErrorOccurred(details)
+  }, submissionFilter)
+  browser.tabs.onUpdated.addListener((tabId, changeInfo) => {
+    submissionGate.onTabUpdated(tabId, changeInfo.status)
+  })
   // Only pages the user opens are answered: a request a page makes by itself would release a
   // login without the user seeing where it goes.
   browser.webRequest.onAuthRequired.addListener(
@@ -95,6 +125,7 @@ export function startBackground(): void {
     clearTimeout(announcing)
     announcing = setTimeout(() => {
       void browser.storage.local.set({ [VAULTS_CHANGED_KEY]: Date.now() })
+      void refreshLockedPrompts(providers).catch(() => {})
       refreshToolbar()
     }, ANNOUNCE_DELAY_MS)
   }
@@ -166,8 +197,10 @@ export function startBackground(): void {
   })
 
   browser.tabs.onRemoved.addListener((tabId) => {
+    submissionGate.cancel(tabId)
     forgetFill(tabId)
     void forgetUsername(tabId)
+    void forgetGenerated(tabId)
     void promptSessions.remove(tabId)
     void menuSessions.remove(tabId)
   })

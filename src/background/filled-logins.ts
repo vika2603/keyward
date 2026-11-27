@@ -56,6 +56,23 @@ export async function isFilledPassword(
   return filled.digest === (await digestOf(password))
 }
 
+/** The login Keyward last filled in the tab on `site` if its password matches `password`. */
+export async function filledLoginMatching(
+  tabId: number,
+  site: string,
+  password: string,
+): Promise<{ vaultId: string; loginId: string } | null> {
+  const filled = filledLogins.get(tabId)
+  if (
+    !filled ||
+    filled.site !== site ||
+    Date.now() - filled.at > FILL_TTL_MS ||
+    filled.digest !== (await digestOf(password))
+  )
+    return null
+  return { vaultId: filled.vaultId, loginId: filled.loginId }
+}
+
 export function forgetFill(tabId: number): void {
   filledLogins.delete(tabId)
 }

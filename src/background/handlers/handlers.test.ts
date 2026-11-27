@@ -300,6 +300,28 @@ describe("request checks", () => {
     }
     // Apple's list allows 6 to 16 characters on 163.com; the field allows 12.
     expect(state.suggestion).toHaveLength(12)
+
+    // Reopening the menu on the same tab/site (e.g. confirm password) reuses the cached suggestion.
+    const { token: secondToken } = (await request(
+      "content.openMenu",
+      { kind: "login", newPassword: true },
+      contentScript,
+    )) as { token: string }
+    const secondState = (await request(
+      "menu.state",
+      { token: secondToken },
+      menuFrame,
+    )) as { suggestion?: string }
+    expect(secondState.suggestion).toBe(state.suggestion)
+
+    // Regenerating produces a fresh password and updates the tab cache.
+    const regen = (await request(
+      "menu.regenerateSuggestion",
+      { token: secondToken },
+      menuFrame,
+    )) as { suggestion: string }
+    expect(regen.suggestion).toBeTruthy()
+    expect(regen.suggestion).not.toBe(state.suggestion)
   })
 
   it("refuses a menu height that is not a number", async () => {

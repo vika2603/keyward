@@ -721,9 +721,10 @@ export class BitwardenProvider implements VaultProvider {
   ): Promise<void> {
     const { vault, item, cipher } = await this.pageItem(vaultId, loginId, null)
     refuseEdit(item, cipher)
-    await this.change(vaultId, vault.keys, cipher, {
-      password: login.password,
-    })
+    const changes: ItemChange = { password: login.password }
+    if (login.username && login.username !== item.username)
+      changes.username = login.username
+    await this.change(vaultId, vault.keys, cipher, changes)
   }
 }
 

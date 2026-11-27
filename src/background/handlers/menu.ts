@@ -9,6 +9,7 @@ import { menuSessions } from "../overlays"
 import { frameUrl, sendToFrame } from "../page"
 import { openPopup } from "../popup-window"
 import type { Providers } from "../providers"
+import { recallGenerated, rememberGenerated } from "../recent-generated"
 import { markRecent, recallUsername } from "../recent-usernames"
 import { namedVault } from "./capabilities"
 import { closeMenu } from "./request-context"
@@ -39,10 +40,22 @@ export function menuHandlers(providers: Providers) {
         if (kind === "login") {
           let suggestion = session.suggestion
           if (session.newPassword && !suggestion) {
-            suggestion = generatePassword(
-              await getGeneratorOptions(),
-              passwordLimitsFor(page.hostname, session.fieldRules ?? null),
-            )
+            const site = siteDomainOf(page.hostname)
+            const cached = await recallGenerated(session.tabId, site)
+            suggestion =
+              cached?.password ??
+              generatePassword(
+                await getGeneratorOptions(),
+                passwordLimitsFor(page.hostname, session.fieldRules ?? null),
+              )
+            if (!cached)
+              await rememberGenerated(
+                session.tabId,
+                site,
+                page,
+                suggestion,
+                false,
+              )
             await menuSessions.set({ ...session, suggestion })
           }
           return {
@@ -105,6 +118,30 @@ export function menuHandlers(providers: Providers) {
         )
         await closeMenu(session.tabId)
         return null
+      },
+    },
+    "menu.regenerateSuggestion": {
+      allow: ["menu"],
+      handle: async ({ token }, sender) => {
+        const session = await menuSessions.claim(sender, token)
+        if (!session.newPassword)
+          throw new VaultError("No password is offered", "invalidInput")
+        const page = await frameUrl(session.tabId, session.frameId)
+        if (!page)
+          throw new VaultError("The frame is not a web page", "notWebPage")
+        const suggestion = generatePassword(
+          await getGeneratorOptions(),
+          passwordLimitsFor(page.hostname, session.fieldRules ?? null),
+        )
+        await rememberGenerated(
+          session.tabId,
+          siteDomainOf(page.hostname),
+          page,
+          suggestion,
+          false,
+        )
+        await menuSessions.set({ ...session, suggestion })
+        return { suggestion }
       },
     },
     "menu.usePasskey": {

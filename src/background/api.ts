@@ -119,11 +119,14 @@ export interface ContentConfig {
 }
 
 export interface PromptState {
-  mode: "save" | "update"
+  mode: "save" | "update" | "locked"
   username: string
+  password: string
   host: string
   targets: VaultInfo[]
   defaultTarget: string | null
+  /** Locked vaults that can store this login once unlocked. */
+  lockedVaults: VaultInfo[]
   /** The vault that holds the login an update replaces. */
   updateVault: VaultInfo | null
 }
@@ -366,6 +369,11 @@ export type BackgroundApi = {
   }
   /** Fills the offered password into the new-password fields of the menu's form. */
   "menu.fillSuggestion": { payload: { token: string }; result: null }
+  /** Generates a fresh strong password for the open new-password menu, replacing the cached one. */
+  "menu.regenerateSuggestion": {
+    payload: { token: string }
+    result: { suggestion: string }
+  }
   /** Has the page sign in with a passkey, through the browser's passkey dialog. */
   "menu.usePasskey": { payload: { token: string }; result: null }
   "menu.resize": { payload: { token: string; height: number }; result: null }
@@ -383,11 +391,26 @@ export type BackgroundApi = {
     payload: {
       token: string
       targetId: string | null
+      /** Edited username/password from the save prompt, overriding the captured values. */
+      username?: string
+      password?: string
       /** For a vault that keeps them: the new login's name, empty for its site, and folder. */
       name?: string
       folderId?: string | null
     }
     result: null
+  }
+  /** Unlocks a locked vault (inline for Bitwarden, or via popup) and saves the pending login once ready. */
+  "prompt.unlockAndSave": {
+    payload: {
+      token: string
+      vaultId: string
+      masterPassword?: string
+      username?: string
+      password?: string
+      name?: string
+    }
+    result: { completed: boolean }
   }
   /** The folders of one of the prompt's vaults. */
   "prompt.folders": {
@@ -421,13 +444,15 @@ export type BackgroundApi = {
   "content.closeMenu": { payload: null; result: null }
   "content.submitted": {
     /**
-     * `newPassword` when the password was typed into a field for a new one; `usernameOnPage` the
-     * account the page names without a field for it, for when `username` is empty.
+     * `newPassword` when the password was typed into a field for a new one; `currentPassword`
+     * when a change-password form also carries the old password; `usernameOnPage` the account
+     * the page names without a field for it, for when `username` is empty.
      */
     payload: {
       username: string
       password: string
       newPassword?: boolean
+      currentPassword?: string
       usernameOnPage?: string
     }
     result: null

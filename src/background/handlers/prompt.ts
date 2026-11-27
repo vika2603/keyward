@@ -1,4 +1,5 @@
 import type { Handlers } from "@/lib/messaging"
+import type { BitwardenProvider } from "@/lib/providers/bitwarden/bitwarden-provider"
 import type { BackgroundApi } from "../api"
 import { promptSessions } from "../overlays"
 import { sendToFrame } from "../page"
@@ -9,6 +10,7 @@ import {
   neverForSite,
   promptFolders,
   promptState,
+  unlockAndSavePrompt,
 } from "../save-prompt"
 import {
   optionalFolderId,
@@ -17,7 +19,10 @@ import {
   requireText,
 } from "./validation"
 
-export function promptHandlers(providers: Providers) {
+export function promptHandlers(
+  providers: Providers,
+  bitwarden: BitwardenProvider,
+) {
   return {
     "prompt.state": {
       allow: ["savePrompt"],
@@ -26,18 +31,43 @@ export function promptHandlers(providers: Providers) {
     },
     "prompt.confirm": {
       allow: ["savePrompt"],
-      handle: async ({ token, targetId, name, folderId }, sender) => {
+      handle: async (
+        { token, targetId, username, password, name, folderId },
+        sender,
+      ) => {
         await confirmPrompt(
           providers,
           await promptSessions.claim(sender, token),
           optionalText(targetId, "targetId"),
           {
+            username: optionalText(username, "username") ?? undefined,
+            password: optionalText(password, "password") ?? undefined,
             name: requireText(name ?? "", "name"),
             folderId: optionalFolderId(folderId),
           },
         )
         return null
       },
+    },
+    "prompt.unlockAndSave": {
+      allow: ["savePrompt"],
+      handle: async (
+        { token, vaultId, masterPassword, username, password, name },
+        sender,
+      ) =>
+        unlockAndSavePrompt(
+          providers,
+          bitwarden,
+          await promptSessions.claim(sender, token),
+          {
+            vaultId: requireText(vaultId, "vaultId"),
+            masterPassword:
+              optionalText(masterPassword, "masterPassword") ?? undefined,
+            username: optionalText(username, "username") ?? undefined,
+            password: optionalText(password, "password") ?? undefined,
+            name: requireText(name ?? "", "name"),
+          },
+        ),
     },
     "prompt.folders": {
       allow: ["savePrompt"],

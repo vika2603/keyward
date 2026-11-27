@@ -130,6 +130,12 @@ export const pageModule = {
 export interface FakeVault {
   info: VaultInfo
   existing?: ExistingLogin | null
+  /** Optional custom matcher for multi-account tests; falls back to `existing`. */
+  findExisting?: (
+    page: URL,
+    username: string,
+    password: string,
+  ) => ExistingLogin | null
   credential?: Credential
   /** Logins listed for any page while the vault is ready. */
   logins?: LoginSummary[]
@@ -185,7 +191,10 @@ export function fakeProviders(vaults: FakeVault[]) {
     update: async (...args) => {
       calls.update(...args)
     },
-    findExisting: async () => vault.existing ?? null,
+    findExisting: async (_vaultId, page, username, password) =>
+      vault.findExisting
+        ? vault.findExisting(page, username, password)
+        : (vault.existing ?? null),
     lock: async () => {},
     lockAll: async () => {},
   })

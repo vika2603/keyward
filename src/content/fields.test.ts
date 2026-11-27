@@ -396,6 +396,7 @@ describe("a change-password form", () => {
     expect(credentialsAround(field("third"))).toEqual({
       username: "user@example.com",
       password: "{{SECRET_0rjx6wrn}}",
+      currentPassword: "{{SECRET_10fh9udf}}",
       newPassword: true,
     })
   })
