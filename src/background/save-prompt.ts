@@ -281,6 +281,30 @@ export async function onSubmitted(
   const pageVaults = await providers.vaultsForPage(page)
   const readyVaults = pageVaults.filter((vault) => vault.status === "ready")
 
+  const openSaveSession = async (session: {
+    mode: PromptSession["mode"]
+    username: string
+    password: string
+    update: StoredLogin | null
+  }) => {
+    await promptSessions.set({
+      tabId,
+      frameId: 0,
+      token: crypto.randomUUID(),
+      overlayFrameId: null,
+      mode: session.mode,
+      url: page.href,
+      username: session.username,
+      password: session.password,
+      newPassword: isNewPassword,
+      currentPassword: currentPassword || undefined,
+      update: session.update,
+      pendingAutoSave: null,
+      createdAt: Date.now(),
+    })
+    await showPrompt(tabId)
+  }
+
   if (!readyVaults.length) {
     const lockedVaults = pageVaults.filter(
       (vault) =>
@@ -290,22 +314,12 @@ export async function onSubmitted(
     if (!lockedVaults.length || (!settings.askSave && !settings.askUpdate))
       return
     if (!username && !isNewPassword) return
-    await promptSessions.set({
-      tabId,
-      frameId: 0,
-      token: crypto.randomUUID(),
-      overlayFrameId: null,
+    await openSaveSession({
       mode: "locked",
-      url: page.href,
       username,
       password,
-      newPassword: isNewPassword,
-      currentPassword: currentPassword || undefined,
       update: null,
-      pendingAutoSave: null,
-      createdAt: Date.now(),
     })
-    await showPrompt(tabId)
     return
   }
 
@@ -323,22 +337,7 @@ export async function onSubmitted(
     },
   )
   if (!decision) return
-
-  await promptSessions.set({
-    tabId,
-    frameId: 0,
-    token: crypto.randomUUID(),
-    overlayFrameId: null,
-    mode: decision.mode,
-    url: page.href,
-    username: decision.username,
-    password: decision.password,
-    newPassword: isNewPassword,
-    currentPassword: currentPassword || undefined,
-    update: decision.update,
-    createdAt: Date.now(),
-  })
-  await showPrompt(tabId)
+  await openSaveSession(decision)
 }
 
 /**

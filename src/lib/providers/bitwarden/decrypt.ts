@@ -219,14 +219,29 @@ export function firstHostOf(login: LoginItem): string | undefined {
   return undefined
 }
 
-/** A trashed login or note as the trash lists it; its secrets stay encrypted. */
-export function decryptTrashed(
+/** Shared summary fields for an inactive (trashed or archived) login or note. */
+function decryptInactiveBase(
   cipher: Record<string, unknown>,
   keys: VaultKeys,
-): TrashedItem {
+):
+  | {
+      id: string
+      editable: boolean
+      grouping: ItemGrouping
+      kind: "note"
+      name: string
+    }
+  | {
+      id: string
+      editable: boolean
+      grouping: ItemGrouping
+      kind: "login"
+      name: string
+      username: string
+      host?: string
+    } {
   const common = {
     id: String(valueAt(cipher, "Id")),
-    deletedAt: timeOf(valueAt(cipher, "DeletedDate")),
     editable: valueAt(cipher, "Edit") !== false,
     grouping: groupingOf(cipher),
   }
@@ -242,26 +257,25 @@ export function decryptTrashed(
   }
 }
 
+/** A trashed login or note as the trash lists it; its secrets stay encrypted. */
+export function decryptTrashed(
+  cipher: Record<string, unknown>,
+  keys: VaultKeys,
+): TrashedItem {
+  return {
+    ...decryptInactiveBase(cipher, keys),
+    deletedAt: timeOf(valueAt(cipher, "DeletedDate")),
+  }
+}
+
 /** An archived login or note as the archive lists it; its secrets stay encrypted. */
 export function decryptArchived(
   cipher: Record<string, unknown>,
   keys: VaultKeys,
 ): ArchivedItem {
-  const common = {
-    id: String(valueAt(cipher, "Id")),
-    archivedAt: timeOf(valueAt(cipher, "ArchivedDate")),
-    editable: valueAt(cipher, "Edit") !== false,
-    grouping: groupingOf(cipher),
-  }
-  if (valueAt(cipher, "Type") === CIPHER_TYPE_SECURE_NOTE)
-    return { ...common, kind: "note", name: decryptNote(cipher, keys).name }
-  const login = decryptLogin(cipher, keys)
   return {
-    ...common,
-    kind: "login",
-    name: login.name,
-    username: login.username,
-    host: firstHostOf(login),
+    ...decryptInactiveBase(cipher, keys),
+    archivedAt: timeOf(valueAt(cipher, "ArchivedDate")),
   }
 }
 

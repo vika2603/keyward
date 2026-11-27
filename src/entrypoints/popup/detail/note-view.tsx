@@ -1,12 +1,10 @@
-import { ArchiveIcon } from "lucide-react"
 import { useMemo } from "react"
 import { callBackground } from "@/background/api"
 import { errorCodeOf } from "@/components/keyward/errors"
 import { formatDate } from "@/components/keyward/format"
 import { FADE_IN } from "@/components/keyward/loading"
 import { NoteIcon } from "@/components/keyward/note-icon"
-import { notify, notifyError } from "@/components/keyward/notify"
-import { Button } from "@/components/ui/button"
+import { notifyError } from "@/components/keyward/notify"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useBackgroundQuery } from "@/hooks/use-background-query"
 import { t } from "@/lib/i18n"
@@ -14,22 +12,22 @@ import type { NoteSummary, VaultInfo } from "@/lib/providers/types"
 import { cn } from "@/lib/utils"
 import type { ArchiveInfo, TrashInfo } from "../views"
 import {
-  ArchiveActions,
   CopyButton,
   copyText,
-  DeleteButton,
   DetailRow,
   InfoRow,
   RepromptForm,
   requestOrNotify,
   Section,
-  TrashActions,
 } from "./detail-parts"
 import {
   CustomFieldsSection,
+  cloneVaultItem,
   ItemDetailHeader,
   ItemInfoSection,
+  ItemLifecycleActions,
   ItemTitle,
+  TrashedFallbackSection,
 } from "./item-detail"
 
 /** One secure note: its text, custom fields and dates. */
@@ -75,24 +73,7 @@ export function NoteView({
 
   const name = details?.name || note.name
   const text = details?.text ?? ""
-  const clone = () =>
-    void requestOrNotify(async () => {
-      await callBackground("popup.cloneItem", {
-        vaultId: vault.id,
-        itemId: note.id,
-      })
-      notify(t("popup.detail.cloned", { name }))
-      onBack()
-    })
-  const archiveItem = () =>
-    void requestOrNotify(async () => {
-      await callBackground("popup.archiveItem", {
-        vaultId: vault.id,
-        itemId: note.id,
-      })
-      notify(t("popup.detail.archivedNotice", { name }))
-      onBack()
-    })
+  const clone = () => cloneVaultItem(vault.id, note.id, name, onBack)
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -165,55 +146,27 @@ export function NoteView({
                 </InfoRow>
               )}
             </ItemInfoSection>
-            {trashed && (
-              <TrashActions
-                vaultId={vault.id}
-                itemId={note.id}
-                name={name}
-                editable={trashed.editable}
-                onDone={onBack}
-              />
-            )}
-            {!trashed && archived && (
-              <ArchiveActions
-                vaultId={vault.id}
-                itemId={note.id}
-                name={name}
-                editable={archived.editable}
-                onDone={onBack}
-              />
-            )}
-            {!trashed && !archived && details.editable && (
-              <div className="flex flex-col gap-2">
-                <Button variant="outline" onClick={archiveItem}>
-                  <ArchiveIcon />
-                  {t("popup.detail.archive")}
-                </Button>
-                <DeleteButton
-                  hint={t("popup.note.deleteHint")}
-                  onDelete={remove}
-                />
-              </div>
-            )}
-          </div>
-        )}
-        {!details && Boolean(loadError) && trashed && (
-          <div className={cn("flex flex-col gap-3", FADE_IN)}>
-            <ItemInfoSection vault={vault}>
-              {trashed.deletedAt !== undefined && (
-                <InfoRow label={t("popup.detail.deleted")}>
-                  {formatDate(trashed.deletedAt)}
-                </InfoRow>
-              )}
-            </ItemInfoSection>
-            <TrashActions
+            <ItemLifecycleActions
               vaultId={vault.id}
               itemId={note.id}
               name={name}
-              editable={trashed.editable}
+              editable={details.editable}
+              trashed={trashed}
+              archived={archived}
+              deleteHint={t("popup.note.deleteHint")}
+              onDelete={remove}
               onDone={onBack}
             />
           </div>
+        )}
+        {!details && Boolean(loadError) && trashed && (
+          <TrashedFallbackSection
+            vault={vault}
+            itemId={note.id}
+            name={name}
+            trashed={trashed}
+            onDone={onBack}
+          />
         )}
       </div>
     </div>

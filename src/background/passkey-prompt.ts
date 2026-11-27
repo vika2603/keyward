@@ -9,32 +9,20 @@ import type { BitwardenProvider } from "@/lib/providers/bitwarden/bitwarden-prov
 import { VaultError } from "@/lib/providers/types"
 import { getSettings } from "@/lib/settings"
 import { frameUrl } from "./page"
+import { PopupPromptGate, type PopupPromptLifecycle } from "./popup-prompt"
 
-/** How long a modal passkey prompt waits for user choice before cancelling. */
-const CHOICE_MS = 5 * 60_000
-/** If the browser fails to display the popup within this window, fall back to native WebAuthn. */
-const SHOW_MS = 5000
-
-type PendingRequest =
+type PendingPasskey =
   | {
       kind: "get"
       requestId: string
       page: URL
       request: PasskeyGetRequest
-      shown: boolean
-      answering: boolean
-      left: boolean
-      settle: (outcome: PasskeyBridgeOutcome) => void
     }
   | {
       kind: "create"
       requestId: string
       page: URL
       request: PasskeyCreateRequest
-      shown: boolean
-      answering: boolean
-      left: boolean
-      settle: (outcome: PasskeyBridgeOutcome) => void
     }
 
 /**
@@ -46,13 +34,22 @@ type PendingRequest =
  * - If the popup cannot open in time, falls back to native WebAuthn so sign-in is never blocked.
  * - Inside the popup, users always have a one-click "Use system / Passwords passkey" fallback.
  */
-export class PasskeyPrompt {
-  private pending: PendingRequest | null = null
+export class PasskeyPrompt implements PopupPromptLifecycle {
+  private readonly gate: PopupPromptGate<PendingPasskey, PasskeyBridgeOutcome>
 
   constructor(
     private readonly bitwarden: BitwardenProvider,
-    private readonly openChooser: () => Promise<void>,
-  ) {}
+    openChooser: () => Promise<void>,
+  ) {
+    this.gate = new PopupPromptGate<PendingPasskey, PasskeyBridgeOutcome>(
+      openChooser,
+      {
+        onShowTimeout: () => ({ kind: "fallback" }),
+        onTimeout: () => ({ kind: "cancel" }),
+        onLeave: () => ({ kind: "cancel" }),
+      },
+    )
+  }
 
   async handleGet(
     tabId: number,
@@ -60,12 +57,8 @@ export class PasskeyPrompt {
     requestId: string,
     raw: PasskeyGetRequest,
   ): Promise<PasskeyBridgeOutcome> {
-    if (!(await getSettings()).takeOverPasskeys) return { kind: "fallback" }
-    if (!(await this.bitwarden.hasConfiguredAccounts()))
-      return { kind: "fallback" }
-
-    const checked = await this.verifyOrigin(tabId, frameId, raw.rpId)
-    if ("error" in checked) return checked.error
+    const checked = await this.preflight(tabId, frameId, raw.rpId)
+    if ("outcome" in checked) return checked.outcome
     const request: PasskeyGetRequest = {
       ...raw,
       rpId: checked.rpId,
@@ -94,12 +87,8 @@ export class PasskeyPrompt {
     requestId: string,
     raw: PasskeyCreateRequest,
   ): Promise<PasskeyBridgeOutcome> {
-    if (!(await getSettings()).takeOverPasskeys) return { kind: "fallback" }
-    if (!(await this.bitwarden.hasConfiguredAccounts()))
-      return { kind: "fallback" }
-
-    const checked = await this.verifyOrigin(tabId, frameId, raw.rpId)
-    if ("error" in checked) return checked.error
+    const checked = await this.preflight(tabId, frameId, raw.rpId)
+    if ("outcome" in checked) return checked.outcome
     const request: PasskeyCreateRequest = {
       ...raw,
       rpId: checked.rpId,
@@ -138,19 +127,18 @@ export class PasskeyPrompt {
 
   /** Cancels a pending request if the page aborted it via `AbortSignal`. */
   cancelRequest(requestId: string): void {
-    if (this.pending?.requestId === requestId) {
-      this.pending.settle({ kind: "cancel" })
-    }
+    if (this.gate.current?.requestId === requestId)
+      this.gate.settle({ kind: "cancel" })
   }
 
   /** The popup connected to display the passkey prompt. */
   showing(): void {
-    if (this.pending) this.pending.shown = true
+    this.gate.showing()
   }
 
   /** Current passkey prompt state for the popup; null once settled. */
   async view(): Promise<PasskeyPromptView | null> {
-    const pending = this.pending
+    const pending = this.gate.current
     if (!pending) return null
     if (pending.kind === "get") {
       const { passkeys, lockedVaults } = await this.bitwarden.passkeysForRp(
@@ -188,73 +176,65 @@ export class PasskeyPrompt {
     loginId: string,
     credentialId: string,
   ): Promise<void> {
-    const pending = this.requirePending("get")
-    pending.answering = true
-    try {
+    await this.gate.answer(async (pending) => {
+      if (pending.kind !== "get")
+        throw new VaultError("The site stopped asking", "pageChanged")
       const credential = await this.bitwarden.signPasskey(
         vaultId,
         loginId,
         credentialId,
         pending.request,
       )
-      if (this.pending !== pending)
-        throw new VaultError("The site stopped asking", "pageChanged")
-      pending.settle({ kind: "asserted", credential })
-    } finally {
-      pending.answering = false
-      if (pending.left) pending.settle({ kind: "cancel" })
-    }
+      return { kind: "asserted", credential }
+    })
   }
 
   /** Creates and saves a passkey for the pending `create` request in Bitwarden. */
   async savePasskey(vaultId: string, loginId: string | null): Promise<void> {
-    const pending = this.requirePending("create")
-    pending.answering = true
-    try {
+    await this.gate.answer(async (pending) => {
+      if (pending.kind !== "create")
+        throw new VaultError("The site stopped asking", "pageChanged")
       const credential = await this.bitwarden.createPasskey(
         vaultId,
         loginId,
         pending.request,
       )
-      if (this.pending !== pending)
-        throw new VaultError("The site stopped asking", "pageChanged")
-      pending.settle({ kind: "created", credential })
-    } finally {
-      pending.answering = false
-      if (pending.left) pending.settle({ kind: "cancel" })
-    }
+      return { kind: "created", credential }
+    })
   }
 
   /** Hands the pending request off to the browser's native WebAuthn (Apple Passwords / hardware key). */
   fallback(): void {
-    this.pending?.settle({ kind: "fallback" })
+    this.gate.settle({ kind: "fallback" })
   }
 
   /** Cancels the pending request (rejects with NotAllowedError in the page). */
   cancel(): void {
-    this.pending?.settle({ kind: "cancel" })
+    this.gate.settle({ kind: "cancel" })
   }
 
   /** Called when the popup port disconnects without an explicit choice. */
   leave(): void {
-    const pending = this.pending
-    if (!pending) return
-    if (pending.answering) pending.left = true
-    else pending.settle({ kind: "cancel" })
+    this.gate.leave()
   }
 
-  private async verifyOrigin(
+  /** Checks settings, Bitwarden account presence, and WebAuthn origin/RP ID validity. */
+  private async preflight(
     tabId: number,
     frameId: number,
     rawRpId: string,
   ): Promise<
     | { page: URL; rpId: string; crossOrigin: boolean }
-    | { error: PasskeyBridgeOutcome }
+    | { outcome: PasskeyBridgeOutcome }
   > {
+    if (!(await getSettings()).takeOverPasskeys)
+      return { outcome: { kind: "fallback" } }
+    if (!(await this.bitwarden.hasConfiguredAccounts()))
+      return { outcome: { kind: "fallback" } }
     const page = await frameUrl(tabId, frameId)
     if (!page) {
       return {
-        error: {
+        outcome: {
           kind: "error",
           name: "SecurityError",
           message: "Passkeys require a web page origin.",
@@ -264,7 +244,7 @@ export class PasskeyPrompt {
     const rpId = (rawRpId || page.hostname).trim().toLowerCase()
     if (!isValidRpId(rpId, page.origin)) {
       return {
-        error: {
+        outcome: {
           kind: "error",
           name: "SecurityError",
           message: `The relying party ID "${rpId}" is not valid for ${page.origin}.`,
@@ -276,61 +256,14 @@ export class PasskeyPrompt {
     return { page, rpId, crossOrigin }
   }
 
-  private promptUser(
-    init:
-      | {
-          kind: "get"
-          requestId: string
-          page: URL
-          request: PasskeyGetRequest
-        }
-      | {
-          kind: "create"
-          requestId: string
-          page: URL
-          request: PasskeyCreateRequest
-        },
-  ): Promise<PasskeyBridgeOutcome> {
-    if (this.pending) {
+  private promptUser(pending: PendingPasskey): Promise<PasskeyBridgeOutcome> {
+    if (this.gate.busy) {
       return Promise.resolve({
         kind: "error",
         name: "NotAllowedError",
         message: "A passkey request is already pending.",
       })
     }
-    return new Promise((resolve) => {
-      const timer = setTimeout(
-        () => pending.settle({ kind: "cancel" }),
-        CHOICE_MS,
-      )
-      const pending: PendingRequest = {
-        ...init,
-        shown: false,
-        answering: false,
-        left: false,
-        settle: (outcome) => {
-          if (this.pending !== pending) return
-          clearTimeout(timer)
-          this.pending = null
-          resolve(outcome)
-        },
-      }
-      this.pending = pending
-      this.openChooser().then(
-        () =>
-          setTimeout(() => {
-            if (!pending.shown) pending.settle({ kind: "fallback" })
-          }, SHOW_MS),
-        () => pending.settle({ kind: "fallback" }),
-      )
-    })
-  }
-
-  private requirePending<K extends "get" | "create">(
-    kind: K,
-  ): Extract<PendingRequest, { kind: K }> {
-    if (!this.pending || this.pending.kind !== kind)
-      throw new VaultError("The site stopped asking", "pageChanged")
-    return this.pending as Extract<PendingRequest, { kind: K }>
+    return this.gate.ask(pending)
   }
 }

@@ -14,17 +14,7 @@ import { t } from "@/lib/i18n"
 import { waitsForUser } from "@/lib/offered-vaults"
 import type { LoginSummary } from "@/lib/providers/types"
 import { LockedVaultCard } from "./connect-card"
-import { closeIfPopup } from "./pop-out"
-
-/**
- * Held open while the popup is, through a detour to pair or unlock a vault, so that closing the
- * popup without a choice leaves the site to the browser's own dialog.
- */
-let held: Browser.runtime.Port | null = null
-
-function holdChallenge(): void {
-  if (!held) held = browser.runtime.connect({ name: HTTP_AUTH_PORT })
-}
+import { closeIfPopup, holdPopupPort } from "./pop-out"
 
 /**
  * The logins of a site that asks for one through the browser's own sign-in dialog, as a router's
@@ -41,7 +31,7 @@ export function HttpAuthView({
   const [busy, setBusy] = useState<string | null>(null)
 
   useEffect(() => {
-    holdChallenge()
+    holdPopupPort(HTTP_AUTH_PORT)
     callBackground("popup.httpAuth", null).then(setChallenge, (error) => {
       notifyError(error)
       setChallenge(null)

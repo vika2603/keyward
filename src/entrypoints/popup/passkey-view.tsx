@@ -14,17 +14,7 @@ import { t } from "@/lib/i18n"
 import type { PasskeyOption, PasskeyPromptView } from "@/lib/passkeys/types"
 import type { VaultInfo } from "@/lib/providers/types"
 import { LockedVaultCard } from "./connect-card"
-import { closeIfPopup } from "./pop-out"
-
-/**
- * Held open while the popup displays or unlocks for a modal WebAuthn passkey prompt.
- * Closing the popup without a choice cancels the page's request cleanly.
- */
-let held: Browser.runtime.Port | null = null
-
-function holdPasskeyPrompt(): void {
-  if (!held) held = browser.runtime.connect({ name: PASSKEY_PORT })
-}
+import { closeIfPopup, holdPopupPort } from "./pop-out"
 
 /**
  * Modal WebAuthn passkey chooser (`get`) and saver (`create`) for Bitwarden vaults,
@@ -39,7 +29,7 @@ export function PasskeyView({
   const [busy, setBusy] = useState<string | null>(null)
 
   useEffect(() => {
-    holdPasskeyPrompt()
+    holdPopupPort(PASSKEY_PORT)
     callBackground("popup.passkey", null).then(setPrompt, (error) => {
       notifyError(error)
       setPrompt(null)

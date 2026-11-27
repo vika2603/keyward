@@ -1,17 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { fakeBrowser } from "wxt/testing/fake-browser"
-import {
-  accountIdOf,
-  saveAccount,
-  saveSession,
-  saveSync,
-} from "./account-store"
 import { BitwardenProvider } from "./bitwarden-provider"
-import { KdfType } from "./crypto"
-import { sdk, testVaultCrypto } from "./test-sdk"
+import { sdk, seedUnlockedAccount, testVaultCrypto } from "./test-sdk"
 
 const SERVER = "https://vault.example.test"
-const ACCOUNT_ID = accountIdOf(SERVER, "user-p5")
 
 const userKey = sdk.make_user_key_aes256_cbc_hmac()
 const encUser = (text: string) => sdk.symmetric_encrypt_string(text, userKey)
@@ -101,26 +93,13 @@ let provider: BitwardenProvider
 
 beforeEach(async () => {
   fakeBrowser.reset()
-  await saveAccount({
-    id: ACCOUNT_ID,
+  await seedUnlockedAccount({
     server: SERVER,
+    userId: "user-p5",
     email: "alice@example.test",
     name: "Alice",
-    userId: "user-p5",
-    kdf: { type: KdfType.Pbkdf2Sha256, iterations: 100_000 },
-    salt: "",
-    wrappedUserKey: "unused",
-    encryptedRefreshToken: "unused",
-  })
-  await saveSession(ACCOUNT_ID, {
-    accessToken: "tok",
-    refreshToken: "ref",
-    accessTokenExpiresAt: Date.now() + 3_600_000,
-    userKey: userKey.toBase64(),
-  })
-  await saveSync(ACCOUNT_ID, {
-    data: syncData,
-    syncedAt: Date.now(),
+    userKey,
+    syncData,
   })
   provider = new BitwardenProvider(async () => testVaultCrypto)
 })

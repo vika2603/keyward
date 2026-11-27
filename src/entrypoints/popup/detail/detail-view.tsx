@@ -1,10 +1,10 @@
-import { ArchiveIcon, ChevronRightIcon, ExternalLinkIcon } from "lucide-react"
+import { ChevronRightIcon, ExternalLinkIcon } from "lucide-react"
 import { useMemo, useState } from "react"
 import { callBackground } from "@/background/api"
 import { errorCodeOf } from "@/components/keyward/errors"
 import { formatDate } from "@/components/keyward/format"
 import { FADE_IN } from "@/components/keyward/loading"
-import { notify, notifyError } from "@/components/keyward/notify"
+import { notifyError } from "@/components/keyward/notify"
 import { SiteIcon } from "@/components/keyward/site-icon"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -15,23 +15,23 @@ import { cn } from "@/lib/utils"
 import { closeIfPopup } from "../pop-out"
 import type { ArchiveInfo, TrashInfo } from "../views"
 import {
-  ArchiveActions,
   CopyButton,
   copyText,
-  DeleteButton,
   DetailRow,
   IconButton,
   InfoRow,
   RepromptForm,
   requestOrNotify,
   Section,
-  TrashActions,
 } from "./detail-parts"
 import {
   CustomFieldsSection,
+  cloneVaultItem,
   ItemDetailHeader,
   ItemInfoSection,
+  ItemLifecycleActions,
   ItemTitle,
+  TrashedFallbackSection,
 } from "./item-detail"
 import { OneTimeCodeField } from "./one-time-code-field"
 import { PasswordField } from "./password-field"
@@ -122,24 +122,7 @@ export function DetailView({
 
   const name = details?.name || login.title
   const pastPasswordCount = details?.pastPasswordCount ?? 0
-  const clone = () =>
-    void requestOrNotify(async () => {
-      await callBackground("popup.cloneItem", {
-        vaultId: vault.id,
-        itemId: login.id,
-      })
-      notify(t("popup.detail.cloned", { name }))
-      onBack()
-    })
-  const archiveItem = () =>
-    void requestOrNotify(async () => {
-      await callBackground("popup.archiveItem", {
-        vaultId: vault.id,
-        itemId: login.id,
-      })
-      notify(t("popup.detail.archivedNotice", { name }))
-      onBack()
-    })
+  const clone = () => cloneVaultItem(vault.id, login.id, name, onBack)
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -322,55 +305,27 @@ export function DetailView({
                 {t("popup.detail.openInPasswordsApp")}
               </Button>
             )}
-            {trashed && (
-              <TrashActions
-                vaultId={vault.id}
-                itemId={login.id}
-                name={name}
-                editable={trashed.editable}
-                onDone={onBack}
-              />
-            )}
-            {!trashed && archived && (
-              <ArchiveActions
-                vaultId={vault.id}
-                itemId={login.id}
-                name={name}
-                editable={archived.editable}
-                onDone={onBack}
-              />
-            )}
-            {!trashed && !archived && details.editable && (
-              <div className="flex flex-col gap-2">
-                <Button variant="outline" onClick={archiveItem}>
-                  <ArchiveIcon />
-                  {t("popup.detail.archive")}
-                </Button>
-                <DeleteButton
-                  hint={t("popup.detail.deleteHint")}
-                  onDelete={remove}
-                />
-              </div>
-            )}
-          </div>
-        )}
-        {!details && Boolean(loadError) && trashed && (
-          <div className={cn("flex flex-col gap-3", FADE_IN)}>
-            <ItemInfoSection vault={vault}>
-              {trashed.deletedAt !== undefined && (
-                <InfoRow label={t("popup.detail.deleted")}>
-                  {formatDate(trashed.deletedAt)}
-                </InfoRow>
-              )}
-            </ItemInfoSection>
-            <TrashActions
+            <ItemLifecycleActions
               vaultId={vault.id}
               itemId={login.id}
               name={name}
-              editable={trashed.editable}
+              editable={details.editable}
+              trashed={trashed}
+              archived={archived}
+              deleteHint={t("popup.detail.deleteHint")}
+              onDelete={remove}
               onDone={onBack}
             />
           </div>
+        )}
+        {!details && Boolean(loadError) && trashed && (
+          <TrashedFallbackSection
+            vault={vault}
+            itemId={login.id}
+            name={name}
+            trashed={trashed}
+            onDone={onBack}
+          />
         )}
       </div>
     </div>

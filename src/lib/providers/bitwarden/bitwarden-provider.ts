@@ -1,4 +1,3 @@
-import { sha256, utf8 } from "@/lib/bytes"
 import { ruleForHost, uriMatches } from "@/lib/matching"
 import type {
   PasskeyCreateRequest,
@@ -13,12 +12,6 @@ import {
   createPasskeyCredential,
   credentialIdBase64Url,
 } from "@/lib/passkeys/webauthn"
-import {
-  changePasswordUrlFor,
-  evaluatePasswordStrength,
-  isInsecureHttpUri,
-  type StrengthScore,
-} from "@/lib/security-check"
 import { getSettings } from "@/lib/settings"
 import { hostOfSavedUri, siteDomainOf } from "@/lib/site"
 import { oneTimeCode } from "@/lib/totp"
@@ -57,6 +50,12 @@ import {
 } from "./account-store"
 import { type BitwardenApi, valueAt } from "./api"
 import {
+  ciphersById,
+  runSecurityAudit,
+  type SecurityAuditFinding,
+  type SecurityAuditReport,
+} from "./audit"
+import {
   CIPHER_TYPE_LOGIN,
   CIPHER_TYPE_SECURE_NOTE,
   REPROMPT_PASSWORD,
@@ -76,6 +75,10 @@ import {
   type NoteItem,
   textMatchesQuery,
 } from "./decrypt"
+import { collectVaultPasskeys, hasExcludedPasskey } from "./passkeys"
+
+export type { SecurityAuditFinding, SecurityAuditReport }
+
 import type { VaultKeys } from "./keys"
 import { grantPass, type RepromptItem, withPass } from "./reprompt-passes"
 import {
@@ -484,23 +487,24 @@ export class BitwardenProvider implements VaultProvider {
 
   async saveNote(vaultId: string, note: EditableNote): Promise<void> {
     const { keys, groups } = await this.vaultOf(vaultId)
-    const folderId = note.folderId ?? null
-    if (folderId && !groups.folders.some((folder) => folder.id === folderId))
-      throw new VaultError("Unknown folder", "notFound")
+    const folderId = requireFolder(groups, note.folderId ?? null)
     const organizationId = note.organizationId ?? null
     const collectionIds = organizationId
       ? checkedCollections(groups, organizationId, note.collectionIds ?? [])
       : []
-    await this.write(vaultId, ({ api, accessToken, account }) => {
-      const body = newNoteRequest(
-        { ...note, folderId, organizationId },
-        keys,
-        account.userId,
-      )
-      return organizationId
-        ? api.createOrganizationCipher(accessToken, body, collectionIds)
-        : api.createCipher(accessToken, body)
-    })
+    await this.write(vaultId, ({ api, accessToken, account }) =>
+      createOwnedCipher(
+        api,
+        accessToken,
+        newNoteRequest(
+          { ...note, folderId, organizationId },
+          keys,
+          account.userId,
+        ),
+        organizationId,
+        collectionIds,
+      ),
+    )
   }
 
   /** Saves the parts of the note that differ from what is saved. */
@@ -518,12 +522,7 @@ export class BitwardenProvider implements VaultProvider {
     if (!sameValues(next.customFields, current.customFields))
       changed.customFields = next.customFields
     if (next.folderId !== undefined && next.folderId !== current.folderId) {
-      if (
-        next.folderId &&
-        !vault.groups.folders.some((folder) => folder.id === next.folderId)
-      )
-        throw new VaultError("Unknown folder", "notFound")
-      changed.folderId = next.folderId
+      changed.folderId = requireFolder(vault.groups, next.folderId)
     }
     if (next.reprompt !== undefined && next.reprompt !== current.reprompt)
       changed.reprompt = next.reprompt
@@ -691,11 +690,8 @@ export class BitwardenProvider implements VaultProvider {
   ): Promise<void> {
     const { vault, item, cipher } = await this.pageItem(vaultId, loginId, null)
     refuseEdit(item, cipher)
-    if (
-      change.folderId &&
-      !vault.groups.folders.some((folder) => folder.id === change.folderId)
-    )
-      throw new VaultError("Unknown folder", "notFound")
+    if (change.folderId !== undefined)
+      requireFolder(vault.groups, change.folderId)
     const changed = loginChanges(
       editableLoginOf(vault.keys, item, cipher),
       change,
@@ -835,8 +831,7 @@ export class BitwardenProvider implements VaultProvider {
     if (!trimmed)
       throw new VaultError("Folder name cannot be empty", "invalidInput")
     const { keys, groups } = await this.vaultOf(vaultId)
-    if (!groups.folders.some((folder) => folder.id === folderId))
-      throw new VaultError("Unknown folder", "notFound")
+    requireFolder(groups, folderId)
     const encrypted = keys.encrypt(trimmed, keys.userKey)
     if (!encrypted)
       throw new VaultError("Folder name cannot be empty", "invalidInput")
@@ -847,8 +842,7 @@ export class BitwardenProvider implements VaultProvider {
 
   async deleteFolder(vaultId: string, folderId: string): Promise<void> {
     const { groups } = await this.vaultOf(vaultId)
-    if (!groups.folders.some((folder) => folder.id === folderId))
-      throw new VaultError("Unknown folder", "notFound")
+    requireFolder(groups, folderId)
     await this.write(vaultId, ({ api, accessToken }) =>
       api.deleteFolder(accessToken, folderId),
     )
@@ -870,17 +864,15 @@ export class BitwardenProvider implements VaultProvider {
     const collectionIds = ownerOrgId
       ? ((valueAt(cipher, "CollectionIds") as string[] | undefined) ?? [])
       : []
-    await this.write(vaultId, ({ api, accessToken, account }) => {
-      const body = cloneCipherRequest(
-        cipher,
-        vault.keys,
-        account.userId,
-        cloneName,
-      )
-      return ownerOrgId
-        ? api.createOrganizationCipher(accessToken, body, collectionIds)
-        : api.createCipher(accessToken, body)
-    })
+    await this.write(vaultId, ({ api, accessToken, account }) =>
+      createOwnedCipher(
+        api,
+        accessToken,
+        cloneCipherRequest(cipher, vault.keys, account.userId, cloneName),
+        ownerOrgId,
+        collectionIds,
+      ),
+    )
   }
 
   async archive(vaultId: string, itemId: string): Promise<void> {
@@ -906,34 +898,35 @@ export class BitwardenProvider implements VaultProvider {
     const details = login.details
     const totp = details?.totp.trim() ?? ""
     if (totp) requireCodeKey(totp)
-    const folderId = details?.folderId ?? null
-    if (folderId && !groups.folders.some((folder) => folder.id === folderId))
-      throw new VaultError("Unknown folder", "notFound")
+    const folderId = requireFolder(groups, details?.folderId ?? null)
     const organizationId = details?.organizationId ?? null
     const collectionIds = organizationId
       ? checkedCollections(groups, organizationId, details?.collectionIds ?? [])
       : []
-    await this.write(vaultId, ({ api, accessToken, account }) => {
-      const body = newLoginRequest(
-        {
-          name: details?.name.trim() || login.url.hostname,
-          username: login.username,
-          password: login.password,
-          uri: login.url.origin,
-          notes: details?.notes,
-          totp,
-          customFields: details?.customFields,
-          folderId,
-          reprompt: details?.reprompt,
-          organizationId,
-        },
-        keys,
-        account.userId,
-      )
-      return organizationId
-        ? api.createOrganizationCipher(accessToken, body, collectionIds)
-        : api.createCipher(accessToken, body)
-    })
+    await this.write(vaultId, ({ api, accessToken, account }) =>
+      createOwnedCipher(
+        api,
+        accessToken,
+        newLoginRequest(
+          {
+            name: details?.name.trim() || login.url.hostname,
+            username: login.username,
+            password: login.password,
+            uri: login.url.origin,
+            notes: details?.notes,
+            totp,
+            customFields: details?.customFields,
+            folderId,
+            reprompt: details?.reprompt,
+            organizationId,
+          },
+          keys,
+          account.userId,
+        ),
+        organizationId,
+        collectionIds,
+      ),
+    )
   }
 
   async update(
@@ -955,71 +948,12 @@ export class BitwardenProvider implements VaultProvider {
    */
   async securityAudit(): Promise<SecurityAuditReport> {
     const allVaults = await this.vaults()
-    const readyVaults = allVaults.filter((vault) => vault.status === "ready")
-    const weak: SecurityAuditFinding[] = []
-    const insecureHttp: SecurityAuditFinding[] = []
-    const byPasswordDigest = new Map<
-      string,
-      {
-        vault: VaultInfo
-        login: LoginSummary
-        changePasswordUrl: string | null
-      }[]
-    >()
-    let totalChecked = 0
-
-    for (const vaultInfo of readyVaults) {
-      const vault = await this.vaultOf(vaultInfo.id)
-      const cipherById = new Map(
-        vault.ciphers.map((cipher) => [String(valueAt(cipher, "Id")), cipher]),
-      )
-      for (const item of vault.items) {
-        if (item.reprompt) continue
-        const cipher = cipherById.get(item.id)
-        if (!cipher) continue
-        const summary = summaryOf(item)
-        const changePasswordUrl = changePasswordUrlFor(summary.host)
-        totalChecked++
-
-        if (item.uris.some(({ uri }) => isInsecureHttpUri(uri))) {
-          insecureHttp.push({
-            vault: vaultInfo,
-            login: summary,
-            changePasswordUrl,
-          })
-        }
-
-        const password = decryptPassword(cipher, vault.keys)
-        if (!password) continue
-        const strength = evaluatePasswordStrength(password, [
-          item.name,
-          item.username,
-          summary.host ?? "",
-        ])
-        if (strength.score <= 1) {
-          weak.push({
-            vault: vaultInfo,
-            login: summary,
-            score: strength.score,
-            changePasswordUrl,
-          })
-        }
-        const digest = (await sha256(utf8(password))).toBase64()
-        const group = byPasswordDigest.get(digest) ?? []
-        group.push({ vault: vaultInfo, login: summary, changePasswordUrl })
-        byPasswordDigest.set(digest, group)
-      }
-    }
-
-    const reused: SecurityAuditFinding[] = []
-    for (const group of byPasswordDigest.values()) {
-      if (group.length < 2) continue
-      for (const entry of group) {
-        reused.push({ ...entry, reuseCount: group.length })
-      }
-    }
-
-    return { weak, reused, insecureHttp, totalChecked }
+    const ready = await Promise.all(
+      allVaults
+        .filter((vault) => vault.status === "ready")
+        .map(async (info) => ({ info, vault: await this.vaultOf(info.id) })),
+    )
+    return runSecurityAudit(ready, summaryOf)
   }
 
   /** Whether at least one Bitwarden account is configured (unlocked or locked). */
@@ -1035,7 +969,6 @@ export class BitwardenProvider implements VaultProvider {
     rpId: string,
     allowCredentials: readonly PasskeyDescriptor[] = [],
   ): Promise<{ passkeys: PasskeyOption[]; lockedVaults: VaultInfo[] }> {
-    const normalizedRp = rpId.trim().toLowerCase()
     const allowSet =
       allowCredentials.length > 0
         ? new Set(allowCredentials.map((cred) => cred.id))
@@ -1051,33 +984,7 @@ export class BitwardenProvider implements VaultProvider {
       }
       if (vaultInfo.status !== "ready") continue
       const vault = await this.vaultOf(vaultInfo.id)
-      const cipherById = new Map(
-        vault.ciphers.map((cipher) => [String(valueAt(cipher, "Id")), cipher]),
-      )
-      for (const item of vault.items) {
-        if (item.reprompt) continue
-        const cipher = cipherById.get(item.id)
-        if (!cipher) continue
-        for (const cred of decryptFido2Credentials(cipher, vault.keys)) {
-          if (cred.rpId.trim().toLowerCase() !== normalizedRp) continue
-          if (
-            allowSet &&
-            !allowSet.has(credentialIdBase64Url(cred.credentialId))
-          )
-            continue
-          passkeys.push({
-            vaultId: vaultInfo.id,
-            vaultName: vaultInfo.label,
-            loginId: item.id,
-            itemName: item.name,
-            credentialId: cred.credentialId,
-            rpId: cred.rpId,
-            userName: cred.userName || item.username,
-            userDisplayName: cred.userDisplayName || cred.userName || item.name,
-            creationDate: cred.creationDate,
-          })
-        }
-      }
+      passkeys.push(...collectVaultPasskeys(vaultInfo, vault, rpId, allowSet))
     }
 
     passkeys.sort((a, b) => b.creationDate.localeCompare(a.creationDate))
@@ -1106,9 +1013,7 @@ export class BitwardenProvider implements VaultProvider {
       }
       if (vaultInfo.status !== "ready") continue
       const { vault, items } = await this.matching(vaultInfo.id, page)
-      const cipherById = new Map(
-        vault.ciphers.map((cipher) => [String(valueAt(cipher, "Id")), cipher]),
-      )
+      const cipherById = ciphersById(vault.ciphers)
       const existingLogins = items
         .filter((item) => {
           const cipher = cipherById.get(item.id)
@@ -1132,11 +1037,7 @@ export class BitwardenProvider implements VaultProvider {
     request: PasskeyGetRequest,
   ): Promise<SerializedGetResult> {
     const { vault, item, cipher } = await this.pageItem(vaultId, loginId, null)
-    if (item.reprompt)
-      throw new VaultError(
-        "Item requires master password re-prompt",
-        "bitwarden.reprompt",
-      )
+    refuseReprompt(item)
     const creds = decryptFido2Credentials(cipher, vault.keys)
     const target = creds.find(
       (cred) =>
@@ -1166,22 +1067,11 @@ export class BitwardenProvider implements VaultProvider {
     request: PasskeyCreateRequest,
   ): Promise<SerializedCreateResult> {
     const vault = await this.vaultOf(vaultId)
-    const normalizedRp = request.rpId.trim().toLowerCase()
-    if (request.excludeCredentials.length > 0) {
-      const excluded = new Set(request.excludeCredentials.map((c) => c.id))
-      for (const cipher of vault.ciphers) {
-        for (const cred of decryptFido2Credentials(cipher, vault.keys)) {
-          if (
-            cred.rpId.trim().toLowerCase() === normalizedRp &&
-            excluded.has(credentialIdBase64Url(cred.credentialId))
-          ) {
-            throw new VaultError(
-              "A passkey for this account already exists in this vault",
-              "invalidInput",
-            )
-          }
-        }
-      }
+    if (hasExcludedPasskey(vault, request.rpId, request.excludeCredentials)) {
+      throw new VaultError(
+        "A passkey for this account already exists in this vault",
+        "invalidInput",
+      )
     }
 
     const { stored, credential } = await createPasskeyCredential(request)
@@ -1216,19 +1106,25 @@ export class BitwardenProvider implements VaultProvider {
   }
 }
 
-export interface SecurityAuditFinding {
-  vault: VaultInfo
-  login: LoginSummary
-  score?: StrengthScore
-  reuseCount?: number
-  changePasswordUrl: string | null
+function requireFolder(
+  groups: VaultGroups,
+  folderId: string | null,
+): string | null {
+  if (folderId && !groups.folders.some((folder) => folder.id === folderId))
+    throw new VaultError("Unknown folder", "notFound")
+  return folderId
 }
 
-export interface SecurityAuditReport {
-  weak: SecurityAuditFinding[]
-  reused: SecurityAuditFinding[]
-  insecureHttp: SecurityAuditFinding[]
-  totalChecked: number
+function createOwnedCipher(
+  api: BitwardenApi,
+  accessToken: string,
+  body: Record<string, unknown>,
+  organizationId: string | null,
+  collectionIds: readonly string[],
+): Promise<unknown> {
+  return organizationId
+    ? api.createOrganizationCipher(accessToken, body, [...collectionIds])
+    : api.createCipher(accessToken, body)
 }
 
 /**

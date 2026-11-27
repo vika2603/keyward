@@ -121,58 +121,37 @@ function serializeCreateRequest(
   }
 }
 
-function buildAssertionCredential(result: SerializedGetResult): Credential {
-  const rawId = base64UrlToBuffer(result.rawId)
-  const clientDataJSON = base64UrlToBuffer(result.response.clientDataJSON)
-  const authenticatorData = base64UrlToBuffer(result.response.authenticatorData)
-  const signature = base64UrlToBuffer(result.response.signature)
-  const userHandle = result.response.userHandle
-    ? base64UrlToBuffer(result.response.userHandle)
-    : null
-
-  const responseProto =
-    typeof AuthenticatorAssertionResponse !== "undefined"
-      ? AuthenticatorAssertionResponse.prototype
-      : Object.prototype
-  const response = Object.create(responseProto)
-  Object.defineProperties(response, {
-    clientDataJSON: { value: clientDataJSON, enumerable: true },
-    authenticatorData: { value: authenticatorData, enumerable: true },
-    signature: { value: signature, enumerable: true },
-    userHandle: { value: userHandle, enumerable: true },
-  })
-
+function wrapPublicKeyCredential(
+  meta: {
+    id: string
+    rawId: string
+    authenticatorAttachment: "platform"
+  },
+  response: object,
+  responseJson: Record<string, unknown>,
+): Credential {
   const credProto =
     typeof PublicKeyCredential !== "undefined"
       ? PublicKeyCredential.prototype
       : Object.prototype
   const credential = Object.create(credProto)
   Object.defineProperties(credential, {
-    id: { value: result.id, enumerable: true },
-    rawId: { value: rawId, enumerable: true },
+    id: { value: meta.id, enumerable: true },
+    rawId: { value: base64UrlToBuffer(meta.rawId), enumerable: true },
     type: { value: "public-key", enumerable: true },
     authenticatorAttachment: {
-      value: result.authenticatorAttachment,
+      value: meta.authenticatorAttachment,
       enumerable: true,
     },
     response: { value: response, enumerable: true },
-    getClientExtensionResults: {
-      value: () => ({}),
-    },
+    getClientExtensionResults: { value: () => ({}) },
     toJSON: {
       value: () => ({
-        id: result.id,
-        rawId: result.rawId,
+        id: meta.id,
+        rawId: meta.rawId,
         type: "public-key",
-        authenticatorAttachment: result.authenticatorAttachment,
-        response: {
-          clientDataJSON: result.response.clientDataJSON,
-          authenticatorData: result.response.authenticatorData,
-          signature: result.response.signature,
-          ...(result.response.userHandle
-            ? { userHandle: result.response.userHandle }
-            : {}),
-        },
+        authenticatorAttachment: meta.authenticatorAttachment,
+        response: responseJson,
         clientExtensionResults: {},
       }),
     },
@@ -180,66 +159,75 @@ function buildAssertionCredential(result: SerializedGetResult): Credential {
   return credential as Credential
 }
 
+function buildAssertionCredential(result: SerializedGetResult): Credential {
+  const responseProto =
+    typeof AuthenticatorAssertionResponse !== "undefined"
+      ? AuthenticatorAssertionResponse.prototype
+      : Object.prototype
+  const response = Object.create(responseProto)
+  Object.defineProperties(response, {
+    clientDataJSON: {
+      value: base64UrlToBuffer(result.response.clientDataJSON),
+      enumerable: true,
+    },
+    authenticatorData: {
+      value: base64UrlToBuffer(result.response.authenticatorData),
+      enumerable: true,
+    },
+    signature: {
+      value: base64UrlToBuffer(result.response.signature),
+      enumerable: true,
+    },
+    userHandle: {
+      value: result.response.userHandle
+        ? base64UrlToBuffer(result.response.userHandle)
+        : null,
+      enumerable: true,
+    },
+  })
+  return wrapPublicKeyCredential(result, response, {
+    clientDataJSON: result.response.clientDataJSON,
+    authenticatorData: result.response.authenticatorData,
+    signature: result.response.signature,
+    ...(result.response.userHandle
+      ? { userHandle: result.response.userHandle }
+      : {}),
+  })
+}
+
 function buildAttestationCredential(
   result: SerializedCreateResult,
 ): Credential {
-  const rawId = base64UrlToBuffer(result.rawId)
-  const clientDataJSON = base64UrlToBuffer(result.response.clientDataJSON)
-  const attestationObject = base64UrlToBuffer(result.response.attestationObject)
   const authenticatorData = base64UrlToBuffer(result.response.authenticatorData)
   const publicKey = base64UrlToBuffer(result.response.publicKey)
   const transports = [...result.response.transports]
-
   const responseProto =
     typeof AuthenticatorAttestationResponse !== "undefined"
       ? AuthenticatorAttestationResponse.prototype
       : Object.prototype
   const response = Object.create(responseProto)
   Object.defineProperties(response, {
-    clientDataJSON: { value: clientDataJSON, enumerable: true },
-    attestationObject: { value: attestationObject, enumerable: true },
+    clientDataJSON: {
+      value: base64UrlToBuffer(result.response.clientDataJSON),
+      enumerable: true,
+    },
+    attestationObject: {
+      value: base64UrlToBuffer(result.response.attestationObject),
+      enumerable: true,
+    },
     getTransports: { value: () => [...transports] },
     getAuthenticatorData: { value: () => authenticatorData.slice(0) },
     getPublicKey: { value: () => publicKey.slice(0) },
     getPublicKeyAlgorithm: { value: () => result.response.publicKeyAlgorithm },
   })
-
-  const credProto =
-    typeof PublicKeyCredential !== "undefined"
-      ? PublicKeyCredential.prototype
-      : Object.prototype
-  const credential = Object.create(credProto)
-  Object.defineProperties(credential, {
-    id: { value: result.id, enumerable: true },
-    rawId: { value: rawId, enumerable: true },
-    type: { value: "public-key", enumerable: true },
-    authenticatorAttachment: {
-      value: result.authenticatorAttachment,
-      enumerable: true,
-    },
-    response: { value: response, enumerable: true },
-    getClientExtensionResults: {
-      value: () => ({}),
-    },
-    toJSON: {
-      value: () => ({
-        id: result.id,
-        rawId: result.rawId,
-        type: "public-key",
-        authenticatorAttachment: result.authenticatorAttachment,
-        response: {
-          clientDataJSON: result.response.clientDataJSON,
-          attestationObject: result.response.attestationObject,
-          authenticatorData: result.response.authenticatorData,
-          publicKey: result.response.publicKey,
-          publicKeyAlgorithm: result.response.publicKeyAlgorithm,
-          transports,
-        },
-        clientExtensionResults: {},
-      }),
-    },
+  return wrapPublicKeyCredential(result, response, {
+    clientDataJSON: result.response.clientDataJSON,
+    attestationObject: result.response.attestationObject,
+    authenticatorData: result.response.authenticatorData,
+    publicKey: result.response.publicKey,
+    publicKeyAlgorithm: result.response.publicKeyAlgorithm,
+    transports,
   })
-  return credential as Credential
 }
 
 /**
@@ -445,28 +433,35 @@ export default defineContentScript({
 
       // Modal WebAuthn get request.
       const publicKey = options.publicKey
-      return (async () => {
-        const shouldIntercept = await waitForModalConfig()
-        if (!shouldIntercept) return browserGet(options)
-        const requestId = crypto.randomUUID()
-        const outcome = await sendBridge(
-          {
-            requestId,
-            kind: "get",
-            request: serializeGetRequest(publicKey),
-          },
-          options.signal,
-        )
-        if (outcome.kind === "asserted")
-          return buildAssertionCredential(outcome.credential)
-        if (outcome.kind === "fallback") return browserGet(options)
-        if (outcome.kind === "error")
-          throw new DOMException(outcome.message, outcome.name)
-        throw new DOMException(
-          "The operation either timed out or was not allowed.",
-          "NotAllowedError",
-        )
-      })()
+      return handleModalBridge(
+        {
+          requestId: crypto.randomUUID(),
+          kind: "get",
+          request: serializeGetRequest(publicKey),
+        },
+        options.signal,
+        () => browserGet(options),
+      )
+    }
+
+    const handleModalBridge = async (
+      detail: PasskeyBridgeRequestDetail,
+      signal: AbortSignal | undefined,
+      fallback: () => Promise<Credential | null>,
+    ): Promise<Credential | null> => {
+      if (!(await waitForModalConfig())) return fallback()
+      const outcome = await sendBridge(detail, signal)
+      if (outcome.kind === "asserted")
+        return buildAssertionCredential(outcome.credential)
+      if (outcome.kind === "created")
+        return buildAttestationCredential(outcome.credential)
+      if (outcome.kind === "fallback") return fallback()
+      if (outcome.kind === "error")
+        throw new DOMException(outcome.message, outcome.name)
+      throw new DOMException(
+        "The operation either timed out or was not allowed.",
+        "NotAllowedError",
+      )
     }
 
     credentials.create = function create(
@@ -480,28 +475,15 @@ export default defineContentScript({
         return browserCreate(options)
 
       const publicKey = options.publicKey
-      return (async () => {
-        const shouldIntercept = await waitForModalConfig()
-        if (!shouldIntercept) return browserCreate(options)
-        const requestId = crypto.randomUUID()
-        const outcome = await sendBridge(
-          {
-            requestId,
-            kind: "create",
-            request: serializeCreateRequest(publicKey),
-          },
-          options.signal,
-        )
-        if (outcome.kind === "created")
-          return buildAttestationCredential(outcome.credential)
-        if (outcome.kind === "fallback") return browserCreate(options)
-        if (outcome.kind === "error")
-          throw new DOMException(outcome.message, outcome.name)
-        throw new DOMException(
-          "The operation either timed out or was not allowed.",
-          "NotAllowedError",
-        )
-      })()
+      return handleModalBridge(
+        {
+          requestId: crypto.randomUUID(),
+          kind: "create",
+          request: serializeCreateRequest(publicKey),
+        },
+        options.signal,
+        () => browserCreate(options),
+      )
     }
 
     document.addEventListener(PASSKEY_CONTROL_EVENT, (event) => {

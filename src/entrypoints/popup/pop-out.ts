@@ -16,6 +16,17 @@ export function closeIfPopup(): void {
   if (!isPoppedOut) window.close()
 }
 
+const heldPorts = new Map<string, Browser.runtime.Port>()
+
+/**
+ * Holds one runtime port per name open for the lifetime of this popup, even across subview
+ * detours (such as unlocking a vault), so closing the popup notifies the background cleanly.
+ */
+export function holdPopupPort(name: string): void {
+  if (!heldPorts.has(name))
+    heldPorts.set(name, browser.runtime.connect({ name }))
+}
+
 /**
  * Opens the popup's current view in a window of its own and closes the popup. Unlike the popup,
  * the window stays open when another window takes the focus.

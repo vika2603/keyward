@@ -40,6 +40,23 @@ function normalizedBaseUrl(service: ForwardingService, raw?: string): string {
   return `${parsed.origin}${parsed.pathname}`.replace(/\/+$/, "")
 }
 
+function aliasNote(website?: string): string {
+  return website ? `Generated for ${website}` : ""
+}
+
+function requireDomain(config: ForwardingConfig, provider: string): string {
+  const domain = config.domain?.trim()
+  if (!domain)
+    throw new VaultError(`${provider} requires a domain`, "invalidInput")
+  return domain
+}
+
+function requireAlias(value: unknown, provider: string): string {
+  if (typeof value !== "string" || !value)
+    throw new VaultError(`${provider} returned no alias`, "network")
+  return value
+}
+
 function randomAliasLocalPart(length = 10): string {
   const alphabet = "abcdefghijklmnopqrstuvwxyz0123456789"
   const bytes = new Uint8Array(length)
@@ -47,7 +64,7 @@ function randomAliasLocalPart(length = 10): string {
   return Array.from(bytes, (b) => alphabet[b % alphabet.length]).join("")
 }
 
-async function fetchJson(
+async function requestJson(
   url: string,
   init: RequestInit,
 ): Promise<Record<string, unknown>> {
@@ -82,76 +99,73 @@ async function fetchJson(
   return parsed
 }
 
+function postJson(
+  url: string,
+  headers: Record<string, string>,
+  payload?: Record<string, unknown>,
+): Promise<Record<string, unknown>> {
+  return requestJson(url, {
+    method: "POST",
+    headers: payload
+      ? { "Content-Type": "application/json", ...headers }
+      : headers,
+    ...(payload ? { body: JSON.stringify(payload) } : {}),
+  })
+}
+
 async function createSimpleLogin(config: ForwardingConfig): Promise<string> {
   const base = normalizedBaseUrl("simplelogin", config.baseUrl)
   const query = config.website
     ? `?hostname=${encodeURIComponent(config.website)}`
     : ""
-  const body = await fetchJson(`${base}/api/alias/random/new${query}`, {
-    method: "POST",
-    headers: {
-      Authentication: config.apiKey,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      note: config.website ? `Generated for ${config.website}` : "",
-    }),
-  })
-  const email = body.email
-  if (typeof email !== "string" || !email)
-    throw new VaultError("SimpleLogin returned no alias", "network")
-  return email
+  const body = await postJson(
+    `${base}/api/alias/random/new${query}`,
+    { Authentication: config.apiKey },
+    { note: aliasNote(config.website) },
+  )
+  return requireAlias(body.email, "SimpleLogin")
 }
 
 async function createAddyIo(config: ForwardingConfig): Promise<string> {
   const base = normalizedBaseUrl("addyio", config.baseUrl)
-  const domain = config.domain?.trim()
-  if (!domain) throw new VaultError("Addy.io requires a domain", "invalidInput")
-  const body = await fetchJson(`${base}/api/v1/aliases`, {
-    method: "POST",
-    headers: {
+  const domain = requireDomain(config, "Addy.io")
+  const body = await postJson(
+    `${base}/api/v1/aliases`,
+    {
       Authorization: `Bearer ${config.apiKey}`,
-      "Content-Type": "application/json",
       "X-Requested-With": "XMLHttpRequest",
     },
-    body: JSON.stringify({
-      domain,
-      description: config.website ? `Generated for ${config.website}` : "",
-    }),
-  })
+    { domain, description: aliasNote(config.website) },
+  )
   const data = body.data as Record<string, unknown> | undefined
-  const email = data?.email
-  if (typeof email !== "string" || !email)
-    throw new VaultError("Addy.io returned no alias", "network")
-  return email
+  return requireAlias(data?.email, "Addy.io")
 }
 
 async function createFastmail(config: ForwardingConfig): Promise<string> {
   const capability = "https://www.fastmail.com/dev/maskedemail"
-  const session = await fetchJson("https://api.fastmail.com/jmap/session", {
+  const headers = {
+    Authorization: `Bearer ${config.apiKey}`,
+    "Content-Type": "application/json",
+  }
+  const session = await requestJson("https://api.fastmail.com/jmap/session", {
     method: "GET",
-    headers: {
-      Authorization: `Bearer ${config.apiKey}`,
-      "Content-Type": "application/json",
-    },
+    headers,
   })
   const apiUrl = session.apiUrl
   const primaryAccounts = session.primaryAccounts as
     | Record<string, unknown>
     | undefined
   const accountId = primaryAccounts?.[capability]
-  if (typeof apiUrl !== "string" || typeof accountId !== "string")
+  if (typeof apiUrl !== "string" || typeof accountId !== "string") {
     throw new VaultError(
       "Fastmail session lacked Masked Email access",
       "network",
     )
-  const jmap = await fetchJson(apiUrl, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${config.apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
+  }
+  const jmap = await postJson(
+    apiUrl,
+    { Authorization: headers.Authorization },
+    {
       using: ["urn:ietf:params:jmap:core", capability],
       methodCalls: [
         [
@@ -162,90 +176,69 @@ async function createFastmail(config: ForwardingConfig): Promise<string> {
               "keyward-alias": {
                 state: "enabled",
                 forDomain: config.website || "",
-                description: config.website
-                  ? `Generated for ${config.website}`
-                  : "",
+                description: aliasNote(config.website),
               },
             },
           },
           "0",
         ],
       ],
-    }),
-  })
+    },
+  )
   const responses = jmap.methodResponses as unknown[] | undefined
   const first = Array.isArray(responses?.[0]) ? responses[0] : null
   const result = first?.[1] as Record<string, unknown> | undefined
   const created = result?.created as
     | Record<string, Record<string, unknown>>
     | undefined
-  const email = created?.["keyward-alias"]?.email
-  if (typeof email !== "string" || !email)
-    throw new VaultError("Fastmail returned no masked email", "network")
-  return email
+  return requireAlias(created?.["keyward-alias"]?.email, "Fastmail")
 }
 
 async function createFirefoxRelay(config: ForwardingConfig): Promise<string> {
-  const body = await fetchJson(
+  const body = await postJson(
     "https://relay.firefox.com/api/v1/relayaddresses/",
+    { Authorization: `Token ${config.apiKey}` },
     {
-      method: "POST",
-      headers: {
-        Authorization: `Token ${config.apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        enabled: true,
-        generated_for: config.website || "",
-        description: config.website || "",
-      }),
+      enabled: true,
+      generated_for: config.website || "",
+      description: config.website || "",
     },
   )
-  const email = body.full_address
-  if (typeof email !== "string" || !email)
-    throw new VaultError("Firefox Relay returned no alias", "network")
-  return email
+  return requireAlias(body.full_address, "Firefox Relay")
 }
 
 async function createDuckDuckGo(config: ForwardingConfig): Promise<string> {
-  const body = await fetchJson(
+  const body = await postJson(
     "https://quack.duckduckgo.com/api/email/addresses",
-    {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${config.apiKey}`,
-      },
-    },
+    { Authorization: `Bearer ${config.apiKey}` },
   )
-  const address = body.address
-  if (typeof address !== "string" || !address)
-    throw new VaultError("DuckDuckGo returned no alias", "network")
+  const address = requireAlias(body.address, "DuckDuckGo")
   return address.includes("@") ? address : `${address}@duck.com`
 }
 
 async function createForwardEmail(config: ForwardingConfig): Promise<string> {
-  const domain = config.domain?.trim()
-  if (!domain)
-    throw new VaultError("ForwardEmail requires a domain", "invalidInput")
+  const domain = requireDomain(config, "ForwardEmail")
   const localPart = randomAliasLocalPart(10)
-  const auth = btoa(`${config.apiKey}:`)
-  const body = await fetchJson(
+  const body = await postJson(
     `https://api.forwardemail.net/v1/domains/${encodeURIComponent(domain)}/aliases`,
-    {
-      method: "POST",
-      headers: {
-        Authorization: `Basic ${auth}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        name: localPart,
-        description: config.website ? `Generated for ${config.website}` : "",
-      }),
-    },
+    { Authorization: `Basic ${btoa(`${config.apiKey}:`)}` },
+    { name: localPart, description: aliasNote(config.website) },
   )
   const name =
     typeof body.name === "string" && body.name ? body.name : localPart
   return name.includes("@") ? name : `${name}@${domain}`
+}
+
+const FORWARDING_HANDLERS: Record<
+  ForwardingService,
+  (config: ForwardingConfig) => Promise<string>
+> = {
+  simplelogin: createSimpleLogin,
+  addyio: createAddyIo,
+  fastmail: createFastmail,
+  firefoxRelay: createFirefoxRelay,
+  duckduckgo: createDuckDuckGo,
+  forwardEmail: createForwardEmail,
 }
 
 /** Creates one forwarded email alias via the user's configured provider API. */
@@ -254,19 +247,5 @@ export async function createForwardedAlias(
 ): Promise<string> {
   const apiKey = config.apiKey.trim()
   if (!apiKey) throw new VaultError("An API key is required", "invalidInput")
-  const normalized: ForwardingConfig = { ...config, apiKey }
-  switch (normalized.service) {
-    case "simplelogin":
-      return createSimpleLogin(normalized)
-    case "addyio":
-      return createAddyIo(normalized)
-    case "fastmail":
-      return createFastmail(normalized)
-    case "firefoxRelay":
-      return createFirefoxRelay(normalized)
-    case "duckduckgo":
-      return createDuckDuckGo(normalized)
-    case "forwardEmail":
-      return createForwardEmail(normalized)
-  }
+  return FORWARDING_HANDLERS[config.service]({ ...config, apiKey })
 }

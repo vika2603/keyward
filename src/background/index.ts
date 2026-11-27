@@ -154,31 +154,24 @@ export function startBackground(): void {
   // A Passwords code added or removed changes which code fields get the icon.
   apple.helper.onCodesChanged(announce)
 
+  const promptPorts = new Map<string, { showing(): void; leave(): void }>([
+    [HTTP_AUTH_PORT, httpAuth],
+    [PASSKEY_PORT, passkeyPrompt],
+  ])
   let pairingViews = 0
   browser.runtime.onConnect.addListener((port) => {
-    if (port.name !== HTTP_AUTH_PORT) return
-    if (!port.sender || senderKind(port.sender) !== "popup") {
-      port.disconnect()
+    const prompt = promptPorts.get(port.name)
+    if (prompt) {
+      if (!port.sender || senderKind(port.sender) !== "popup") {
+        port.disconnect()
+        return
+      }
+      prompt.showing()
+      port.onDisconnect.addListener(() => prompt.leave())
       return
     }
-    httpAuth.showing()
-    port.onDisconnect.addListener(() => httpAuth.leave())
-  })
-
-  browser.runtime.onConnect.addListener((port) => {
-    if (port.name !== PASSKEY_PORT) return
-    if (!port.sender || senderKind(port.sender) !== "popup") {
-      port.disconnect()
-      return
-    }
-    passkeyPrompt.showing()
-    port.onDisconnect.addListener(() => passkeyPrompt.leave())
-  })
-
-  browser.runtime.onConnect.addListener((port) => {
     if (port.name !== APPLE_PAIRING_PORT) return
-    const kind = port.sender ? senderKind(port.sender) : null
-    if (kind !== "popup") {
+    if (!port.sender || senderKind(port.sender) !== "popup") {
       port.disconnect()
       return
     }

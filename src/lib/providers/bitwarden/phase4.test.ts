@@ -4,15 +4,9 @@ import {
   folderSubtreeIds,
   nestedFolderChoices,
 } from "@/components/keyward/folder-tree"
-import {
-  accountIdOf,
-  saveAccount,
-  saveSession,
-  saveSync,
-} from "./account-store"
+import { accountIdOf } from "./account-store"
 import { BitwardenProvider } from "./bitwarden-provider"
-import { KdfType } from "./crypto"
-import { sdk, testVaultCrypto } from "./test-sdk"
+import { sdk, seedUnlockedAccount, testVaultCrypto } from "./test-sdk"
 import { vaultIdOf } from "./vault-id"
 
 const SERVER = "https://vault.example.test"
@@ -126,23 +120,13 @@ beforeEach(async () => {
       return Response.json({})
     }),
   )
-  await saveAccount({
-    id: ACCOUNT_ID,
+  await seedUnlockedAccount({
+    server: SERVER,
     userId: "user-p4",
     email: "p4@example.test",
-    server: SERVER,
-    kdf: { type: KdfType.Pbkdf2Sha256, iterations: 5000 },
-    salt: "",
-    wrappedUserKey: "unused",
-    encryptedRefreshToken: "unused",
+    userKey,
+    syncData,
   })
-  await saveSession(ACCOUNT_ID, {
-    userKey: userKey.toBase64(),
-    accessToken: "token",
-    accessTokenExpiresAt: Date.now() + 60 * 60_000,
-    refreshToken: "refresh",
-  })
-  await saveSync(ACCOUNT_ID, { syncedAt: Date.now(), data: syncData })
 })
 
 afterEach(() => {

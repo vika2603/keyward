@@ -6,17 +6,11 @@ import {
   credentialIdBase64Url,
   toBase64Url,
 } from "@/lib/passkeys/webauthn"
-import {
-  accountIdOf,
-  saveAccount,
-  saveSession,
-  saveSync,
-} from "./account-store"
+import { accountIdOf } from "./account-store"
 import { BitwardenProvider } from "./bitwarden-provider"
-import { KdfType } from "./crypto"
 import { decryptFido2Credentials } from "./decrypt"
 import { VaultKeys } from "./keys"
-import { sdk, testVaultCrypto } from "./test-sdk"
+import { sdk, seedUnlockedAccount, testVaultCrypto } from "./test-sdk"
 import { vaultIdOf } from "./vault-id"
 
 vi.mock("@/background/page", () => ({
@@ -117,25 +111,12 @@ describe("Phase 6: Bitwarden Fido2Credentials & PasskeyPrompt coexistence", () =
   })
 
   async function seedUnlockedBitwarden() {
-    await saveAccount({
-      id: ACCOUNT_ID,
+    await seedUnlockedAccount({
+      server: SERVER,
       userId: "user-p6",
       email: "alice@example.test",
-      server: SERVER,
-      kdf: { type: KdfType.Pbkdf2Sha256, iterations: 5000 },
-      salt: "",
-      wrappedUserKey: "unused",
-      encryptedRefreshToken: "unused",
-    })
-    await saveSession(ACCOUNT_ID, {
-      userKey: userKey.toBase64(),
-      accessToken: "token",
-      accessTokenExpiresAt: Date.now() + 3_600_000,
-      refreshToken: "refresh",
-    })
-    await saveSync(ACCOUNT_ID, {
-      syncedAt: Date.now(),
-      data: makeSync(ciphers),
+      userKey,
+      syncData: makeSync(ciphers),
     })
   }
 
