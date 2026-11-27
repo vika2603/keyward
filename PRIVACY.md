@@ -22,9 +22,10 @@ Keyward keeps the following in the browser's extension storage on your device:
 - Your settings, including any per-site rules you add.
 - For each Bitwarden account: the email address, the server address, the name you gave it, the encrypted vault sync payload (for offline unlock), and the account key and sign-in token in encrypted form, which can be used only with your master password. Also a random device identifier that Bitwarden servers require.
 - Your generator options.
+- The generator history: the 200 passwords, passphrases and usernames generated most recently, each with the site it was generated on and the time. It is stored unencrypted, so that a password generated but not yet saved to a vault outlasts a browser restart, and kept until you clear it in the generator or remove the extension.
 - If you use forwarded email aliases while signed in to Bitwarden: the API key, domain and server address you enter for each forwarding service, encrypted with that account's key so they can be read only while it is unlocked, and removed when you sign out.
 
-Unlocked keys, access tokens, the Passwords session, popup view cache, the generator history and, when no Bitwarden account is signed in, the forwarding service settings are kept only in memory or in session storage, which the browser clears when it closes.
+Unlocked keys, access tokens, the Passwords session, popup view cache and, when no Bitwarden account is signed in, the forwarding service settings are kept only in memory or in session storage, which the browser clears when it closes.
 
 ## Optional external requests you trigger
 

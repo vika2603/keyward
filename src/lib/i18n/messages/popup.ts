@@ -200,7 +200,7 @@ export const en = {
   "popup.history.copyPassphrase": "Copy passphrase",
   "popup.history.copyUsername": "Copy username",
   "popup.history.note":
-    "Keeps the passwords, passphrases and usernames Keyward generated most recently. Stored only on this device and cleared when the browser closes.",
+    "Keeps the 200 passwords, passphrases and usernames Keyward generated most recently. Stored on this device only, unencrypted, until you clear it.",
   "popup.generator.kindsLabel": "What to generate",
   "popup.generator.kind.password": "Password",
   "popup.generator.kind.passphrase": "Passphrase",
@@ -493,7 +493,7 @@ export const zhCN: Record<keyof typeof en, string> = {
   "popup.history.copyPassphrase": "复制密码短语",
   "popup.history.copyUsername": "复制用户名",
   "popup.history.note":
-    "记录 Keyward 最近生成的密码、密码短语和用户名。只保存在本机，关闭浏览器后清除。",
+    "记录 Keyward 最近生成的 200 个密码、密码短语和用户名。只保存在本机，不加密，清空前一直保留。",
   "popup.generator.kindsLabel": "生成类型",
   "popup.generator.kind.password": "密码",
   "popup.generator.kind.passphrase": "密码短语",

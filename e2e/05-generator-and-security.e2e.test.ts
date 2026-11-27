@@ -25,12 +25,12 @@ describe("E2E 05 — Generator, Strength Meter, History, Forwarded Aliases & Sec
         globalThis as unknown as {
           chrome: {
             storage: {
-              session: { get(key: string): Promise<Record<string, unknown>> }
+              local: { get(key: string): Promise<Record<string, unknown>> }
             }
           }
         }
       ).chrome
-      return JSON.stringify(await storage.session.get("generator.history"))
+      return JSON.stringify(await storage.local.get("generator.history"))
     })
 
   it("generates passwords, passphrases, and usernames, tracks generator history, and exposes all 6 forwarding services", async () => {

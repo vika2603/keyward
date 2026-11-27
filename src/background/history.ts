@@ -1,19 +1,19 @@
 import { storage } from "wxt/utils/storage"
 import type { GeneratorKind } from "@/lib/generator"
 import { serialQueue } from "@/lib/serial-queue"
-import {
-  type EarlierHistoryEntry,
-  type HistoryEntry,
-  historyEntryOf,
-} from "./api"
+import type { HistoryEntry } from "./api"
 
-/** Generated values, newest first, kept in storage.session so they end with the browser; storage.local is not encrypted. */
-const historyItem = storage.defineItem<EarlierHistoryEntry[]>(
-  "session:generator.history",
+/**
+ * Generated values, newest first. They are kept in storage.local, unencrypted, so a password
+ * generated but never saved to a vault outlasts a browser restart or an extension update; the user
+ * chose this over keeping them only for the browser session.
+ */
+const historyItem = storage.defineItem<HistoryEntry[]>(
+  "local:generator.history",
   { fallback: [] },
 )
-/** The most entries kept, a cap Keyward chose; the oldest entries are dropped first. */
-export const HISTORY_LIMIT = 100
+/** The most entries kept, Bitwarden's limit; the oldest entries are dropped first. */
+export const HISTORY_LIMIT = 200
 /** How long the generator must keep showing a value before it counts as settled. */
 export const SETTLE_DELAY_MS = 600
 
@@ -28,7 +28,7 @@ const unsettled = new Map<GeneratorKind, Unsettled>()
 
 export async function listHistory(): Promise<HistoryEntry[]> {
   const stored = await historyItem.getValue()
-  return Array.isArray(stored) ? stored.map(historyEntryOf) : []
+  return Array.isArray(stored) ? stored : []
 }
 
 /** Changes to the stored list run one after another, so none is lost. */

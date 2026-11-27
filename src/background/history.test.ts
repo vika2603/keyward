@@ -8,7 +8,6 @@ import { createHandlers } from "./handlers"
 import {
   addHistory,
   clearHistory,
-  HISTORY_LIMIT,
   listHistory,
   SETTLE_DELAY_MS,
 } from "./history"
@@ -145,20 +144,11 @@ describe("values the generator shows", () => {
 })
 
 describe("the history", () => {
-  it("reads entries stored without a kind as passwords", async () => {
-    await fakeBrowser.storage.session.set({
-      "generator.history": [
-        { id: "old", password: "old-password", host: "example.com", at: 1 },
-      ],
-    })
-    expect(await listHistory()).toEqual([
-      {
-        id: "old",
-        value: "old-password",
-        kind: "password",
-        host: "example.com",
-        at: 1,
-      },
+  it("outlasts the browser session", async () => {
+    await addHistory("kept-value", "example.com")
+    await fakeBrowser.storage.session.clear()
+    expect(await listHistory()).toMatchObject([
+      { value: "kept-value", host: "example.com" },
     ])
   })
 
@@ -180,13 +170,13 @@ describe("the history", () => {
     ])
   })
 
-  it("keeps the newest entries up to the limit", async () => {
-    for (let index = 1; index <= 105; index++) {
+  it("keeps the newest 200 entries", async () => {
+    for (let index = 1; index <= 205; index++) {
       await addHistory(`password-${index}`, null)
     }
     const values = (await listHistory()).map((entry) => entry.value)
-    expect(values).toHaveLength(HISTORY_LIMIT)
-    expect(values[0]).toBe("password-105")
+    expect(values).toHaveLength(200)
+    expect(values[0]).toBe("password-205")
     expect(values.at(-1)).toBe("password-6")
   })
 
