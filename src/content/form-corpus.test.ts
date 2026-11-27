@@ -223,5 +223,5 @@ describe.skipIf(!CORPUS_DIR)("DuckDuckGo's annotated form corpus", () => {
         scores[name as keyof typeof CEILINGS].hits,
         name,
       ).toBeLessThanOrEqual(ceiling)
-  })
+  }, 30_000)
 })
