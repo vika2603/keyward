@@ -1,3 +1,7 @@
+import {
+  createForwardedAlias,
+  type ForwardingService,
+} from "@/lib/email-forwarding"
 import type { Handlers } from "@/lib/messaging"
 import { VaultError } from "@/lib/providers/types"
 import type { BackgroundApi } from "../api"
@@ -11,7 +15,27 @@ import {
   settleNow,
 } from "../history"
 import { activeHost, popupOnly } from "./request-context"
-import { generatorKind, requireText, siteInput } from "./validation"
+import {
+  generatorKind,
+  optionalText,
+  requireText,
+  siteInput,
+} from "./validation"
+
+const FORWARDING_SERVICES: readonly ForwardingService[] = [
+  "simplelogin",
+  "addyio",
+  "fastmail",
+  "firefoxRelay",
+  "duckduckgo",
+  "forwardEmail",
+]
+
+function forwardingService(value: unknown): ForwardingService {
+  if (!FORWARDING_SERVICES.includes(value as ForwardingService))
+    throw new VaultError("Unknown forwarding service", "invalidInput")
+  return value as ForwardingService
+}
 
 export function generatorHandlers() {
   return {
@@ -71,6 +95,21 @@ export function generatorHandlers() {
       handle: async () => {
         await clearHistory()
         return null
+      },
+    },
+    "generator.forwardedEmail": {
+      allow: popupOnly,
+      handle: async ({ service, apiKey, domain, baseUrl }) => {
+        const host = await activeHost()
+        const alias = await createForwardedAlias({
+          service: forwardingService(service),
+          apiKey: requireText(apiKey, "apiKey"),
+          domain: optionalText(domain, "domain") ?? undefined,
+          baseUrl: optionalText(baseUrl, "baseUrl") ?? undefined,
+          website: host ?? undefined,
+        })
+        await addShownNow(alias, "username", host)
+        return { alias }
       },
     },
   } satisfies Partial<Handlers<BackgroundApi>>

@@ -1,4 +1,5 @@
 import { storage } from "wxt/utils/storage"
+import type { ForwardingService } from "./email-forwarding"
 import { isHostName } from "./site"
 
 export interface GeneratorOptions {
@@ -66,7 +67,7 @@ export const defaultPassphraseOptions: PassphraseOptions = {
   includeNumber: false,
 }
 
-export type UsernameType = "word" | "plusEmail" | "catchAll"
+export type UsernameType = "word" | "plusEmail" | "catchAll" | "forwarded"
 
 export interface UsernameOptions {
   type: UsernameType
@@ -77,6 +78,14 @@ export interface UsernameOptions {
   email: string
   /** The domain whose catch-all mailbox receives a catch-all username. */
   domain: string
+  /** Email forwarding alias provider when `type === "forwarded"`. */
+  forwardingService: ForwardingService
+  /** User API key for the selected forwarding service. */
+  forwardingApiKey: string
+  /** Custom domain required by Addy.io and ForwardEmail. */
+  forwardingDomain: string
+  /** Optional self-hosted base URL for SimpleLogin or Addy.io. */
+  forwardingBaseUrl: string
 }
 
 export const defaultUsernameOptions: UsernameOptions = {
@@ -85,6 +94,10 @@ export const defaultUsernameOptions: UsernameOptions = {
   includeNumber: false,
   email: "",
   domain: "",
+  forwardingService: "simplelogin",
+  forwardingApiKey: "",
+  forwardingDomain: "",
+  forwardingBaseUrl: "",
 }
 
 /** What the generator makes and how; password options keep their own item. */
@@ -407,5 +420,8 @@ export function generateUsername(
         ? `${randomAddressPart(8)}@${domain}`
         : null
     }
+    case "forwarded":
+      // Forwarded aliases are created asynchronously on demand via the background API.
+      return null
   }
 }

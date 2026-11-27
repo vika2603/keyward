@@ -112,10 +112,12 @@ export function MainView({
       <MainHeader
         syncShown={hasReadyBitwarden}
         syncing={syncing}
+        securityShown={hasReadyBitwarden}
         lockShown={loading || lists.vaults.length > 0}
         lockEnabled={anyVaultReady}
         onAdd={() => onNavigate({ name: "add" })}
         onGenerator={() => onNavigate({ name: "generator" })}
+        onSecurity={() => onNavigate({ name: "security" })}
         onSync={() => void syncAll()}
         onLockAll={() => void lockAll()}
       />

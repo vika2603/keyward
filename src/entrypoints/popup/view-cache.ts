@@ -20,6 +20,7 @@ const CACHEABLE_VIEWS: ReadonlySet<View["name"]> = new Set([
   "generator",
   "history",
   "passwordHistory",
+  "security",
 ])
 
 export interface SerializedListPlace {

@@ -1,6 +1,7 @@
 import type { Handlers } from "@/lib/messaging"
 import type { BitwardenProvider } from "@/lib/providers/bitwarden/bitwarden-provider"
 import { type Credential, VaultError } from "@/lib/providers/types"
+import { checkPasswordBreach } from "@/lib/security-check"
 import type { BackgroundApi } from "../api"
 import { copyText } from "../clipboard"
 import { MAX_COPIED_TEXT_LENGTH, MAX_SEARCH_LENGTH } from "../limits"
@@ -301,6 +302,22 @@ export function popupItemHandlers(
       handle: async () => {
         if (bitwarden) await bitwarden.syncAll()
         return null
+      },
+    },
+    "popup.securityAudit": {
+      allow: popupOnly,
+      handle: async () =>
+        bitwarden
+          ? bitwarden.securityAudit()
+          : { weak: [], reused: [], insecureHttp: [], totalChecked: 0 },
+    },
+    "popup.checkBreach": {
+      allow: popupOnly,
+      handle: async ({ vaultId, loginId }) => {
+        const { password } = await popupCredential(vaultId, loginId)
+        if (!password)
+          throw new VaultError("The login has no password", "noPassword")
+        return { count: await checkPasswordBreach(password) }
       },
     },
   } satisfies Partial<Handlers<BackgroundApi>>

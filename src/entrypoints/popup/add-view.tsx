@@ -4,6 +4,7 @@ import { callBackground } from "@/background/api"
 import { errorMessage, isUnsupportedRequest } from "@/components/keyward/errors"
 import { FormError, FormField } from "@/components/keyward/form-field"
 import { notifyError } from "@/components/keyward/notify"
+import { PasswordStrengthMeter } from "@/components/keyward/password-strength-meter"
 import { SecretInput } from "@/components/keyward/secret-input"
 import { VaultSelect } from "@/components/keyward/vault-select"
 import { Button } from "@/components/ui/button"
@@ -351,6 +352,10 @@ function AddLoginForm({ onDone }: { onDone: () => void }) {
               {t("popup.add.appleNeedsPassword")}
             </p>
           )}
+          <PasswordStrengthMeter
+            password={password}
+            userInputs={[site, username, details.name]}
+          />
         </FormField>
         <FormField label={t("popup.add.saveTo")}>
           <VaultSelect

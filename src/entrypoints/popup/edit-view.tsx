@@ -5,6 +5,7 @@ import { errorMessage } from "@/components/keyward/errors"
 import { FormError, FormField } from "@/components/keyward/form-field"
 import { FADE_IN } from "@/components/keyward/loading"
 import { matchNames } from "@/components/keyward/match-names"
+import { PasswordStrengthMeter } from "@/components/keyward/password-strength-meter"
 import { SecretInput } from "@/components/keyward/secret-input"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -267,6 +268,10 @@ export function EditView({
                     <RefreshCcwDotIcon />
                   </Button>
                 }
+              />
+              <PasswordStrengthMeter
+                password={form.password}
+                userInputs={[form.name, form.username, login.host ?? ""]}
               />
             </FormField>
             <FormField label={t("popup.detail.websites")}>

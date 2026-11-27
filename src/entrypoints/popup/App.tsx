@@ -30,6 +30,7 @@ import {
   popOut,
   takePoppedView,
 } from "./pop-out"
+import { SecurityView } from "./security-view"
 import {
   clearViewCache,
   deserializeListPlace,
@@ -62,6 +63,7 @@ function parentViewOf(view: View): View | null {
     case "note":
     case "generator":
     case "codeSetup":
+    case "security":
       return { name: "main" }
     case "edit":
     case "passwordHistory": {
@@ -201,6 +203,15 @@ function CurrentView({
       )
     case "history":
       return <HistoryView onBack={back} />
+    case "security":
+      return (
+        <SecurityView
+          onBack={back}
+          onOpenLogin={(vault, login) =>
+            onNavigate({ name: "detail", vault, login })
+          }
+        />
+      )
     case "codeSetup":
       return (
         <CodeSetupView

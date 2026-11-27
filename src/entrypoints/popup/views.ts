@@ -22,6 +22,7 @@ export type View =
   | PopupView
   | { name: "add" }
   | { name: "history" }
+  | { name: "security" }
   | {
       name: "detail"
       vault: VaultInfo

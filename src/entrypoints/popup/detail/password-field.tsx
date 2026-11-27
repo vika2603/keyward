@@ -1,11 +1,14 @@
+import { ShieldAlertIcon } from "lucide-react"
 import { useCallback, useRef, useState } from "react"
 import { callBackground } from "@/background/api"
 import { useCopyThrough } from "@/components/keyward/copy-through"
+import { notify } from "@/components/keyward/notify"
 import { t } from "@/lib/i18n"
 import {
   CopyButton,
   copyText,
   DetailRow,
+  IconButton,
   MaskText,
   RevealButton,
   requestOrNotify,
@@ -29,7 +32,22 @@ export function PasswordField({
   const [password, setPassword] = useState<string | null>(null)
   const [revealed, setRevealed] = useState(false)
   const [pending, setPending] = useState(false)
+  const [checkingBreach, setCheckingBreach] = useState(false)
   const valueRef = useRef<HTMLDivElement>(null)
+
+  const checkBreach = async () => {
+    setCheckingBreach(true)
+    const result = await requestOrNotify(() =>
+      callBackground("popup.checkBreach", ids),
+    ).finally(() => setCheckingBreach(false))
+    if (result) {
+      notify(
+        result.count > 0
+          ? t("popup.security.breachFound", { count: result.count })
+          : t("popup.security.breachClear"),
+      )
+    }
+  }
 
   const readPassword = useCallback(async (): Promise<string | null> => {
     if (password !== null) return password
@@ -70,6 +88,13 @@ export function PasswordField({
       valueRef={valueRef}
       actions={
         <>
+          <IconButton
+            label={t("popup.security.checkBreach")}
+            disabled={pending || checkingBreach}
+            onClick={() => void checkBreach()}
+          >
+            <ShieldAlertIcon />
+          </IconButton>
           <RevealButton
             shown={revealed}
             showLabel={t("popup.detail.showPassword")}

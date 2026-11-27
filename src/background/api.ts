@@ -1,3 +1,4 @@
+import type { ForwardingService } from "@/lib/email-forwarding"
 import type { GeneratorKind } from "@/lib/generator"
 import type { Language } from "@/lib/i18n/language"
 import { sendRequest } from "@/lib/messaging"
@@ -8,6 +9,7 @@ import type { SecondStepMethod } from "@/lib/providers/bitwarden/auth"
 import type {
   AccountSummary,
   PendingSignInView,
+  SecurityAuditReport,
   SignInOutcome,
 } from "@/lib/providers/bitwarden/bitwarden-provider"
 import type { CustomEndpoints } from "@/lib/providers/bitwarden/server"
@@ -277,6 +279,23 @@ export type BackgroundApi = {
   "popup.lockAll": { payload: null; result: null }
   /** Forces a fresh sync of all unlocked Bitwarden vaults. */
   "popup.syncAll": { payload: null; result: null }
+  /** Runs a local password hygiene audit across unlocked Bitwarden vaults. */
+  "popup.securityAudit": { payload: null; result: SecurityAuditReport }
+  /** On-demand HIBP k-anonymity breach check for a saved login's password. */
+  "popup.checkBreach": {
+    payload: { vaultId: string; loginId: string }
+    result: { count: number }
+  }
+  /** Creates a forwarded email alias via the user's configured forwarding service API. */
+  "generator.forwardedEmail": {
+    payload: {
+      service: ForwardingService
+      apiKey: string
+      domain?: string
+      baseUrl?: string
+    }
+    result: { alias: string }
+  }
   "popup.saveLogin": {
     payload: {
       vaultId: string

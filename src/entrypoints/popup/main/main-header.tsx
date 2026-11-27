@@ -3,6 +3,7 @@ import {
   PlusIcon,
   RefreshCcwDotIcon,
   RefreshCwIcon,
+  ShieldCheckIcon,
 } from "lucide-react"
 import keywardIcon from "@/assets/icon.svg"
 import { Button } from "@/components/ui/button"
@@ -10,23 +11,27 @@ import { t } from "@/lib/i18n"
 import { cn } from "@/lib/utils"
 import { SettingsButton } from "../header"
 
-/** The main view's title, with the buttons that add a login, generate, sync, lock all and open settings. */
+/** The main view's title, with the buttons that add a login, generate, audit, sync, lock all and open settings. */
 export function MainHeader({
   syncShown,
   syncing,
+  securityShown,
   lockShown,
   lockEnabled,
   onAdd,
   onGenerator,
+  onSecurity,
   onSync,
   onLockAll,
 }: {
   syncShown: boolean
   syncing: boolean
+  securityShown: boolean
   lockShown: boolean
   lockEnabled: boolean
   onAdd: () => void
   onGenerator: () => void
+  onSecurity: () => void
   onSync: () => void
   onLockAll: () => void
 }) {
@@ -64,6 +69,18 @@ export function MainHeader({
       >
         <RefreshCcwDotIcon />
       </Button>
+      {securityShown && (
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          className="text-muted-foreground hover:text-foreground"
+          aria-label={t("popup.security.title")}
+          title={t("popup.security.title")}
+          onClick={onSecurity}
+        >
+          <ShieldCheckIcon />
+        </Button>
+      )}
       {syncShown && (
         <Button
           variant="ghost"

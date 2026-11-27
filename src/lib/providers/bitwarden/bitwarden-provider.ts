@@ -1,4 +1,11 @@
+import { sha256, utf8 } from "@/lib/bytes"
 import { ruleForHost, uriMatches } from "@/lib/matching"
+import {
+  changePasswordUrlFor,
+  evaluatePasswordStrength,
+  isInsecureHttpUri,
+  type StrengthScore,
+} from "@/lib/security-check"
 import { getSettings } from "@/lib/settings"
 import { hostOfSavedUri, siteDomainOf } from "@/lib/site"
 import { oneTimeCode } from "@/lib/totp"
@@ -927,6 +934,94 @@ export class BitwardenProvider implements VaultProvider {
       changes.username = login.username
     await this.change(vaultId, vault.keys, cipher, changes)
   }
+
+  /**
+   * Audits all unlocked Bitwarden vaults locally for weak, reused, and HTTP-only login passwords.
+   * Performs no network requests and skips reprompt-protected items.
+   */
+  async securityAudit(): Promise<SecurityAuditReport> {
+    const allVaults = await this.vaults()
+    const readyVaults = allVaults.filter((vault) => vault.status === "ready")
+    const weak: SecurityAuditFinding[] = []
+    const insecureHttp: SecurityAuditFinding[] = []
+    const byPasswordDigest = new Map<
+      string,
+      {
+        vault: VaultInfo
+        login: LoginSummary
+        changePasswordUrl: string | null
+      }[]
+    >()
+    let totalChecked = 0
+
+    for (const vaultInfo of readyVaults) {
+      const vault = await this.vaultOf(vaultInfo.id)
+      const cipherById = new Map(
+        vault.ciphers.map((cipher) => [String(valueAt(cipher, "Id")), cipher]),
+      )
+      for (const item of vault.items) {
+        if (item.reprompt) continue
+        const cipher = cipherById.get(item.id)
+        if (!cipher) continue
+        const summary = summaryOf(item)
+        const changePasswordUrl = changePasswordUrlFor(summary.host)
+        totalChecked++
+
+        if (item.uris.some(({ uri }) => isInsecureHttpUri(uri))) {
+          insecureHttp.push({
+            vault: vaultInfo,
+            login: summary,
+            changePasswordUrl,
+          })
+        }
+
+        const password = decryptPassword(cipher, vault.keys)
+        if (!password) continue
+        const strength = evaluatePasswordStrength(password, [
+          item.name,
+          item.username,
+          summary.host ?? "",
+        ])
+        if (strength.score <= 1) {
+          weak.push({
+            vault: vaultInfo,
+            login: summary,
+            score: strength.score,
+            changePasswordUrl,
+          })
+        }
+        const digest = (await sha256(utf8(password))).toBase64()
+        const group = byPasswordDigest.get(digest) ?? []
+        group.push({ vault: vaultInfo, login: summary, changePasswordUrl })
+        byPasswordDigest.set(digest, group)
+      }
+    }
+
+    const reused: SecurityAuditFinding[] = []
+    for (const group of byPasswordDigest.values()) {
+      if (group.length < 2) continue
+      for (const entry of group) {
+        reused.push({ ...entry, reuseCount: group.length })
+      }
+    }
+
+    return { weak, reused, insecureHttp, totalChecked }
+  }
+}
+
+export interface SecurityAuditFinding {
+  vault: VaultInfo
+  login: LoginSummary
+  score?: StrengthScore
+  reuseCount?: number
+  changePasswordUrl: string | null
+}
+
+export interface SecurityAuditReport {
+  weak: SecurityAuditFinding[]
+  reused: SecurityAuditFinding[]
+  insecureHttp: SecurityAuditFinding[]
+  totalChecked: number
 }
 
 /**

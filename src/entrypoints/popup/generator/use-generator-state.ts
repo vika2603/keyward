@@ -58,6 +58,7 @@ export function useGeneratorState() {
   const [values, setValues] = useState<ShownValues>({})
   const [words, setWords] = useState<string[] | null>(null)
   const [message, setMessage] = useState<string | null>(null)
+  const [generatingAlias, setGeneratingAlias] = useState(false)
 
   useEffect(() => {
     void Promise.all([
@@ -131,6 +132,26 @@ export function useGeneratorState() {
     if (regenerate) show(next.kind, generate(next.kind, passwordOptions, next))
   }
 
+  const generateForwardedAlias = async () => {
+    setGeneratingAlias(true)
+    setMessage(null)
+    try {
+      const { alias } = await callBackground("generator.forwardedEmail", {
+        service: choices.username.forwardingService,
+        apiKey: choices.username.forwardingApiKey,
+        domain: choices.username.forwardingDomain || undefined,
+        baseUrl: choices.username.forwardingBaseUrl || undefined,
+      })
+      const next = { ...values, username: alias }
+      setValues(next)
+      void generatedItem.setValue(next)
+    } catch (error) {
+      setMessage(errorMessage(error))
+    } finally {
+      setGeneratingAlias(false)
+    }
+  }
+
   return {
     kind,
     value: values[kind] ?? null,
@@ -138,7 +159,15 @@ export function useGeneratorState() {
     choices,
     message,
     setMessage,
-    regenerate: () => show(kind, generate(kind, passwordOptions, choices)),
+    generatingAlias,
+    generateForwardedAlias,
+    regenerate: () => {
+      if (kind === "username" && choices.username.type === "forwarded") {
+        void generateForwardedAlias()
+        return
+      }
+      show(kind, generate(kind, passwordOptions, choices))
+    },
     chooseKind: (next: GeneratorKind) =>
       updateChoices({ ...choices, kind: next }, false),
     updatePasswordOptions,
@@ -147,10 +176,11 @@ export function useGeneratorState() {
         { ...choices, passphrase: { ...choices.passphrase, ...patch } },
         true,
       ),
-    updateUsername: (patch: Partial<UsernameOptions>) =>
-      updateChoices(
-        { ...choices, username: { ...choices.username, ...patch } },
-        true,
-      ),
+    updateUsername: (patch: Partial<UsernameOptions>) => {
+      const nextUsername = { ...choices.username, ...patch }
+      // Never auto-call external forwarding APIs while the user is editing options.
+      const shouldRegenerate = nextUsername.type !== "forwarded"
+      updateChoices({ ...choices, username: nextUsername }, shouldRegenerate)
+    },
   }
 }

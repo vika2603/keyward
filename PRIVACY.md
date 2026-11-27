@@ -20,10 +20,17 @@ To find sign-in and sign-up forms and to offer the matching logins, Keyward read
 Keyward keeps the following in the browser's extension storage on your device:
 
 - Your settings, including any per-site rules you add.
-- For each Bitwarden account: the email address, the server address, the name you gave it, and the account key and sign-in token in encrypted form, which can be used only with your master password. Also a random device identifier that Bitwarden servers require.
-- Your generator options.
+- For each Bitwarden account: the email address, the server address, the name you gave it, the encrypted vault sync payload (for offline unlock), and the account key and sign-in token in encrypted form, which can be used only with your master password. Also a random device identifier that Bitwarden servers require.
+- Your generator options, including any email forwarding service API key you enter if you enable forwarded email aliases.
 
-Unlocked keys, access tokens, downloaded vault data, the Passwords session and the generator history are kept only in memory or in session storage, which the browser clears when it closes.
+Unlocked keys, access tokens, the Passwords session, popup view cache and the generator history are kept only in memory or in session storage, which the browser clears when it closes.
+
+## Optional external requests you trigger
+
+Keyward never contacts third-party services in the background. It sends a request outside your configured password vault only when you explicitly click to use one of these optional features:
+
+- **Forwarded email aliases.** When you configure an API key and click to generate a forwarded email alias, Keyward sends an alias-creation request directly to the service you selected (SimpleLogin, Addy.io, Fastmail Masked Email, Firefox Relay, DuckDuckGo Email Protection, or ForwardEmail), including the active site's hostname as a note when available.
+- **On-demand password breach check.** When you click to check a password for known breaches, Keyward hashes the password locally with SHA-1 and sends only the first 5 hexadecimal characters of the hash to `api.pwnedpasswords.com` (with `Add-Padding: true`) using k-anonymity. Your password and full hash never leave your device. Password strength scoring (`zxcvbn`) runs entirely locally.
 
 ## Browser settings and the clipboard
 

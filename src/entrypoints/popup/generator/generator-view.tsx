@@ -36,6 +36,8 @@ export function GeneratorView({
     missingInputHint = t("popup.generator.needEmail")
   else if (kind === "username" && usernameType === "catchAll")
     missingInputHint = t("popup.generator.needDomain")
+  else if (kind === "username" && usernameType === "forwarded")
+    missingInputHint = t("popup.generator.needForwardingKey")
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -91,7 +93,9 @@ export function GeneratorView({
           {kind === "username" && (
             <UsernameOptionsForm
               options={choices.username}
+              generatingAlias={generator.generatingAlias}
               onChange={generator.updateUsername}
+              onGenerateAlias={() => void generator.generateForwardedAlias()}
             />
           )}
         </div>

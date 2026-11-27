@@ -3,6 +3,7 @@ import { Fragment, useCallback, useRef } from "react"
 import { callBackground } from "@/background/api"
 import { useCopyThrough } from "@/components/keyward/copy-through"
 import { errorMessage } from "@/components/keyward/errors"
+import { PasswordStrengthMeter } from "@/components/keyward/password-strength-meter"
 import { Button } from "@/components/ui/button"
 import {
   COPIED_FEEDBACK_MS,
@@ -93,6 +94,9 @@ export function GeneratedValueCard({
           <span className="text-xs text-muted-foreground">
             {t("popup.generator.passphraseLength", { count: value.length })}
           </span>
+        )}
+        {kind !== "username" && value !== null && (
+          <PasswordStrengthMeter password={value} />
         )}
       </div>
       <div className="flex shrink-0 gap-0.5">
